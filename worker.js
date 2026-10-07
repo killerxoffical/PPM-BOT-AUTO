@@ -557,21 +557,25 @@ app.post("/api/tg/verify-otp", async (req, res) => {
 
     try {
         try {
-            await item.client.signIn({
+            await item.client.invoke(new Api.auth.SignIn({
                 phoneNumber: phone,
                 phoneCodeHash: item.phoneCodeHash,
-                phoneCode: code,
-                password: password ? (async () => password) : undefined
-            });
+                phoneCode: code
+            }));
         } catch (signInErr) {
             if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
                 if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
-                await item.client.signIn({
-                    phoneNumber: phone,
-                    phoneCodeHash: item.phoneCodeHash,
-                    phoneCode: code,
-                    password: password
-                });
+
+                const pwdMod = require("telegram/Password");
+                const computeFn = typeof pwdMod === "function" ? pwdMod : (pwdMod.computeCheckPassword || (pwdMod.default && typeof pwdMod.default === "function" ? pwdMod.default : pwdMod.default?.computeCheckPassword));
+                
+                if (typeof computeFn !== "function") {
+                    return res.status(500).json({ ok: false, error: "Password helper failed" });
+                }
+
+                const passwordSrpResult = await item.client.invoke(new Api.account.GetPassword());
+                const passwordSrpHash = await computeFn(passwordSrpResult, password);
+                await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
             } else {
                 throw signInErr;
             }
@@ -586,6 +590,88 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         return res.json({ ok: true, message: "Account connected successfully!" });
     } catch (err) {
         return res.status(500).json({ ok: false, error: err.errorMessage || err.message });
+    }
+});
+
+// ---------------- 7b. DIRECT QR CODE LOGIN API ----------------
+const activeQrClients = new Map();
+
+app.post("/api/tg/qr-start", async (req, res) => {
+    try {
+        const qrId = "qr_" + Date.now();
+        const client = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+        await client.connect();
+
+        const result = await client.invoke(new Api.auth.ExportLoginToken({
+            apiId: DEFAULT_API_ID,
+            apiHash: DEFAULT_API_HASH,
+            exceptIds: []
+        }));
+
+        if (result && result.token) {
+            const tokenBase64 = Buffer.from(result.token).toString("base64url");
+            const qrUrl = `tg://login?token=${tokenBase64}`;
+            activeQrClients.set(qrId, { client, expires: result.expires });
+            return res.json({ ok: true, qrId, qrUrl, expires: result.expires });
+        }
+        return res.status(400).json({ ok: false, error: "QR জেনারেট ফেইলড" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post("/api/tg/qr-check", async (req, res) => {
+    const { qrId, password } = req.body;
+    const item = activeQrClients.get(qrId);
+    if (!item) return res.status(400).json({ ok: false, error: "QR এর মেয়াদ শেষ" });
+
+    try {
+        const result = await item.client.invoke(new Api.auth.ExportLoginToken({
+            apiId: DEFAULT_API_ID,
+            apiHash: DEFAULT_API_HASH,
+            exceptIds: []
+        }));
+
+        if (result instanceof Api.auth.LoginTokenSuccess) {
+            const me = await item.client.getMe();
+            const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
+            const sessionString = item.client.session.save();
+
+            await db.collection("tg_accounts").doc(phone).set({
+                phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            activeQrClients.delete(qrId);
+            return res.json({ ok: true, status: "success", phone });
+        }
+        return res.json({ ok: true, status: "pending" });
+    } catch (e) {
+        if (e.errorMessage === "SESSION_PASSWORD_NEEDED" || (e.message && e.message.includes("2FA"))) {
+            if (!password) {
+                return res.json({ ok: true, status: "2fa_needed" });
+            }
+            try {
+                const pwdMod = require("telegram/Password");
+                const computeFn = typeof pwdMod === "function" ? pwdMod : (pwdMod.computeCheckPassword || (pwdMod.default && typeof pwdMod.default === "function" ? pwdMod.default : pwdMod.default?.computeCheckPassword));
+                const srpRes = await item.client.invoke(new Api.account.GetPassword());
+                const srpHash = await computeFn(srpRes, password);
+                await item.client.invoke(new Api.auth.CheckPassword({ password: srpHash }));
+
+                const me = await item.client.getMe();
+                const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
+                const sessionString = item.client.session.save();
+
+                await db.collection("tg_accounts").doc(phone).set({
+                    phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                activeQrClients.delete(qrId);
+                return res.json({ ok: true, status: "success", phone });
+            } catch (err2) {
+                return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড ভুল হয়েছে" });
+            }
+        }
+        return res.json({ ok: true, status: "pending" });
     }
 });
 
