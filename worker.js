@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const TelegramBot = require("node-telegram-bot-api");
-const { TelegramClient } = require("telegram");
+const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
@@ -14,7 +14,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Cron-job & UptimeRobot এর জন্য রুট (এখন /ping ১০০% কাজ করবে)
 app.get("/", (req, res) => res.status(200).send("PP MOD Master Worker Active!"));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
@@ -48,15 +47,23 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map(); // phone -> { client, phoneCodeHash }
 
-// ---------------- 4. FAST DIRECT OTP API (NO MORE SPINNING!) ----------------
+// অটো +88 ফরম্যাট হেল্পার (ইউজার 01 দিলে অটো +8801 হবে)
+function formatBdPhone(raw) {
+    let num = (raw || "").toString().replace(/[^0-9]/g, "");
+    if (num.startsWith("880")) return "+" + num;
+    if (num.startsWith("0")) return "+88" + num;
+    if (num.startsWith("1")) return "+880" + num;
+    return "+" + num;
+}
+
+// ---------------- 4. FAST DIRECT OTP API (FIXED WITH GramJS Api) ----------------
 app.post("/api/tg/send-otp", async (req, res) => {
-    const rawPhone = req.body.phone || "";
-    const phone = rawPhone.replace(/[^0-9+]/g, "");
-    if (!phone || phone.length < 9) {
-        return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (+880...)" });
+    const phone = formatBdPhone(req.body.phone || "");
+    if (!phone || phone.length < 11) {
+        return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
     }
 
-    console.log(`[DIRECT AUTH] Requesting OTP for: ${phone}`);
+    console.log(`[AUTH] Requesting OTP for formatted phone: ${phone}`);
     try {
         const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
         await tempClient.connect();
@@ -71,19 +78,18 @@ app.post("/api/tg/send-otp", async (req, res) => {
             phoneCodeHash: result.phoneCodeHash
         });
 
-        console.log(`[DIRECT AUTH SUCCESS] OTP sent to Telegram: ${phone}`);
-        return res.json({ ok: true, message: "OTP sent to Telegram!" });
+        console.log(`[AUTH SUCCESS] OTP sent to Telegram: ${phone}`);
+        return res.json({ ok: true, message: "OTP sent to Telegram!", phone: phone });
     } catch (err) {
-        console.error(`[DIRECT AUTH ERR]:`, err.message);
+        console.error(`[AUTH ERR]:`, err.message);
         return res.status(500).json({ ok: false, error: err.message });
     }
 });
 
 app.post("/api/tg/verify-otp", async (req, res) => {
-    const rawPhone = req.body.phone || "";
-    const phone = rawPhone.replace(/[^0-9+]/g, "");
-    const code = (req.body.code || "").trim();
-    const password = (req.body.password || "").trim();
+    const phone = formatBdPhone(req.body.phone || "");
+    const code = (req.body.code || "").toString().trim();
+    const password = (req.body.password || "").toString().trim();
 
     const item = pendingAuthClients.get(phone);
     if (!item) {
@@ -91,11 +97,35 @@ app.post("/api/tg/verify-otp", async (req, res) => {
     }
 
     try {
-        await item.client.signIn({
-            phoneNumber: phone,
-            phoneCodeHash: item.phoneCodeHash,
-            phoneCode: code
-        });
+        // GramJS Official Method: Api.auth.SignIn
+        try {
+            await item.client.invoke(
+                new Api.auth.SignIn({
+                    phoneNumber: phone,
+                    phoneCodeHash: item.phoneCodeHash,
+                    phoneCode: code
+                })
+            );
+        } catch (signInErr) {
+            // যদি 2FA পাসওয়ার্ড চায়
+            if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && signInErr.message.includes("2FA"))) {
+                if (!password) {
+                    return res.status(400).json({ ok: false, error: "এই অ্যাকাউন্টে 2FA অন আছে! Two-Step পাসওয়ার্ড দিন।" });
+                }
+                if (typeof item.client.checkPassword === "function") {
+                    await item.client.checkPassword(password);
+                } else if (typeof item.client.signInUserWithPassword === "function") {
+                    await item.client.signInUserWithPassword({ apiId: DEFAULT_API_ID, apiHash: DEFAULT_API_HASH, password: password });
+                } else {
+                    const pwd = await item.client.invoke(new Api.account.GetPassword());
+                    const { computeCheck } = require("telegram/Password");
+                    const passwordHash = await computeCheck(pwd, password);
+                    await item.client.invoke(new Api.auth.CheckPassword({ password: passwordHash }));
+                }
+            } else {
+                throw signInErr;
+            }
+        }
 
         const sessionString = item.client.session.save();
 
@@ -108,36 +138,11 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         }, { merge: true });
 
         pendingAuthClients.delete(phone);
-        console.log(`[AUTH VERIFIED] Account ${phone} connected successfully!`);
+        console.log(`[AUTH VERIFIED SUCCESS] Account ${phone} connected!`);
         return res.json({ ok: true, message: "Account connected successfully!" });
     } catch (err) {
-        // 2FA পাসওয়ার্ড হ্যান্ডলিং
-        if (err.message && (err.message.includes("PASSWORD_HASH_INVALID") || err.message.includes("2FA") || err.message.includes("SESSION_PASSWORD_NEEDED"))) {
-            if (!password) {
-                return res.status(400).json({ ok: false, error: "এই অ্যাকাউন্টে 2FA অন আছে! পাসওয়ার্ড দিন।" });
-            }
-            try {
-                await item.client.signInWithPassword({
-                    apiId: DEFAULT_API_ID,
-                    apiHash: DEFAULT_API_HASH
-                }, { password: password });
-
-                const sessionString = item.client.session.save();
-                await db.collection("tg_accounts").doc(phone).set({
-                    phone: phone,
-                    session: sessionString,
-                    balance: 0,
-                    active: true,
-                    addedAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-
-                pendingAuthClients.delete(phone);
-                return res.json({ ok: true, message: "Account connected with 2FA!" });
-            } catch (pErr) {
-                return res.status(400).json({ ok: false, error: "ভুল 2FA পাসওয়ার্ড!" });
-            }
-        }
-        return res.status(500).json({ ok: false, error: err.message });
+        console.error(`[VERIFY ERR]:`, err);
+        return res.status(500).json({ ok: false, error: err.errorMessage || err.message || "ভেরিফিকেশন ফেইলড" });
     }
 });
 
