@@ -547,6 +547,44 @@ app.post("/api/tg/send-otp", async (req, res) => {
     }
 });
 
+// Universal 2FA SRP Calculator Helper
+async function computeSrpHash(client, password) {
+    let computeFn = null;
+    const paths = ["telegram/Password", "telegram/Password.js", "telegram/Utils"];
+    for (const p of paths) {
+        try {
+            const mod = require(p);
+            if (typeof mod === "function") { computeFn = mod; break; }
+            if (typeof mod.computeCheckPassword === "function") { computeFn = mod.computeCheckPassword; break; }
+            if (mod.default) {
+                if (typeof mod.default === "function") { computeFn = mod.default; break; }
+                if (typeof mod.default.computeCheckPassword === "function") { computeFn = mod.default.computeCheckPassword; break; }
+            }
+            for (const k of Object.keys(mod)) {
+                if (typeof mod[k] === "function" && k.toLowerCase().includes("password")) {
+                    computeFn = mod[k];
+                    break;
+                }
+            }
+            if (computeFn) break;
+        } catch (e) {}
+    }
+
+    if (!computeFn) {
+        try {
+            const gram = require("telegram");
+            if (typeof gram.computeCheckPassword === "function") computeFn = gram.computeCheckPassword;
+            else if (gram.Password && typeof gram.Password.computeCheckPassword === "function") computeFn = gram.Password.computeCheckPassword;
+        } catch (e) {}
+    }
+
+    const srpResult = await client.invoke(new Api.account.GetPassword());
+    if (computeFn) {
+        return await computeFn(srpResult, password);
+    }
+    throw new Error("2FA Password module resolution failed");
+}
+
 app.post("/api/tg/verify-otp", async (req, res) => {
     const phone = formatBdPhone(req.body.phone || "");
     const code = (req.body.code || "").toString().trim();
@@ -566,15 +604,7 @@ app.post("/api/tg/verify-otp", async (req, res) => {
             if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
                 if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
 
-                const pwdMod = require("telegram/Password");
-                const computeFn = typeof pwdMod === "function" ? pwdMod : (pwdMod.computeCheckPassword || (pwdMod.default && typeof pwdMod.default === "function" ? pwdMod.default : pwdMod.default?.computeCheckPassword));
-                
-                if (typeof computeFn !== "function") {
-                    return res.status(500).json({ ok: false, error: "Password helper failed" });
-                }
-
-                const passwordSrpResult = await item.client.invoke(new Api.account.GetPassword());
-                const passwordSrpHash = await computeFn(passwordSrpResult, password);
+                const passwordSrpHash = await computeSrpHash(item.client, password);
                 await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
             } else {
                 throw signInErr;
@@ -643,6 +673,10 @@ app.post("/api/tg/qr-check", async (req, res) => {
 
             activeQrClients.delete(qrId);
             return res.json({ ok: true, status: "success", phone });
+        } else if (result instanceof Api.auth.LoginTokenMigrateTo) {
+            // ডাটা সেন্টার মাইগ্রেশন (Asia/BD অ্যাকাউন্ট হলে প্রয়োজন হয়)
+            await item.client._switchDC(result.dcId);
+            return res.json({ ok: true, status: "pending" });
         }
         return res.json({ ok: true, status: "pending" });
     } catch (e) {
@@ -651,10 +685,7 @@ app.post("/api/tg/qr-check", async (req, res) => {
                 return res.json({ ok: true, status: "2fa_needed" });
             }
             try {
-                const pwdMod = require("telegram/Password");
-                const computeFn = typeof pwdMod === "function" ? pwdMod : (pwdMod.computeCheckPassword || (pwdMod.default && typeof pwdMod.default === "function" ? pwdMod.default : pwdMod.default?.computeCheckPassword));
-                const srpRes = await item.client.invoke(new Api.account.GetPassword());
-                const srpHash = await computeFn(srpRes, password);
+                const srpHash = await computeSrpHash(item.client, password);
                 await item.client.invoke(new Api.auth.CheckPassword({ password: srpHash }));
 
                 const me = await item.client.getMe();
