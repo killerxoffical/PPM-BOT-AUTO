@@ -107,16 +107,27 @@ app.post("/api/tg/group-broadcast", async (req, res) => {
     }
 });
 
-// ---------------- 4b. TEST WELCOME (preview welcome message in a group) ----------------
-function buildWelcome(groupConf, name) {
-    const text = (groupConf && groupConf.welcomeMsg) ? groupConf.welcomeMsg.replace(/\{name\}/g, name || "Member")
+// ---------------- 4b. GLOBAL WELCOME DEFAULTS (tg_config/welcome, cached 5 min) ----------------
+let globalWelcome = null, globalWelcomeAt = 0;
+async function getGlobalWelcome() {
+    if (globalWelcome && Date.now() - globalWelcomeAt < 5 * 60 * 1000) return globalWelcome;
+    try {
+        const d = await db.collection("tg_config").doc("welcome").get();
+        globalWelcome = d.exists ? d.data() : {};
+    } catch (e) { globalWelcome = globalWelcome || {}; }
+    globalWelcomeAt = Date.now();
+    return globalWelcome;
+}
+function buildWelcome(gw, name) {
+    gw = gw || {};
+    const text = gw.welcomeMsg ? String(gw.welcomeMsg).replace(/\{name\}/g, name || "Member")
         : `🎉 <b>স্বাগতম ${name || "Member"}!</b>\n\n` +
           `আমাদের অফিসিয়াল গ্রুপে আপনাকে স্বাগতম। এখানে গুগল প্লে পয়েন্ট অটোমেশন সাপোর্ট ও রিয়েল-টাইম আপডেট পাবেন।\n\n` +
           `📢 <b>আমাদের চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n` +
           `⚠️ <i>গ্রুপে যেকোনো স্ক্যামার থেকে সতর্ক থাকুন।</i>`;
-    const img = (groupConf && groupConf.welcomeImg) || WELCOME_IMG;
-    const links = (groupConf && Array.isArray(groupConf.joinLinks) && groupConf.joinLinks.length)
-        ? groupConf.joinLinks
+    const img = gw.welcomeImg || WELCOME_IMG;
+    const links = (Array.isArray(gw.joinLinks) && gw.joinLinks.length)
+        ? gw.joinLinks
         : [{ text: "📢 Official Channel", url: "https://t.me/googleplaypointhack" }];
     const buttons = links.filter((b) => b && b.url).slice(0, 8).map((b) => ([
         { text: String(b.text || "Join").slice(0, 60), url: String(b.url) }
@@ -128,9 +139,8 @@ app.post("/api/tg/test-welcome", async (req, res) => {
     const { chatId } = req.body;
     if (!chatId) return res.status(400).json({ ok: false, error: "Group ID দিন" });
     try {
-        const gDoc = await db.collection("tg_groups").doc(chatId.toString()).get();
-        const gConf = gDoc.exists ? gDoc.data() : {};
-        const w = buildWelcome(gConf, "Test User");
+        const gw = await getGlobalWelcome();
+        const w = buildWelcome(gw, "Test User");
         await groupBot.sendPhoto(chatId.toString(), w.img, {
             caption: w.text, parse_mode: "HTML", reply_markup: { inline_keyboard: w.buttons }
         });
@@ -838,7 +848,8 @@ groupBot.on("message", async (msg) => {
                 } catch (e) {}
                 if (ownChannel) return; // নিজেদের/অনুমোদিত চ্যানেলের পোস্ট — কোনো ফিল্টার চালবে না
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অন্য কোনো চ্যানেল, গ্রুপ বা ইনবক্স থেকে শেয়ার বা ফরোয়ার্ড করা সম্পূর্ণ নিষেধ!`, { parse_mode: "HTML" });
+                const fwdMsg = (groupConf.msgs && groupConf.msgs.forward) || "অন্য কোনো চ্যানেল, গ্রুপ বা ইনবক্স থেকে শেয়ার বা ফরোয়ার্ড করা সম্পূর্ণ নিষেধ!";
+                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ${fwdMsg}`, { parse_mode: "HTML" });
                 setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                 return;
             }
@@ -846,7 +857,8 @@ groupBot.on("message", async (msg) => {
             // ২. ভিডিও ও ভিডিও নোট ব্লক
             if (groupConf.antiVideo && (msg.video || msg.video_note)) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে ভিডিও পাঠানো নিষেধ!`, { parse_mode: "HTML" });
+                const vidMsg = (groupConf.msgs && groupConf.msgs.video) || "গ্রুপে ভিডিও পাঠানো নিষেধ!";
+                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ${vidMsg}`, { parse_mode: "HTML" });
                 setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                 return;
             }
@@ -856,7 +868,8 @@ groupBot.on("message", async (msg) => {
                 for (const ib of INBOX_WORDS) {
                     if (text.toLowerCase().includes(ib.toLowerCase())) {
                         await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                        const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে ইনবক্সে ডাকার চেষ্টা করবেন না! সব কথা গ্রুপেই বলুন।`, { parse_mode: "HTML" });
+                        const ibMsg = (groupConf.msgs && groupConf.msgs.inbox) || "গ্রুপে ইনবক্সে ডাকার চেষ্টা করবেন না! সব কথা গ্রুপেই বলুন।";
+                        const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ${ibMsg}`, { parse_mode: "HTML" });
                         setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                         return;
                     }
@@ -867,7 +880,8 @@ groupBot.on("message", async (msg) => {
             if (groupConf.antiLink !== false && (text.includes("t.me/") || text.includes("http://") || text.includes("https://"))) {
                 if (!text.includes("googleplaypointhack") && !text.includes("ppmod")) {
                     await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অননুমোদিত লিংক দেওয়া নিষেধ!`, { parse_mode: "HTML" });
+                    const linkMsg = (groupConf.msgs && groupConf.msgs.link) || "অননুমোদিত লিংক দেওয়া নিষেধ!";
+                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ${linkMsg}`, { parse_mode: "HTML" });
                     setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                     return;
                 }
@@ -1020,12 +1034,13 @@ groupBot.on("new_chat_members", async (msg) => {
                 groupConfigs.set(chatId, gConf);
             } catch (e) { gConf = {}; }
         }
-        if (gConf.welcomeOn === false) return;
+        const gw = await getGlobalWelcome();
+        if (gw.welcomeOn === false) return;
 
         for (const user of newMembers) {
             if (user.is_bot) continue;
             const name = user.first_name || "Member";
-            const w = buildWelcome(gConf, name);
+            const w = buildWelcome(gw, name);
 
             const sentWelcome = await groupBot.sendPhoto(chatId, w.img, {
                 caption: w.text,
