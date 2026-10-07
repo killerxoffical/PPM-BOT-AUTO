@@ -762,6 +762,18 @@ groupBot.on("my_chat_member", async (msg) => {
     } catch (e) {}
 });
 
+// Linked-channel cache (own channel forwards must NOT be deleted)
+const linkedCache = new Map();
+async function getLinkedChatId(chatId) {
+    if (linkedCache.has(chatId)) return linkedCache.get(chatId);
+    try {
+        const info = await groupBot.getChat(chatId);
+        const lid = info && info.linked_chat_id ? String(info.linked_chat_id) : "";
+        linkedCache.set(chatId, lid);
+        return lid;
+    } catch (e) { return ""; }
+}
+
 // গ্রুপ মেসেজ হ্যান্ডলার (ফরোয়ার্ড ব্লক + আসল গালি ডিটেক্ট + ৩-ওয়ার্নিং ব্যান)
 groupBot.on("message", async (msg) => {
     try {
@@ -805,6 +817,26 @@ groupBot.on("message", async (msg) => {
             );
 
             if (groupConf.antiForward !== false && isForwarded) {
+                let ownChannel = false;
+                try {
+                    const fwdChat = (msg.forward_origin && msg.forward_origin.type === "channel" && msg.forward_origin.chat)
+                        ? msg.forward_origin.chat
+                        : (msg.forward_from_chat || null);
+                    if (fwdChat) {
+                        const fid = (fwdChat.id !== undefined && fwdChat.id !== null) ? String(fwdChat.id) : "";
+                        const fun = ((fwdChat.username || "").toString().toLowerCase().replace(/^@/, ""));
+                        if (fid) {
+                            const linked = await getLinkedChatId(chatId);
+                            if (linked && fid === String(linked)) ownChannel = true;
+                        }
+                        if (!ownChannel && fun) {
+                            const list = Array.isArray(groupConf.allowChannels) ? groupConf.allowChannels : [];
+                            const norm = list.map((x) => (x || "").toString().toLowerCase().replace(/^@/, "").trim()).filter(Boolean);
+                            if (norm.includes(fun)) ownChannel = true;
+                        }
+                    }
+                } catch (e) {}
+                if (ownChannel) return; // নিজেদের/অনুমোদিত চ্যানেলের পোস্ট — কোনো ফিল্টার চালবে না
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
                 const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অন্য কোনো চ্যানেল, গ্রুপ বা ইনবক্স থেকে শেয়ার বা ফরোয়ার্ড করা সম্পূর্ণ নিষেধ!`, { parse_mode: "HTML" });
                 setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
