@@ -13,14 +13,12 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => res.status(200).send("PP MOD Master Worker Active!"));
+app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine & Group Guardian Active!"));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
-
 app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
 
-// ---------------- 2. FIREBASE ADMIN INITIALIZATION ----------------
+// ---------------- 2. FIREBASE ADMIN ----------------
 let serviceAccount;
 try {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -39,11 +37,14 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const GROUP_PROTECT_BOT_TOKEN = process.env.GROUP_PROTECT_BOT_TOKEN || "8590481969:AAFezVtaNE6D0QF0ss26k2SHj5tW7hCiSN8";
+
+// টেলিগ্রাম গ্রুপ প্রটেকশন বট (@Vareonprotection_bot)
 const groupBot = new TelegramBot(GROUP_PROTECT_BOT_TOKEN, { polling: true });
 
-// 🌟 আপনার দেওয়া ছবি ও মেসেজ
+// আপনার দেওয়া ওয়েলকাম ছবি ও ক্যাপশন
+const WELCOME_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791346466943_file_00000000702c82118797af8f3a1c57e0.png";
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
-const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা দয়া করে নিচে বিস্তারিত লিখে রাখুন।\n\n📢 <b>আমাদের অফিশিয়াল চ্যানেলে যুক্ত থাকুন:</b>\n👉 <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
+const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা দয়া করে নিচে বিস্তারিত লিখে রাখুন।\n\n📢 <b>আমাদের অফিসিয়াল চ্যানেলে যুক্ত থাকুন:</b>\n👉 <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
 
 let currentClient = null;
 let currentPhone = null;
@@ -51,8 +52,8 @@ let primeClient = null;
 let primePhone = null;
 
 const activeOrders = new Set();
-const autoReplyCooldown = new Map(); // senderId -> timestamp
-const pendingAuthClients = new Map(); // phone -> { client, phoneCodeHash }
+const autoReplyCooldown = new Map();
+const pendingAuthClients = new Map();
 
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
@@ -66,23 +67,16 @@ function formatBdPhone(raw) {
 async function initPrimeAutoResponder() {
     try {
         const snap = await db.collection("tg_accounts").where("isPrime", "==", true).limit(1).get();
-        if (snap.empty) {
-            console.log("[PRIME] No Prime account designated yet.");
-            return;
-        }
+        if (snap.empty) return;
 
         const primeData = snap.docs[0].data();
         const phone = primeData.phone || snap.docs[0].id;
-
-        if (primeClient && primePhone === phone) {
-            return; // Already running
-        }
+        if (primeClient && primePhone === phone) return;
 
         if (primeClient) {
             try { await primeClient.disconnect(); } catch (e) {}
         }
 
-        console.log(`[PRIME AUTO-REPLY] Initializing 24/7 Listener for Prime Account: ${phone}`);
         primeClient = new TelegramClient(new StringSession(primeData.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 10 });
         await primeClient.connect();
         primePhone = phone;
@@ -97,30 +91,20 @@ async function initPrimeAutoResponder() {
                 const senderId = sender.id.toString();
                 const now = Date.now();
                 const lastTime = autoReplyCooldown.get(senderId) || 0;
+                if (now - lastTime < 3600000) return; // ১ ঘণ্টার কুলডাউন
 
-                // ১ ঘণ্টার কুলডাউন
-                if (now - lastTime < 3600000) return;
-
-                console.log(`[PRIME DM] Message from ${sender.firstName || senderId}. Replying in 3.5s...`);
                 await new Promise((r) => setTimeout(r, 3500));
-
                 await primeClient.sendMessage(sender.id, {
                     file: PRIME_AUTO_REPLY_IMG,
                     message: PRIME_AUTO_REPLY_CAPTION,
                     parseMode: "html"
                 });
-
                 autoReplyCooldown.set(senderId, now);
-                console.log(`[PRIME DM SENT] Successfully sent auto-reply to ${sender.firstName || senderId}`);
-            } catch (err) {
-                console.error("[PRIME DM ERR]:", err.message);
-            }
+            } catch (err) {}
         }, new NewMessage({ incoming: true }));
 
-        console.log(`[PRIME AUTO-REPLY] Active & Listening 24/7 for: ${phone}`);
-    } catch (e) {
-        console.error("[PRIME INIT ERR]:", e.message);
-    }
+        console.log(`[PRIME AUTO-REPLY] 24/7 Listener Active for: ${phone}`);
+    } catch (e) {}
 }
 
 // ---------------- 5. FAST DIRECT OTP API ----------------
@@ -130,7 +114,6 @@ app.post("/api/tg/send-otp", async (req, res) => {
         return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
     }
 
-    console.log(`[AUTH] Requesting OTP for: ${phone}`);
     try {
         const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
         await tempClient.connect();
@@ -140,11 +123,7 @@ app.post("/api/tg/send-otp", async (req, res) => {
             apiHash: DEFAULT_API_HASH
         }, phone);
 
-        pendingAuthClients.set(phone, {
-            client: tempClient,
-            phoneCodeHash: result.phoneCodeHash
-        });
-
+        pendingAuthClients.set(phone, { client: tempClient, phoneCodeHash: result.phoneCodeHash });
         return res.json({ ok: true, message: "OTP sent to Telegram!", phone: phone });
     } catch (err) {
         return res.status(500).json({ ok: false, error: err.message });
@@ -157,24 +136,18 @@ app.post("/api/tg/verify-otp", async (req, res) => {
     const password = (req.body.password || "").toString().trim();
 
     const item = pendingAuthClients.get(phone);
-    if (!item) {
-        return res.status(400).json({ ok: false, error: "সেশন মেয়াদ শেষ! আবার Send OTP দিন।" });
-    }
+    if (!item) return res.status(400).json({ ok: false, error: "সেশন মেয়াদ শেষ! আবার Send OTP দিন।" });
 
     try {
         try {
-            await item.client.invoke(
-                new Api.auth.SignIn({
-                    phoneNumber: phone,
-                    phoneCodeHash: item.phoneCodeHash,
-                    phoneCode: code
-                })
-            );
+            await item.client.invoke(new Api.auth.SignIn({
+                phoneNumber: phone,
+                phoneCodeHash: item.phoneCodeHash,
+                phoneCode: code
+            }));
         } catch (signInErr) {
             if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && signInErr.message.includes("2FA"))) {
-                if (!password) {
-                    return res.status(400).json({ ok: false, error: "এই অ্যাকাউন্টে 2FA অন আছে! Two-Step পাসওয়ার্ড দিন।" });
-                }
+                if (!password) return res.status(400).json({ ok: false, error: "এই অ্যাকাউন্টে 2FA অন আছে! Two-Step পাসওয়ার্ড দিন।" });
                 if (typeof item.client.checkPassword === "function") {
                     await item.client.checkPassword(password);
                 } else if (typeof item.client.signInUserWithPassword === "function") {
@@ -191,8 +164,6 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         }
 
         const sessionString = item.client.session.save();
-
-        // অ্যাকাউন্ট সেভ করা
         await db.collection("tg_accounts").doc(phone).set({
             phone: phone,
             session: sessionString,
@@ -204,18 +175,15 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         pendingAuthClients.delete(phone);
         return res.json({ ok: true, message: "Account connected successfully!" });
     } catch (err) {
-        return res.status(500).json({ ok: false, error: err.errorMessage || err.message || "ভেরিফিকেশন ফেইলড" });
+        return res.status(500).json({ ok: false, error: err.errorMessage || err.message });
     }
 });
 
-// ---------------- 6. REAL BALANCE CHECK (LOOPS EVERY CONNECTED ACCOUNT) ----------------
+// ---------------- 6. REAL BALANCE AUDIT API ----------------
 app.post("/api/tg/check-balance", async (req, res) => {
-    console.log(`[FULL BALANCE AUDIT] Checking real tokens for ALL pool accounts...`);
     try {
         const snap = await db.collection("tg_accounts").get();
-        if (snap.empty) {
-            return res.json({ ok: false, error: "কোনো অ্যাকাউন্ট পুলে যুক্ত নেই" });
-        }
+        if (snap.empty) return res.json({ ok: false, error: "কোনো অ্যাকাউন্ট পুলে নেই" });
 
         let totalBalance = 0;
         const results = [];
@@ -226,18 +194,14 @@ app.post("/api/tg/check-balance", async (req, res) => {
             if (!acc.session) continue;
 
             try {
-                console.log(`[AUDIT] Checking bot balance for: ${phone}...`);
                 const tempClient = new TelegramClient(new StringSession(acc.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
                 await tempClient.connect();
-
                 await tempClient.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
                 await new Promise((r) => setTimeout(r, 2500));
 
                 const msgs = await tempClient.getMessages(TARGET_BOT, { limit: 1 });
                 let b = null;
-                if (msgs && msgs.length > 0) {
-                    b = parseBotBalance(msgs[0].message);
-                }
+                if (msgs && msgs.length > 0) b = parseBotBalance(msgs[0].message);
 
                 if (b !== null) {
                     await db.collection("tg_accounts").doc(docSnap.id).update({
@@ -246,19 +210,15 @@ app.post("/api/tg/check-balance", async (req, res) => {
                     });
                     totalBalance += b;
                     results.push({ phone, balance: b });
-                    console.log(`[AUDIT RESULT] ${phone} -> ${b} Tokens!`);
                 } else {
                     results.push({ phone, balance: acc.balance || 0 });
                 }
-
                 await tempClient.disconnect();
             } catch (err) {
-                console.error(`[AUDIT ERR] ${phone}:`, err.message);
-                results.push({ phone, balance: acc.balance || 0, error: err.message });
+                results.push({ phone, balance: acc.balance || 0 });
             }
         }
 
-        // মেইন ব্যালেন্স আপডেট
         await db.collection("config").doc("app").set({
             botTokensTotal: totalBalance,
             botTokensLastSync: admin.firestore.FieldValue.serverTimestamp()
@@ -270,7 +230,7 @@ app.post("/api/tg/check-balance", async (req, res) => {
     }
 });
 
-// ---------------- 7. USER NOTIFICATION HELPER ----------------
+// ---------------- 7. USER NOTIFY HELPER (@Ppmod_bot) ----------------
 async function notifyUserTelegram(chatId, text) {
     if (!chatId) return;
     try {
@@ -282,7 +242,6 @@ async function notifyUserTelegram(chatId, text) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ chat_id: cleanChatId, text: text, parse_mode: "HTML" })
             });
-            console.log(`[USER NOTIFY] Sent via @Ppmod_bot to: ${cleanChatId}`);
         }
     } catch (e) {}
 }
@@ -306,7 +265,6 @@ async function clickInlineButton(message, textPattern) {
     for (const row of message.replyMarkup.rows) {
         for (const button of row.buttons) {
             if (button.text && button.text.toLowerCase().includes(textPattern.toLowerCase())) {
-                console.log(`[BOT CLICK] "${button.text}"`);
                 try {
                     await message.click({ text: button.text });
                     return true;
@@ -339,7 +297,6 @@ async function waitForCondition(checkFn, timeoutMs = 45000) {
     return null;
 }
 
-// ---------------- 8. TELEGRAM WORKER CLIENT ROTATION ----------------
 async function getUsableTelegramClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
@@ -362,9 +319,7 @@ async function getUsableTelegramClient() {
         throw new Error("NO_BALANCE");
     }
 
-    if (currentClient && currentPhone === chosenPhone) {
-        return currentClient;
-    }
+    if (currentClient && currentPhone === chosenPhone) return currentClient;
 
     if (currentClient) {
         try { await currentClient.disconnect(); } catch (e) {}
@@ -374,14 +329,10 @@ async function getUsableTelegramClient() {
     await client.connect();
     currentClient = client;
     currentPhone = chosenPhone;
-
-    console.log(`[CLIENT INIT] Active worker: ${chosenPhone}`);
     return currentClient;
 }
 
-// ---------------- 9. REFUND LOGIC ----------------
 async function refundOrder(orderId, uid, reason, userTgId = null) {
-    console.log(`[REFUND] Order ${orderId}: ${reason}`);
     try {
         await db.runTransaction(async (t) => {
             const ordRef = db.collection("orders").doc(orderId);
@@ -409,23 +360,17 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
                 `🎮 <b>গেম:</b> Task\n` +
                 `⚠️ <b>কারণ:</b> ${reason}\n` +
-                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।\n\n` +
-                `👉 দয়া করে সঠিক তথ্য দিয়ে পুনরায় চেষ্টা করুন।`
+                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
             );
         }
     } catch (e) {}
 }
 
-// ---------------- 10. MASTER ORDER PROCESSOR ----------------
 async function processOrder(orderId, orderData) {
     if (activeOrders.has(orderId)) return;
     activeOrders.add(orderId);
 
     const startTime = Date.now();
-    console.log(`\n========================================`);
-    console.log(`[TASK START] ID: ${orderId} | Game: ${orderData.game} | ${orderData.accEmail}`);
-    console.log(`========================================`);
-
     const orderRef = db.collection("orders").doc(orderId);
 
     try {
@@ -436,14 +381,13 @@ async function processOrder(orderId, orderData) {
             tg = await getUsableTelegramClient();
         } catch (err) {
             if (err.message === "NO_BALANCE") {
-                await refundOrder(orderId, orderData.uid, "সার্ভারে পর্যাপ্ত টোকেন না থাকায় অর্ডারটি রিফান্ড করা হলো। কিছুক্ষণ পর চেষ্টা করুন।", orderData.userTgId);
+                await refundOrder(orderId, orderData.uid, "সার্ভারে পর্যাপ্ত টোকেন না থাকায় অর্ডারটি রিফান্ড করা হলো।", orderData.userTgId);
                 return;
             }
             throw err;
         }
 
         await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
-
         let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 20000);
         if (!found) throw new Error("Bot chest menu timeout");
 
@@ -460,9 +404,7 @@ async function processOrder(orderId, orderData) {
         }
 
         const credText = `${orderData.accEmail.trim()}---${orderData.accPass.trim()}`;
-        console.log(`[CREDENTIALS] Sending: ${orderData.accEmail}---******`);
         await orderRef.update({ adminMsg: "লগইন তথ্য পাঠানো হয়েছে। কনফার্মেশন চলছে..." });
-
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
         let confirmFound = await waitForCondition((m) => {
@@ -471,7 +413,6 @@ async function processOrder(orderId, orderData) {
         }, 25000);
 
         if (confirmFound) {
-            console.log(`[BOT CLICK] Confirm & Pay`);
             await clickInlineButton(confirmFound.msg, "Confirm & Pay");
         }
 
@@ -505,20 +446,16 @@ async function processOrder(orderId, orderData) {
             }
 
             if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
-                await orderRef.update({
-                    adminMsg: "✅ আপনার ফোন থেকে লগইন সফল হয়েছে! টাস্ক আনলক করা হচ্ছে, অপেক্ষা করুন..."
-                });
+                await orderRef.update({ adminMsg: "✅ আপনার ফোন থেকে লগইন সফল হয়েছে! টাস্ক আনলক করা হচ্ছে, অপেক্ষা করুন..." });
             }
 
             const promptNum = extractPromptNumber(curMsg.message);
             if (promptNum && !text.includes("completed") && !text.includes("confirmed from your phone")) {
-                const promptNotice = `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।`;
-                await orderRef.update({ adminMsg: promptNotice });
+                await orderRef.update({ adminMsg: `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।` });
             }
 
             if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
                 const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-                
                 await orderRef.update({
                     status: "completed",
                     adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉 (⏱️ সময় লেগেছে: ~${elapsedSec} সেকেন্ড)`,
@@ -536,73 +473,206 @@ async function processOrder(orderId, orderData) {
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
                     );
                 }
-
                 completed = true;
                 return;
             }
         }
-
         if (!completed) throw new Error("Bot login timeout");
-
     } catch (err) {
-        console.error(`[ERROR] Order ${orderId}:`, err.message);
         await refundOrder(orderId, orderData.uid, err.message || "সার্ভার এরর", orderData.userTgId);
     } finally {
         activeOrders.delete(orderId);
     }
 }
 
-// ---------------- 11. GROUP PROTECTION BOT ----------------
+// ---------------- 8. ADVANCED GROUP GUARDIAN & SANGMATA ENGINE (@Vareonprotection_bot) ----------------
 const BAD_WORDS = ["gali1", "gali2", "scam", "fraud", "বা***", "চো***", "খা***", "মাদার***", "শালা", "খানকি"];
 
+// গ্রুপ অ্যাডমিন চেক হেল্পার
+async function isGroupAdmin(chatId, userId) {
+    try {
+        const member = await groupBot.getChatMember(chatId, userId);
+        return member.status === "creator" || member.status === "administrator";
+    } catch (e) {
+        return false;
+    }
+}
+
+// গ্রুপের মেসেজ মনিটরিং
 groupBot.on("message", async (msg) => {
     try {
         if (!msg.chat || (msg.chat.type !== "group" && msg.chat.type !== "supergroup")) return;
+
         const chatId = msg.chat.id;
         const msgId = msg.message_id;
-        const text = msg.text || msg.caption || "";
+        const fromUser = msg.from;
+        if (!fromUser || fromUser.is_bot) return;
 
+        const userId = fromUser.id.toString();
+        const currentName = `${fromUser.first_name || ""} ${fromUser.last_name || ""}`.trim();
+        const currentUsername = fromUser.username ? `@${fromUser.username}` : "None";
+        const text = (msg.text || msg.caption || "").trim();
+
+        // ১. গ্রুপ স্বয়ংক্রিয়ভাবে ডাটাবেজে রেজিস্টার ও আপডেট
+        db.collection("tg_groups").doc(chatId.toString()).set({
+            id: chatId.toString(),
+            title: msg.chat.title || "Group",
+            username: msg.chat.username ? `@${msg.chat.username}` : "Private",
+            lastActive: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).catch(() => {});
+
+        // ২. SangMata Style: নাম বা ইউজারনেম পরিবর্তন ট্র্যাকার!
+        const userDocRef = db.collection("tg_user_history").doc(userId);
+        const userSnap = await userDocRef.get();
+
+        if (userSnap.exists) {
+            const oldData = userSnap.data();
+            const oldName = oldData.name || "";
+            const oldUsername = oldData.username || "";
+
+            if (oldName !== currentName || oldUsername !== currentUsername) {
+                // নাম বা ইউজারনেম পরিবর্তিত হয়েছে!
+                const changeAlert = 
+                    `🔄 <b>User Profile Changed!</b>\n\n` +
+                    `👤 <b>User:</b> <a href="tg://user?id=${userId}">${currentName}</a> (<code>${userId}</code>)\n` +
+                    `📝 <b>Name:</b> <code>${oldName}</code> ➔ <code>${currentName}</code>\n` +
+                    `🔖 <b>Username:</b> <code>${oldUsername}</code> ➔ <code>${currentUsername}</code>`;
+
+                await groupBot.sendMessage(chatId, changeAlert, { parse_mode: "HTML" }).catch(() => {});
+                
+                await userDocRef.set({
+                    name: currentName,
+                    username: currentUsername,
+                    previousNames: admin.firestore.FieldValue.arrayUnion({ name: oldName, username: oldUsername, at: new Date() })
+                }, { merge: true });
+            }
+        } else {
+            // নতুন ইউজার ফার্স্ট টাইম সেভ
+            await userDocRef.set({
+                userId: userId,
+                name: currentName,
+                username: currentUsername,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        // ৩. পার্মানেন্ট স্ক্যামার চেক (Scammer Tag Enforcement)
+        const scamSnap = await db.collection("tg_scammers").doc(userId).get();
+        if (scamSnap.exists && scamSnap.data().isScammer) {
+            const scammerWarning = 
+                `🚨 <b>SCAMMER ALERT!</b>\n\n` +
+                `⚠️ <a href="tg://user?id=${userId}">${currentName}</a> (<code>${userId}</code>) <b>একজন প্রমাণিত প্রতারক / স্ক্যামার!</b>\n` +
+                `❌ এই ইউজারের সাথে কেউ কোনো প্রকার লেনদেন বা কথা বলবেন না!\n` +
+                `📌 <i>প্রতারক হিসেবে তালিকাভুক্ত করেছেন: এডমিন</i>`;
+
+            await groupBot.sendMessage(chatId, scammerWarning, { 
+                parse_mode: "HTML", 
+                reply_to_message_id: msgId 
+            }).catch(() => {});
+        }
+
+        // ৪. এডমিন কমান্ড: /scammer এবং /unscammer
+        if (text.startsWith("/scammer") || text.startsWith("/unscammer")) {
+            const isAdmin = await isGroupAdmin(chatId, fromUser.id);
+            if (!isAdmin) {
+                const warn = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, আপনি এই কমান্ডটি ব্যবহার করার অনুমতিপ্রাপ্ত নন!`, { parse_mode: "HTML", reply_to_message_id: msgId });
+                setTimeout(() => groupBot.deleteMessage(chatId, warn.message_id).catch(() => {}), 5000);
+                return;
+            }
+
+            let targetUser = null;
+            if (msg.reply_to_message && msg.reply_to_message.from) {
+                targetUser = msg.reply_to_message.from;
+            }
+
+            if (!targetUser) {
+                await groupBot.sendMessage(chatId, `💡 <b>ব্যবহারের নিয়ম:</b> যে প্রতারক তাকে রিপ্লাই দিয়ে <code>/scammer</code> লিখুন।`, { parse_mode: "HTML", reply_to_message_id: msgId });
+                return;
+            }
+
+            const targetId = targetUser.id.toString();
+            const targetName = `${targetUser.first_name || ""} ${targetUser.last_name || ""}`.trim();
+
+            if (text.startsWith("/scammer")) {
+                await db.collection("tg_scammers").doc(targetId).set({
+                    userId: targetId,
+                    name: targetName,
+                    username: targetUser.username ? `@${targetUser.username}` : "None",
+                    isScammer: true,
+                    taggedBy: fromUser.id.toString(),
+                    taggedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                await groupBot.sendMessage(chatId, `🚨 <b>সফল!</b> <a href="tg://user?id=${targetId}">${targetName}</a>-কে চিরতরে <b>স্ক্যামার লিস্টে যুক্ত করা হয়েছে</b>। সে মেসেজ দিলেই ওয়ার্নিং দেওয়া হবে!`, { parse_mode: "HTML", reply_to_message_id: msgId });
+            } else if (text.startsWith("/unscammer")) {
+                await db.collection("tg_scammers").doc(targetId).delete();
+                await groupBot.sendMessage(chatId, `✅ <a href="tg://user?id=${targetId}">${targetName}</a>-কে স্ক্যামার লিস্ট থেকে মুক্ত করা হয়েছে।`, { parse_mode: "HTML", reply_to_message_id: msgId });
+            }
+            return;
+        }
+
+        // ৫. অ্যান্টি-লিংক ফিল্টার
         if (text.includes("t.me/") || text.includes("http://") || text.includes("https://")) {
             if (!text.includes("googleplaypointhack") && !text.includes("ppmod")) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${msg.from.username || msg.from.first_name}</b>, গ্রুপে অননুমোদিত লিংক দেওয়া নিষেধ!`, { parse_mode: "HTML" });
-                setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 5000);
+                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে অননুমোদিত লিংক দেওয়া নিষেধ!`, { parse_mode: "HTML" });
+                setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                 return;
             }
         }
 
+        // ৬. গালি ফিল্টার
         for (const bad of BAD_WORDS) {
             if (text.toLowerCase().includes(bad.toLowerCase())) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${msg.from.username || msg.from.first_name}</b>, ভদ্র ভাষা ব্যবহার করুন!`, { parse_mode: "HTML" });
-                setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 5000);
+                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে শালীন ভাষা ব্যবহার করুন!`, { parse_mode: "HTML" });
+                setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                 return;
             }
         }
 
-        if (text.toLowerCase().includes("coin") || text.toLowerCase().includes("কয়েন")) {
-            await groupBot.sendMessage(chatId, `🪙 <b>PP Coins কেনার নিয়ম:</b>\nআমাদের ওয়েবসাইটে লগইন করে Wallet অপশন থেকে bKash/Nagad দিয়ে সরাসরি Coins অ্যাড করতে পারেন।`, { parse_mode: "HTML", reply_to_message_id: msgId });
+    } catch (e) {
+        console.error("[GROUP MSG ERR]:", e.message);
+    }
+});
+
+// গ্রুপে নতুন মেম্বার জয়েন করলে আপনার দেওয়া ছবিসহ ওয়েলকাম
+groupBot.on("new_chat_members", async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const newMembers = msg.new_chat_members || [];
+
+        for (const user of newMembers) {
+            if (user.is_bot) continue;
+            const name = user.first_name || "Member";
+            const welcomeText = 
+                `🎉 <b>স্বাগতম ${name}!</b>\n\n` +
+                `আমাদের অফিসিয়াল গ্রুপে আপনাকে স্বাগতম। এখানে গুগল প্লে পয়েন্ট অটোমেশন সাপোর্ট ও রিয়েল-টাইম আপডেট পাবেন।\n\n` +
+                `📢 <b>আমাদের চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n` +
+                `⚠️ <i>গ্রুপে যেকোনো স্ক্যামার থেকে সতর্ক থাকুন।</i>`;
+
+            await groupBot.sendPhoto(chatId, WELCOME_IMG, {
+                caption: welcomeText,
+                parse_mode: "HTML",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📢 Official Channel", url: "https://t.me/googleplaypointhack" }]
+                    ]
+                }
+            }).catch(() => {});
         }
     } catch (e) {}
 });
 
-// ---------------- 12. MASTER WORKER START ----------------
+// ---------------- 9. MASTER WORKER START ----------------
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Automation & Security Suite...");
 
-    // প্রাইম অ্যাকাউন্ট ২৪/৭ অটো-রেসপন্ডার চালু করা
     await initPrimeAutoResponder();
-
-    // প্রাইম পরিবর্তনের রিয়েল-টাইম লিসেনার
-    db.collection("tg_accounts").onSnapshot(() => {
-        initPrimeAutoResponder();
-    });
+    db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
 
     try {
         await getUsableTelegramClient();
-    } catch (e) {
-        console.log(`[INIT NOTICE] ${e.message}`);
-    }
+    } catch (e) {}
 
     db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -616,7 +686,7 @@ async function startMasterWorker() {
         });
     }, (err) => console.error("[FIRESTORE ERR]:", err.message));
 
-    console.log("[MASTER INIT] Listening for Orders & Group Messages Successfully!");
+    console.log("[MASTER INIT] Groups & Workers Successfully Active!");
 }
 
 startMasterWorker().catch(console.error);
