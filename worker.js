@@ -199,9 +199,7 @@ async function initPrimeAutoResponder() {
                 if (!sender || sender.bot) return;
 
                 const senderId = sender.id.toString();
-                const now = Date.now();
-                const lastTime = autoReplyCooldown.get(senderId) || 0;
-                if (now - lastTime < 3600000) return;
+                if (!(await primeCooldownClaim(senderId))) return;
 
                 await new Promise((r) => setTimeout(r, 3500));
                 await primeClient.sendMessage(sender.id, {
@@ -209,10 +207,26 @@ async function initPrimeAutoResponder() {
                     message: PRIME_AUTO_REPLY_CAPTION,
                     parseMode: "html"
                 });
-                autoReplyCooldown.set(senderId, now);
             } catch (err) {}
         }, new NewMessage({ incoming: true }));
     } catch (e) {}
+}
+
+// Prime auto-reply cooldown: Firestore-backed (survives Render restarts), 60 min per user
+async function primeCooldownClaim(senderId) {
+    try {
+        const ref = db.collection("tg_autoreply").doc(senderId);
+        const snap = await ref.get();
+        const last = snap.exists ? Number(snap.data().lastAt || 0) : 0;
+        if (Date.now() - last < 3600000) return false;
+        await ref.set({ lastAt: Date.now() }, { merge: true });
+        return true;
+    } catch (e) {
+        const last = autoReplyCooldown.get(senderId) || 0;
+        if (Date.now() - last < 3600000) return false;
+        autoReplyCooldown.set(senderId, Date.now());
+        return true;
+    }
 }
 
 // ---------------- 7. FAST DIRECT OTP API ----------------
@@ -583,7 +597,7 @@ async function processOrder(orderId, orderData) {
                 const elapsedSec = Math.round((Date.now() - startTime) / 1000);
                 await orderRef.update({
                     status: "completed",
-                    adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉 (⏱️ সময় লেগেছে: ~${elapsedSec} সেকেন্ড)`,
+                    adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
                     timeElapsed: elapsedSec,
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false
