@@ -632,6 +632,105 @@ app.post("/api/tg/check-balance", async (req, res) => {
     }
 });
 
+// ---------------- 8b. MASS PROMO CODE REDEEM & AUTO DAILY CLAIM ----------------
+async function claimDailySingle(sessionStr) {
+    const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+    await temp.connect();
+    try {
+        await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
+        await new Promise((r) => setTimeout(r, 2000));
+        const msgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
+        if (msgs && msgs.length > 0) {
+            const clicked = await clickInlineButton(msgs[0], "Claim Today");
+            if (clicked) {
+                await new Promise((r) => setTimeout(r, 2000));
+                const resMsgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
+                return { ok: true, message: resMsgs[0] ? resMsgs[0].message : "Claimed!" };
+            }
+        }
+        return { ok: false, message: "Claim button not found or already claimed today" };
+    } finally {
+        try { await temp.disconnect(); } catch (e) {}
+    }
+}
+
+async function redeemPromoSingle(sessionStr, code) {
+    const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+    await temp.connect();
+    try {
+        await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
+        await new Promise((r) => setTimeout(r, 2000));
+        const msgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
+        if (!msgs || !msgs.length) return { ok: false, message: "Rewards Hub load failed" };
+
+        const clicked = await clickInlineButton(msgs[0], "Redeem Promo");
+        if (!clicked) return { ok: false, message: "Redeem Promo button not found" };
+
+        await new Promise((r) => setTimeout(r, 2000));
+        await temp.sendMessage(TARGET_BOT, { message: code });
+        await new Promise((r) => setTimeout(r, 2500));
+
+        const resMsgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
+        const replyText = resMsgs && resMsgs[0] ? resMsgs[0].message : "Code sent";
+        return { ok: true, message: replyText };
+    } finally {
+        try { await temp.disconnect(); } catch (e) {}
+    }
+}
+
+app.post("/api/tg/claim-daily-all", async (req, res) => {
+    try {
+        const snap = await db.collection("tg_accounts").where("active", "==", true).get();
+        if (snap.empty) return res.json({ ok: false, error: "কোনো অ্যাক্টিভ অ্যাকাউন্ট নেই" });
+
+        const results = [];
+        for (const docSnap of snap.docs) {
+            const acc = docSnap.data();
+            const phone = acc.phone || docSnap.id;
+            if (!acc.session) continue;
+
+            try {
+                const claimRes = await claimDailySingle(acc.session);
+                results.push({ phone, ...claimRes });
+            } catch (err) {
+                results.push({ phone, ok: false, message: err.message });
+            }
+            await new Promise((r) => setTimeout(r, 1500)); // Rate limit prevention
+        }
+        return res.json({ ok: true, results });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post("/api/tg/redeem-code-all", async (req, res) => {
+    const code = (req.body.code || "").toString().trim();
+    if (!code) return res.status(400).json({ ok: false, error: "প্রোমো কোডটি দিন" });
+
+    try {
+        const snap = await db.collection("tg_accounts").where("active", "==", true).get();
+        if (snap.empty) return res.json({ ok: false, error: "কোনো অ্যাক্টিভ অ্যাকাউন্ট নেই" });
+
+        const results = [];
+        for (const docSnap of snap.docs) {
+            const acc = docSnap.data();
+            const phone = acc.phone || docSnap.id;
+            if (!acc.session) continue;
+
+            try {
+                const redRes = await redeemPromoSingle(acc.session, code);
+                results.push({ phone, ...redRes });
+            } catch (err) {
+                results.push({ phone, ok: false, message: err.message });
+            }
+            await new Promise((r) => setTimeout(r, 2000)); // Safe delay per account
+        }
+        return res.json({ ok: true, results });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 // ---------------- 9. GROUP MODERATION API (BAN/UNBAN/MUTE) ----------------
 app.post("/api/tg/moderate-user", async (req, res) => {
     const { action, chatId, userId } = req.body;
@@ -1353,6 +1452,22 @@ async function startMasterWorker() {
     });
 
     try { await getUsableTelegramClient(); } catch (e) {}
+
+    // Auto Daily Claim Scheduler (runs every 12 hours automatically)
+    setInterval(async () => {
+        try {
+            console.log("[AUTO CLAIM] Starting scheduled daily rewards claim...");
+            const snap = await db.collection("tg_accounts").where("active", "==", true).get();
+            for (const docSnap of snap.docs) {
+                const acc = docSnap.data();
+                if (acc.session) {
+                    await claimDailySingle(acc.session).catch(() => {});
+                    await new Promise((r) => setTimeout(r, 3000));
+                }
+            }
+            console.log("[AUTO CLAIM] Scheduled claim completed.");
+        } catch (e) {}
+    }, 12 * 60 * 60 * 1000);
 
     db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
         snapshot.docChanges().forEach((change) => {
