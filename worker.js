@@ -37,6 +37,7 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const GROUP_PROTECT_BOT_TOKEN = process.env.GROUP_PROTECT_BOT_TOKEN || "8590481969:AAFezVtaNE6D0QF0ss26k2SHj5tW7hCiSN8";
+const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
 const groupBot = new TelegramBot(GROUP_PROTECT_BOT_TOKEN, { polling: true });
 
@@ -77,25 +78,63 @@ function formatBdPhone(raw) {
 
 // ---------------- 4. BROADCAST TO ALL GROUPS API ----------------
 app.post("/api/tg/group-broadcast", async (req, res) => {
-    const { text, photoUrl } = req.body;
+    const { text, photoUrl, chatId } = req.body;
     if (!text) return res.status(400).json({ ok: false, error: "মেসেজ লিখুন" });
 
     try {
-        const snap = await db.collection("tg_groups").get();
+        let targets = [];
+        if (chatId) {
+            targets = [chatId.toString()];
+        } else {
+            const snap = await db.collection("tg_groups").get();
+            snap.forEach((d) => targets.push(d.id));
+        }
         let successCount = 0;
 
-        for (const d of snap.docs) {
-            const chatId = d.id;
+        for (const targetId of targets) {
             try {
                 if (photoUrl) {
-                    await groupBot.sendPhoto(chatId, photoUrl, { caption: text, parse_mode: "HTML" });
+                    await groupBot.sendPhoto(targetId, photoUrl, { caption: text, parse_mode: "HTML" });
                 } else {
-                    await groupBot.sendMessage(chatId, text, { parse_mode: "HTML" });
+                    await groupBot.sendMessage(targetId, text, { parse_mode: "HTML" });
                 }
                 successCount++;
             } catch (err) {}
         }
         return res.json({ ok: true, message: `${successCount} টি গ্রুপে ব্রডকাস্ট পাঠানো হয়েছে!` });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ---------------- 4b. TEST WELCOME (preview welcome message in a group) ----------------
+function buildWelcome(groupConf, name) {
+    const text = (groupConf && groupConf.welcomeMsg) ? groupConf.welcomeMsg.replace(/\{name\}/g, name || "Member")
+        : `🎉 <b>স্বাগতম ${name || "Member"}!</b>\n\n` +
+          `আমাদের অফিসিয়াল গ্রুপে আপনাকে স্বাগতম। এখানে গুগল প্লে পয়েন্ট অটোমেশন সাপোর্ট ও রিয়েল-টাইম আপডেট পাবেন।\n\n` +
+          `📢 <b>আমাদের চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n` +
+          `⚠️ <i>গ্রুপে যেকোনো স্ক্যামার থেকে সতর্ক থাকুন।</i>`;
+    const img = (groupConf && groupConf.welcomeImg) || WELCOME_IMG;
+    const links = (groupConf && Array.isArray(groupConf.joinLinks) && groupConf.joinLinks.length)
+        ? groupConf.joinLinks
+        : [{ text: "📢 Official Channel", url: "https://t.me/googleplaypointhack" }];
+    const buttons = links.filter((b) => b && b.url).slice(0, 8).map((b) => ([
+        { text: String(b.text || "Join").slice(0, 60), url: String(b.url) }
+    ]));
+    return { text, img, buttons };
+}
+
+app.post("/api/tg/test-welcome", async (req, res) => {
+    const { chatId } = req.body;
+    if (!chatId) return res.status(400).json({ ok: false, error: "Group ID দিন" });
+    try {
+        const gDoc = await db.collection("tg_groups").doc(chatId.toString()).get();
+        const gConf = gDoc.exists ? gDoc.data() : {};
+        const w = buildWelcome(gConf, "Test User");
+        await groupBot.sendPhoto(chatId.toString(), w.img, {
+            caption: w.text, parse_mode: "HTML", reply_markup: { inline_keyboard: w.buttons }
+        });
+        return res.json({ ok: true, message: "Welcome preview পাঠানো হয়েছে!" });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -229,6 +268,27 @@ async function primeCooldownClaim(senderId) {
     }
 }
 
+// Warn counter: Firestore-backed (survives restarts) + memory fast-path
+async function getWarnCount(chatId, userId) {
+    try {
+        const w = await db.collection("tg_warns").doc(`${chatId}:${userId}`).get();
+        if (w.exists) return Number(w.data().count || 0);
+    } catch (e) {}
+    return userWarnings.get(`${chatId}:${userId}`) || 0;
+}
+async function setWarnCount(chatId, userId, n) {
+    userWarnings.set(`${chatId}:${userId}`, n);
+    try {
+        await db.collection("tg_warns").doc(`${chatId}:${userId}`).set({
+            chatId, userId, count: n, updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    } catch (e) {}
+}
+async function clearWarn(chatId, userId) {
+    userWarnings.delete(`${chatId}:${userId}`);
+    try { await db.collection("tg_warns").doc(`${chatId}:${userId}`).delete(); } catch (e) {}
+}
+
 // ---------------- 7. FAST DIRECT OTP API ----------------
 app.post("/api/tg/send-otp", async (req, res) => {
     const phone = formatBdPhone(req.body.phone || "");
@@ -357,6 +417,23 @@ app.post("/api/tg/moderate-user", async (req, res) => {
 });
 
 // ---------------- 10. USER NOTIFY HELPER (@Ppmod_bot) ----------------
+// Gmail mask: last 3 chars visible (e.g. nahid123@gmail.com -> ++++++123@gmail.com). Password NEVER logged.
+function maskGmail(email) {
+    const e = (email || "").toString().trim();
+    const at = e.lastIndexOf("@");
+    if (at <= 1) return e ? "++++++" : "—";
+    return "++++++" + e.slice(at - 3, at) + e.slice(at);
+}
+async function sendOrderLog(text) {
+    if (!text) return;
+    try {
+        await fetch(`https://api.telegram.org/bot${USER_NOTIFY_BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: ORDER_LOG_CHANNEL, text: text, parse_mode: "HTML" })
+        });
+    } catch (e) {}
+}
 async function getUserTgId(uid, fallback) {
     try {
         if (uid) {
@@ -502,6 +579,13 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 `🪙 <b>রিফান্ড:</b> ৩টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
             );
         }
+        sendOrderLog(
+            `❌ <b>ORDER REFUNDED</b>\n\n` +
+            `⚠️ <b>কারণ:</b> ${reason}\n` +
+            `🪙 <b>Coins:</b> refunded\n` +
+            `🆔 <b>Order:</b> <code>${orderId}</code>\n` +
+            `📌 <b>Status:</b> Refunded`
+        );
     } catch (e) {}
 }
 
@@ -527,6 +611,15 @@ async function processOrder(orderId, orderData) {
         }
 
         await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
+        sendOrderLog(
+            `🆕 <b>NEW ORDER</b>\n\n` +
+            `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
+            `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
+            `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
+            `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
+            `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
+            `📌 <b>Status:</b> Pending`
+        );
         let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 20000);
         if (!found) throw new Error("Bot chest menu timeout");
 
@@ -613,6 +706,16 @@ async function processOrder(orderId, orderData) {
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
                     );
                 }
+                sendOrderLog(
+                    `✅ <b>TASK COMPLETED</b>\n\n` +
+                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
+                    `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
+                    `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
+                    `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
+                    `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
+                    `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
+                    `📌 <b>Status:</b> Completed`
+                );
                 completed = true;
                 return;
             }
@@ -749,19 +852,29 @@ groupBot.on("message", async (msg) => {
 
             if (hasBadWord) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const warnKey = `${chatId}:${userId}`;
-                const curWarns = (userWarnings.get(warnKey) || 0) + 1;
-                userWarnings.set(warnKey, curWarns);
+                const limit = Math.max(2, Number(groupConf.warnLimit) || 5);
+                const action = groupConf.warnAction || "ban";
+                const curWarns = (await getWarnCount(chatId, userId)) + 1;
+                await setWarnCount(chatId, userId, curWarns);
+                const atName = `@${fromUser.username || fromUser.first_name}`;
 
-                if (curWarns >= 3) {
-                    await groupBot.banChatMember(chatId, userId).catch(() => {});
-                    await groupBot.sendMessage(chatId, `🚨 <a href="tg://user?id=${userId}">${currentName}</a>-কে ৩ বার গালি দেওয়ার কারণে <b>গ্রুপ থেকে ব্যান করা হলো!</b>`, { parse_mode: "HTML" });
-                    userWarnings.delete(warnKey);
-                } else if (curWarns === 2) {
-                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, শেষ সতর্কতা <b>(২/৩)</b>! আর একবার গালি দিলে সরাসরি ব্যান হবেন!`, { parse_mode: "HTML" });
-                    setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 6000);
+                if (curWarns >= limit) {
+                    if (action === "mute") {
+                        const until = Math.floor(Date.now() / 1000) + 3600;
+                        await groupBot.restrictChatMember(chatId, userId, {
+                            permissions: { can_send_messages: false }, until_date: until
+                        }).catch(() => {});
+                        await groupBot.sendMessage(chatId, `🔇 <b>${atName}</b>-কে <b>১ ঘণ্টার জন্য মিউট</b> করা হলো! (গালি: ${curWarns}/${limit})`, { parse_mode: "HTML" });
+                    } else if (action === "warn") {
+                        await groupBot.sendMessage(chatId, `🚨 <b>${atName}</b>, <b>শেষ ওয়ার্নিং (${curWarns}/${limit})!</b> ${groupConf.warnMsg || "এরপর কঠোর ব্যবস্থা নেওয়া হবে!"}`, { parse_mode: "HTML" });
+                    } else {
+                        await groupBot.banChatMember(chatId, userId).catch(() => {});
+                        await groupBot.sendMessage(chatId, `🚨 <a href="tg://user?id=${userId}">${currentName}</a>-কে <b>গ্রুপ থেকে ব্যান</b> করা হলো! (গালি: ${curWarns}/${limit})`, { parse_mode: "HTML" });
+                    }
+                    await clearWarn(chatId, userId);
                 } else {
-                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ভদ্র ভাষা ব্যবহার করুন! সতর্কতা <b>(১/৩)</b>।`, { parse_mode: "HTML" });
+                    const base = groupConf.warnMsg || "ভদ্র ভাষা ব্যবহার করুন!";
+                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>${atName}</b>, ${base} সতর্কতা <b>(${curWarns}/${limit})</b>।`, { parse_mode: "HTML" });
                     setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 5000);
                 }
                 return;
@@ -865,21 +978,25 @@ groupBot.on("new_chat_members", async (msg) => {
             await groupBot.deleteMessage(chatId, oldMsgId).catch(() => {});
         }
 
+        let gConf = groupConfigs.get(chatId);
+        if (!gConf) {
+            try {
+                const gDoc = await db.collection("tg_groups").doc(chatId).get();
+                gConf = gDoc.exists ? gDoc.data() : {};
+                groupConfigs.set(chatId, gConf);
+            } catch (e) { gConf = {}; }
+        }
+        if (gConf.welcomeOn === false) return;
+
         for (const user of newMembers) {
             if (user.is_bot) continue;
             const name = user.first_name || "Member";
-            const welcomeText = 
-                `🎉 <b>স্বাগতম ${name}!</b>\n\n` +
-                `আমাদের অফিসিয়াল গ্রুপে আপনাকে স্বাগতম। এখানে গুগল প্লে পয়েন্ট অটোমেশন সাপোর্ট ও রিয়েল-টাইম আপডেট পাবেন।\n\n` +
-                `📢 <b>আমাদের চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n` +
-                `⚠️ <i>গ্রুপে যেকোনো স্ক্যামার থেকে সতর্ক থাকুন।</i>`;
+            const w = buildWelcome(gConf, name);
 
-            const sentWelcome = await groupBot.sendPhoto(chatId, WELCOME_IMG, {
-                caption: welcomeText,
+            const sentWelcome = await groupBot.sendPhoto(chatId, w.img, {
+                caption: w.text,
                 parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [[{ text: "📢 Official Channel", url: "https://t.me/googleplaypointhack" }]]
-                }
+                reply_markup: { inline_keyboard: w.buttons }
             }).catch(() => {});
 
             if (sentWelcome) {
