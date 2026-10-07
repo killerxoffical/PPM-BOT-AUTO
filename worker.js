@@ -166,11 +166,12 @@ app.post("/api/tg/create-giveaway", async (req, res) => {
                 parse_mode: "HTML",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: `🎉 Join Giveaway [অংশগ্রহণকারী: 0]`, callback_data: `giveaway_join:${giveawayRef.id}` }]
+                        [{ text: `🎉 Join Giveaway [0]`, callback_data: `giveaway_join:${giveawayRef.id}` }]
                     ]
                 }
             }
         );
+        await groupBot.pinChatMessage(chatId, gMsg.message_id).catch(() => {});
 
         await giveawayRef.update({ messageId: gMsg.message_id });
         return res.json({ ok: true, message: "গিভঅ্যাওয়ে পোস্ট করা হয়েছে!", giveawayId: giveawayRef.id });
@@ -205,6 +206,7 @@ app.post("/api/tg/end-giveaway", async (req, res) => {
         winnerText += `\n🎉 অভিনন্দন সবাইকে! এডমিনের সাথে যোগাযোগ করে পুরস্কার সংগ্রহ করুন।`;
 
         await groupBot.sendMessage(g.chatId, winnerText, { parse_mode: "HTML" });
+        await groupBot.unpinChatMessage(g.chatId).catch(() => {});
         await gDoc.ref.update({ status: "ended", winners });
 
         return res.json({ ok: true, winners });
@@ -1001,6 +1003,7 @@ groupBot.on("new_chat_members", async (msg) => {
 
             if (sentWelcome) {
                 lastWelcomeMessages.set(chatId, sentWelcome.message_id);
+                setTimeout(() => groupBot.deleteMessage(chatId, sentWelcome.message_id).catch(() => {}), 10000);
             }
         }
     } catch (e) {}
@@ -1039,7 +1042,7 @@ groupBot.on("callback_query", async (query) => {
 
             await groupBot.editMessageReplyMarkup({
                 inline_keyboard: [
-                    [{ text: `🎉 Join Giveaway [অংশগ্রহণকারী: ${participants.length}]`, callback_data: `giveaway_join:${giveawayId}` }]
+                    [{ text: `🎉 Join Giveaway [${participants.length}]`, callback_data: `giveaway_join:${giveawayId}` }]
                 ]
             }, { chat_id: chatId, message_id: query.message.message_id }).catch(() => {});
             return;
