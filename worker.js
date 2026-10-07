@@ -343,6 +343,18 @@ app.post("/api/tg/moderate-user", async (req, res) => {
 });
 
 // ---------------- 10. USER NOTIFY HELPER (@Ppmod_bot) ----------------
+async function getUserTgId(uid, fallback) {
+    try {
+        if (uid) {
+            const uSnap = await db.collection("users").doc(uid).get();
+            if (uSnap.exists) {
+                const t = (uSnap.data().tgChatId || "").toString().trim();
+                if (t) return t;
+            }
+        }
+    } catch (e) {}
+    return fallback || "";
+}
 async function notifyUserTelegram(chatId, text) {
     if (!chatId) return;
     try {
@@ -468,7 +480,8 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
         });
 
         if (userTgId) {
-            await notifyUserTelegram(userTgId, 
+            const notifyId = await getUserTgId(uid, userTgId);
+            await notifyUserTelegram(notifyId,
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
                 `🎮 <b>গেম:</b> Task\n` +
                 `⚠️ <b>কারণ:</b> ${reason}\n` +
@@ -576,8 +589,9 @@ async function processOrder(orderId, orderData) {
                     botProcessing: false
                 });
 
-                if (orderData.userTgId) {
-                    await notifyUserTelegram(orderData.userTgId,
+                if (orderData.userTgId || orderData.uid) {
+                    const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
+                    await notifyUserTelegram(notifyId,
                         `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
                         `🎮 <b>গেম:</b> ${orderData.game}\n` +
                         `⏱️ <b>সময় লেগেছে:</b> ~${elapsedSec} সেকেন্ড\n` +
@@ -912,10 +926,20 @@ db.collection("tg_groups").onSnapshot((snap) => {
 });
 
 // ---------------- 13. MASTER WORKER START ----------------
+let botModeCache; // undefined = never configured -> keep processing (backward compatible)
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
     await initPrimeAutoResponder();
     db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
+
+    // Watch admin Bot Mode toggle: explicit OFF = skip auto-processing (manual mode)
+    db.collection("config").doc("app").onSnapshot((snap) => {
+        try {
+            const d = snap.exists ? snap.data() : {};
+            botModeCache = (d && d.botMode === undefined) ? undefined : !!(d && d.botMode);
+            console.log("[CONFIG] botMode =", botModeCache);
+        } catch (e) {}
+    });
 
     try { await getUsableTelegramClient(); } catch (e) {}
 
@@ -924,7 +948,8 @@ async function startMasterWorker() {
             if (change.type === "added" || change.type === "modified") {
                 const ord = change.doc.data();
                 const ordId = change.doc.id;
-                if (ord.accEmail && ord.accPass && !ord.botProcessing && !activeOrders.has(ordId)) {
+                if (botModeCache === false) return; // manual mode: admin handles by hand
+                if (ord.accEmail && ord.accPass && ord.mode !== "manual" && !ord.botProcessing && !activeOrders.has(ordId)) {
                     processOrder(ordId, ord);
                 }
             }
