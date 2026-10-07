@@ -559,12 +559,15 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         try {
             await item.client.invoke(new Api.auth.SignIn({ phoneNumber: phone, phoneCodeHash: item.phoneCodeHash, phoneCode: code }));
         } catch (signInErr) {
-            if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && signInErr.message.includes("2FA"))) {
+            if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
                 if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
-                if (typeof item.client.checkPassword === "function") {
-                    await item.client.checkPassword(password);
-                } else {
-                    await item.client.signInUserWithPassword({ apiId: DEFAULT_API_ID, apiHash: DEFAULT_API_HASH, password });
+                try {
+                    await item.client.signIn({ password: password });
+                } catch (pwdErr) {
+                    const { computeCheckPassword } = require("telegram/Password");
+                    const passwordSrpResult = await item.client.invoke(new Api.account.GetPassword());
+                    const passwordSrpHash = await computeCheckPassword(passwordSrpResult, password);
+                    await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
                 }
             } else {
                 throw signInErr;
