@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine & Group Guardian Active!"));
+app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
@@ -53,12 +53,19 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 const groupConfigs = new Map();
-const userSlowdownTracker = new Map(); // "chatId:userId" -> timestamp
+const userWarnings = new Map(); // "chatId:userId" -> warningCount
 const lastWelcomeMessages = new Map(); // chatId -> messageId
 
-// ইনবক্স ও বাইপাস ফিল্টার শব্দ
+// ইনবক্স ও প্রমোশন শব্দ
 const INBOX_WORDS = ["inbox", "ib", "dm me", "pm me", "message me", "msg me", "আমায় মেসেজ করো", "ইনবক্সে আসো", "ইনবক্স", "ইনবক্সে", "নক দাও", "নক দিন", "পার্সোনালে আসো"];
-const BAD_WORDS = ["gali1", "gali2", "scam", "fraud", "বা***", "চো***", "খা***", "মাদার***", "শালা", "খানকি"];
+
+// আসল গালি তালিকা (বাংলা ও বাংলিশ)
+const REAL_BAD_WORDS = [
+    "madarchod", "madarshod", "mc", "bc", "bessha", "khanki", "magi", "chudi", "chuda",
+    "chudo", "balsal", "baler", "suor", "kutta", "gandu", "harami", "bokachoda", "chodar",
+    "chudte", "malai", "dimaon", "মাদারচোদ", "খানকি", "মাগী", "চোদা", "চুদি", "বাল",
+    "শুয়োর", "কুত্তা", "হারামি", "বোকাচোদা", "চোদ", "বেশ্যা", "খানকিরপোল"
+];
 
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
@@ -94,15 +101,17 @@ app.post("/api/tg/group-broadcast", async (req, res) => {
     }
 });
 
-// ---------------- 5. GIVEAWAY MANAGEMENT API ----------------
+// ---------------- 5. DETAILED GIVEAWAY API ----------------
 app.post("/api/tg/create-giveaway", async (req, res) => {
-    const { chatId, prize, winnersCount } = req.body;
-    if (!chatId || !prize) return res.status(400).json({ ok: false, error: "Missing fields" });
+    const { chatId, title, itemName, amount, winnersCount } = req.body;
+    if (!chatId || !title || !itemName) return res.status(400).json({ ok: false, error: "সবগুলো তথ্য পূরণ করুন" });
 
     try {
         const giveawayRef = await db.collection("giveaways").add({
             chatId,
-            prize,
+            title,
+            itemName,
+            amount: amount || "",
             winnersCount: Number(winnersCount || 1),
             participants: [],
             status: "active",
@@ -110,10 +119,10 @@ app.post("/api/tg/create-giveaway", async (req, res) => {
         });
 
         const gMsg = await groupBot.sendMessage(chatId, 
-            `🎉 <b>ধামাকা গিভঅ্যাওয়ে শুরু হয়েছে! (GIVEAWAY)</b>\n\n` +
-            `🎁 <b>পুরস্কার:</b> ${prize}\n` +
+            `🎉 <b>${title}</b>\n\n` +
+            `🎁 <b>পুরস্কার:</b> ${amount ? amount + " " : ""}${itemName}\n` +
             `🏆 <b>বিজয়ী নির্বাচন:</b> ${winnersCount} জন\n\n` +
-            `👇 নিচের বাটনে ক্লিক করে এখনই অংশগ্রহণ করুন!`,
+            `👇 নিচের বাটনে চাপ দিয়ে এখনই অংশগ্রহণ করুন!`,
             {
                 parse_mode: "HTML",
                 reply_markup: {
@@ -125,7 +134,7 @@ app.post("/api/tg/create-giveaway", async (req, res) => {
         );
 
         await giveawayRef.update({ messageId: gMsg.message_id });
-        return res.json({ ok: true, message: "গিভঅ্যাওয়ে গ্রুপে শুরু হয়েছে!", giveawayId: giveawayRef.id });
+        return res.json({ ok: true, message: "গিভঅ্যাওয়ে পোস্ট করা হয়েছে!", giveawayId: giveawayRef.id });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -142,16 +151,15 @@ app.post("/api/tg/end-giveaway", async (req, res) => {
 
         const participants = g.participants || [];
         if (participants.length === 0) {
-            await groupBot.sendMessage(g.chatId, `⚠️ <b>গিভঅ্যাওয়ে সমাপ্ত:</b> কোনো অংশগ্রহণকারী পাওয়া যায়নি।`, { parse_mode: "HTML" });
+            await groupBot.sendMessage(g.chatId, `⚠️ <b>${g.title} সমাপ্ত:</b> কোনো অংশগ্রহণকারী পাওয়া যায়নি।`, { parse_mode: "HTML" });
             await gDoc.ref.update({ status: "ended" });
             return res.json({ ok: true, message: "No participants" });
         }
 
-        // র্যান্ডম বিজয়ী নির্বাচন
         const shuffled = participants.sort(() => 0.5 - Math.random());
         const winners = shuffled.slice(0, Math.min(g.winnersCount, participants.length));
 
-        let winnerText = `🏆 <b>গিভঅ্যাওয়ে বিজয়ীদের তালিকা! (WINNERS)</b>\n\n🎁 <b>পুরস্কার:</b> ${g.prize}\n\n`;
+        let winnerText = `🏆 <b>গিভঅ্যাওয়ে ফলাফল ও বিজয়ীদের তালিকা!</b>\n\n🎉 <b>${g.title}</b>\n🎁 <b>পুরস্কার:</b> ${g.amount ? g.amount + " " : ""}${g.itemName}\n\n`;
         winners.forEach((w, idx) => {
             winnerText += `🥇 <b>Winner ${idx + 1}:</b> <a href="tg://user?id=${w.id}">${w.name}</a> (<code>${w.id}</code>)\n`;
         });
@@ -589,21 +597,11 @@ async function processOrder(orderId, orderData) {
     }
 }
 
-// ---------------- 11. ADVANCED GROUP GUARDIAN & SANGMATA ENGINE (@Vareonprotection_bot) ----------------
+// ---------------- 11. ADVANCED GROUP GUARDIAN (@Vareonprotection_bot) ----------------
 async function isGroupAdmin(chatId, userId) {
     try {
         const member = await groupBot.getChatMember(chatId, userId);
         return member.status === "creator" || member.status === "administrator";
-    } catch (e) {
-        return false;
-    }
-}
-
-// চ্যানেল ফোর্স জয়েন চেক হেল্পার
-async function checkChannelJoined(channelId, userId) {
-    try {
-        const member = await groupBot.getChatMember(channelId, userId);
-        return ["creator", "administrator", "member"].includes(member.status);
     } catch (e) {
         return false;
     }
@@ -625,16 +623,13 @@ groupBot.on("my_chat_member", async (msg) => {
                 antiVideo: true,
                 antiForward: true,
                 antiInbox: true,
-                slowMode30s: false,
-                forceJoinEnabled: false,
-                forceChannels: [],
                 lastActive: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
         }
     } catch (e) {}
 });
 
-// গ্রুপ মেসেজ হ্যান্ডলার
+// গ্রুপ মেসেজ হ্যান্ডলার (ফরোয়ার্ড ব্লক + আসল গালি ডিটেক্ট + ৩-ওয়ার্নিং ব্যান)
 groupBot.on("message", async (msg) => {
     try {
         if (!msg.chat || (msg.chat.type !== "group" && msg.chat.type !== "supergroup")) return;
@@ -657,67 +652,33 @@ groupBot.on("message", async (msg) => {
             lastActive: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).catch(() => {});
 
-        // গ্রুপের কাস্টম কনফিগ রিড
         let groupConf = groupConfigs.get(chatId);
         if (!groupConf) {
             const gDoc = await db.collection("tg_groups").doc(chatId).get();
-            groupConf = gDoc.exists ? gDoc.data() : { antiLink: true, antiForward: true, antiInbox: true };
+            groupConf = gDoc.exists ? gDoc.data() : { antiLink: true, antiForward: true, antiInbox: true, antiVideo: true };
             groupConfigs.set(chatId, groupConf);
         }
 
         const isAdmin = await isGroupAdmin(chatId, fromUser.id);
 
-        // অ্যাডমিনদের ক্ষেত্রে ফিল্টার ছাড় দেওয়া
         if (!isAdmin) {
-            // ১. FORCE JOIN (চ্যানেলে জয়েন না থাকলে চ্যাট লক)
-            if (groupConf.forceJoinEnabled && groupConf.forceChannels && groupConf.forceChannels.length > 0) {
-                for (const ch of groupConf.forceChannels) {
-                    const isJoined = await checkChannelJoined(ch, fromUser.id);
-                    if (!isJoined) {
-                        await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                        const lockNotice = await groupBot.sendMessage(chatId,
-                            `🔒 <b>চ্যাট লক করা হয়েছে!</b>\n\n` +
-                            `স্বাগতম <a href="tg://user?id=${userId}">${currentName}</a>! গ্রুপে মেসেজ দিতে হলে আপনাকে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করতে হবে।`,
-                            {
-                                parse_mode: "HTML",
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: "📢 Join Channel", url: `https://t.me/${ch.replace('@', '')}` }],
-                                        [{ text: "✅ Verify & Unlock Chat", callback_data: `verify_fsub:${ch}:${userId}` }]
-                                    ]
-                                }
-                            }
-                        );
-                        setTimeout(() => groupBot.deleteMessage(chatId, lockNotice.message_id).catch(() => {}), 15000);
-                        return;
-                    }
-                }
-            }
+            // ১. শেয়ার ও ফরোয়ার্ড ব্লক (সকল প্রকার ফরোয়ার্ড ১০০% ডিটেক্ট)
+            const isForwarded = Boolean(
+                msg.forward_from ||
+                msg.forward_from_chat ||
+                msg.forward_sender_name ||
+                msg.forward_origin ||
+                msg.forward_date
+            );
 
-            // ২. ৩০ সেকেন্ড স্লো-মোড রেট লিমিট
-            if (groupConf.slowMode30s) {
-                const slowKey = `${chatId}:${userId}`;
-                const now = Date.now();
-                const lastMsgTime = userSlowdownTracker.get(slowKey) || 0;
-                if (now - lastMsgTime < 30000) {
-                    await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                    const remSec = Math.ceil((30000 - (now - lastMsgTime)) / 1000);
-                    const sm = await groupBot.sendMessage(chatId, `⏳ <b>@${fromUser.username || fromUser.first_name}</b>, স্লো-মোড চালু আছে! আরও ${remSec} সেকেন্ড পর মেসেজ দিতে পারবেন।`, { parse_mode: "HTML" });
-                    setTimeout(() => groupBot.deleteMessage(chatId, sm.message_id).catch(() => {}), 4000);
-                    return;
-                }
-                userSlowdownTracker.set(slowKey, now);
-            }
-
-            // ৩. অন্য চ্যানেল/গ্রুপ থেকে ফরোয়ার্ড বা শেয়ার ব্লক
-            if (groupConf.antiForward !== false && (msg.forward_from || msg.forward_from_chat)) {
+            if (groupConf.antiForward !== false && isForwarded) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অন্য চ্যানেল বা গ্রুপ থেকে মেসেজ ফরোয়ার্ড করা নিষেধ!`, { parse_mode: "HTML" });
+                const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অন্য কোনো চ্যানেল, গ্রুপ বা ইনবক্স থেকে শেয়ার বা ফরোয়ার্ড করা সম্পূর্ণ নিষেধ!`, { parse_mode: "HTML" });
                 setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                 return;
             }
 
-            // ৪. ভিডিও ও ভিডিও নোট ব্লক
+            // ২. ভিডিও ও ভিডিও নোট ব্লক
             if (groupConf.antiVideo && (msg.video || msg.video_note)) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
                 const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে ভিডিও পাঠানো নিষেধ!`, { parse_mode: "HTML" });
@@ -725,7 +686,7 @@ groupBot.on("message", async (msg) => {
                 return;
             }
 
-            // ৫. ইনবক্স ও বাইপাস ফিল্টার (ib, inbox, আমায় মেসেজ করো ইত্যাদি)
+            // ৩. ইনবক্স ও বাইপাস ফিল্টার
             if (groupConf.antiInbox !== false) {
                 for (const ib of INBOX_WORDS) {
                     if (text.toLowerCase().includes(ib.toLowerCase())) {
@@ -737,24 +698,45 @@ groupBot.on("message", async (msg) => {
                 }
             }
 
-            // ৬. অ্যান্টি-লিংক ফিল্টার
+            // ৪. অ্যান্টি-লিংক ফিল্টার
             if (groupConf.antiLink !== false && (text.includes("t.me/") || text.includes("http://") || text.includes("https://"))) {
                 if (!text.includes("googleplaypointhack") && !text.includes("ppmod")) {
                     await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে অননুমোদিত লিংক দেওয়া নিষেধ!`, { parse_mode: "HTML" });
+                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, অননুমোদিত লিংক দেওয়া নিষেধ!`, { parse_mode: "HTML" });
                     setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
                     return;
                 }
             }
 
-            // ৭. গালি ফিল্টার
-            for (const bad of BAD_WORDS) {
-                if (text.toLowerCase().includes(bad.toLowerCase())) {
-                    await groupBot.deleteMessage(chatId, msgId).catch(() => {});
-                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, গ্রুপে শালীন ভাষা ব্যবহার করুন!`, { parse_mode: "HTML" });
-                    setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 4000);
-                    return;
+            // ৫. আসল গালি ফিল্টার ও ৩-ওয়ার্নিং ব্যান সিস্টেম!
+            const cleanText = text.toLowerCase().replace(/[^a-zA-Z0-9\u0980-\u09FF]/g, "");
+            let hasBadWord = false;
+
+            for (const bad of REAL_BAD_WORDS) {
+                if (text.toLowerCase().includes(bad) || cleanText.includes(bad)) {
+                    hasBadWord = true;
+                    break;
                 }
+            }
+
+            if (hasBadWord) {
+                await groupBot.deleteMessage(chatId, msgId).catch(() => {});
+                const warnKey = `${chatId}:${userId}`;
+                const curWarns = (userWarnings.get(warnKey) || 0) + 1;
+                userWarnings.set(warnKey, curWarns);
+
+                if (curWarns >= 3) {
+                    await groupBot.banChatMember(chatId, userId).catch(() => {});
+                    await groupBot.sendMessage(chatId, `🚨 <a href="tg://user?id=${userId}">${currentName}</a>-কে ৩ বার গালি দেওয়ার কারণে <b>গ্রুপ থেকে ব্যান করা হলো!</b>`, { parse_mode: "HTML" });
+                    userWarnings.delete(warnKey);
+                } else if (curWarns === 2) {
+                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, শেষ সতর্কতা <b>(২/৩)</b>! আর একবার গালি দিলে সরাসরি ব্যান হবেন!`, { parse_mode: "HTML" });
+                    setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 6000);
+                } else {
+                    const m = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, ভদ্র ভাষা ব্যবহার করুন! সতর্কতা <b>(১/৩)</b>।`, { parse_mode: "HTML" });
+                    setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 5000);
+                }
+                return;
             }
         }
 
@@ -809,7 +791,7 @@ groupBot.on("message", async (msg) => {
             await groupBot.sendMessage(chatId, scammerWarning, { parse_mode: "HTML", reply_to_message_id: msgId }).catch(() => {});
         }
 
-        // /scammer এবং /unscammer এডমিন কমান্ড
+        // /scammer এবং /unscammer
         if (text.startsWith("/scammer") || text.startsWith("/unscammer")) {
             if (!isAdmin) {
                 const warn = await groupBot.sendMessage(chatId, `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, এই কমান্ড কেবল এডমিনদের জন্য!`, { parse_mode: "HTML", reply_to_message_id: msgId });
@@ -844,13 +826,12 @@ groupBot.on("message", async (msg) => {
     }
 });
 
-// গ্রুপে নতুন মেম্বার জয়েন করলে ওয়েলকাম (পূর্বের ওয়েলকাম মেসেজ অটো-ক্লিন হবে)
+// গ্রুপে নতুন মেম্বার ওয়েলকাম (পূর্বের মেসেজ অটো-ক্লিন)
 groupBot.on("new_chat_members", async (msg) => {
     try {
         const chatId = msg.chat.id.toString();
         const newMembers = msg.new_chat_members || [];
 
-        // পূর্বের ওয়েলকাম মেসেজ ডিলিট (যাতে চ্যাট পরিষ্কার থাকে)
         const oldMsgId = lastWelcomeMessages.get(chatId);
         if (oldMsgId) {
             await groupBot.deleteMessage(chatId, oldMsgId).catch(() => {});
@@ -880,31 +861,13 @@ groupBot.on("new_chat_members", async (msg) => {
     } catch (e) {}
 });
 
-// Callback Query (Giveaway Join & Force Subscribe Verify)
+// Giveaway Join বাটন হ্যান্ডলার
 groupBot.on("callback_query", async (query) => {
     try {
         const data = query.data;
         const fromUser = query.from;
         const chatId = query.message.chat.id;
 
-        // ১. Force Subscribe Verify বাটন
-        if (data.startsWith("verify_fsub:")) {
-            const [, channel, targetUserId] = data.split(":");
-            if (fromUser.id.toString() !== targetUserId) {
-                return groupBot.answerCallbackQuery(query.id, { text: "এটি আপনার জন্য নয়!", show_alert: true });
-            }
-
-            const isJoined = await checkChannelJoined(channel, fromUser.id);
-            if (isJoined) {
-                await groupBot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-                await groupBot.answerCallbackQuery(query.id, { text: "✅ ভেরিফিকেশন সফল! আপনার চ্যাট আনলক হয়েছে।", show_alert: true });
-            } else {
-                await groupBot.answerCallbackQuery(query.id, { text: "❌ আপনি এখনো চ্যানেলে জয়েন করেননি! আগে জয়েন করুন।", show_alert: true });
-            }
-            return;
-        }
-
-        // ২. Giveaway Join বাটন
         if (data.startsWith("giveaway_join:")) {
             const giveawayId = data.split(":")[1];
             const gRef = db.collection("giveaways").doc(giveawayId);
@@ -929,7 +892,6 @@ groupBot.on("callback_query", async (query) => {
             await gRef.update({ participants });
             await groupBot.answerCallbackQuery(query.id, { text: "🎉 সফলভাবে অংশগ্রহণ করেছেন! শুভকামনা।", show_alert: true });
 
-            // বাটনের কাউন্টার আপডেট
             await groupBot.editMessageReplyMarkup({
                 inline_keyboard: [
                     [{ text: `🎉 Join Giveaway [অংশগ্রহণকারী: ${participants.length}]`, callback_data: `giveaway_join:${giveawayId}` }]
@@ -951,7 +913,7 @@ db.collection("tg_groups").onSnapshot((snap) => {
 
 // ---------------- 13. MASTER WORKER START ----------------
 async function startMasterWorker() {
-    console.log("[MASTER INIT] Starting PP MOD Suite with Group Guardian...");
+    console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
     await initPrimeAutoResponder();
     db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
 
@@ -969,7 +931,7 @@ async function startMasterWorker() {
         });
     });
 
-    console.log("[MASTER INIT] Groups & Workers Live!");
+    console.log("[MASTER INIT] Active!");
 }
 
 startMasterWorker().catch(console.error);
