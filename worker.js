@@ -1,15 +1,24 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");
 const admin = require("firebase-admin");
 const TelegramBot = require("node-telegram-bot-api");
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
-// ---------------- 1. EXPRESS HTTP SERVER (RENDER 24/7 KEEP-ALIVE) ----------------
+// ---------------- 1. EXPRESS HTTP SERVER & PING ROUTES ----------------
 const app = express();
+app.use(cors());
+app.use(express.json());
+
 const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => res.send("PP MOD Master Worker & Group Protector is Running 24/7!"));
+
+// Cron-job & UptimeRobot এর জন্য রুট (এখন /ping ১০০% কাজ করবে)
+app.get("/", (req, res) => res.status(200).send("PP MOD Master Worker Active!"));
+app.get("/ping", (req, res) => res.status(200).send("pong"));
+app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
+
 app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
 
 // ---------------- 2. FIREBASE ADMIN INITIALIZATION ----------------
@@ -24,29 +33,139 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-// ---------------- 3. CONFIGURATIONS & BOT TOKENS ----------------
+// ---------------- 3. CONFIGURATIONS ----------------
 const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 29630945);
 const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "11b73fd133a7e3edea8d683aec494d3e";
 const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 
-// ১. ইউজার প্রাইভেট নোটিফিকেশন বট (@Ppmod_bot)
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
-
-// ২. গ্রুপ প্রটেকশন ও মডারেশন বট (@Vareonprotection_bot)
 const GROUP_PROTECT_BOT_TOKEN = process.env.GROUP_PROTECT_BOT_TOKEN || "8590481969:AAFezVtaNE6D0QF0ss26k2SHj5tW7hCiSN8";
 const groupBot = new TelegramBot(GROUP_PROTECT_BOT_TOKEN, { polling: true });
-
-// DM Auto-Responder সেটিংস (প্রাইম অ্যাকাউন্টের জন্য)
-const AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png";
-const AUTO_REPLY_CAPTION = `👋 <b>Welcome to PP MOD Automation!</b>\n\nআমরা গুগল প্লে পয়েন্ট ও কোয়েস্ট আনলক সার্ভিসের অটোমেশন প্রোভাইডার।\n\n📢 <b>আমাদের অফিসিয়াল চ্যানেল:</b>\n👉 <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nযেকোনো আপডেট পেতে চ্যানেলে যুক্ত থাকুন। ধন্যবাদ! ✨`;
 
 let currentClient = null;
 let currentPhone = null;
 const activeOrders = new Set();
-const autoReplyCooldown = new Map(); // senderId -> timestamp
+const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map(); // phone -> { client, phoneCodeHash }
 
-// ---------------- 4. USER TELEGRAM NOTIFICATION (@Ppmod_bot) ----------------
+// ---------------- 4. FAST DIRECT OTP API (NO MORE SPINNING!) ----------------
+app.post("/api/tg/send-otp", async (req, res) => {
+    const rawPhone = req.body.phone || "";
+    const phone = rawPhone.replace(/[^0-9+]/g, "");
+    if (!phone || phone.length < 9) {
+        return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (+880...)" });
+    }
+
+    console.log(`[DIRECT AUTH] Requesting OTP for: ${phone}`);
+    try {
+        const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+        await tempClient.connect();
+
+        const result = await tempClient.sendCode({
+            apiId: DEFAULT_API_ID,
+            apiHash: DEFAULT_API_HASH
+        }, phone);
+
+        pendingAuthClients.set(phone, {
+            client: tempClient,
+            phoneCodeHash: result.phoneCodeHash
+        });
+
+        console.log(`[DIRECT AUTH SUCCESS] OTP sent to Telegram: ${phone}`);
+        return res.json({ ok: true, message: "OTP sent to Telegram!" });
+    } catch (err) {
+        console.error(`[DIRECT AUTH ERR]:`, err.message);
+        return res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+app.post("/api/tg/verify-otp", async (req, res) => {
+    const rawPhone = req.body.phone || "";
+    const phone = rawPhone.replace(/[^0-9+]/g, "");
+    const code = (req.body.code || "").trim();
+    const password = (req.body.password || "").trim();
+
+    const item = pendingAuthClients.get(phone);
+    if (!item) {
+        return res.status(400).json({ ok: false, error: "সেশন মেয়াদ শেষ! আবার Send OTP দিন।" });
+    }
+
+    try {
+        await item.client.signIn({
+            phoneNumber: phone,
+            phoneCodeHash: item.phoneCodeHash,
+            phoneCode: code
+        });
+
+        const sessionString = item.client.session.save();
+
+        await db.collection("tg_accounts").doc(phone).set({
+            phone: phone,
+            session: sessionString,
+            balance: 0,
+            active: true,
+            addedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        pendingAuthClients.delete(phone);
+        console.log(`[AUTH VERIFIED] Account ${phone} connected successfully!`);
+        return res.json({ ok: true, message: "Account connected successfully!" });
+    } catch (err) {
+        // 2FA পাসওয়ার্ড হ্যান্ডলিং
+        if (err.message && (err.message.includes("PASSWORD_HASH_INVALID") || err.message.includes("2FA") || err.message.includes("SESSION_PASSWORD_NEEDED"))) {
+            if (!password) {
+                return res.status(400).json({ ok: false, error: "এই অ্যাকাউন্টে 2FA অন আছে! পাসওয়ার্ড দিন।" });
+            }
+            try {
+                await item.client.signInWithPassword({
+                    apiId: DEFAULT_API_ID,
+                    apiHash: DEFAULT_API_HASH
+                }, { password: password });
+
+                const sessionString = item.client.session.save();
+                await db.collection("tg_accounts").doc(phone).set({
+                    phone: phone,
+                    session: sessionString,
+                    balance: 0,
+                    active: true,
+                    addedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                pendingAuthClients.delete(phone);
+                return res.json({ ok: true, message: "Account connected with 2FA!" });
+            } catch (pErr) {
+                return res.status(400).json({ ok: false, error: "ভুল 2FA পাসওয়ার্ড!" });
+            }
+        }
+        return res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+// ---------------- 5. REAL BOT BALANCE CHECK API ----------------
+app.post("/api/tg/check-balance", async (req, res) => {
+    console.log(`[FORCE BALANCE CHECK] Checking real tokens from PlayQuestHelperBot...`);
+    try {
+        const tg = await getUsableTelegramClient();
+        await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
+
+        let found = await waitForCondition((m) => {
+            return (m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest") || m.message.includes("Balance")));
+        }, 15000);
+
+        if (found && found.msg) {
+            const b = parseBotBalance(found.msg.message);
+            if (b !== null) {
+                await syncAccountBalance(currentPhone, b);
+                return res.json({ ok: true, balance: b });
+            }
+        }
+        return res.json({ ok: false, error: "বট থেকে ব্যালেন্স টেক্সট পাওয়া যায়নি" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ---------------- 6. USER NOTIFICATION HELPER ----------------
 async function notifyUserTelegram(chatId, text) {
     if (!chatId) return;
     try {
@@ -60,12 +179,9 @@ async function notifyUserTelegram(chatId, text) {
             });
             console.log(`[USER NOTIFY] Sent via @Ppmod_bot to: ${cleanChatId}`);
         }
-    } catch (e) {
-        console.log(`[USER NOTIFY ERR]:`, e.message);
-    }
+    } catch (e) {}
 }
 
-// ---------------- 5. BOT TOKEN & BALANCE PARSER ----------------
 function parseBotBalance(text) {
     if (!text) return null;
     const match = text.match(/(?:balance|new balance|current balance)\s*[:\-]?\s*(\d+)/i) 
@@ -75,7 +191,6 @@ function parseBotBalance(text) {
 
 async function syncAccountBalance(phone, balance) {
     if (balance === null || balance === undefined || isNaN(balance)) return;
-    console.log(`[BALANCE SYNC] Account ${phone || "Current"}: ${balance} Tokens`);
     try {
         if (phone && phone !== "Primary_Account") {
             await db.collection("tg_accounts").doc(phone).set({
@@ -135,13 +250,12 @@ async function waitForCondition(checkFn, timeoutMs = 45000) {
     return null;
 }
 
-// ---------------- 6. MULTI-ACCOUNT ROTATION & AUTO-REPLY ENGINE ----------------
+// ---------------- 7. TELEGRAM WORKER CLIENT ROTATION ----------------
 async function getUsableTelegramClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
     snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
 
-    // ৩ বা তার বেশি টোকেন আছে এমন অ্যাকাউন্ট খোঁজা (প্রাইম অ্যাকাউন্ট আগে প্রাধান্য পাবে)
     const valid = accounts
         .sort((a, b) => (b.isPrime ? 1 : 0) - (a.isPrime ? 1 : 0))
         .find((a) => (a.balance === undefined || a.balance >= 3) && a.session);
@@ -175,43 +289,11 @@ async function getUsableTelegramClient() {
     currentClient = client;
     currentPhone = chosenPhone;
 
-    // শুধু প্রাইম অ্যাকাউন্টেই ইনবক্স অটো-রিপ্লাই সচল থাকবে
-    if (isPrime) {
-        setupAutoReply(currentClient, chosenPhone);
-    }
-
     console.log(`[CLIENT INIT] Active worker: ${chosenPhone} (Prime: ${isPrime})`);
     return currentClient;
 }
 
-function setupAutoReply(client, phone) {
-    client.addEventHandler(async (event) => {
-        try {
-            const msg = event.message;
-            if (!msg || msg.out || !event.isPrivate) return;
-            const sender = await msg.getSender();
-            if (!sender || sender.bot) return;
-
-            const senderId = sender.id.toString();
-            const now = Date.now();
-            const lastTime = autoReplyCooldown.get(senderId) || 0;
-            if (now - lastTime < 3600000) return; // ১ ঘণ্টার কুলডাউন
-
-            const delay = Math.floor(Math.random() * 2000) + 3000;
-            await new Promise((r) => setTimeout(r, delay));
-
-            await client.sendMessage(sender.id, {
-                file: AUTO_REPLY_IMG,
-                message: AUTO_REPLY_CAPTION,
-                parseMode: "html"
-            });
-            autoReplyCooldown.set(senderId, now);
-            console.log(`[AUTO-REPLY] Sent promo to ${sender.firstName || senderId}`);
-        } catch (e) {}
-    }, new NewMessage({ incoming: true }));
-}
-
-// ---------------- 7. REFUND & CANCEL LOGIC ----------------
+// ---------------- 8. REFUND LOGIC ----------------
 async function refundOrder(orderId, uid, reason, userTgId = null) {
     console.log(`[REFUND] Order ${orderId}: ${reason}`);
     try {
@@ -236,22 +318,19 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             });
         });
 
-        // @Ppmod_bot দিয়ে ইউজারকে নোটিফিকেশন পাঠানো
         if (userTgId) {
             await notifyUserTelegram(userTgId, 
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
                 `🎮 <b>গেম:</b> Task\n` +
                 `⚠️ <b>কারণ:</b> ${reason}\n` +
-                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins আপনার অ্যাকাউন্টে ফেরত দেওয়া হয়েছে।\n\n` +
+                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।\n\n` +
                 `👉 দয়া করে সঠিক তথ্য দিয়ে পুনরায় চেষ্টা করুন।`
             );
         }
-    } catch (e) {
-        console.error(`[REFUND ERR]`, e.message);
-    }
+    } catch (e) {}
 }
 
-// ---------------- 8. MASTER ORDER PROCESSOR ----------------
+// ---------------- 9. MASTER ORDER PROCESSOR ----------------
 async function processOrder(orderId, orderData) {
     if (activeOrders.has(orderId)) return;
     activeOrders.add(orderId);
@@ -292,7 +371,7 @@ async function processOrder(orderId, orderData) {
         if (!clicked) clicked = await clickInlineButton(found.msg, gameSearch.split(" ")[0]);
         if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
 
-        // ধাপ ৩: New Account নির্বাচন
+        // ধাপ ৩: New Account
         await new Promise((r) => setTimeout(r, 2000));
         let promptMsg = await getLatestBotMessage();
         if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting"))) {
@@ -300,14 +379,14 @@ async function processOrder(orderId, orderData) {
             await new Promise((r) => setTimeout(r, 2000));
         }
 
-        // ধাপ ৪: ক্রেডেনশিয়াল পাঠানো: email---password
+        // ধাপ ৪: ক্রেডেনশিয়াল পাঠানো
         const credText = `${orderData.accEmail.trim()}---${orderData.accPass.trim()}`;
         console.log(`[CREDENTIALS] Sending: ${orderData.accEmail}---******`);
         await orderRef.update({ adminMsg: "লগইন তথ্য পাঠানো হয়েছে। কনফার্মেশন চলছে..." });
 
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
-        // ধাপ ৫: Confirm & Pay (3 🪙) ✅ ক্লিক
+        // ধাপ ৫: Confirm & Pay
         let confirmFound = await waitForCondition((m) => {
             const txt = (m.message || "").toLowerCase();
             return txt.includes("confirm credentials & payment") || txt.includes("confirm and start quests");
@@ -334,7 +413,7 @@ async function processOrder(orderId, orderData) {
             const b = parseBotBalance(curMsg.message);
             if (b !== null) syncAccountBalance(currentPhone, b);
 
-            // কেস ১: Google Captcha Security Check
+            // Captcha Error
             if (text.includes("captcha security check") || text.includes("captcha")) {
                 console.log(`[CAPTCHA DETECTED] Google Captcha error!`);
                 await clickInlineButton(curMsg, "Cancel Process");
@@ -342,7 +421,7 @@ async function processOrder(orderId, orderData) {
                 return;
             }
 
-            // কেস ২: Google rejected sign-in / Couldn't sign you in
+            // Google Rejected
             if (text.includes("google rejected sign-in") || text.includes("couldn't sign you in")) {
                 console.log(`[REJECTED] Google rejected sign-in`);
                 await clickInlineButton(curMsg, "Cancel Process");
@@ -350,7 +429,7 @@ async function processOrder(orderId, orderData) {
                 return;
             }
 
-            // কেস ৩: Password Error
+            // Password Error
             if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
                 console.log(`[PASSWORD ERROR] Wrong password`);
                 await clickInlineButton(curMsg, "Cancel Process");
@@ -358,7 +437,7 @@ async function processOrder(orderId, orderData) {
                 return;
             }
 
-            // কেস ৪: ফোন থেকে লগইন কনফার্ম হওয়া
+            // Login Confirmed
             if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
                 console.log(`[LOGIN CONFIRMED] Phone confirmed, unlocking quests...`);
                 await orderRef.update({
@@ -366,14 +445,14 @@ async function processOrder(orderId, orderData) {
                 });
             }
 
-            // কেস ৫: Google Prompt Number চ্যালেঞ্জ (যেমন Tap 28)
+            // Prompt Number
             const promptNum = extractPromptNumber(curMsg.message);
             if (promptNum && !text.includes("completed") && !text.includes("confirmed from your phone")) {
                 const promptNotice = `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।`;
                 await orderRef.update({ adminMsg: promptNotice });
             }
 
-            // কেস ৬: কাজ সম্পূর্ণ হওয়া!
+            // Quest Completed
             if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
                 const elapsedSec = Math.round((Date.now() - startTime) / 1000);
                 console.log(`[SUCCESS] Quest Completed in ${elapsedSec}s!`);
@@ -386,7 +465,6 @@ async function processOrder(orderId, orderData) {
                     botProcessing: false
                 });
 
-                // @Ppmod_bot দিয়ে ইউজারকে অভিনন্দন নোটিফিকেশন
                 if (orderData.userTgId) {
                     await notifyUserTelegram(orderData.userTgId,
                         `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
@@ -412,7 +490,7 @@ async function processOrder(orderId, orderData) {
     }
 }
 
-// ---------------- 9. GROUP PROTECTION ENGINE (@Vareonprotection_bot) ----------------
+// ---------------- 10. GROUP PROTECTION BOT ----------------
 const BAD_WORDS = ["gali1", "gali2", "scam", "fraud", "বা***", "চো***", "খা***", "মাদার***", "শালা", "খানকি"];
 
 groupBot.on("message", async (msg) => {
@@ -423,7 +501,6 @@ groupBot.on("message", async (msg) => {
         const msgId = msg.message_id;
         const text = msg.text || msg.caption || "";
 
-        // ১. অ্যান্টি-লিংক ফিল্টার (অননুমোদিত লিংক ডিলিট)
         if (text.includes("t.me/") || text.includes("http://") || text.includes("https://")) {
             if (!text.includes("googleplaypointhack") && !text.includes("ppmod")) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
@@ -433,7 +510,6 @@ groupBot.on("message", async (msg) => {
             }
         }
 
-        // ২. গালি ও খারাপ শব্দ ফিল্টার
         for (const bad of BAD_WORDS) {
             if (text.toLowerCase().includes(bad.toLowerCase())) {
                 await groupBot.deleteMessage(chatId, msgId).catch(() => {});
@@ -443,95 +519,15 @@ groupBot.on("message", async (msg) => {
             }
         }
 
-        // ৩. কি-ওয়ার্ড অটো-রিপ্লাই
         if (text.toLowerCase().includes("coin") || text.toLowerCase().includes("কয়েন")) {
             await groupBot.sendMessage(chatId, `🪙 <b>PP Coins কেনার নিয়ম:</b>\nআমাদের ওয়েবসাইটে লগইন করে Wallet অপশন থেকে bKash/Nagad দিয়ে সরাসরি Coins অ্যাড করতে পারেন।`, { parse_mode: "HTML", reply_to_message_id: msgId });
         }
     } catch (e) {}
 });
 
-groupBot.on("new_chat_members", async (msg) => {
-    try {
-        const name = msg.new_chat_members[0].first_name;
-        await groupBot.sendMessage(msg.chat.id, 
-            `👋 স্বাগতম <b>${name}</b> আমাদের অফিসিয়াল গ্রুপে!\nএখানে আপনি প্লে পয়েন্ট অটোমেশন সাপোর্ট ও আপডেট পাবেন।`,
-            {
-                parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📢 Official Channel", url: "https://t.me/googleplaypointhack" }]
-                    ]
-                }
-            }
-        );
-    } catch (e) {}
-});
-
-// ---------------- 10. REAL-TIME FIRESTORE ORDER & AUTH LISTENER ----------------
-function listenAuthRequests() {
-    db.collection("tg_auth_requests").where("status", "in", ["request_otp", "verify_otp"]).onSnapshot((snap) => {
-        snap.docChanges().forEach(async (change) => {
-            if (change.type === "added" || change.type === "modified") {
-                const reqData = change.doc.data();
-                const reqId = change.doc.id;
-                const docRef = db.collection("tg_auth_requests").doc(reqId);
-
-                if (reqData.status === "request_otp" && !reqData.processing) {
-                    await docRef.update({ processing: true });
-                    const phone = reqData.phone.replace(/[^0-9+]/g, "");
-                    try {
-                        const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
-                        await tempClient.connect();
-                        const res = await tempClient.sendCode({ apiId: DEFAULT_API_ID, apiHash: DEFAULT_API_HASH }, phone);
-                        pendingAuthClients.set(phone, { client: tempClient, phoneCodeHash: res.phoneCodeHash });
-                        await docRef.update({ status: "otp_sent", phoneCodeHash: res.phoneCodeHash, processing: false });
-                    } catch (err) {
-                        await docRef.update({ status: "error", processing: false, error: err.message });
-                    }
-                }
-
-                if (reqData.status === "verify_otp" && !reqData.processing) {
-                    await docRef.update({ processing: true });
-                    const phone = reqData.phone.replace(/[^0-9+]/g, "");
-                    const code = (reqData.code || "").trim();
-                    const password = (reqData.password || "").trim();
-                    const item = pendingAuthClients.get(phone);
-                    if (!item) {
-                        await docRef.update({ status: "error", error: "Session expired" });
-                        return;
-                    }
-
-                    try {
-                        await item.client.signIn({ phoneNumber: phone, phoneCodeHash: item.phoneCodeHash, phoneCode: code });
-                        const sessionString = item.client.session.save();
-                        await db.collection("tg_accounts").doc(phone).set({ phone: phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                        await docRef.update({ status: "success", processing: false });
-                        pendingAuthClients.delete(phone);
-                    } catch (err) {
-                        if (err.message && (err.message.includes("PASSWORD_HASH_INVALID") || err.message.includes("2FA"))) {
-                            try {
-                                await item.client.signInWithPassword({ apiId: DEFAULT_API_ID, apiHash: DEFAULT_API_HASH }, { password: password });
-                                const sessionString = item.client.session.save();
-                                await db.collection("tg_accounts").doc(phone).set({ phone: phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                                await docRef.update({ status: "success", processing: false });
-                                pendingAuthClients.delete(phone);
-                                return;
-                            } catch (pErr) {
-                                await docRef.update({ status: "error", error: "Invalid 2FA Password" });
-                                return;
-                            }
-                        }
-                        await docRef.update({ status: "error", error: err.message });
-                    }
-                }
-            }
-        });
-    });
-}
-
+// ---------------- 11. START WORKER ----------------
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Automation & Security Suite...");
-    listenAuthRequests();
 
     try {
         await getUsableTelegramClient();
