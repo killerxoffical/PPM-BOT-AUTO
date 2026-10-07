@@ -557,18 +557,21 @@ app.post("/api/tg/verify-otp", async (req, res) => {
 
     try {
         try {
-            await item.client.invoke(new Api.auth.SignIn({ phoneNumber: phone, phoneCodeHash: item.phoneCodeHash, phoneCode: code }));
+            await item.client.signIn({
+                phoneNumber: phone,
+                phoneCodeHash: item.phoneCodeHash,
+                phoneCode: code,
+                password: password ? (async () => password) : undefined
+            });
         } catch (signInErr) {
             if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
                 if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
-                try {
-                    await item.client.signIn({ password: password });
-                } catch (pwdErr) {
-                    const { computeCheckPassword } = require("telegram/Password");
-                    const passwordSrpResult = await item.client.invoke(new Api.account.GetPassword());
-                    const passwordSrpHash = await computeCheckPassword(passwordSrpResult, password);
-                    await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
-                }
+                await item.client.signIn({
+                    phoneNumber: phone,
+                    phoneCodeHash: item.phoneCodeHash,
+                    phoneCode: code,
+                    password: password
+                });
             } else {
                 throw signInErr;
             }
@@ -778,6 +781,46 @@ async function sendOrderLog(text) {
         });
     } catch (e) {}
 }
+
+// ---------------- AUTO REALISTIC ORDER LOG SIMULATOR (8 - 25 MIN RANDOM) ----------------
+const POPULAR_GAMES_LOG = [
+    "8ball pool (50)", "Angry birds 2 (50)", "Best Fiends (50)", "Dice dreams (50)",
+    "Domino dreams (50)", "Farm heroes (50)", "Hey day (All)", "Lords mobile (50)",
+    "Mobile legends (50)", "Summoners War (50)", "Fruit ninja (50)", "Zenless Zone Zero (50)",
+    "War machines (50)", "Yalla Ludo (50)"
+];
+const EMAIL_SNIPPETS = ["has", "rak", "tan", "784", "902", "sh", "joy", "fah", "321", "nah", "kab", "551", "al", "sak", "619", "mim"];
+
+function generateRealisticFakeLog() {
+    const game = POPULAR_GAMES_LOG[Math.floor(Math.random() * POPULAR_GAMES_LOG.length)];
+    const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
+    const maskedEmail = `++++++${snip}@gmail.com`;
+    const elapsed = Math.floor(Math.random() * 6) + 6; // 6s to 11s realistic
+    const trxId = "WLT-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+
+    return `✅ <b>TASK COMPLETED</b>\n\n` +
+           `🎮 <b>Game:</b> ${game}\n` +
+           `📧 <b>Gmail:</b> <code>${maskedEmail}</code>\n` +
+           `⏱️ <b>Time:</b> ~${elapsed}s\n` +
+           `🪙 <b>Coins:</b> 3\n` +
+           `💳 <b>Method:</b> PP Coins\n` +
+           `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
+           `📌 <b>Status:</b> Completed`;
+}
+
+function scheduleNextFakeOrderLog() {
+    // ৮ থেকে ২৫ মিনিটের মধ্যে র‍্যান্ডম বিরতি
+    const randomMinutes = Math.floor(Math.random() * (25 - 8 + 1)) + 8;
+    const delayMs = randomMinutes * 60 * 1000;
+    setTimeout(async () => {
+        try {
+            const fakeLog = generateRealisticFakeLog();
+            await sendOrderLog(fakeLog);
+        } catch (e) {}
+        scheduleNextFakeOrderLog();
+    }, delayMs);
+}
+
 async function getUserTgId(uid, fallback) {
     try {
         if (uid) {
@@ -1444,6 +1487,9 @@ async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
     await initPrimeAutoResponder();
     db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
+
+    // Start 8-25 min realistic order log simulator
+    scheduleNextFakeOrderLog();
 
     // Watch admin Bot Mode toggle: explicit OFF = skip auto-processing (manual mode)
     db.collection("config").doc("app").onSnapshot((snap) => {
