@@ -1,12 +1,13 @@
 {
   "name": "ppmod-render-backend",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "PP MOD Unified Render Worker & Telegram Bot",
   "main": "worker.js",
   "scripts": {
     "start": "node worker.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "firebase-admin": "^12.1.0",
