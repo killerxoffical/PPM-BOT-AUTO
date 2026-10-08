@@ -1311,33 +1311,48 @@ groupBot.on("message", async (msg) => {
                         parse_mode: "HTML"
                     };
 
-                    // একাধিক বাটন সাপোর্ট (নিরাপদ URL ফরম্যাট সহ)
+                    // একাধিক বাটন সাপোর্ট (স্মার্ট টেলিগ্রাম URL ক্লিনার)
                     const buttons = [];
-                    const sanitizeUrl = (raw) => {
-                        let u = (raw || "").trim();
+                    const cleanButtonUrl = (raw) => {
+                        if (!raw) return "";
+                        let u = raw.toString().trim();
                         if (!u) return "";
+                        // @username দিলে https://t.me/username এ কনভার্ট
+                        if (u.startsWith("@")) u = "https://t.me/" + u.slice(1);
+                        u = u.replace(/t\.me\/@/g, "t.me/");
                         if (!/^https?:\/\//i.test(u)) u = "https://" + u;
-                        return u;
+                        try {
+                            const parsed = new URL(u);
+                            if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                                return parsed.href;
+                            }
+                        } catch (e) {}
+                        return "";
+                    };
+
+                    const pushBtn = (txt, rawUrl) => {
+                        const validUrl = cleanButtonUrl(rawUrl);
+                        const label = (txt || "").trim();
+                        if (label && validUrl) {
+                            buttons.push([{ text: label, url: validUrl }]);
+                        }
                     };
 
                     if (Array.isArray(trig.buttons) && trig.buttons.length > 0) {
                         trig.buttons.forEach((b) => {
-                            if (b && b.text && b.url) {
-                                const validUrl = sanitizeUrl(b.url);
-                                if (validUrl) buttons.push([{ text: b.text.trim(), url: validUrl }]);
-                            }
+                            if (b) pushBtn(b.text, b.url);
                         });
                     } else if (trig.btnText && trig.btnUrl) {
-                        const validUrl = sanitizeUrl(trig.btnUrl);
-                        if (validUrl) buttons.push([{ text: trig.btnText.trim(), url: validUrl }]);
+                        pushBtn(trig.btnText, trig.btnUrl);
                     }
 
                     if (buttons.length > 0) {
                         sendOpts.reply_markup = { inline_keyboard: buttons };
                     }
 
-                    // বাটন বা HTML এরর হলেও যাতে মেসেজ ১০০% ডেলিভার হয়
-                    groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
+                    // বাটন সহ মেসেজ পাঠানো
+                    groupBot.sendMessage(chatId, trig.reply, sendOpts).catch((err) => {
+                        console.error("[TRIGGER BTN ERR]:", err.message);
                         delete sendOpts.parse_mode;
                         groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
                             delete sendOpts.reply_markup;
