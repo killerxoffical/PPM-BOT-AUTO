@@ -549,32 +549,27 @@ app.post("/api/tg/send-otp", async (req, res) => {
 
 // Universal 2FA SRP Calculator Helper
 async function computeSrpHash(client, password) {
-    let computeFn = null;
-    const paths = ["telegram/Password", "telegram/Password.js", "telegram/Utils"];
-    for (const p of paths) {
-        try {
-            const mod = require(p);
-            if (typeof mod === "function") { computeFn = mod; break; }
-            if (typeof mod.computeCheckPassword === "function") { computeFn = mod.computeCheckPassword; break; }
-            if (mod.default) {
-                if (typeof mod.default === "function") { computeFn = mod.default; break; }
-                if (typeof mod.default.computeCheckPassword === "function") { computeFn = mod.default.computeCheckPassword; break; }
-            }
-            for (const k of Object.keys(mod)) {
-                if (typeof mod[k] === "function" && k.toLowerCase().includes("password")) {
-                    computeFn = mod[k];
-                    break;
-                }
-            }
-            if (computeFn) break;
-        } catch (e) {}
+    if (typeof client.checkPassword === "function") {
+        return await client.checkPassword(password);
     }
 
-    if (!computeFn) {
+    let computeFn = null;
+    const candidates = [
+        () => require("telegram/Password").computeCheckPassword,
+        () => require("telegram/Password"),
+        () => require("telegram/Password.js").computeCheckPassword,
+        () => require("telegram/Password.js"),
+        () => require("telegram").computeCheckPassword,
+        () => require("telegram").Password?.computeCheckPassword,
+        () => require("telegram/Utils")?.computeCheckPassword
+    ];
+
+    for (const cand of candidates) {
         try {
-            const gram = require("telegram");
-            if (typeof gram.computeCheckPassword === "function") computeFn = gram.computeCheckPassword;
-            else if (gram.Password && typeof gram.Password.computeCheckPassword === "function") computeFn = gram.Password.computeCheckPassword;
+            const fn = cand();
+            if (typeof fn === "function") { computeFn = fn; break; }
+            if (fn && typeof fn.default === "function") { computeFn = fn.default; break; }
+            if (fn && typeof fn.computeCheckPassword === "function") { computeFn = fn.computeCheckPassword; break; }
         } catch (e) {}
     }
 
@@ -604,8 +599,12 @@ app.post("/api/tg/verify-otp", async (req, res) => {
             if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
                 if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
 
-                const passwordSrpHash = await computeSrpHash(item.client, password);
-                await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
+                if (typeof item.client.checkPassword === "function") {
+                    await item.client.checkPassword(password);
+                } else {
+                    const passwordSrpHash = await computeSrpHash(item.client, password);
+                    await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
+                }
             } else {
                 throw signInErr;
             }
@@ -1336,13 +1335,6 @@ groupBot.on("message", async (msg) => {
             username: msg.chat.username ? `@${msg.chat.username}` : "Private",
             lastActive: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).catch(() => {});
-
-        let groupConf = groupConfigs.get(chatId);
-        if (!groupConf) {
-            const gDoc = await db.collection("tg_groups").doc(chatId).get();
-            groupConf = gDoc.exists ? gDoc.data() : { antiLink: true, antiForward: true, antiInbox: true, antiVideo: true };
-            groupConfigs.set(chatId, groupConf);
-        }
 
         const isAdmin = await isGroupAdmin(chatId, fromUser.id);
 
