@@ -7,6 +7,20 @@ const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
+// gramjs inline Button (auto-reply নিচে বাটন দেখানোর জন্য) — robust import
+let TgButton = null;
+try { TgButton = require("telegram").Button || null; } catch (e) {}
+if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) {} }
+function buildPrimeButtons() {
+    try {
+        if (!TgButton || typeof TgButton.url !== "function") return null;
+        return [
+            [TgButton.url("📢 Official Channel", "https://t.me/googleplaypointhack")],
+            [TgButton.url("💬 Support", "https://t.me/Blackmoney54")],
+        ];
+    } catch (e) { return null; }
+}
+
 // ---------------- 1. EXPRESS HTTP SERVER & PING ROUTES ----------------
 const app = express();
 app.use(cors());
@@ -565,11 +579,22 @@ async function initPrimeAutoResponder() {
                 if (!(await primeCooldownClaim(senderId))) return;
 
                 await new Promise((r) => setTimeout(r, 3500));
-                await primeClient.sendMessage(sender.id, {
-                    file: PRIME_AUTO_REPLY_IMG,
-                    message: PRIME_AUTO_REPLY_CAPTION,
-                    parseMode: "html"
-                });
+                const replyBtns = buildPrimeButtons();
+                try {
+                    await primeClient.sendMessage(sender.id, {
+                        file: PRIME_AUTO_REPLY_IMG,
+                        message: PRIME_AUTO_REPLY_CAPTION,
+                        parseMode: "html",
+                        ...(replyBtns ? { buttons: replyBtns } : {})
+                    });
+                } catch (e2) {
+                    // পুরনো gramjs-এ buttons fail করলে plain মেসেজ পাঠাও (রিপ্লাই মিস হবে না)
+                    await primeClient.sendMessage(sender.id, {
+                        file: PRIME_AUTO_REPLY_IMG,
+                        message: PRIME_AUTO_REPLY_CAPTION,
+                        parseMode: "html"
+                    });
+                }
             } catch (err) {}
         }, new NewMessage({ incoming: true }));
     } catch (e) {}
