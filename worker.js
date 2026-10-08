@@ -1279,8 +1279,8 @@ async function getLinkedChatId(chatId) {
 // গ্রুপ মেসেজ হ্যান্ডলার (ফরোয়ার্ড ব্লক + আসল গালি ডিটেক্ট + ৩-ওয়ার্নিং ব্যান)
 groupBot.on("message", async (msg) => {
     try {
-        if (!msg.chat || (msg.chat.type !== "group" && msg.chat.type !== "supergroup")) return;
-
+        if (!msg.chat) return;
+        const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         const chatId = msg.chat.id.toString();
         const msgId = msg.message_id;
         const fromUser = msg.from;
@@ -1290,6 +1290,44 @@ groupBot.on("message", async (msg) => {
         const currentName = `${fromUser.first_name || ""} ${fromUser.last_name || ""}`.trim();
         const currentUsername = fromUser.username ? `@${fromUser.username}` : "None";
         const text = (msg.text || msg.caption || "").trim();
+
+        // ১. ইনস্ট্যান্ট কাস্টম অটো-রিপ্লাই চেক (গ্রুপ ও ইনবক্স দুটোতেই নরমাল লেখায় কাজ করবে)
+        let groupConf = groupConfigs.get(chatId);
+        if (!groupConf) {
+            const gDoc = await db.collection("tg_groups").doc(chatId).get();
+            groupConf = gDoc.exists ? gDoc.data() : {};
+            if (gDoc.exists) groupConfigs.set(chatId, groupConf);
+        }
+
+        if (groupConf && groupConf.triggers && groupConf.triggers.length > 0 && text) {
+            const cleanUserText = text.toLowerCase().trim();
+            for (const trig of groupConf.triggers) {
+                const kw = (trig.keyword || "").toLowerCase().trim();
+                if (kw && (cleanUserText.includes(kw) || cleanUserText === kw)) {
+                    const sendOpts = {
+                        reply_to_message_id: msgId,
+                        parse_mode: "HTML"
+                    };
+
+                    if (trig.btnText && trig.btnUrl) {
+                        sendOpts.reply_markup = {
+                            inline_keyboard: [
+                                [{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]
+                            ]
+                        };
+                    }
+
+                    groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
+                        delete sendOpts.parse_mode;
+                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {});
+                    });
+                    break;
+                }
+            }
+        }
+
+        // যদি প্রাইভেট মেসেজ হয়, তবে গ্রুপের অ্যান্টি-লিংক/মডারেশন স্কিপ হবে
+        if (!isGroup) return;
 
         // গ্রুপ ডাটাবেজে অটো-সিঙ্ক
         db.collection("tg_groups").doc(chatId).set({
@@ -1418,36 +1456,6 @@ groupBot.on("message", async (msg) => {
                     setTimeout(() => groupBot.deleteMessage(chatId, m.message_id).catch(() => {}), 5000);
                 }
                 return;
-            }
-        }
-
-        // কাস্টম কি-ওয়ার্ড অটো-রিপ্লাই (ইনস্ট্যান্ট, কেস-ইনসেনসিটিভ ও বাটন-লিংক সাপোর্ট)
-        if (groupConf.triggers && groupConf.triggers.length > 0) {
-            const lowerText = text.toLowerCase().trim();
-            for (const trig of groupConf.triggers) {
-                const kw = (trig.keyword || "").toLowerCase().trim();
-                if (kw && lowerText.includes(kw)) {
-                    const sendOpts = {
-                        reply_to_message_id: msgId,
-                        parse_mode: "HTML"
-                    };
-
-                    // বাটন ও লিংক থাকলে ইনলাইন বাটন যুক্ত করা
-                    if (trig.btnText && trig.btnUrl) {
-                        sendOpts.reply_markup = {
-                            inline_keyboard: [
-                                [{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]
-                            ]
-                        };
-                    }
-
-                    // মেসেজ ইনস্ট্যান্ট পাঠানো (HTML এরর হলে প্লেইন টেক্সট হিসেবে পাঠানো)
-                    groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
-                        delete sendOpts.parse_mode;
-                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {});
-                    });
-                    break;
-                }
             }
         }
 
