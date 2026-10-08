@@ -1283,11 +1283,14 @@ groupBot.on("message", async (msg) => {
         const chatId = msg.chat.id.toString();
         const msgId = msg.message_id;
         const fromUser = msg.from;
-        if (!fromUser || fromUser.is_bot) return;
 
-        const userId = fromUser.id.toString();
-        const currentName = `${fromUser.first_name || ""} ${fromUser.last_name || ""}`.trim();
-        const currentUsername = fromUser.username ? `@${fromUser.username}` : "None";
+        // অ্যানোনিমাস এডমিন সাপোর্ট (Send anonymously দিলে টেলিগ্রাম GroupAnonymousBot হিসেবে পাঠায়)
+        const isAnonymousAdmin = fromUser && (fromUser.username === "GroupAnonymousBot" || fromUser.id === 1087968824);
+        if (!fromUser || (fromUser.is_bot && !isAnonymousAdmin)) return;
+
+        const userId = isAnonymousAdmin ? chatId : fromUser.id.toString();
+        const currentName = isAnonymousAdmin ? (msg.chat.title || "Admin") : `${fromUser.first_name || ""} ${fromUser.last_name || ""}`.trim();
+        const currentUsername = isAnonymousAdmin ? `@${msg.chat.username || "anonymous"}` : (fromUser.username ? `@${fromUser.username}` : "None");
         const text = (msg.text || msg.caption || "").trim();
 
         // ১. ইনস্ট্যান্ট কাস্টম অটো-রিপ্লাই চেক (গ্রুপ ও ইনবক্স দুটোতেই নরমাল লেখায় কাজ করবে)
@@ -1308,12 +1311,20 @@ groupBot.on("message", async (msg) => {
                         parse_mode: "HTML"
                     };
 
-                    if (trig.btnText && trig.btnUrl) {
-                        sendOpts.reply_markup = {
-                            inline_keyboard: [
-                                [{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]
-                            ]
-                        };
+                    // একাধিক বাটন সাপোর্ট (মাল্টি-বাটন লিস্ট)
+                    const buttons = [];
+                    if (Array.isArray(trig.buttons) && trig.buttons.length > 0) {
+                        trig.buttons.forEach((b) => {
+                            if (b && b.text && b.url) {
+                                buttons.push([{ text: b.text.trim(), url: b.url.trim() }]);
+                            }
+                        });
+                    } else if (trig.btnText && trig.btnUrl) {
+                        buttons.push([{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]);
+                    }
+
+                    if (buttons.length > 0) {
+                        sendOpts.reply_markup = { inline_keyboard: buttons };
                     }
 
                     groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
