@@ -1536,10 +1536,17 @@ function cleanTriggerUrl(raw) {
     if (!u) return "";
     if (u.startsWith("@")) u = "https://t.me/" + u.slice(1);
     u = u.replace(/t\.me\/@/g, "t.me/");
-    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    if (!/^https?:\/\//i.test(u)) {
+        // single word (no dot/slash) = Telegram username -> t.me link
+        if (!u.includes(".") && !u.includes("/") && !u.includes(":") && !u.includes(" ")) {
+            u = "https://t.me/" + u.replace(/^@/, "");
+        } else {
+            u = "https://" + u;
+        }
+    }
     try {
         const parsed = new URL(u);
-        if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
+        if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.includes(".")) return parsed.href;
     } catch (e) {}
     return "";
 }
