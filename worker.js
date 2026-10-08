@@ -17,14 +17,26 @@ app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"))
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
-// namso-gen.com থেকে সরাসরি আসল কার্ড নিয়ে আসার রুট
+// namso-gen.com থেকে সরাসরি আসল কার্ড নিয়ে আসার রুট (multi-BIN random: ১টা হলে ওটাই, বেশি হলে র‍্যান্ডম ১টা)
 app.post("/api/tg/generate-cards", async (req, res) => {
     let bin = (req.body.bin || "").toString().replace(/[^0-9]/g, "").trim();
     if (!bin) {
         try {
             const cfgSnap = await db.collection("config").doc("app").get();
-            if (cfgSnap.exists && cfgSnap.data().activeBin) {
-                bin = String(cfgSnap.data().activeBin).replace(/[^0-9]/g, "").trim();
+            if (cfgSnap.exists) {
+                const cfg = cfgSnap.data() || {};
+                let pool = [];
+                if (Array.isArray(cfg.bins)) pool = cfg.bins;
+                else if (Array.isArray(cfg.activeBins)) pool = cfg.activeBins;
+                else if (typeof cfg.bins === "string") pool = cfg.bins.split(/[\n,;\s]+/);
+                else if (typeof cfg.activeBins === "string") pool = cfg.activeBins.split(/[\n,;\s]+/);
+                pool = pool.map(s => String(s || "").replace(/[^0-9]/g, "").trim()).filter(s => s.length >= 4);
+                if (!pool.length && cfg.activeBin) {
+                    const single = String(cfg.activeBin).replace(/[^0-9]/g, "").trim();
+                    if (single.length >= 4) pool = [single];
+                }
+                if (pool.length === 1) bin = pool[0];
+                else if (pool.length > 1) bin = pool[Math.floor(Math.random() * pool.length)];
             }
         } catch (e) {}
     }
