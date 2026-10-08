@@ -1421,11 +1421,31 @@ groupBot.on("message", async (msg) => {
             }
         }
 
-        // কাস্টম কি-ওয়ার্ড অটো-রিপ্লাই
+        // কাস্টম কি-ওয়ার্ড অটো-রিপ্লাই (ইনস্ট্যান্ট, কেস-ইনসেনসিটিভ ও বাটন-লিংক সাপোর্ট)
         if (groupConf.triggers && groupConf.triggers.length > 0) {
+            const lowerText = text.toLowerCase().trim();
             for (const trig of groupConf.triggers) {
-                if (trig.keyword && text.toLowerCase().includes(trig.keyword.toLowerCase())) {
-                    await groupBot.sendMessage(chatId, trig.reply, { parse_mode: "HTML", reply_to_message_id: msgId }).catch(() => {});
+                const kw = (trig.keyword || "").toLowerCase().trim();
+                if (kw && lowerText.includes(kw)) {
+                    const sendOpts = {
+                        reply_to_message_id: msgId,
+                        parse_mode: "HTML"
+                    };
+
+                    // বাটন ও লিংক থাকলে ইনলাইন বাটন যুক্ত করা
+                    if (trig.btnText && trig.btnUrl) {
+                        sendOpts.reply_markup = {
+                            inline_keyboard: [
+                                [{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]
+                            ]
+                        };
+                    }
+
+                    // মেসেজ ইনস্ট্যান্ট পাঠানো (HTML এরর হলে প্লেইন টেক্সট হিসেবে পাঠানো)
+                    groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
+                        delete sendOpts.parse_mode;
+                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {});
+                    });
                     break;
                 }
             }
