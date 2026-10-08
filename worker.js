@@ -1311,25 +1311,38 @@ groupBot.on("message", async (msg) => {
                         parse_mode: "HTML"
                     };
 
-                    // একাধিক বাটন সাপোর্ট (মাল্টি-বাটন লিস্ট)
+                    // একাধিক বাটন সাপোর্ট (নিরাপদ URL ফরম্যাট সহ)
                     const buttons = [];
+                    const sanitizeUrl = (raw) => {
+                        let u = (raw || "").trim();
+                        if (!u) return "";
+                        if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+                        return u;
+                    };
+
                     if (Array.isArray(trig.buttons) && trig.buttons.length > 0) {
                         trig.buttons.forEach((b) => {
                             if (b && b.text && b.url) {
-                                buttons.push([{ text: b.text.trim(), url: b.url.trim() }]);
+                                const validUrl = sanitizeUrl(b.url);
+                                if (validUrl) buttons.push([{ text: b.text.trim(), url: validUrl }]);
                             }
                         });
                     } else if (trig.btnText && trig.btnUrl) {
-                        buttons.push([{ text: trig.btnText.trim(), url: trig.btnUrl.trim() }]);
+                        const validUrl = sanitizeUrl(trig.btnUrl);
+                        if (validUrl) buttons.push([{ text: trig.btnText.trim(), url: validUrl }]);
                     }
 
                     if (buttons.length > 0) {
                         sendOpts.reply_markup = { inline_keyboard: buttons };
                     }
 
+                    // বাটন বা HTML এরর হলেও যাতে মেসেজ ১০০% ডেলিভার হয়
                     groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
                         delete sendOpts.parse_mode;
-                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {});
+                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
+                            delete sendOpts.reply_markup;
+                            groupBot.sendMessage(chatId, trig.reply, { reply_to_message_id: msgId }).catch(() => {});
+                        });
                     });
                     break;
                 }
