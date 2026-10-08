@@ -102,6 +102,72 @@ app.post("/api/tg/generate-cards", async (req, res) => {
 
 app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
 
+// ---------------- 1b. REFERRAL SYSTEM API ----------------
+const REF_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function makeRefCode() {
+    let c = "";
+    for (let i = 0; i < 6; i++) c += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+    return c;
+}
+// Link theke asa new user ke owner er sathe jukto kora + owner er count +1
+app.post("/api/ref/join", async (req, res) => {
+    const code = (req.body.code || "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    const uid = (req.body.uid || "").toString().trim().slice(0, 64);
+    if (!code || !uid) return res.status(400).json({ ok: false });
+    try {
+        const rcSnap = await db.collection("refcodes").doc(code).get();
+        if (!rcSnap.exists) return res.json({ ok: false, error: "invalid" });
+        const ownerUid = (rcSnap.data().uid || "").toString();
+        if (!ownerUid || ownerUid === uid) return res.json({ ok: false, error: "self" });
+        const uRef = db.collection("users").doc(uid);
+        const uSnap = await uRef.get();
+        if (!uSnap.exists) return res.json({ ok: false, error: "nouser" });
+        if ((uSnap.data().referredBy || "").toString()) return res.json({ ok: true, already: true });
+        await uRef.update({ referredBy: ownerUid });
+        await db.collection("users").doc(ownerUid).set({
+            refCount: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+        return res.json({ ok: true, owner: ownerUid });
+    } catch (e) {
+        return res.status(500).json({ ok: false });
+    }
+});
+// Referred user er task COMPLETE hole owner pabe +1 coin (double-pay guard: refPaid)
+async function creditReferralBonus(buyerUid, orderId, gameName) {
+    try {
+        if (!buyerUid || !orderId) return;
+        const oRef = db.collection("orders").doc(orderId);
+        const oSnap = await oRef.get();
+        const od = oSnap.exists ? oSnap.data() : {};
+        if (od.refPaid === true) return;
+        const buyerId = (od.uid || buyerUid || "").toString();
+        if (!buyerId) return;
+        const bSnap = await db.collection("users").doc(buyerId).get();
+        const ownerUid = bSnap.exists ? (bSnap.data().referredBy || "").toString().trim() : "";
+        await oRef.set({ refPaid: true }, { merge: true });
+        if (!ownerUid || ownerUid === buyerId) return;
+        await db.collection("users").doc(ownerUid).set({
+            balance: admin.firestore.FieldValue.increment(1),
+            refEarned: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+        await db.collection("redemptions").add({
+            uid: ownerUid, name: "", email: "", code: "REFERRAL", amount: 1,
+            note: "Referral bonus: 1 task completed" + (gameName ? " (" + gameName + ")" : ""),
+            status: "approved", createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            expiresAt: new Date(Date.now() + 10 * 86400000)
+        });
+        try {
+            const oSnap2 = await db.collection("users").doc(ownerUid).get();
+            const tg = oSnap2.exists ? (oSnap2.data().tgChatId || "").toString().trim() : "";
+            if (tg) {
+                await notifyUserTelegram(tg,
+                    `🎁 <b>Referral Bonus!</b>\n\nআপনার রেফারে ১টি টাস্ক সম্পন্ন হয়েছে।\n🪙 <b>+1 PP Coin</b> যোগ হয়েছে!`
+                );
+            }
+        } catch (e) {}
+    } catch (e) {}
+}
+
 // ---------------- 2. FIREBASE ADMIN ----------------
 let serviceAccount;
 try {
@@ -141,6 +207,8 @@ const pendingAuthClients = new Map();
 const groupConfigs = new Map();
 const userWarnings = new Map(); // "chatId:userId" -> warningCount
 const lastWelcomeMessages = new Map(); // chatId -> messageId
+const trigCool = new Map(); // "chatId:userId:keyword" -> lastReplyAt (15s anti-spam)
+const floodMap = new Map(); // "chatId:userId" -> [timestamps] (10s flood control)
 
 // ইনবক্স ও প্রমোশন শব্দ
 const INBOX_WORDS = ["inbox", "ib", "dm me", "pm me", "message me", "msg me", "আমায় মেসেজ করো", "ইনবক্সে আসো", "ইনবক্স", "ইনবক্সে", "নক দাও", "নক দিন", "পার্সোনালে আসো"];
@@ -459,6 +527,34 @@ app.post("/api/tg/test-welcome", async (req, res) => {
             caption: w.text, parse_mode: "HTML", reply_markup: { inline_keyboard: w.buttons }
         });
         return res.json({ ok: true, message: "Welcome preview পাঠানো হয়েছে!" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// Trigger test: keyword reply + buttons গ্রুপে পাঠিয়ে চেক করা
+app.post("/api/tg/test-trigger", async (req, res) => {
+    const { chatId, keyword } = req.body;
+    if (!chatId || !keyword) return res.status(400).json({ ok: false, error: "Group + keyword দিন" });
+    try {
+        const gDoc = await db.collection("tg_groups").doc(chatId.toString()).get();
+        const conf = gDoc.exists ? gDoc.data() : {};
+        const trig = (conf.triggers || []).find((t) => (t.keyword || "").toLowerCase().trim() === keyword.toString().toLowerCase().trim());
+        if (!trig) return res.status(404).json({ ok: false, error: "Keyword পাওয়া যায়নি" });
+        const built = buildTriggerMarkup(trig);
+        const opts = { parse_mode: "HTML", disable_web_page_preview: true };
+        if (built.markup) opts.reply_markup = built.markup;
+        try {
+            await groupBot.sendMessage(chatId.toString(), trig.reply || "Test", opts);
+        } catch (e) {
+            const retry = { disable_web_page_preview: true };
+            if (built.markup) retry.reply_markup = built.markup;
+            await groupBot.sendMessage(chatId.toString(), trig.reply || "Test", retry);
+        }
+        if (built.skipped.length > 0) {
+            return res.json({ ok: true, message: "Test পাঠানো হয়েছে! (" + built.buttons.length + " button, " + built.skipped.length + " টি বাদ পড়েছে — লিংক চেক করুন)", skipped: built.skipped });
+        }
+        return res.json({ ok: true, message: "Test পাঠানো হয়েছে! (" + built.buttons.length + " button)" });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -1073,6 +1169,26 @@ function extractPromptNumber(text) {
     return match ? match[1] : null;
 }
 
+// Bot reply থেকে Google Play Gamer name ধরা (যেমন "Google Play Gamer: SeverestGains142")
+function extractGamerName(text) {
+    if (!text) return "";
+    const pats = [
+        /google\s*play\s*gamer\s*[:\-]?\s*([A-Za-z0-9_.\- ]{2,40})/i,
+        /play\s*gamer\s*[:\-]?\s*([A-Za-z0-9_.\- ]{2,40})/i,
+        /\bgamer\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i,
+        /\bplayer\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i,
+        /\bnickname\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i
+    ];
+    for (const p of pats) {
+        const m = text.match(p);
+        if (m && m[1]) {
+            const v = m[1].trim().replace(/\s+/g, " ").slice(0, 40);
+            if (v && !/^(account|gmail|email|none|n\/a|null)$/i.test(v)) return v;
+        }
+    }
+    return "";
+}
+
 async function clickInlineButton(message, textPattern) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
     for (const row of message.replyMarkup.rows) {
@@ -1248,6 +1364,8 @@ async function processOrder(orderId, orderData) {
 
         let completed = false;
         let attempts = 0;
+        let gamerSaved = !!(orderData.gamerName);
+        let gamerName = (orderData.gamerName || "").toString();
 
         while (!completed && attempts < 50) {
             attempts++;
@@ -1256,6 +1374,16 @@ async function processOrder(orderId, orderData) {
             if (!curMsg) continue;
 
             const text = (curMsg.message || "").toLowerCase();
+
+            // Play gamer name পেলে order-এ সেভ (admin panel verification-এর জন্য)
+            if (!gamerSaved) {
+                const g = extractGamerName(curMsg.message);
+                if (g) {
+                    gamerSaved = true;
+                    gamerName = g;
+                    try { await orderRef.update({ gamerName: g }); } catch (e) {}
+                }
+            }
 
             if (text.includes("captcha security check") || text.includes("captcha")) {
                 await clickInlineButton(curMsg, "Cancel Process");
@@ -1304,10 +1432,13 @@ async function processOrder(orderId, orderData) {
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
                     );
                 }
+                // Referral bonus: referred user er task complete -> owner +1 coin
+                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
                 sendOrderLog(
                     `✅ <b>TASK COMPLETED</b>\n\n` +
                     `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
                     `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
+                    `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
                     `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
                     `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
                     `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
@@ -1398,6 +1529,42 @@ async function getLinkedChatId(chatId) {
     } catch (e) { return ""; }
 }
 
+// Trigger multi-button builder (shared: live reply + test API)
+function cleanTriggerUrl(raw) {
+    if (!raw) return "";
+    let u = raw.toString().trim();
+    if (!u) return "";
+    if (u.startsWith("@")) u = "https://t.me/" + u.slice(1);
+    u = u.replace(/t\.me\/@/g, "t.me/");
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    try {
+        const parsed = new URL(u);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
+    } catch (e) {}
+    return "";
+}
+function buildTriggerMarkup(trig) {
+    const buttons = [];
+    const skipped = [];
+    const pushBtn = (txt, rawUrl) => {
+        const validUrl = cleanTriggerUrl(rawUrl);
+        const label = (txt || "").toString().trim().slice(0, 60);
+        if (label && validUrl) {
+            buttons.push([{ text: label, url: validUrl }]);
+        } else if (label) {
+            skipped.push({ label: label, url: (rawUrl || "").toString().slice(0, 120) });
+        }
+    };
+    if (trig) {
+        if (Array.isArray(trig.buttons) && trig.buttons.length > 0) {
+            trig.buttons.forEach((b) => { if (b) pushBtn(b.text, b.url); });
+        } else if (trig.btnText && trig.btnUrl) {
+            pushBtn(trig.btnText, trig.btnUrl);
+        }
+    }
+    return { buttons: buttons, skipped: skipped, markup: buttons.length > 0 ? { inline_keyboard: buttons } : null };
+}
+
 // গ্রুপ মেসেজ হ্যান্ডলার (ফরোয়ার্ড ব্লক + আসল গালি ডিটেক্ট + ৩-ওয়ার্নিং ব্যান)
 groupBot.on("message", async (msg) => {
     try {
@@ -1429,56 +1596,29 @@ groupBot.on("message", async (msg) => {
             for (const trig of groupConf.triggers) {
                 const kw = (trig.keyword || "").toLowerCase().trim();
                 if (kw && (cleanUserText.includes(kw) || cleanUserText === kw)) {
+                    // 15s কুলডাউন (একই user বারবার trigger স্প্যাম করতে পারবে না)
+                    const ck = chatId + ":" + userId + ":" + kw;
+                    if (Date.now() - (trigCool.get(ck) || 0) < 15000) continue;
+                    trigCool.set(ck, Date.now());
+                    if (trigCool.size > 4000) trigCool.clear();
+
+                    const built = buildTriggerMarkup(trig);
+                    if (built.skipped.length > 0) {
+                        console.error("[TRIGGER BTN SKIP] chat=" + chatId + " keyword=\"" + trig.keyword + "\" bad=" + JSON.stringify(built.skipped));
+                    }
                     const sendOpts = {
                         reply_to_message_id: msgId,
-                        parse_mode: "HTML"
+                        parse_mode: "HTML",
+                        disable_web_page_preview: true
                     };
+                    if (built.markup) sendOpts.reply_markup = built.markup;
 
-                    // একাধিক বাটন সাপোর্ট (স্মার্ট টেলিগ্রাম URL ক্লিনার)
-                    const buttons = [];
-                    const cleanButtonUrl = (raw) => {
-                        if (!raw) return "";
-                        let u = raw.toString().trim();
-                        if (!u) return "";
-                        // @username দিলে https://t.me/username এ কনভার্ট
-                        if (u.startsWith("@")) u = "https://t.me/" + u.slice(1);
-                        u = u.replace(/t\.me\/@/g, "t.me/");
-                        if (!/^https?:\/\//i.test(u)) u = "https://" + u;
-                        try {
-                            const parsed = new URL(u);
-                            if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-                                return parsed.href;
-                            }
-                        } catch (e) {}
-                        return "";
-                    };
-
-                    const pushBtn = (txt, rawUrl) => {
-                        const validUrl = cleanButtonUrl(rawUrl);
-                        const label = (txt || "").trim();
-                        if (label && validUrl) {
-                            buttons.push([{ text: label, url: validUrl }]);
-                        }
-                    };
-
-                    if (Array.isArray(trig.buttons) && trig.buttons.length > 0) {
-                        trig.buttons.forEach((b) => {
-                            if (b) pushBtn(b.text, b.url);
-                        });
-                    } else if (trig.btnText && trig.btnUrl) {
-                        pushBtn(trig.btnText, trig.btnUrl);
-                    }
-
-                    if (buttons.length > 0) {
-                        sendOpts.reply_markup = { inline_keyboard: buttons };
-                    }
-
-                    // বাটন সহ মেসেজ পাঠানো
+                    // বাটন সহ মেসেজ পাঠানো (failure log সহ ২-স্তর ফলব্যাক)
                     groupBot.sendMessage(chatId, trig.reply, sendOpts).catch((err) => {
-                        console.error("[TRIGGER BTN ERR]:", err.message);
-                        delete sendOpts.parse_mode;
-                        groupBot.sendMessage(chatId, trig.reply, sendOpts).catch(() => {
-                            delete sendOpts.reply_markup;
+                        console.error("[TRIGGER SEND ERR] chat=" + chatId + " keyword=\"" + trig.keyword + "\":", err.message);
+                        const retry = { reply_to_message_id: msgId, disable_web_page_preview: true };
+                        if (built.markup) retry.reply_markup = built.markup;
+                        groupBot.sendMessage(chatId, trig.reply, retry).catch(() => {
                             groupBot.sendMessage(chatId, trig.reply, { reply_to_message_id: msgId }).catch(() => {});
                         });
                     });
@@ -1500,8 +1640,53 @@ groupBot.on("message", async (msg) => {
 
         const isAdmin = await isGroupAdmin(chatId, fromUser, msg);
 
-        // এডমিন মেসেজ দিলে বট কোনো ফিল্টার চালাবে না এবং কখনো ডিলিট করবে না
+        // এডমিন !announce: 👑 ব্যাজ সহ অফিসিয়াল নোটিশ repost + পিন (সবাই চিনবে এটা এডমিনের মেসেজ)
+        if (isAdmin && /^\s*!/.test(text)) {
+            const annText = text.replace(/^\s*!\s*/, "").trim().slice(0, 900);
+            if (annText) {
+                const annBody = `👑 <b>ADMIN NOTICE</b>\n\n${annText}`;
+                try {
+                    const sent = await groupBot.sendMessage(chatId, annBody, { parse_mode: "HTML", disable_web_page_preview: true });
+                    try { await groupBot.pinChatMessage(chatId, sent.message_id, { disable_notification: true }); } catch (e) {}
+                } catch (e) {
+                    try {
+                        const sent2 = await groupBot.sendMessage(chatId, `👑 ADMIN NOTICE\n\n${annText}`, { disable_web_page_preview: true });
+                        try { await groupBot.pinChatMessage(chatId, sent2.message_id, { disable_notification: true }); } catch (e2) {}
+                    } catch (e3) {}
+                }
+            }
+            return;
+        }
+
+        // এডমিন মেসেজ দিলে বট কোনো ফিল্টার চালাবে না এবং কখনো ডিলিট/মিউট/ব্যান করবে না
         if (isAdmin) return;
+
+        // ০. ফ্লাড / স্প্যাম কন্ট্রোল (১০ সেকেন্ডে ৬+ মেসেজ = ডিলিট + ওয়ার্ন, ১০+ = ১০ মিনিট মিউট)
+        {
+            const fk = chatId + ":" + userId;
+            const nowT = Date.now();
+            let farr = floodMap.get(fk) || [];
+            farr = farr.filter((t) => nowT - t < 10000);
+            farr.push(nowT);
+            floodMap.set(fk, farr);
+            if (floodMap.size > 4000) floodMap.clear();
+            if (farr.length > 6) {
+                floodMap.set(fk, []);
+                await groupBot.deleteMessage(chatId, msgId).catch(() => {});
+                if (farr.length > 10) {
+                    try {
+                        await groupBot.restrictChatMember(chatId, fromUser.id, {
+                            permissions: { can_send_messages: false },
+                            until_date: Math.floor(Date.now() / 1000) + 600
+                        });
+                    } catch (e) {}
+                }
+                const flMsg = `⚠️ <b>@${fromUser.username || fromUser.first_name}</b>, এত দ্রুত মেসেজ পাঠাবেন না! (Flood control)`;
+                const fm = await groupBot.sendMessage(chatId, flMsg, { parse_mode: "HTML" }).catch(() => null);
+                if (fm) setTimeout(() => groupBot.deleteMessage(chatId, fm.message_id).catch(() => {}), 4000);
+                return;
+            }
+        }
 
         if (!isAdmin) {
             // ১. শেয়ার ও ফরোয়ার্ড ব্লক (সকল প্রকার ফরোয়ার্ড ১০০% ডিটেক্ট)
