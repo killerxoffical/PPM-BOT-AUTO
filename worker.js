@@ -16,6 +16,76 @@ const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
+
+// namso-gen.com থেকে সরাসরি আসল কার্ড নিয়ে আসার রুট
+app.post("/api/tg/generate-cards", async (req, res) => {
+    let bin = (req.body.bin || "").toString().replace(/[^0-9]/g, "").trim();
+    if (!bin) {
+        try {
+            const cfgSnap = await db.collection("config").doc("app").get();
+            if (cfgSnap.exists && cfgSnap.data().activeBin) {
+                bin = String(cfgSnap.data().activeBin).replace(/[^0-9]/g, "").trim();
+            }
+        } catch (e) {}
+    }
+    if (!bin) bin = "453590";
+
+    try {
+        // namso-gen.com সাইটের অরিজিনাল এপিআই কল
+        const siteResponse = await fetch("https://namso-gen.com/api/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://namso-gen.com/?tab=advanced"
+            },
+            body: JSON.stringify({
+                bin: bin,
+                format: "PIPE",
+                month: "rnd",
+                year: "rnd",
+                cvv: "rnd",
+                qty: 10,
+                ccbank: "", ccbrand: "", cctype: "", cclevel: ""
+            })
+        });
+
+        const rawText = await siteResponse.text();
+        let cards = [];
+        try {
+            const json = JSON.parse(rawText);
+            if (Array.isArray(json.cards)) cards = json.cards;
+            else if (typeof json.result === "string") cards = json.result.split("\n").filter(Boolean);
+        } catch (e) {
+            cards = rawText.split("\n").filter(l => l.includes("|") && l.length > 10).slice(0, 10);
+        }
+
+        // অফিসিয়াল লুহন (Luhn Algorithm) চেকসাম ফলব্যাক
+        if (!cards.length) {
+            for (let i = 0; i < 10; i++) {
+                const rndCvv = Math.floor(Math.random() * 900) + 100;
+                const rndMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, "0");
+                const rndYear = Math.floor(Math.random() * 5) + 26;
+                let num = bin;
+                while (num.length < 15) num += Math.floor(Math.random() * 10);
+                // লুহন চেকসাম ডিজিট গণনা
+                let sum = 0;
+                for (let j = 0; j < num.length; j++) {
+                    let digit = parseInt(num[num.length - 1 - j], 10);
+                    if (j % 2 === 0) { digit *= 2; if (digit > 9) digit -= 9; }
+                    sum += digit;
+                }
+                const checkDigit = (10 - (sum % 10)) % 10;
+                cards.push(`${num}${checkDigit}|${rndMonth}|20${rndYear}|${rndCvv}`);
+            }
+        }
+
+        return res.json({ ok: true, bin, cards });
+    } catch (err) {
+        return res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
 app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
 
 // ---------------- 2. FIREBASE ADMIN ----------------
@@ -1232,12 +1302,40 @@ async function processOrder(orderId, orderData) {
 }
 
 // ---------------- 11. ADVANCED GROUP GUARDIAN (@Vareonprotection_bot) ----------------
-async function isGroupAdmin(chatId, userId) {
+const groupAdminCache = new Map(); // chatId -> { admins: Set, time: number }
+
+async function isGroupAdmin(chatId, fromUser, msg) {
+    if (!fromUser) return false;
+
+    // ১. অ্যানোনিমাস এডমিন বা চ্যানেলের নামে মেসেজ পাঠালে ১০০% এডমিন
+    if (fromUser.username === "GroupAnonymousBot" || fromUser.id === 1087968824 || fromUser.id === 136817688) {
+        return true;
+    }
+    if (msg && msg.sender_chat) {
+        return true;
+    }
+
+    const userId = fromUser.id.toString();
+
+    // ২. মেমোরি ক্যাশ চেক (প্রতি ৫ মিনিটে ১ বার রিফ্রেশ, রেট লিমিট প্রটেকশন)
+    const cached = groupAdminCache.get(chatId);
+    if (cached && (Date.now() - cached.time < 5 * 60 * 1000)) {
+        if (cached.admins.has(userId)) return true;
+    }
+
     try {
-        const member = await groupBot.getChatMember(chatId, userId);
-        return member.status === "creator" || member.status === "administrator";
+        const adminList = await groupBot.getChatAdministrators(chatId);
+        const adminSet = new Set(adminList.map(a => a.user.id.toString()));
+        groupAdminCache.set(chatId, { admins: adminSet, time: Date.now() });
+        return adminSet.has(userId);
     } catch (e) {
-        return false;
+        if (cached && cached.admins.has(userId)) return true;
+        try {
+            const m = await groupBot.getChatMember(chatId, fromUser.id);
+            return m.status === "creator" || m.status === "administrator";
+        } catch (err) {
+            return false;
+        }
     }
 }
 
@@ -1375,7 +1473,10 @@ groupBot.on("message", async (msg) => {
             lastActive: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).catch(() => {});
 
-        const isAdmin = await isGroupAdmin(chatId, fromUser.id);
+        const isAdmin = await isGroupAdmin(chatId, fromUser, msg);
+
+        // এডমিন মেসেজ দিলে বট কোনো ফিল্টার চালাবে না এবং কখনো ডিলিট করবে না
+        if (isAdmin) return;
 
         if (!isAdmin) {
             // ১. শেয়ার ও ফরোয়ার্ড ব্লক (সকল প্রকার ফরোয়ার্ড ১০০% ডিটেক্ট)
