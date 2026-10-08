@@ -31,9 +31,37 @@ app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"))
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
-// namso-gen.com থেকে সরাসরি আসল কার্ড নিয়ে আসার রুট (multi-BIN random: ১টা হলে ওটাই, বেশি হলে র‍্যান্ডম ১টা)
+// PAYATE Card Generator algorithm (https://www.payate.com/best-credit-cards/):
+// BIN + x-padding, random digits, Luhn check digit, |MM|YYYY|CVV
+function payateRand(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function payateMakeCC(rawBin) {
+    let b = (rawBin || "").toString().replace(/\s+/g, "");
+    const total = /^3/.test(b) ? 15 : 16; // Amex (3...) = 15 digits
+    b = b.replace(/X/g, "x").replace(/[^0-9x]/g, "");
+    let e = "";
+    b.split("").forEach((ch) => {
+        if (e.length < total - 1) e += (ch.toLowerCase() === "x" ? String(payateRand(0, 9)) : ch);
+    });
+    while (e.length < total - 1) e += String(payateRand(0, 9));
+    // Luhn checksum digit (payate way: reversed, double even positions)
+    const rev = e.split("").reverse().join("");
+    let sum = 0;
+    for (let r = 0; r < total - 1;) {
+        let o = 2 * parseInt(rev[r], 10);
+        if (o > 9) o -= 9;
+        sum += o;
+        if (r !== total - 2) sum += parseInt(rev[r + 1], 10);
+        r += 2;
+    }
+    const check = (10 * (Math.floor(sum / 10) + 1) - sum) % 10;
+    return e + check;
+}
+
+// Card generate route (multi-BIN random: ১টা হলে ওটাই, বেশি হলে র‍্যান্ডম ১টা)
 app.post("/api/tg/generate-cards", async (req, res) => {
-    let bin = (req.body.bin || "").toString().replace(/[^0-9]/g, "").trim();
+    let bin = (req.body.bin || "").toString().replace(/[^0-9xX]/g, "").trim();
     if (!bin) {
         try {
             const cfgSnap = await db.collection("config").doc("app").get();
@@ -44,69 +72,29 @@ app.post("/api/tg/generate-cards", async (req, res) => {
                 else if (Array.isArray(cfg.activeBins)) pool = cfg.activeBins;
                 else if (typeof cfg.bins === "string") pool = cfg.bins.split(/[\n,;\s]+/);
                 else if (typeof cfg.activeBins === "string") pool = cfg.activeBins.split(/[\n,;\s]+/);
-                pool = pool.map(s => String(s || "").replace(/[^0-9]/g, "").trim()).filter(s => s.length >= 4);
+                pool = pool.map(s => String(s || "").replace(/[^0-9xX]/g, "").trim()).filter(s => s.replace(/[^0-9]/g, "").length >= 4);
                 if (!pool.length && cfg.activeBin) {
-                    const single = String(cfg.activeBin).replace(/[^0-9]/g, "").trim();
-                    if (single.length >= 4) pool = [single];
+                    const single = String(cfg.activeBin).replace(/[^0-9xX]/g, "").trim();
+                    if (single.replace(/[^0-9]/g, "").length >= 4) pool = [single];
                 }
                 if (pool.length === 1) bin = pool[0];
                 else if (pool.length > 1) bin = pool[Math.floor(Math.random() * pool.length)];
             }
         } catch (e) {}
     }
-    if (!bin) bin = "453590";
+    if (!bin || bin.replace(/[^0-9]/g, "").length < 4) bin = "453590";
 
     try {
-        // namso-gen.com সাইটের অরিজিনাল এপিআই কল
-        const siteResponse = await fetch("https://namso-gen.com/api/generate", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer": "https://namso-gen.com/?tab=advanced"
-            },
-            body: JSON.stringify({
-                bin: bin,
-                format: "PIPE",
-                month: "rnd",
-                year: "rnd",
-                cvv: "rnd",
-                qty: 10,
-                ccbank: "", ccbrand: "", cctype: "", cclevel: ""
-            })
-        });
-
-        const rawText = await siteResponse.text();
-        let cards = [];
-        try {
-            const json = JSON.parse(rawText);
-            if (Array.isArray(json.cards)) cards = json.cards;
-            else if (typeof json.result === "string") cards = json.result.split("\n").filter(Boolean);
-        } catch (e) {
-            cards = rawText.split("\n").filter(l => l.includes("|") && l.length > 10).slice(0, 10);
+        const cards = [];
+        for (let i = 0; i < 10; i++) {
+            const num = payateMakeCC(bin);
+            const mm = String(payateRand(1, 12)).padStart(2, "0");
+            const yyyy = new Date().getFullYear() + payateRand(2, 5);
+            const isAmex = num.length === 15;
+            let cvv = "" + payateRand(0, 9) + payateRand(0, 9) + payateRand(0, 9) + (isAmex ? payateRand(0, 9) : "");
+            cards.push(`${num}|${mm}|${yyyy}|${cvv}`);
         }
-
-        // অফিসিয়াল লুহন (Luhn Algorithm) চেকসাম ফলব্যাক
-        if (!cards.length) {
-            for (let i = 0; i < 10; i++) {
-                const rndCvv = Math.floor(Math.random() * 900) + 100;
-                const rndMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, "0");
-                const rndYear = Math.floor(Math.random() * 5) + 26;
-                let num = bin;
-                while (num.length < 15) num += Math.floor(Math.random() * 10);
-                // লুহন চেকসাম ডিজিট গণনা
-                let sum = 0;
-                for (let j = 0; j < num.length; j++) {
-                    let digit = parseInt(num[num.length - 1 - j], 10);
-                    if (j % 2 === 0) { digit *= 2; if (digit > 9) digit -= 9; }
-                    sum += digit;
-                }
-                const checkDigit = (10 - (sum % 10)) % 10;
-                cards.push(`${num}${checkDigit}|${rndMonth}|20${rndYear}|${rndCvv}`);
-            }
-        }
-
-        return res.json({ ok: true, bin, cards });
+        return res.json({ ok: true, bin, cards, src: "payate" });
     } catch (err) {
         return res.status(500).json({ ok: false, error: err.message });
     }
