@@ -103,7 +103,7 @@ app.post("/api/gateway/sms", async (req, res) => {
             return res.json({ ok: true, matched: true, autoApproved: false, note: "Auto-deposit is OFF by Admin" });
         }
 
-        // ৩. পেন্ডিং ডিপোজিটের সাথে মেলানো
+        // ৩. পেন্ডিং ডিপোজিটের সাথে মেলানো (৫ মিনিটের স্ট্রিক্ট টাইম চেকিং)
         const depQuery = await db.collection("deposits")
             .where("status", "==", "pending")
             .where("trxId", "==", cleanTrx)
@@ -114,14 +114,85 @@ app.post("/api/gateway/sms", async (req, res) => {
             const depDoc = depQuery.docs[0];
             const depData = depDoc.data();
 
+            const now = Date.now();
+            const depTime = depData.createdAt && depData.createdAt.toMillis ? depData.createdAt.toMillis() : now;
+            const smsTime = timestamp || now;
+
+            // ৫ মিনিটের (৩০০,০০০ মিলি-সেকেন্ড) বেশি পুরনো হলে ডিক্লাইন
+            if (Math.abs(now - smsTime) > 5 * 60 * 1000 || Math.abs(now - depTime) > 5 * 60 * 1000) {
+                await db.collection("deposits").doc(depDoc.id).update({
+                    status: "rejected",
+                    adminMsg: "❌ ৫ মিনিটের বেশি সময় পার হয়ে গেছে! সময়মতো সাবমিট করুন।"
+                });
+                return res.json({ ok: false, error: "EXPIRED: ৫ মিনিটের বেশি সময় পার হয়ে গেছে!" });
+            }
+
             // অ্যামাউন্ট চেক
             if (Number(depData.amount) === Number(parsed.amount)) {
                 await approveDepositSafe(depDoc.id, depData, parsed.amount, cfg.coinRate || 7);
                 return res.json({ ok: true, matched: true, autoApproved: true, depId: depDoc.id });
+            } else {
+                await db.collection("deposits").doc(depDoc.id).update({
+                    status: "rejected",
+                    adminMsg: `❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${parsed.amount} BDT কিন্তু সাবমিট করেছেন ${depData.amount} BDT`
+                });
             }
         }
 
         return res.json({ ok: true, matched: true, autoApproved: false, message: "Saved in database, awaiting user submission" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ইউজার সাইটে সাবমিট করলে ফোনের আসল SMS ভেরিফাই করার এন্ডপয়েন্ট
+app.post("/api/gateway/verify-deposit", async (req, res) => {
+    const { depId, trxId, amount } = req.body;
+    if (!depId || !trxId) return res.status(400).json({ ok: false, error: "Missing data" });
+
+    const cleanTrx = trxId.toUpperCase().trim();
+
+    try {
+        // ফায়ারবেসে ফোনের আসল SMS চেক
+        const smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
+        if (!smsDoc.exists) {
+            // ফোনে এখনও এই TrxID এর কোনো SMS আসেনি -> সরাসরি ডিক্লাইন
+            await db.collection("deposits").doc(depId).update({
+                status: "rejected",
+                adminMsg: "❌ এই TrxID দিয়ে কোনো টাকা আসেনি বা SMS পাওয়া যায়নি!"
+            });
+            return res.json({ ok: false, error: "কোনো পেমেন্ট পাওয়া যায়নি! সঠিক TrxID দিন।" });
+        }
+
+        const smsData = smsDoc.data();
+        const smsTime = smsData.receivedAt && smsData.receivedAt.toMillis ? smsData.receivedAt.toMillis() : Date.now();
+        const now = Date.now();
+
+        // ৫ মিনিট চেকিং
+        if (now - smsTime > 5 * 60 * 1000) {
+            await db.collection("deposits").doc(depId).update({
+                status: "rejected",
+                adminMsg: "❌ টাকা পাঠানোর ৫ মিনিটের মধ্যে সাবমিট করেননি!"
+            });
+            return res.json({ ok: false, error: "টাকা পাঠানোর ৫ মিনিট পার হয়ে গেছে! পুনরায় চেষ্টা করুন।" });
+        }
+
+        // টাকার পরিমাণ চেকিং
+        if (Number(smsData.amount) !== Number(amount)) {
+            await db.collection("deposits").doc(depId).update({
+                status: "rejected",
+                adminMsg: `❌ টাকার পরিমাণ ভুল! আসল টাকা ছিল ${smsData.amount} BDT`
+            });
+            return res.json({ ok: false, error: `টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${smsData.amount} BDT` });
+        }
+
+        // সব ঠিক থাকলে অ্যাপ্রুভ
+        const cfgSnap = await db.collection("config").doc("app").get();
+        const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+        const depDoc = await db.collection("deposits").doc(depId).get();
+
+        await approveDepositSafe(depId, depDoc.data(), smsData.amount, cfg.coinRate || 7);
+        return res.json({ ok: true, message: "Approved successfully!" });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
