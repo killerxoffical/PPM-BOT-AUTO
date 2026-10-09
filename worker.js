@@ -31,6 +31,176 @@ app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"))
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
+// ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
+
+function parseSmsBody(sender, body) {
+    if (!body) return null;
+    let text = body.replace(/\n/g, " ");
+    let method = null, trxId = null, amount = null;
+
+    if (/bkash/i.test(sender) || /bkash/i.test(text)) {
+        method = "bKash";
+        let trxMatch = text.match(/TrxID\s+([A-Za-z0-9]+)/i) || text.match(/\b([A-Z0-9]{10})\b/);
+        let amtMatch = text.match(/Tk\s+([\d,]+(?:\.\d+)?)/i) || text.match(/Amount:\s*Tk\s*([\d,]+)/i);
+        if (trxMatch) trxId = trxMatch[1].trim();
+        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
+    } else if (/nagad/i.test(sender) || /nagad/i.test(text)) {
+        method = "Nagad";
+        let trxMatch = text.match(/TxnID:\s*([A-Za-z0-9]+)/i) || text.match(/\b([A-Z0-9]{8,10})\b/);
+        let amtMatch = text.match(/Tk\s+([\d,]+(?:\.\d+)?)/i) || text.match(/Amount:\s*Tk\s*([\d,]+)/i);
+        if (trxMatch) trxId = trxMatch[1].trim();
+        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
+    } else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) {
+        method = "Rocket";
+        let trxMatch = text.match(/TxnId:\s*([A-Za-z0-9]+)/i) || text.match(/Txn:\s*([A-Za-z0-9]+)/i);
+        let amtMatch = text.match(/Tk\s*([\d,]+(?:\.\d+)?)/i);
+        if (trxMatch) trxId = trxMatch[1].trim();
+        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
+    }
+
+    if (trxId && amount) {
+        return { method, trxId: trxId.toUpperCase(), amount };
+    }
+    return null;
+}
+
+// Android App SMS Receiver Webhook
+app.post("/api/gateway/sms", async (req, res) => {
+    const secret = req.headers["x-gateway-secret"] || req.body.secret;
+    if (secret !== GATEWAY_SECRET) {
+        return res.status(401).json({ ok: false, error: "Unauthorized Gateway App" });
+    }
+
+    const { sender, message, timestamp } = req.body;
+    if (!message) return res.status(400).json({ ok: false, error: "No message" });
+
+    const parsed = parseSmsBody(sender || "", message);
+    if (!parsed) {
+        return res.json({ ok: true, matched: false, message: "Ignored (not payment SMS)" });
+    }
+
+    const cleanTrx = parsed.trxId.toUpperCase();
+
+    try {
+        // ১. SMS টি সংরক্ষণ করা
+        await db.collection("gateway_sms").doc(cleanTrx).set({
+            sender: sender || "Unknown",
+            raw: message,
+            method: parsed.method,
+            trxId: cleanTrx,
+            amount: parsed.amount,
+            claimed: false,
+            receivedAt: timestamp ? new Date(timestamp) : admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // ২. কনফিগ থেকে চেক করা Auto Deposit ON আছে কিনা
+        const cfgSnap = await db.collection("config").doc("app").get();
+        const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+        const isAutoOn = cfg.autoDeposit !== false; // Default ON if not specified
+
+        if (!isAutoOn) {
+            return res.json({ ok: true, matched: true, autoApproved: false, note: "Auto-deposit is OFF by Admin" });
+        }
+
+        // ৩. পেন্ডিং ডিপোজিটের সাথে মেলানো
+        const depQuery = await db.collection("deposits")
+            .where("status", "==", "pending")
+            .where("trxId", "==", cleanTrx)
+            .limit(1)
+            .get();
+
+        if (!depQuery.empty) {
+            const depDoc = depQuery.docs[0];
+            const depData = depDoc.data();
+
+            // অ্যামাউন্ট চেক
+            if (Number(depData.amount) === Number(parsed.amount)) {
+                await approveDepositSafe(depDoc.id, depData, parsed.amount, cfg.coinRate || 7);
+                return res.json({ ok: true, matched: true, autoApproved: true, depId: depDoc.id });
+            }
+        }
+
+        return res.json({ ok: true, matched: true, autoApproved: false, message: "Saved in database, awaiting user submission" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ডাবল অ্যাপ্রুভ প্রোটেকশন সহ ডিপোজিট অনুমোদন
+async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
+    const cleanTrx = depData.trxId.toUpperCase();
+    await db.runTransaction(async (t) => {
+        const usedRef = db.collection("used_trx").doc(cleanTrx);
+        const usedSnap = await t.get(usedRef);
+        if (usedSnap.exists) throw new Error("TRX_ALREADY_USED");
+
+        const depRef = db.collection("deposits").doc(depId);
+        const ds = await t.get(depRef);
+        if (!ds.exists || ds.data().status !== "pending") throw new Error("DEP_INVALID");
+
+        const rate = Number(coinRate || 7);
+        const coinsToAdd = Number(depData.coins) || Math.floor(Number(verifiedAmount) / rate) || 3;
+
+        const userRef = db.collection("users").doc(depData.uid);
+        const userSnap = await t.get(userRef);
+
+        if (!userSnap.exists) {
+            t.set(userRef, {
+                uid: depData.uid,
+                name: depData.name || "User",
+                email: depData.email || "",
+                photo: "",
+                balance: coinsToAdd,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            t.update(userRef, { balance: (Number(userSnap.data().balance) || 0) + coinsToAdd });
+        }
+
+        // SMS রিসিভ এবং ইউজার সাবমিটের সময় ব্যবধান (সেকেন্ড হিসাব)
+        let durationSec = 2;
+        if (depData.createdAt && depData.createdAt.toMillis) {
+            durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
+        }
+
+        t.update(depRef, {
+            status: "approved",
+            autoApproved: true,
+            submittedAt: depData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+            smsReceivedAt: depData.smsReceivedAt || admin.firestore.FieldValue.serverTimestamp(),
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            processDurationSec: durationSec
+        });
+
+        t.set(usedRef, {
+            trxId: cleanTrx,
+            uid: depData.uid,
+            amount: verifiedAmount,
+            depId: depId,
+            usedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const smsRef = db.collection("gateway_sms").doc(cleanTrx);
+        t.update(smsRef, { claimed: true, claimedBy: depData.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+
+    try {
+        const uSnap = await db.collection("users").doc(depData.uid).get();
+        const tgChat = uSnap.exists ? uSnap.data().tgChatId : null;
+        if (tgChat) {
+            await notifyUserTelegram(tgChat,
+                `✅ <b>ডিপোজিট সফলভাবে অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+                `💳 <b>মেথড:</b> ${depData.method}\n` +
+                `💵 <b>টাকা:</b> ${verifiedAmount} BDT\n` +
+                `🪙 <b>প্রাপ্ত কয়েন:</b> ${Number(depData.coins) || 3} Coins\n` +
+                `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n\n` +
+                `আপনার ব্যালেন্স স্বয়ংক্রিয়ভাবে যোগ করা হয়েছে! 🚀`
+            );
+        }
+    } catch (e) {}
+}
+
 // PAYATE Card Generator algorithm (https://www.payate.com/best-credit-cards/):
 // BIN + x-padding, random digits, Luhn check digit, |MM|YYYY|CVV
 function payateRand(min, max) {
