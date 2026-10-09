@@ -153,10 +153,18 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
     const cleanTrx = trxId.toUpperCase().trim();
 
     try {
-        // ফায়ারবেসে ফোনের আসল SMS চেক
+        // ১. অ্যাডমিনের Auto Deposit মোড চেক করা
+        const cfgSnap = await db.collection("config").doc("app").get();
+        const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+        if (cfg.autoDeposit === false) {
+            // Auto বন্ধ থাকলে ডিক্লাইন করবে না, পেন্ডিং রেখে অ্যাডমিনকে করতে দেবে
+            return res.json({ ok: true, autoApproved: false, note: "Manual Mode" });
+        }
+
+        // ২. ফায়ারবেসে ফোনের আসল SMS চেক
         const smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
         if (!smsDoc.exists) {
-            // ফোনে এখনও এই TrxID এর কোনো SMS আসেনি -> সরাসরি ডিক্লাইন
+            // ফোনে এখনও এই TrxID এর কোনো SMS আসেনি -> রিজেক্ট
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
                 adminMsg: "❌ এই TrxID দিয়ে কোনো টাকা আসেনি বা SMS পাওয়া যায়নি!"
