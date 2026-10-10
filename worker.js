@@ -206,19 +206,24 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
 
 // ---------------- DAILY BONUS (server-side claim, cheat-proof) ----------------
 // Protidin 1 bar free coins. Date hisab Asia/Dhaka. Transaction e double-claim block.
-let bonusCfgCache = { at: 0, bonus: 2, enabled: true };
+let bonusCfgCache = { at: 0, enabled: true };
 async function getBonusCfg() {
     try {
         if (Date.now() - bonusCfgCache.at < 60000) return bonusCfgCache;
         const c = await db.collection("config").doc("app").get();
         const d = c.exists ? (c.data() || {}) : {};
-        bonusCfgCache = {
-            at: Date.now(),
-            bonus: Math.max(0, Math.floor(Number(d.dailyBonus !== undefined ? d.dailyBonus : 2))),
-            enabled: d.bonusEnabled !== false
-        };
+        bonusCfgCache = { at: Date.now(), enabled: d.bonusEnabled !== false };
     } catch (e) {}
     return bonusCfgCache;
+}
+// Weighted random bonus: 0.1 sobcheye beshi (55%), 0.5 khub khub kom (2%)
+function rollBonus() {
+    const r = Math.random() * 100;
+    if (r < 55) return 0.1;
+    if (r < 80) return 0.2;
+    if (r < 92) return 0.3;
+    if (r < 98) return 0.4;
+    return 0.5;
 }
 function dhakaDay(offsetDays) {
     try {
@@ -234,7 +239,7 @@ app.post("/api/bonus/claim", async (req, res) => {
         const uid = (body.uid || "").toString();
         if (!uid) return res.status(400).json({ ok: false, error: "Login required" });
         const cfg = await getBonusCfg();
-        if (!cfg.enabled || !cfg.bonus) return res.json({ ok: false, error: "Daily bonus ekhon bondho ache" });
+        if (!cfg.enabled) return res.json({ ok: false, error: "Daily bonus ekhon bondho ache" });
         const today = dhakaDay(0), yest = dhakaDay(-1);
         const uref = db.collection("users").doc(uid);
         const out = await db.runTransaction(async (t) => {
@@ -242,9 +247,10 @@ app.post("/api/bonus/claim", async (req, res) => {
             if (!s.exists) throw new Error("nouser");
             const d = s.data() || {};
             if (d.lastBonusDay === today) throw new Error("claimed");
+            const amt = rollBonus();
             const streak = (d.lastBonusDay === yest) ? (Number(d.lastBonusStreak) || 0) + 1 : 1;
             t.update(uref, {
-                balance: (Number(d.balance) || 0) + cfg.bonus,
+                balance: Math.round(((Number(d.balance) || 0) + amt) * 10) / 10,
                 lastBonusDay: today,
                 lastBonusStreak: streak
             });
@@ -252,13 +258,13 @@ app.post("/api/bonus/claim", async (req, res) => {
                 uid: uid,
                 name: (body.name || d.name || "User").toString().slice(0, 60),
                 email: (body.email || d.email || "").toString().slice(0, 120),
-                code: "DAILY", amount: cfg.bonus,
-                note: "Daily bonus - day " + streak,
+                code: "DAILY", amount: amt,
+                note: "Daily bonus +" + amt + " - day " + streak,
                 status: "approved",
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: new Date(Date.now() + 10 * 86400000)
             });
-            return { bonus: cfg.bonus, streak: streak };
+            return { bonus: amt, streak: streak };
         });
         return res.json({ ok: true, bonus: out.bonus, streak: out.streak });
     } catch (e) {
@@ -274,7 +280,7 @@ app.get("/api/bonus/status", async (req, res) => {
         const cfg = await getBonusCfg();
         const s = await db.collection("users").doc(uid).get();
         const d = s.exists ? (s.data() || {}) : {};
-        return res.json({ ok: true, enabled: cfg.enabled, bonus: cfg.bonus, claimed: d.lastBonusDay === dhakaDay(0), streak: Number(d.lastBonusStreak) || 0 });
+        return res.json({ ok: true, enabled: cfg.enabled, claimed: d.lastBonusDay === dhakaDay(0), streak: Number(d.lastBonusStreak) || 0 });
     } catch (e) { return res.json({ ok: false, error: "status failed" }); }
 });
 
