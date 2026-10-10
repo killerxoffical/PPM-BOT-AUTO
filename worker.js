@@ -194,9 +194,7 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: false, error: `টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${smsData.amount} BDT` });
         }
 
-        // সব ঠিক থাকলে অ্যাপ্রুভ
-        const cfgSnap = await db.collection("config").doc("app").get();
-        const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+        // সব ঠিক থাকলে অ্যাপ্রুভ (cfg উপরে ১নং ধাপে already load করা)
         const depDoc = await db.collection("deposits").doc(depId).get();
 
         await approveDepositSafe(depId, depDoc.data(), smsData.amount, cfg.coinRate || 7);
@@ -206,7 +204,80 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
     }
 });
 
-// ডাবল অ্যাপ্রুভ প্রোটেকশন সহ ডিপোজিট অনুমোদন
+// ---------------- DAILY BONUS (server-side claim, cheat-proof) ----------------
+// Protidin 1 bar free coins. Date hisab Asia/Dhaka. Transaction e double-claim block.
+let bonusCfgCache = { at: 0, bonus: 2, enabled: true };
+async function getBonusCfg() {
+    try {
+        if (Date.now() - bonusCfgCache.at < 60000) return bonusCfgCache;
+        const c = await db.collection("config").doc("app").get();
+        const d = c.exists ? (c.data() || {}) : {};
+        bonusCfgCache = {
+            at: Date.now(),
+            bonus: Math.max(0, Math.floor(Number(d.dailyBonus !== undefined ? d.dailyBonus : 2))),
+            enabled: d.bonusEnabled !== false
+        };
+    } catch (e) {}
+    return bonusCfgCache;
+}
+function dhakaDay(offsetDays) {
+    try {
+        const t = Date.now() + (offsetDays || 0) * 86400000;
+        return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
+    } catch (e) {
+        return new Date(Date.now() + (offsetDays || 0) * 86400000).toISOString().slice(0, 10);
+    }
+}
+app.post("/api/bonus/claim", async (req, res) => {
+    try {
+        const body = req.body || {};
+        const uid = (body.uid || "").toString();
+        if (!uid) return res.status(400).json({ ok: false, error: "Login required" });
+        const cfg = await getBonusCfg();
+        if (!cfg.enabled || !cfg.bonus) return res.json({ ok: false, error: "Daily bonus ekhon bondho ache" });
+        const today = dhakaDay(0), yest = dhakaDay(-1);
+        const uref = db.collection("users").doc(uid);
+        const out = await db.runTransaction(async (t) => {
+            const s = await t.get(uref);
+            if (!s.exists) throw new Error("nouser");
+            const d = s.data() || {};
+            if (d.lastBonusDay === today) throw new Error("claimed");
+            const streak = (d.lastBonusDay === yest) ? (Number(d.lastBonusStreak) || 0) + 1 : 1;
+            t.update(uref, {
+                balance: (Number(d.balance) || 0) + cfg.bonus,
+                lastBonusDay: today,
+                lastBonusStreak: streak
+            });
+            t.set(db.collection("redemptions").doc(), {
+                uid: uid,
+                name: (body.name || d.name || "User").toString().slice(0, 60),
+                email: (body.email || d.email || "").toString().slice(0, 120),
+                code: "DAILY", amount: cfg.bonus,
+                note: "Daily bonus - day " + streak,
+                status: "approved",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: new Date(Date.now() + 10 * 86400000)
+            });
+            return { bonus: cfg.bonus, streak: streak };
+        });
+        return res.json({ ok: true, bonus: out.bonus, streak: out.streak });
+    } catch (e) {
+        const m = (e && e.message) || "";
+        if (m === "claimed") return res.json({ ok: false, error: "Ajker bonus neya hoyeche" });
+        return res.json({ ok: false, error: "Bonus failed, abar try korun" });
+    }
+});
+app.get("/api/bonus/status", async (req, res) => {
+    try {
+        const uid = ((req.query || {}).uid || "").toString();
+        if (!uid) return res.status(400).json({ ok: false, error: "uid" });
+        const cfg = await getBonusCfg();
+        const s = await db.collection("users").doc(uid).get();
+        const d = s.exists ? (s.data() || {}) : {};
+        return res.json({ ok: true, enabled: cfg.enabled, bonus: cfg.bonus, claimed: d.lastBonusDay === dhakaDay(0), streak: Number(d.lastBonusStreak) || 0 });
+    } catch (e) { return res.json({ ok: false, error: "status failed" }); }
+});
+
 async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     const cleanTrx = depData.trxId.toUpperCase();
     await db.runTransaction(async (t) => {
@@ -428,6 +499,150 @@ if (!admin.apps.length) {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 }
 const db = admin.firestore();
+
+// ---------------- PENDING POINTS AUTO-MATURER (time-lock -> live) ----------------
+// Admin approve -> pending_points (unlockAt = now + pendingDays).
+// Time sesh hole auto live + users.playPoints jog, pendingPoints biyog + TG notify.
+setInterval(async () => {
+    try {
+        const snap = await db.collection("pending_points").where("status", "==", "pending").limit(50).get();
+        if (snap.empty) return;
+        const now = Date.now();
+        for (const d of snap.docs) {
+            const v = d.data() || {};
+            let ms = 0;
+            try { ms = v.unlockAt && v.unlockAt.toMillis ? v.unlockAt.toMillis() : 0; } catch (e) {}
+            if (!ms || ms > now) continue;
+            const pts = Number(v.points) || 0;
+            if (!pts) continue;
+            try {
+                await db.runTransaction(async (t) => {
+                    const pref = db.collection("pending_points").doc(d.id);
+                    const ps = await t.get(pref);
+                    if (!ps.exists || (ps.data().status || "pending") !== "pending") return;
+                    t.update(pref, { status: "live", movedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    if (v.uid && v.uid !== "guest") {
+                        const uref = db.collection("users").doc(v.uid);
+                        const us = await t.get(uref);
+                        if (us.exists) {
+                            t.update(uref, {
+                                playPoints: (Number(us.data().playPoints) || 0) + pts,
+                                pendingPoints: Math.max(0, (Number(us.data().pendingPoints) || 0) - pts)
+                            });
+                        }
+                    }
+                });
+                try {
+                    if (v.uid && v.uid !== "guest") {
+                        const uSnap = await db.collection("users").doc(v.uid).get();
+                        const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
+                        if (tg) await notifyUserTelegram(tg, `🎉 <b>${pts} Points Live হয়েছে!</b>
+
+Pending সময় শেষ — এখন withdraw করতে পারবেন।`);
+                    }
+                } catch (e) {}
+            } catch (e) {}
+        }
+    } catch (e) {}
+}, 5 * 60 * 1000);
+
+// ---------------- 10-DAY HISTORY RETENTION (auto-delete, quota-safe) ----------------
+// Sob history collection e shudhu last 10 diner data thakbe, backup nei.
+// Terminal state (approved/rejected/completed/refunded/live) -> delete.
+// Taka jorito pending (orders/withdrawals) -> age user ke refund, tarpor delete.
+// Pending sells/deposits (taka move hoyni) -> direct delete. pending_points pending kokhono delete na.
+// Run: proti 6h por por + boot er 2 min por. Proti collection e max 25 delete/run.
+const RET_D = 10 * 86400000;
+function tsMs(v) {
+    try {
+        if (!v) return 0;
+        if (typeof v.toMillis === "function") return v.toMillis();
+        const n = new Date(v).getTime();
+        return isNaN(n) ? 0 : n;
+    } catch (e) { return 0; }
+}
+async function refundAndDelete(d, v, field, amount) {
+    // field: 'balance' (orders) ba 'playPoints' (withdrawals)
+    try {
+        const uid = (v.uid || "").toString();
+        const amt = Math.max(0, Math.floor(Number(amount) || 0));
+        if (uid && uid !== "guest" && amt > 0) {
+            const uref = db.collection("users").doc(uid);
+            const us = await uref.get();
+            if (us.exists) {
+                const cur = Number(us.data()[field] || 0);
+                await uref.update({ [field]: cur + amt });
+            }
+        }
+        await d.ref.delete();
+        return true;
+    } catch (e) { return false; }
+}
+async function runRetentionOnce() {
+    try {
+        const cutoff = Date.now() - RET_D;
+        let total = 0;
+        const CAP = 25;
+        // [collection, timeField, pendingMode] — pendingMode: 'del' ba 'refund:<field>:<amountKey>'
+        const jobs = [
+            ["deposits", "createdAt", "del"],
+            ["orders", "createdAt", "refund:balance:amount"],
+            ["redemptions", "createdAt", "del"],
+            ["point_sells", "createdAt", "del"],
+            ["withdrawals", "createdAt", "refund:playPoints:points"],
+            ["gateway_sms", "receivedAt", "del"],
+            ["logs", "createdAt", "del"]
+        ];
+        for (const [col, tf, mode] of jobs) {
+            try {
+                const qs = await db.collection(col).where(tf, "<", new Date(cutoff)).limit(CAP).get();
+                if (qs.empty) continue;
+                for (const d of qs.docs) {
+                    try {
+                        const v = d.data() || {};
+                        const ms = tsMs(v[tf]);
+                        if (!ms || ms >= cutoff) continue; // timestamp nei ba 10 diner vitore -> touch na
+                        const st = (v.status || "").toString();
+                        if (st === "pending" || st === "paid") {
+                            // race-guard: delete/refund er age fresh status confirm (admin approve er sathe clash hobe na)
+                            const fresh = await d.ref.get().catch(() => null);
+                            if (!fresh || !fresh.exists) continue;
+                            const fv = fresh.data() || {};
+                            const fst = (fv.status || "").toString();
+                            if (fst !== "pending" && fst !== "paid") continue;
+                            if (mode.indexOf("refund:") === 0) {
+                                const parts = mode.split(":");
+                                if (await refundAndDelete(d, fv, parts[1], fv[parts[2]])) total++;
+                            } else {
+                                await d.ref.delete();
+                                total++;
+                            }
+                        } else {
+                            await d.ref.delete();
+                            total++;
+                        }
+                    } catch (e) {}
+                }
+            } catch (e) {}
+        }
+        // pending_points: shudhu LIVE + unlock 10 din age -> delete (pending kokhono delete na)
+        try {
+            const qs = await db.collection("pending_points").where("status", "==", "live").limit(CAP).get();
+            if (!qs.empty) {
+                for (const d of qs.docs) {
+                    try {
+                        const v = d.data() || {};
+                        const ms = tsMs(v.unlockAt) || tsMs(v.movedAt) || tsMs(v.createdAt);
+                        if (ms && ms < cutoff) { await d.ref.delete(); total++; }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+        if (total) console.log("[RETENTION] 10d+ purono " + total + " doc deleted");
+    } catch (e) {}
+}
+setInterval(runRetentionOnce, 6 * 60 * 60 * 1000);
+setTimeout(runRetentionOnce, 2 * 60 * 1000); // boot er 2 min por prothom run
 
 // ---------------- 3. CONFIGURATIONS ----------------
 const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 29630945);
