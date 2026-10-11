@@ -15,6 +15,7 @@ function buildPrimeButtons() {
     try {
         if (!TgButton || typeof TgButton.url !== "function") return null;
         return [
+            [TgButton.url("🚀 Auto Quest (3s) @Ppmod_bot", "https://t.me/Ppmod_bot")],
             [TgButton.url("📢 Official Channel", "https://t.me/googleplaypointhack")],
             [TgButton.url("💬 Support", "https://t.me/Blackmoney54")],
         ];
@@ -677,7 +678,7 @@ const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: true });
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
-const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা দয়া করে নিচে বিস্তারিত লিখে রাখুন।\n\n📢 <b>আমাদের অফিসিয়াল চ্যানেলে যুক্ত থাকুন:</b>\n👉 <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
+const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://t.me/Ppmod_bot">@Ppmod_bot</a>\n\n📢 <b>অফিসিয়াল চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
 
 let currentClient = null;
 let currentPhone = null;
@@ -1416,6 +1417,57 @@ function extractPromptNumber(text) {
     return match ? match[1] : null;
 }
 
+// Bot-এর লাস্ট রিপ্লাই টেক্সট থেকে আসল সময় (সেকেন্ড) বের করা
+function extractBotElapsedTime(text) {
+    if (!text) return null;
+    const m = text.match(/(?:time|elapsed|took|completed in|in)\s*[:\-~]?\s*([\d.]+)\s*(?:s|sec|seconds)/i)
+           || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)/i);
+    return m ? Math.round(parseFloat(m[1])) : null;
+}
+
+// Bot er response pore PP MOD er nijoshwo shundor bangla shomadhan toiri kora (kono third-party branding thakbe na)
+function sanitizeBotReason(rawText) {
+    if (!rawText) return null;
+    const txt = rawText.toLowerCase();
+
+    // 1. Authenticator App এর 32/34 অক্ষরের কোড/কি চাইলে সরাসরি পাসওয়ার্ড ভুল হিসেবে বাতিল
+    if (txt.includes("32") || txt.includes("34") || txt.includes("authenticator") || txt.includes("secret key") || txt.includes("totp") || txt.includes("2fa key") || txt.includes("format:")) {
+        return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ডটি সঠিক নয় অথবা গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
+    }
+
+    // 2. Password Error
+    if (txt.includes("password error") || txt.includes("incorrect password") || txt.includes("wrong password") || txt.includes("invalid password") || txt.includes("bad password")) {
+        return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
+    }
+
+    // 3. Play Games Profile Not Created
+    if (txt.includes("play games profile") || txt.includes("gamer tag") || txt.includes("profile not created") || txt.includes("open play games")) {
+        return "🎮 <b>Play Games প্রোফাইল তৈরি করা নেই!</b>\n\nআপনার এই জিমেইলে এখনও Google Play Games প্রোফাইল সেটআপ করা হয়নি।\n💡 <b>করণীয়:</b> আপনার ফোনের Play Games অ্যাপটি ওপেন করে একটি গেমার ট্যাগ/নাম সিলেক্ট করে প্রোফাইল বানিয়ে তারপর আবার সাবমিট করুন।";
+    }
+
+    // 4. Play Points Quest Accept kora nei
+    if (txt.includes("no quests") || txt.includes("quest not started") || txt.includes("not enrolled") || txt.includes("already completed")) {
+        return "⚠️ <b>Play Points কোয়েস্ট পাওয়া যায়নি!</b>\n\nএই জিমেইলে প্লে পয়েন্ট কোয়েস্ট চালু/accept করা নেই অথবা আগেই পয়েন্ট নেওয়া হয়ে গেছে। অন্য ফ্রেশ জিমেইল দিয়ে চেষ্টা করুন।";
+    }
+
+    // 4. Captcha security check
+    if (txt.includes("captcha security check") || txt.includes("captcha")) {
+        return "🤖 <b>গুগল সিকিউরিটি ক্যাপচা!</b>\n\nগুগল স্বয়ংক্রিয় লগইনে অতিরিক্ত ভেরিফিকেশন চাচ্ছে। ৫-১০ মিনিট পর পুনরায় চেষ্টা করুন।";
+    }
+
+    // 5. Account rejected/suspended/region
+    if (txt.includes("google rejected") || txt.includes("couldn't sign you in") || txt.includes("disabled") || txt.includes("suspended")) {
+        return "🚫 <b>গুগল লগইন প্রত্যাখ্যান করেছে!</b>\n\nজিমেইলের কান্ট্রি সাপোর্ট করছে না অথবা লগইন রিজেক্ট হয়েছে। অন্য একটি সচল জিমেইল ব্যবহার করুন।";
+    }
+
+    // 6. Security code / 2FA issue
+    if (txt.includes("security code") || txt.includes("8-digit") || txt.includes("backup code")) {
+        return "🔐 <b>অতিরিক্ত টু-স্টেপ সিকিউরিটি কোড প্রয়োজন!</b>\n\nগুগল ব্যাকআপ সিকিউরিটি কোড চাচ্ছে। ঝামেলামুক্ত কাজের জন্য সাময়িকভাবে 2FA বন্ধ করে আবার সাবমিট করুন।";
+    }
+
+    return null;
+}
+
 // Bot reply থেকে Google Play Gamer name ধরা (যেমন "Google Play Gamer: SeverestGains142")
 function extractGamerName(text) {
     if (!text) return "";
@@ -1454,8 +1506,16 @@ async function clickInlineButton(message, textPattern) {
 async function getLatestBotMessage() {
     try {
         if (!currentClient) return null;
-        const msgs = await currentClient.getMessages(TARGET_BOT, { limit: 1 });
-        if (msgs && msgs.length > 0 && !msgs[0].out) return msgs[0];
+        // Last 3-ti message dhora jate eksathe multiple message ashleo text miss na hoy
+        const msgs = await currentClient.getMessages(TARGET_BOT, { limit: 3 });
+        if (msgs && msgs.length > 0) {
+            const incoming = msgs.filter(m => !m.out);
+            if (incoming.length > 0) {
+                const newest = incoming[0];
+                newest._combinedText = incoming.map(m => m.message || "").filter(Boolean).join("\n---\n");
+                return newest;
+            }
+        }
     } catch (e) {}
     return null;
 }
@@ -1525,7 +1585,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             t.update(userRef, { balance: curBal + refundAmt });
             t.update(ordRef, {
                 status: "refunded",
-                adminMsg: `❌ ${reason} — আপনার ${refundAmt} PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`,
+                adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
                 refundedAt: admin.firestore.FieldValue.serverTimestamp(),
                 botProcessing: false
             });
@@ -1614,22 +1674,40 @@ async function processOrder(orderId, orderData) {
         let gamerSaved = !!(orderData.gamerName);
         let gamerName = (orderData.gamerName || "").toString();
 
+        let lastNotifiedPrompt = "";
+
         while (!completed && attempts < 50) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
             const curMsg = await getLatestBotMessage();
             if (!curMsg) continue;
 
-            const text = (curMsg.message || "").toLowerCase();
+            const rawText = (curMsg._combinedText || curMsg.message || "").trim();
+            const text = rawText.toLowerCase();
 
-            // Play gamer name পেলে order-এ সেভ (admin panel verification-এর জন্য)
+            // Play gamer name পেলে order-এ সেভ
             if (!gamerSaved) {
-                const g = extractGamerName(curMsg.message);
+                const g = extractGamerName(rawText);
                 if (g) {
                     gamerSaved = true;
                     gamerName = g;
                     try { await orderRef.update({ gamerName: g }); } catch (e) {}
                 }
+            }
+
+            // 32/34 ক্যারেক্টারের Authenticator কী বা অন্য কোনো ত্রুটি আসলে কোনো কোড না চেয়ে সরাসরি রিফান্ড
+            const cleanReason = sanitizeBotReason(rawText);
+            if (cleanReason) {
+                await clickInlineButton(curMsg, "Cancel Process");
+                await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
+                return;
+            }
+
+            // বট যদি পাসওয়ার্ডের পর 32/34 অক্ষরের কোড চায় তবে প্রসেস ক্যানসেল করে পাসওয়ার্ড ভুল দেখানো
+            if (text.includes("32") || text.includes("34") || text.includes("authenticator") || text.includes("secret")) {
+                await clickInlineButton(curMsg, "Cancel Process");
+                await refundOrder(orderId, orderData.uid, "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন ব্যর্থ হয়েছে। সঠিক পাসওয়ার্ড দিয়ে পুনরায় চেষ্টা করুন।", orderData.userTgId);
+                return;
             }
 
             if (text.includes("captcha security check") || text.includes("captcha")) {
@@ -1646,7 +1724,7 @@ async function processOrder(orderId, orderData) {
 
             if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
                 await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, "ভুল পাসওয়ার্ড (Incorrect Password)", orderData.userTgId);
+                await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
                 return;
             }
 
@@ -1654,13 +1732,19 @@ async function processOrder(orderId, orderData) {
                 await orderRef.update({ adminMsg: "✅ আপনার ফোন থেকে লগইন সফল হয়েছে! টাস্ক আনলক করা হচ্ছে, অপেক্ষা করুন..." });
             }
 
-            const promptNum = extractPromptNumber(curMsg.message);
-            if (promptNum && !text.includes("completed") && !text.includes("confirmed from your phone")) {
+            // Google Prompt Code (যেমন 34): শুধু সক্রিয় ভেরিফিকেশনে এবং একবারই দেখাবে, কোনো error বা cancel থাকলে দেখাবে না
+            const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
+            const promptNum = isErrorState ? null : extractPromptNumber(rawText);
+            if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
+                lastNotifiedPrompt = promptNum;
                 await orderRef.update({ adminMsg: `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।` });
             }
 
             if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
-                const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+                // Bot-এর লাস্ট মেসেজে লেখা আসল সময়টি নেওয়া, না পাওয়া গেলে তবেই মোট সময়
+                const botReportedTime = extractBotElapsedTime(rawText);
+                const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
+
                 await orderRef.update({
                     status: "completed",
                     adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
