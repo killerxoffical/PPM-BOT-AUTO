@@ -301,6 +301,30 @@ app.get("/api/bonus/status", async (req, res) => {
     } catch (e) { return res.json({ ok: false, error: "status failed" }); }
 });
 
+// অ্যাডমিন টেলিগ্রাম থেকে সরাসরি Approve করার ফাংশন
+async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
+    const depDoc = await db.collection("deposits").doc(depId).get();
+    if (!depDoc.exists) throw new Error("Deposit document not found");
+    const depData = depDoc.data();
+    if (depData.status !== "pending") throw new Error("Deposit already processed (" + depData.status + ")");
+
+    const cfgSnap = await db.collection("config").doc("app").get();
+    const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+    await approveDepositSafe(depId, depData, depData.amount, cfg.coinRate || 7);
+    return depData;
+}
+
+// অ্যাডমিন টেলিগ্রাম থেকে সরাসরি Reject করার ফাংশন
+async function rejectDepositById(depId) {
+    const depDoc = await db.collection("deposits").doc(depId).get();
+    if (!depDoc.exists) throw new Error("Deposit not found");
+    await db.collection("deposits").doc(depId).update({
+        status: "rejected",
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return depDoc.data();
+}
+
 async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     const cleanTrx = depData.trxId.toUpperCase();
     await db.runTransaction(async (t) => {
@@ -739,6 +763,67 @@ function getJoinKeyboard(userId, refId = null) {
     rows.push([{ text: "👥 আমার রেফারেল লিংক ও পরিসংখ্যান", callback_data: "my_ref_info" }]);
     return { inline_keyboard: rows };
 }
+
+// ---------------- ADMIN SWIPE-TO-REPLY APPROVAL HANDLER ----------------
+// ডিপোজিট মেসেজে টান দিয়ে '✅' পাঠালে Approve, '❌' পাঠালে Reject
+userNotifyBot.on("message", async (msg) => {
+    try {
+        const text = (msg.text || "").trim();
+        const replyTo = msg.reply_to_message;
+
+        // শুধু যখন অ্যাডমিন কোনো ডিপোজিট মেসেজের রিপ্লাইয়ে ✅ বা ❌ দেবে
+        if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
+            const replyText = replyTo.text || replyTo.caption || "";
+            
+            // মেসেজের ভেতর থেকে ডিপোজিট ID বা TrxID বের করা
+            const depMatch = replyText.match(/🆔\s*<b>DepID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i)
+                          || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
+                          || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
+
+            if (!depMatch) return; // ডিপোজিট মেসেজ না হলে ইগনোর
+
+            const identifier = depMatch[1].trim();
+
+            if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
+                // ১. Approve ট্রিগার
+                let targetId = identifier;
+                // যদি identifier ট্রানজ্যাকশন আইডি হয় তবে doc খোঁজা
+                if (!identifier.startsWith("DEP_") && identifier.length < 15) {
+                    const snap = await db.collection("deposits").where("trxId", "==", identifier).where("status", "==", "pending").limit(1).get();
+                    if (!snap.empty) targetId = snap.docs[0].id;
+                }
+
+                try {
+                    const approvedData = await approveDepositById(targetId);
+                    await userNotifyBot.sendMessage(msg.chat.id, 
+                        `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
+                        `👤 <b>User:</b> ${approvedData.name || "User"} (${approvedData.email || ""})\n` +
+                        `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
+                        `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
+                        `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
+                        `<i>ইউজারের একাউন্টে কয়েন যোগ করা হয়েছে!</i>`,
+                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                    );
+                } catch (err) {
+                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
+                }
+            } else if (text === "❌" || text === "/reject") {
+                // ২. Reject ট্রিগার
+                try {
+                    await rejectDepositById(identifier);
+                    await userNotifyBot.sendMessage(msg.chat.id, 
+                        `❌ <b>ডিপোজিটটি বাতিল (Rejected) করা হয়েছে!</b>`,
+                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                    );
+                } catch (err) {
+                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ রিজেক্ট ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("[REPLY HANDLER ERR]:", e.message);
+    }
+});
 
 // /start command handler for @Ppmod_bot
 userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
@@ -1847,6 +1932,33 @@ async function startMasterWorker() {
             console.log("[AUTO CLAIM] Scheduled claim completed.");
         } catch (e) {}
     }, 12 * 60 * 60 * 1000);
+
+    // নতুন ডিপোজিট আসলে ব্যাকএন্ড সার্ভার স্বয়ংক্রিয়ভাবে অ্যাডমিনের টেলিগ্রামে মেসেজ পাঠাবে
+    const notifiedDeposits = new Set();
+    db.collection("deposits").where("status", "==", "pending").onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const dep = change.doc.data();
+                const depId = change.doc.id;
+                if (notifiedDeposits.has(depId)) return;
+                notifiedDeposits.add(depId);
+
+                // অ্যাডমিনের কাছে প্রাইভেট টেলিগ্রাম অ্যালার্ট পাঠানো
+                const adminAlert = 
+                    `💰 <b>NEW DEPOSIT PENDING!</b>\n\n` +
+                    `👤 <b>User:</b> ${dep.name || "User"} (${dep.email || "No Email"})\n` +
+                    `💳 <b>Method:</b> ${dep.method}\n` +
+                    `💵 <b>Amount:</b> ${dep.amount} BDT\n` +
+                    `🪙 <b>Coins:</b> ${dep.coins || 3} Coins\n` +
+                    `🔖 <b>TrxID:</b> <code>${dep.trxId}</code>\n` +
+                    `🆔 <b>DepID:</b> <code>${depId}</code>\n\n` +
+                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>✅</b> পাঠালে Approve হবে।</i>\n` +
+                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>❌</b> পাঠালে Reject হবে।</i>`;
+
+                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => {});
+            }
+        });
+    });
 
     db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
         snapshot.docChanges().forEach((change) => {
