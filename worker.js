@@ -378,8 +378,13 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             usedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        // যদি gateway_sms এ ডকুমেন্ট থাকে তবেই আপডেট হবে, না থাকলেও merge: true দিয়ে ক্র্যাশ আটকাবে
         const smsRef = db.collection("gateway_sms").doc(cleanTrx);
-        t.update(smsRef, { claimed: true, claimedBy: depData.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+        t.set(smsRef, {
+            claimed: true,
+            claimedBy: depData.uid,
+            claimedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
     });
 
     try {
@@ -801,11 +806,12 @@ userNotifyBot.on("message", async (msg) => {
                         `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
                         `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
                         `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
-                        `<i>ইউজারের একাউন্টে কয়েন যোগ করা হয়েছে!</i>`,
+                        `<i>ইউজারের একাউন্টে সফলভাবে কয়েন যোগ হয়েছে এবং TrxID লক করা হয়েছে! 🚀</i>`,
                         { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                     );
                 } catch (err) {
-                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
+                    console.error("[APPROVE ERR]:", err);
+                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message || 'Error'}`, { reply_to_message_id: msg.message_id });
                 }
             } else if (text === "❌" || text === "/reject") {
                 // ২. Reject ট্রিগার
