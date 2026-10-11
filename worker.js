@@ -1631,7 +1631,11 @@ async function processOrder(orderId, orderData) {
             throw err;
         }
 
+        // চ্যাট সচল করতে এবং মেনু আনতে Start পাঠানো
+        await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
+        await new Promise((r) => setTimeout(r, 1200));
         await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
+
         sendOrderLog(
             `🆕 <b>NEW ORDER</b>\n\n` +
             `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
@@ -1641,33 +1645,51 @@ async function processOrder(orderId, orderData) {
             `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
             `📌 <b>Status:</b> Pending`
         );
-        let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 20000);
-        if (!found) throw new Error("Bot chest menu timeout");
 
-        const gameSearch = orderData.game.split("(")[0].trim().toLowerCase();
-        let clicked = await clickInlineButton(found.msg, gameSearch);
-        if (!clicked) clicked = await clickInlineButton(found.msg, gameSearch.split(" ")[0]);
+        // Chest মেনুর জন্য অপেক্ষা করা
+        let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest") || m.message.includes("Chests")), 25000);
+        if (!found) {
+            // বিকল্প: সরাসরি আবার Start Process ট্রাই করা
+            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
+            found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 15000);
+        }
+        if (!found) throw new Error("Bot chest menu timeout (বট রেসপন্স করেনি)");
+
+        // গেম সিলেক্ট করা
+        const cleanGame = (orderData.game || "").replace(/\(.*?\)/g, "").trim().toLowerCase();
+        let clicked = await clickInlineButton(found.msg, cleanGame);
+        if (!clicked) clicked = await clickInlineButton(found.msg, cleanGame.split(" ")[0]);
+        if (!clicked) {
+            // যদি ইনলাইন বাটনে আংশিক নাম থাকে
+            clicked = await clickInlineButton(found.msg, cleanGame.slice(0, 5));
+        }
         if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
 
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 2200));
         let promptMsg = await getLatestBotMessage();
-        if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting"))) {
+        if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting") || promptMsg.message.includes("Previous"))) {
             await clickInlineButton(promptMsg, "New account");
             await new Promise((r) => setTimeout(r, 2000));
         }
 
+        // ইমেইল এবং পাসওয়ার্ড প্রস্তুত ও টেলিগ্রাম বটের ইনবক্সে পাঠানো
         const credText = `${orderData.accEmail.trim()}---${orderData.accPass.trim()}`;
-        await orderRef.update({ adminMsg: "লগইন তথ্য পাঠানো হয়েছে। কনফার্মেশন চলছে..." });
+        console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
+        
+        await orderRef.update({ adminMsg: "বটের কাছে জিমেইল ও পাসওয়ার্ড পাঠানো হচ্ছে..." });
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
+        // কনফার্মেশন বোতামের জন্য অপেক্ষা ও ক্লিক
         let confirmFound = await waitForCondition((m) => {
             const txt = (m.message || "").toLowerCase();
-            return txt.includes("confirm credentials & payment") || txt.includes("confirm and start quests");
-        }, 25000);
+            return txt.includes("confirm credentials & payment") || txt.includes("confirm and start quests") || txt.includes("confirm & pay") || txt.includes("confirm");
+        }, 20000);
 
         if (confirmFound) {
-            await clickInlineButton(confirmFound.msg, "Confirm & Pay");
+            let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay");
+            if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm");
         }
+        await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে বটের কাছে পাঠানো হয়েছে! লগইন চলছে..." });
 
         let completed = false;
         let attempts = 0;
@@ -1831,8 +1853,9 @@ async function startMasterWorker() {
             if (change.type === "added" || change.type === "modified") {
                 const ord = change.doc.data();
                 const ordId = change.doc.id;
-                if (botModeCache === false) return; // manual mode: admin handles by hand
-                if (ord.accEmail && ord.accPass && ord.mode !== "manual" && !ord.botProcessing && !activeOrders.has(ordId)) {
+                if (botModeCache === false) return; // manual mode
+                // accEmail o accPass thaklei bot processing shuru korbe
+                if (ord.accEmail && ord.accPass && ord.mode !== "manual" && !activeOrders.has(ordId)) {
                     processOrder(ordId, ord);
                 }
             }
