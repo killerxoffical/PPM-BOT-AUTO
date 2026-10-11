@@ -280,7 +280,23 @@ app.get("/api/bonus/status", async (req, res) => {
         const cfg = await getBonusCfg();
         const s = await db.collection("users").doc(uid).get();
         const d = s.exists ? (s.data() || {}) : {};
-        return res.json({ ok: true, enabled: cfg.enabled, claimed: d.lastBonusDay === dhakaDay(0), streak: Number(d.lastBonusStreak) || 0 });
+        const isClaimed = d.lastBonusDay === dhakaDay(0);
+        
+        // Dhaka midnight er time hisab kora (server-side tamper-proof)
+        const nowServer = Date.now();
+        const dhakaNextMidnight = new Date(new Date(nowServer).toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
+        dhakaNextMidnight.setHours(24, 0, 0, 0);
+        const msUntilNext = Math.max(0, dhakaNextMidnight.getTime() - new Date(new Date(nowServer).toLocaleString("en-US", { timeZone: "Asia/Dhaka" })).getTime());
+        const serverNextClaimAt = nowServer + msUntilNext;
+
+        return res.json({ 
+            ok: true, 
+            enabled: cfg.enabled, 
+            claimed: isClaimed, 
+            streak: Number(d.lastBonusStreak) || 0,
+            serverNow: nowServer,
+            nextClaimAt: isClaimed ? serverNextClaimAt : 0
+        });
     } catch (e) { return res.json({ ok: false, error: "status failed" }); }
 });
 
