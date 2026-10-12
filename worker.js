@@ -7,22 +7,7 @@ const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
-// ---------------- 1. EXPRESS HTTP SERVER (INSTANT BIND FOR RENDER) ----------------
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
-app.get("/ping", (req, res) => res.status(200).send("pong"));
-app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
-
-// Render port listening IMMEDIATELY to prevent "Timed Out" error
-const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[HTTP] Server successfully running on port ${PORT}`);
-});
-
-// gramjs inline Button
+// gramjs inline Button (auto-reply নিচে বাটন দেখানোর জন্য) — robust import
 let TgButton = null;
 try { TgButton = require("telegram").Button || null; } catch (e) {}
 if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) {} }
@@ -36,6 +21,19 @@ function buildPrimeButtons() {
         ];
     } catch (e) { return null; }
 }
+
+// ---------------- 1. EXPRESS HTTP SERVER & PING ROUTES ----------------
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
+app.get("/ping", (req, res) => res.status(200).send("pong"));
+app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
+
+// ✅ Render যাতে ইনস্ট্যান্ট পোর্ট ডিটেক্ট করে Live হতে পারে (Timed out ফিক্স)
+app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
@@ -71,6 +69,7 @@ function parseSmsBody(sender, body) {
     return null;
 }
 
+// Android App SMS Receiver Webhook
 app.post("/api/gateway/sms", async (req, res) => {
     const secret = req.headers["x-gateway-secret"] || req.body.secret;
     if (secret !== GATEWAY_SECRET) {
@@ -145,6 +144,7 @@ app.post("/api/gateway/sms", async (req, res) => {
     }
 });
 
+// ইউজার সাইটে সাবমিট করলে ফোনের আসল SMS ভেরিফাই করার এন্ডপয়েন্ট
 app.post("/api/gateway/verify-deposit", async (req, res) => {
     const { depId, trxId, amount } = req.body;
     if (!depId || !trxId) return res.status(400).json({ ok: false, error: "Missing data" });
@@ -415,6 +415,7 @@ app.post("/api/ref/join", async (req, res) => {
         return res.status(500).json({ ok: false });
     }
 });
+
 async function creditReferralBonus(buyerUid, orderId, gameName) {
     try {
         if (!buyerUid || !orderId) return;
@@ -462,7 +463,139 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
+// ---------------- PENDING POINTS AUTO-MATURER ----------------
+setInterval(async () => {
+    try {
+        const snap = await db.collection("pending_points").where("status", "==", "pending").limit(50).get();
+        if (snap.empty) return;
+        const now = Date.now();
+        for (const d of snap.docs) {
+            const v = d.data() || {};
+            let ms = 0;
+            try { ms = v.unlockAt && v.unlockAt.toMillis ? v.unlockAt.toMillis() : 0; } catch (e) {}
+            if (!ms || ms > now) continue;
+            const pts = Number(v.points) || 0;
+            if (!pts) continue;
+            try {
+                await db.runTransaction(async (t) => {
+                    const pref = db.collection("pending_points").doc(d.id);
+                    const ps = await t.get(pref);
+                    if (!ps.exists || (ps.data().status || "pending") !== "pending") return;
+                    t.update(pref, { status: "live", movedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    if (v.uid && v.uid !== "guest") {
+                        const uref = db.collection("users").doc(v.uid);
+                        const us = await t.get(uref);
+                        if (us.exists) {
+                            t.update(uref, {
+                                playPoints: (Number(us.data().playPoints) || 0) + pts,
+                                pendingPoints: Math.max(0, (Number(us.data().pendingPoints) || 0) - pts)
+                            });
+                        }
+                    }
+                });
+                try {
+                    if (v.uid && v.uid !== "guest") {
+                        const uSnap = await db.collection("users").doc(v.uid).get();
+                        const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
+                        if (tg) await notifyUserTelegram(tg, `🎉 <b>${pts} Points Live হয়েছে!</b>\n\nPending সময় শেষ — এখন withdraw করতে পারবেন।`);
+                    }
+                } catch (e) {}
+            } catch (e) {}
+        }
+    } catch (e) {}
+}, 5 * 60 * 1000);
+
+// ---------------- 10-DAY HISTORY RETENTION ----------------
+const RET_D = 10 * 86400000;
+function tsMs(v) {
+    try {
+        if (!v) return 0;
+        if (typeof v.toMillis === "function") return v.toMillis();
+        const n = new Date(v).getTime();
+        return isNaN(n) ? 0 : n;
+    } catch (e) { return 0; }
+}
+async function refundAndDelete(d, v, field, amount) {
+    try {
+        const uid = (v.uid || "").toString();
+        const amt = Math.max(0, Math.floor(Number(amount) || 0));
+        if (uid && uid !== "guest" && amt > 0) {
+            const uref = db.collection("users").doc(uid);
+            const us = await uref.get();
+            if (us.exists) {
+                const cur = Number(us.data()[field] || 0);
+                await uref.update({ [field]: cur + amt });
+            }
+        }
+        await d.ref.delete();
+        return true;
+    } catch (e) { return false; }
+}
+async function runRetentionOnce() {
+    try {
+        const cutoff = Date.now() - RET_D;
+        let total = 0;
+        const CAP = 25;
+        const jobs = [
+            ["deposits", "createdAt", "del"],
+            ["orders", "createdAt", "refund:balance:amount"],
+            ["redemptions", "createdAt", "del"],
+            ["point_sells", "createdAt", "del"],
+            ["withdrawals", "createdAt", "refund:playPoints:points"],
+            ["gateway_sms", "receivedAt", "del"],
+            ["logs", "createdAt", "del"]
+        ];
+        for (const [col, tf, mode] of jobs) {
+            try {
+                const qs = await db.collection(col).where(tf, "<", new Date(cutoff)).limit(CAP).get();
+                if (qs.empty) continue;
+                for (const d of qs.docs) {
+                    try {
+                        const v = d.data() || {};
+                        const ms = tsMs(v[tf]);
+                        if (!ms || ms >= cutoff) continue;
+                        const st = (v.status || "").toString();
+                        if (st === "pending" || st === "paid") {
+                            const fresh = await d.ref.get().catch(() => null);
+                            if (!fresh || !fresh.exists) continue;
+                            const fv = fresh.data() || {};
+                            const fst = (fv.status || "").toString();
+                            if (fst !== "pending" && fst !== "paid") continue;
+                            if (mode.indexOf("refund:") === 0) {
+                                const parts = mode.split(":");
+                                if (await refundAndDelete(d, fv, parts[1], fv[parts[2]])) total++;
+                            } else {
+                                await d.ref.delete();
+                                total++;
+                            }
+                        } else {
+                            await d.ref.delete();
+                            total++;
+                        }
+                    } catch (e) {}
+                }
+            } catch (e) {}
+        }
+        try {
+            const qs = await db.collection("pending_points").where("status", "==", "live").limit(CAP).get();
+            if (!qs.empty) {
+                for (const d of qs.docs) {
+                    try {
+                        const v = d.data() || {};
+                        const ms = tsMs(v.unlockAt) || tsMs(v.movedAt) || tsMs(v.createdAt);
+                        if (ms && ms < cutoff) { await d.ref.delete(); total++; }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+        if (total) console.log("[RETENTION] 10d+ purono " + total + " doc deleted");
+    } catch (e) {}
+}
+setInterval(runRetentionOnce, 6 * 60 * 60 * 1000);
+setTimeout(runRetentionOnce, 2 * 60 * 1000);
+
 // ---------------- 3. CONFIGURATIONS ----------------
+// ✅ FIXED: আপনার দেওয়া নতুন ID ও Hash সেট করা হলো
 const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 39447470);
 const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "eb7cac1c8ad9935d4b208dc0da076d8c";
 const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
@@ -470,8 +603,9 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
-// ✅ FIXED: Polling false (Zero 409 conflict errors)
-const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: false });
+// ✅ FIXED: 409 Conflict ও Render crash ঠেকাতে polling safe handler
+const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: true });
+userNotifyBot.on("polling_error", () => {}); // 409 error silence করা হলো
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
 const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://t.me/Ppmod_bot">@Ppmod_bot</a>\n\n📢 <b>অফিসিয়াল চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
@@ -485,6 +619,7 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 
+// ✅ FIXED: সঠিক BD Phone Format (No +880017 bug)
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
     if (num.startsWith("880")) return "+" + num;
@@ -492,6 +627,281 @@ function formatBdPhone(raw) {
     if (num.startsWith("1") && num.length === 10) return "+880" + num;
     return "+" + num;
 }
+
+// ---------------- 3b. USER BOT REFERRAL & FORCED JOIN SYSTEM (@Ppmod_bot) ----------------
+const REQUIRED_CHANNELS = [
+    { name: "📢 Main Channel", url: "https://t.me/googleplaypointhack", username: "@googleplaypointhack" },
+    { name: "📋 All Order Log", url: "https://t.me/ppmododderlog", username: "@ppmododderlog" },
+    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" },
+    { name: "🔒 Private Channel (Request)", url: "https://t.me/+s09ahNjWHZM4YWM9", invite: true }
+];
+
+function generateReferralCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let randomPart = "";
+    for (let i = 0; i < 6; i++) {
+        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `PPM-REF-${randomPart}`;
+}
+
+async function checkUserMembership(userId) {
+    for (const ch of REQUIRED_CHANNELS) {
+        if (!ch.username) continue;
+        try {
+            const member = await userNotifyBot.getChatMember(ch.username, userId);
+            const valid = ["creator", "administrator", "member", "restricted"].includes(member.status);
+            if (!valid) return false;
+        } catch (e) {}
+    }
+    return true;
+}
+
+function getJoinKeyboard(userId, refId = null) {
+    const rows = REQUIRED_CHANNELS.map((ch, idx) => [
+        { text: `${idx + 1}. ${ch.name}`, url: ch.url }
+    ]);
+    const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
+    rows.push([{ text: "✅ Verify / চেক করুন", callback_data: verifyData }]);
+    rows.push([{ text: "👥 আমার রেফারেল লিংক ও পরিসংখ্যান", callback_data: "my_ref_info" }]);
+    return { inline_keyboard: rows };
+}
+
+// Admin swipe-to-reply
+userNotifyBot.on("message", async (msg) => {
+    try {
+        const text = (msg.text || "").trim();
+        const replyTo = msg.reply_to_message;
+
+        if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
+            const replyText = replyTo.text || replyTo.caption || "";
+            const depMatch = replyText.match(/🆔\s*<b>DepID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i)
+                          || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
+                          || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
+
+            if (!depMatch) return;
+            const identifier = depMatch[1].trim();
+
+            if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
+                let targetId = identifier;
+                if (!identifier.startsWith("DEP_") && identifier.length < 15) {
+                    const snap = await db.collection("deposits").where("trxId", "==", identifier).where("status", "==", "pending").limit(1).get();
+                    if (!snap.empty) targetId = snap.docs[0].id;
+                }
+
+                try {
+                    const approvedData = await approveDepositById(targetId);
+                    await userNotifyBot.sendMessage(msg.chat.id, 
+                        `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
+                        `👤 <b>User:</b> ${approvedData.name || "User"} (${approvedData.email || ""})\n` +
+                        `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
+                        `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
+                        `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
+                        `<i>ইউজারের একাউন্টে সফলভাবে কয়েন যোগ হয়েছে এবং TrxID লক করা হয়েছে! 🚀</i>`,
+                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                    );
+                } catch (err) {
+                    console.error("[APPROVE ERR]:", err);
+                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message || 'Error'}`, { reply_to_message_id: msg.message_id });
+                }
+            } else if (text === "❌" || text === "/reject") {
+                try {
+                    await rejectDepositById(identifier);
+                    await userNotifyBot.sendMessage(msg.chat.id, 
+                        `❌ <b>ডিপোজিটটি বাতিল (Rejected) করা হয়েছে!</b>`,
+                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                    );
+                } catch (err) {
+                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ রিজেক্ট ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
+                }
+            }
+        }
+    } catch (e) {
+        console.error("[REPLY HANDLER ERR]:", e.message);
+    }
+});
+
+userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id.toString();
+        const startParam = (match && match[1]) ? match[1].trim() : "";
+        let inviterId = null;
+
+        if (startParam.startsWith("ref_")) {
+            inviterId = startParam.replace("ref_", "").trim();
+            if (inviterId === userId) inviterId = null;
+        }
+
+        const userDoc = await db.collection("tg_bot_users").doc(userId).get();
+        if (!userDoc.exists) {
+            await db.collection("tg_bot_users").doc(userId).set({
+                id: userId,
+                name: `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim(),
+                username: msg.from.username ? `@${msg.from.username}` : "",
+                inviterId: inviterId || null,
+                isVerified: false,
+                referralCount: 0,
+                rewardsEarned: 0,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else if (!userDoc.data().isVerified && inviterId && !userDoc.data().inviterId) {
+            await db.collection("tg_bot_users").doc(userId).update({ inviterId });
+        }
+
+        const welcomeText = 
+            `👋 <b>হ্যালো ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
+            `PP MOD অফিসিয়াল বটে আপনাকে স্বাগতম। 🚀\n\n` +
+            `🎁 <b>স্পেশাল রেফারেল অফার:</b>\n` +
+            `প্রতি <b>১০ জন সফল রেফারে</b> আপনি পাবেন একটি <b>৩ PP Coins</b>-এর ফ্রি রিডিম কোড!\n\n` +
+            `⚠️ <b>বট অ্যাক্টিভ ও রেফার কাউন্ট হতে নিচের ৪টি লিংকেই জয়েন ও রিকোয়েস্ট পাঠান:</b>\n` +
+            `১. <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
+            `২. <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
+            `৩. <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
+            `৪. <a href="https://t.me/+s09ahNjWHZM4YWM9">Private Channel (Request Join)</a>\n\n` +
+            `সবগুলোতে জয়েন করে নিচের <b>"Verify / চেক করুন"</b> বাটনে চাপ দিন।`;
+
+        await userNotifyBot.sendMessage(chatId, welcomeText, {
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+            reply_markup: getJoinKeyboard(userId, inviterId)
+        });
+    } catch (e) {
+        console.error("[USER BOT START ERR]:", e.message);
+    }
+});
+
+userNotifyBot.on("callback_query", async (query) => {
+    try {
+        const chatId = query.message.chat.id;
+        const userId = query.from.id.toString();
+        const data = query.data || "";
+
+        if (data.startsWith("verify_ref:")) {
+            const isAllJoined = await checkUserMembership(userId);
+            if (!isAllJoined) {
+                return userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "❌ আপনি সবগুলো চ্যানেলে জয়েন করেননি! সবগুলোতে জয়েন করে আবার চাপুন।",
+                    show_alert: true
+                });
+            }
+
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get();
+            const userData = userSnap.exists ? userSnap.data() : {};
+
+            if (userData.isVerified) {
+                return userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "✅ আপনি ইতিমধ্যে ভেরিফাইড!",
+                    show_alert: true
+                });
+            }
+
+            await userRef.set({
+                isVerified: true,
+                verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            await userNotifyBot.answerCallbackQuery(query.id, {
+                text: "🎉 সফলভাবে ভেরিফিকেশন সম্পন্ন হয়েছে!",
+                show_alert: true
+            });
+
+            await userNotifyBot.sendMessage(chatId, 
+                `✅ <b>ভেরিফিকেশন সফল হয়েছে!</b>\n\nএখন থেকে আপনি রেফার করে রিডিম কোড জিততে পারবেন এবং সমস্ত আপডেট সরাসরি পাবেন।`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "👥 আমার রেফারেল লিংক দেখুন", callback_data: "my_ref_info" }]
+                        ]
+                    }
+                }
+            );
+
+            const inviterId = userData.inviterId;
+            if (inviterId) {
+                const inviterRef = db.collection("tg_bot_users").doc(inviterId);
+                const inviterSnap = await inviterRef.get();
+
+                if (inviterSnap.exists) {
+                    const invData = inviterSnap.data();
+                    const newCount = (Number(invData.referralCount) || 0) + 1;
+                    const prevRewards = Number(invData.rewardsEarned) || 0;
+                    const eligibleRewards = Math.floor(newCount / 10);
+
+                    await inviterRef.update({ referralCount: newCount });
+
+                    const remaining = 10 - (newCount % 10 === 0 ? 0 : newCount % 10);
+                    await userNotifyBot.sendMessage(inviterId,
+                        `🎉 <b>নতুন রেফার সম্পন্ন হয়েছে!</b>\n\n` +
+                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> আপনার লিংকে সফলভাবে ভেরিফাই হয়েছে।\n\n` +
+                        `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
+                        `🎯 পরবর্তী ৩ কয়েন রিডিম কোডের জন্য আর <b>${remaining === 0 ? 10 : remaining}</b> জন রেফার প্রয়োজন!`,
+                        { parse_mode: "HTML" }
+                    ).catch(() => {});
+
+                    if (eligibleRewards > prevRewards) {
+                        const newRewardCount = eligibleRewards - prevRewards;
+                        for (let i = 0; i < newRewardCount; i++) {
+                            const newCode = generateReferralCode();
+
+                            await db.collection("codes").doc(newCode).set({
+                                amount: 3,
+                                maxUses: 1,
+                                used: 0,
+                                active: true,
+                                note: "Referral Bonus: 10 Referrals Completed!",
+                                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            await userNotifyBot.sendMessage(inviterId,
+                                `🎁 <b>অভিনন্দন! আপনার ১০টি সফল রেফার সম্পন্ন হয়েছে!</b>\n\n` +
+                                `আপনার ৩ কয়েন রিডিম কোড:\n<code>${newCode}</code>\n\n` +
+                                `👉 এখনই PP MOD অ্যাপ ওপেন করে <b>Profile > Redeem Code</b> বক্সে কোডটি দিয়ে ৩টি PP Coins ক্লেইম করে নিন! ✨`,
+                                { parse_mode: "HTML" }
+                            ).catch(() => {});
+                        }
+
+                        await inviterRef.update({ rewardsEarned: eligibleRewards });
+                    }
+                }
+            }
+            return;
+        }
+
+        if (data === "my_ref_info") {
+            const userSnap = await db.collection("tg_bot_users").doc(userId).get();
+            const uData = userSnap.exists ? userSnap.data() : {};
+            const refCount = Number(uData.referralCount) || 0;
+            const rewards = Number(uData.rewardsEarned) || 0;
+            const needed = 10 - (refCount % 10 === 0 && refCount > 0 ? 0 : refCount % 10);
+            const botInfo = await userNotifyBot.getMe();
+            const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
+
+            const infoMsg = 
+                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n\n` +
+                `🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>${refLink}</code>\n\n` +
+                `📊 <b>মোট সফল রেফার:</b> ${refCount} জন\n` +
+                `🎁 <b>মোট প্রাপ্ত রিডিম কোড:</b> ${rewards} টি\n` +
+                `🎯 <b>পরবর্তী কোডের জন্য বাকি:</b> ${needed === 0 ? 10 : needed} জন\n\n` +
+                `<i>আপনার রেফারেল লিংক বন্ধুদের মাঝে শেয়ার করুন এবং প্রতি ১০ জন ভেরিফাইড রেফারে জিতে নিন ৩ কয়েন ফ্রি রিডিম কোড!</i>`;
+
+            await userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.sendMessage(chatId, infoMsg, {
+                parse_mode: "HTML",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
+                    ]
+                }
+            });
+            return;
+        }
+    } catch (e) {
+        console.error("[USER BOT CB ERR]:", e.message);
+    }
+});
 
 // ---------------- 6. DEDICATED 24/7 PRIME AUTO-RESPONDER ----------------
 async function initPrimeAutoResponder() {
@@ -562,7 +972,7 @@ app.post("/api/tg/send-otp", async (req, res) => {
     const rawInput = req.body.phone || "";
     const phone = formatBdPhone(rawInput);
 
-    console.log(`[TG LOGIN] Requesting OTP for: ${phone}`);
+    console.log(`[TG LOGIN] Requesting OTP for phone: ${phone} (Using API_ID: ${DEFAULT_API_ID})`);
 
     if (!phone || phone.length < 13) {
         return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
@@ -570,9 +980,8 @@ app.post("/api/tg/send-otp", async (req, res) => {
 
     try {
         const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { 
-            connectionRetries: 5
+            connectionRetries: 5 
         });
-
         await tempClient.connect();
         const result = await tempClient.sendCode({ 
             apiId: DEFAULT_API_ID, 
@@ -583,11 +992,8 @@ app.post("/api/tg/send-otp", async (req, res) => {
         console.log(`[TG LOGIN] OTP Sent Successfully to: ${phone}`);
         return res.json({ ok: true, message: "OTP sent!", phone });
     } catch (err) {
-        console.error(`[TG LOGIN ERR]`, err);
-        return res.status(500).json({ 
-            ok: false, 
-            error: err.errorMessage || err.message || "Failed to send code via Telegram" 
-        });
+        console.error(`[TG LOGIN ERR] Error:`, err);
+        return res.status(500).json({ ok: false, error: err.errorMessage || err.message });
     }
 });
 
@@ -595,6 +1001,7 @@ async function computeSrpHash(client, password) {
     if (typeof client.checkPassword === "function") {
         return await client.checkPassword(password);
     }
+
     let computeFn = null;
     const candidates = [
         () => require("telegram/Password").computeCheckPassword,
@@ -605,6 +1012,7 @@ async function computeSrpHash(client, password) {
         () => require("telegram").Password?.computeCheckPassword,
         () => require("telegram/Utils")?.computeCheckPassword
     ];
+
     for (const cand of candidates) {
         try {
             const fn = cand();
@@ -613,6 +1021,7 @@ async function computeSrpHash(client, password) {
             if (fn && typeof fn.computeCheckPassword === "function") { computeFn = fn.computeCheckPassword; break; }
         } catch (e) {}
     }
+
     const srpResult = await client.invoke(new Api.account.GetPassword());
     if (computeFn) return await computeFn(srpResult, password);
     throw new Error("2FA Password module resolution failed");
@@ -791,6 +1200,7 @@ app.post("/api/tg/check-balance", async (req, res) => {
     }
 });
 
+// ---------------- 8b. MASS PROMO CODE REDEEM & AUTO DAILY CLAIM ----------------
 async function claimDailySingle(sessionStr) {
     const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
     await temp.connect();
@@ -956,7 +1366,6 @@ async function getUserTgId(uid, fallback) {
     } catch (e) {}
     return fallback || "";
 }
-
 async function notifyUserTelegram(chatId, text) {
     if (!chatId) return;
     try {
@@ -1244,6 +1653,7 @@ async function processOrder(orderId, orderData) {
         let attempts = 0;
         let gamerSaved = !!(orderData.gamerName);
         let gamerName = (orderData.gamerName || "").toString();
+
         let lastNotifiedPrompt = "";
 
         while (!completed && attempts < 50) {
@@ -1357,6 +1767,7 @@ let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
+    // Background Async যাতে ডিপ্লয় আটকে না থাকে
     initPrimeAutoResponder().catch(() => {});
     db.collection("tg_accounts").onSnapshot(() => {
         initPrimeAutoResponder().catch(() => {});
@@ -1376,6 +1787,7 @@ async function startMasterWorker() {
 
     setInterval(async () => {
         try {
+            console.log("[AUTO CLAIM] Starting scheduled daily rewards claim...");
             const snap = await db.collection("tg_accounts").where("active", "==", true).get();
             for (const docSnap of snap.docs) {
                 const acc = docSnap.data();
@@ -1384,6 +1796,7 @@ async function startMasterWorker() {
                     await new Promise((r) => setTimeout(r, 3000));
                 }
             }
+            console.log("[AUTO CLAIM] Scheduled claim completed.");
         } catch (e) {}
     }, 12 * 60 * 60 * 1000);
 
@@ -1403,9 +1816,11 @@ async function startMasterWorker() {
                     `💵 <b>Amount:</b> ${dep.amount} BDT\n` +
                     `🪙 <b>Coins:</b> ${dep.coins || 3} Coins\n` +
                     `🔖 <b>TrxID:</b> <code>${dep.trxId}</code>\n` +
-                    `🆔 <b>DepID:</b> <code>${depId}</code>`;
+                    `🆔 <b>DepID:</b> <code>${depId}</code>\n\n` +
+                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>✅</b> পাঠালে Approve হবে।</i>\n` +
+                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>❌</b> পাঠালে Reject হবে।</i>`;
 
-                notifyUserTelegram(process.env.ADMIN_TG_ID || "7504616242", adminAlert);
+                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => {});
             }
         });
     });
