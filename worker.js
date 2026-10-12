@@ -7,7 +7,7 @@ const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
-// gramjs inline Button (auto-reply নিচে বাটন দেখানোর জন্য) — robust import
+// gramjs inline Button
 let TgButton = null;
 try { TgButton = require("telegram").Button || null; } catch (e) {}
 if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) {} }
@@ -66,7 +66,6 @@ function parseSmsBody(sender, body) {
     return null;
 }
 
-// Android App SMS Receiver Webhook
 app.post("/api/gateway/sms", async (req, res) => {
     const secret = req.headers["x-gateway-secret"] || req.body.secret;
     if (secret !== GATEWAY_SECRET) {
@@ -459,7 +458,6 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // ---------------- 3. CONFIGURATIONS ----------------
-// ✅ FIXED: আপনার নতুন Telegram API ID ও HASH সঠিকভাবে সেট করা হলো
 const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 39447470);
 const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "eb7cac1c8ad9935d4b208dc0da076d8c";
 const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
@@ -481,7 +479,6 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 
-// ✅ FIXED: সঠিক ফোন নম্বর হ্যান্ডলার (যাতে কোনোভাবেই +880017... এর মতো ভুল না হয়)
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
     if (num.startsWith("880")) return "+" + num;
@@ -764,13 +761,13 @@ async function initPrimeAutoResponder() {
         if (snap.empty) return;
         const primeData = snap.docs[0].data();
         const phone = primeData.phone || snap.docs[0].id;
-        if (primeClient && primePhone === phone) return;
+        if (!primeData.session || (primeClient && primePhone === phone)) return;
 
         if (primeClient) {
             try { await primeClient.disconnect(); } catch (e) {}
         }
 
-        primeClient = new TelegramClient(new StringSession(primeData.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 10 });
+        primeClient = new TelegramClient(new StringSession(primeData.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
         await primeClient.connect();
         primePhone = phone;
 
@@ -826,7 +823,7 @@ app.post("/api/tg/send-otp", async (req, res) => {
     const rawInput = req.body.phone || "";
     const phone = formatBdPhone(rawInput);
 
-    console.log(`[TG LOGIN] Requesting OTP for phone: ${phone} (Raw: ${rawInput}) using API_ID: ${DEFAULT_API_ID}`);
+    console.log(`[TG LOGIN] Requesting OTP for: ${phone} (API_ID: ${DEFAULT_API_ID})`);
 
     if (!phone || phone.length < 13) {
         return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
@@ -847,7 +844,7 @@ app.post("/api/tg/send-otp", async (req, res) => {
         console.log(`[TG LOGIN] OTP Sent Successfully to: ${phone}`);
         return res.json({ ok: true, message: "OTP sent!", phone });
     } catch (err) {
-        console.error(`[TG LOGIN ERR] Error sending OTP to ${phone}:`, err);
+        console.error(`[TG LOGIN ERR]`, err);
         return res.status(500).json({ 
             ok: false, 
             error: err.errorMessage || err.message || "Failed to send code via Telegram" 
@@ -1055,7 +1052,6 @@ app.post("/api/tg/check-balance", async (req, res) => {
     }
 });
 
-// ---------------- 8b. MASS PROMO CODE REDEEM & AUTO DAILY CLAIM ----------------
 async function claimDailySingle(sessionStr) {
     const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
     await temp.connect();
@@ -1621,8 +1617,12 @@ async function processOrder(orderId, orderData) {
 let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
-    await initPrimeAutoResponder();
-    db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
+
+    // ✅ FIXED: Render deploy hang প্রতিরোধ করতে Background Asynchronous Execution করা হয়েছে
+    initPrimeAutoResponder().catch(() => {});
+    db.collection("tg_accounts").onSnapshot(() => {
+        initPrimeAutoResponder().catch(() => {});
+    });
 
     scheduleNextFakeOrderLog();
 
@@ -1634,11 +1634,11 @@ async function startMasterWorker() {
         } catch (e) {}
     });
 
-    try { await getUsableTelegramClient(); } catch (e) {}
+    // Background client loader (Non-blocking)
+    getUsableTelegramClient().catch(() => {});
 
     setInterval(async () => {
         try {
-            console.log("[AUTO CLAIM] Starting scheduled daily rewards claim...");
             const snap = await db.collection("tg_accounts").where("active", "==", true).get();
             for (const docSnap of snap.docs) {
                 const acc = docSnap.data();
@@ -1647,7 +1647,6 @@ async function startMasterWorker() {
                     await new Promise((r) => setTimeout(r, 3000));
                 }
             }
-            console.log("[AUTO CLAIM] Scheduled claim completed.");
         } catch (e) {}
     }, 12 * 60 * 60 * 1000);
 
