@@ -207,12 +207,8 @@ async function getBonusCfg() {
     return bonusCfgCache;
 }
 function rollBonus() {
-    const r = Math.random() * 100;
-    if (r < 55) return 0.1;
-    if (r < 80) return 0.2;
-    if (r < 92) return 0.3;
-    if (r < 98) return 0.4;
-    return 0.5;
+    // শুধুমাত্র 0.1 অথবা 0.2 রিওয়ার্ড
+    return Math.random() < 0.5 ? 0.1 : 0.2;
 }
 function dhakaDay(offsetDays) {
     try {
@@ -238,8 +234,10 @@ app.post("/api/bonus/claim", async (req, res) => {
             if (d.lastBonusDay === today) throw new Error("claimed");
             const amt = rollBonus();
             const streak = (d.lastBonusDay === yest) ? (Number(d.lastBonusStreak) || 0) + 1 : 1;
+            const curBal = Number(d.balance) || 0;
+            const newBal = parseFloat((curBal + amt).toFixed(1));
             t.update(uref, {
-                balance: Math.round(((Number(d.balance) || 0) + amt) * 10) / 10,
+                balance: newBal,
                 lastBonusDay: today,
                 lastBonusStreak: streak
             });
@@ -667,11 +665,23 @@ function getJoinKeyboard(userId, refId = null) {
     return { inline_keyboard: rows };
 }
 
-// ---------------- ADMIN SWIPE-TO-REPLY HANDLER ----------------
+// ---------------- ADMIN SWIPE-TO-REPLY & COMMAND HANDLERS ----------------
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
         const replyTo = msg.reply_to_message;
+
+        // /logon এবং /logoff কমান্ড
+        if (text === "/logoff") {
+            isAutoFakeLogEnabled = false;
+            await db.collection("config").doc("app").set({ autoFakeLog: false }, { merge: true });
+            return userNotifyBot.sendMessage(msg.chat.id, "🛑 <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো বন্ধ (OFF) করা হয়েছে!</b>", { parse_mode: "HTML" });
+        }
+        if (text === "/logon") {
+            isAutoFakeLogEnabled = true;
+            await db.collection("config").doc("app").set({ autoFakeLog: true }, { merge: true });
+            return userNotifyBot.sendMessage(msg.chat.id, "✅ <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো চালু (ON) করা হয়েছে!</b>", { parse_mode: "HTML" });
+        }
 
         if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
             const replyText = replyTo.text || replyTo.caption || "";
@@ -1167,14 +1177,23 @@ app.post("/api/tg/claim-daily-all", async (req, res) => {
             try {
                 await temp.connect();
                 await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
-                await new Promise((r) => setTimeout(r, 2000));
-                const msgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
-                if (msgs && msgs.length > 0) {
-                    const clicked = await clickInlineButton(msgs[0], "Claim Today");
+                await new Promise((r) => setTimeout(r, 2200));
+                const msgs = await temp.getMessages(TARGET_BOT, { limit: 2 });
+                const targetMsg = (msgs && msgs.length > 0) ? (msgs.find(m => !m.out) || msgs[0]) : null;
+
+                if (targetMsg) {
+                    // বটের বাটনে Claim, Daily Streak, Claim Today ইত্যাদির সাপোর্ট
+                    let clicked = await clickInlineButton(targetMsg, "Claim Today");
+                    if (!clicked) clicked = await clickInlineButton(targetMsg, "Claim");
+                    if (!clicked) clicked = await clickInlineButton(targetMsg, "Daily");
+
+                    const msgTxt = (targetMsg.message || "").toLowerCase();
                     if (clicked) {
-                        results.push({ phone, ok: true, message: "Claimed successfully!" });
+                        results.push({ phone, ok: true, message: "Daily Reward Claimed! 🎁" });
+                    } else if (msgTxt.includes("claimed") || msgTxt.includes("left")) {
+                        results.push({ phone, ok: true, message: "Already Claimed Today (Streak Active)" });
                     } else {
-                        results.push({ phone, ok: false, message: "Already claimed" });
+                        results.push({ phone, ok: false, message: "Could not claim or button not active" });
                     }
                 }
             } catch (e) {
@@ -1247,6 +1266,18 @@ async function sendOrderLog(text) {
     } catch (e) {}
 }
 
+let isAutoFakeLogEnabled = true;
+
+// ডাটাবেজ থেকে অটো-লগের অবস্থা চেক
+(async () => {
+    try {
+        const cSnap = await db.collection("config").doc("app").get();
+        if (cSnap.exists && cSnap.data().autoFakeLog !== undefined) {
+            isAutoFakeLogEnabled = cSnap.data().autoFakeLog;
+        }
+    } catch (e) {}
+})();
+
 const POPULAR_GAMES_LOG = [
     "8ball pool (50)", "Angry birds 2 (50)", "Best Fiends (50)", "Dice dreams (50)",
     "Domino dreams (50)", "Farm heroes (50)", "Hey day (All)", "Lords mobile (50)",
@@ -1277,8 +1308,10 @@ function scheduleNextFakeOrderLog() {
     const delayMs = randomMinutes * 60 * 1000;
     setTimeout(async () => {
         try {
-            const fakeLog = generateRealisticFakeLog();
-            await sendOrderLog(fakeLog);
+            if (isAutoFakeLogEnabled) {
+                const fakeLog = generateRealisticFakeLog();
+                await sendOrderLog(fakeLog);
+            }
         } catch (e) {}
         scheduleNextFakeOrderLog();
     }, delayMs);
@@ -1330,7 +1363,11 @@ function sanitizeBotReason(rawText) {
     if (!rawText) return null;
     const txt = rawText.toLowerCase();
 
-    if (txt.includes("32") || txt.includes("34") || txt.includes("authenticator") || txt.includes("secret key") || txt.includes("totp") || txt.includes("2fa key") || txt.includes("format:")) {
+    if (txt.includes("format:") || txt.includes("invalid format") || txt.includes("send format")) {
+        return "⚠️ <b>ফরম্যাট ত্রুটি!</b>\n\nইমেইল বা পাসওয়ার্ডের ফরম্যাট বটের কাছে পৌঁছায়নি। অনুগ্রহ করে পুনরায় সঠিক তথ্য সাবমিট করুন।";
+    }
+
+    if (txt.includes("32") || txt.includes("34") || txt.includes("authenticator") || txt.includes("secret key") || txt.includes("totp") || txt.includes("2fa key")) {
         return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ডটি সঠিক নয় অথবা গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
     }
 
@@ -1476,13 +1513,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 `🪙 <b>রিফান্ড:</b> ৩টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
             );
         }
-        sendOrderLog(
-            `❌ <b>ORDER REFUNDED</b>\n\n` +
-            `⚠️ <b>কারণ:</b> ${reason}\n` +
-            `🪙 <b>Coins:</b> refunded\n` +
-            `🆔 <b>Order:</b> <code>${orderId}</code>\n` +
-            `📌 <b>Status:</b> Refunded`
-        );
+        // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
     } catch (e) {}
 }
 
@@ -1511,15 +1542,7 @@ async function processOrder(orderId, orderData) {
         await new Promise((r) => setTimeout(r, 1200));
         await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
 
-        sendOrderLog(
-            `🆕 <b>NEW ORDER</b>\n\n` +
-            `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-            `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
-            `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
-            `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
-            `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-            `📌 <b>Status:</b> Pending`
-        );
+        // পেন্ডিং অবস্থায় চ্যানেলে লগ পাঠানো বন্ধ করা হয়েছে (Only completed logs allowed)
 
         let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest") || m.message.includes("Chests")), 25000);
         if (!found) {
@@ -1541,7 +1564,8 @@ async function processOrder(orderId, orderData) {
             await new Promise((r) => setTimeout(r, 2000));
         }
 
-        const credText = `${orderData.accEmail.trim()}---${orderData.accPass.trim()}`;
+        // বটের আপডেট অনুযায়ী এক স্পেস দিয়ে ফরম্যাট: email password
+        const credText = `${orderData.accEmail.trim()} ${orderData.accPass.trim()}`;
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
         
         await orderRef.update({ adminMsg: "বটের কাছে জিমেইল ও পাসওয়ার্ড পাঠানো হচ্ছে..." });
@@ -1549,11 +1573,13 @@ async function processOrder(orderId, orderData) {
 
         let confirmFound = await waitForCondition((m) => {
             const txt = (m.message || "").toLowerCase();
-            return txt.includes("confirm credentials & payment") || txt.includes("confirm and start quests") || txt.includes("confirm & pay") || txt.includes("confirm");
+            return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
         }, 20000);
 
         if (confirmFound) {
             let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay");
+            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Start");
+            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials");
             if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm");
         }
         await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে বটের কাছে পাঠানো হয়েছে! লগইন চলছে..." });
