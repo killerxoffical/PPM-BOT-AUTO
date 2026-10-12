@@ -7,7 +7,7 @@ const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
-// gramjs inline Button (auto-reply নিচে বাটন দেখানোর জন্য) — robust import
+// gramjs inline Button
 let TgButton = null;
 try { TgButton = require("telegram").Button || null; } catch (e) {}
 if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) {} }
@@ -84,7 +84,6 @@ app.post("/api/gateway/sms", async (req, res) => {
     const cleanTrx = parsed.trxId.toUpperCase();
 
     try {
-        // ১. SMS টি সংরক্ষণ করা
         await db.collection("gateway_sms").doc(cleanTrx).set({
             sender: sender || "Unknown",
             raw: message,
@@ -95,16 +94,14 @@ app.post("/api/gateway/sms", async (req, res) => {
             receivedAt: timestamp ? new Date(timestamp) : admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
-        // ২. কনফিগ থেকে চেক করা Auto Deposit ON আছে কিনা
         const cfgSnap = await db.collection("config").doc("app").get();
         const cfg = cfgSnap.exists ? cfgSnap.data() : {};
-        const isAutoOn = cfg.autoDeposit !== false; // Default ON if not specified
+        const isAutoOn = cfg.autoDeposit !== false;
 
         if (!isAutoOn) {
             return res.json({ ok: true, matched: true, autoApproved: false, note: "Auto-deposit is OFF by Admin" });
         }
 
-        // ৩. পেন্ডিং ডিপোজিটের সাথে মেলানো (৫ মিনিটের স্ট্রিক্ট টাইম চেকিং)
         const depQuery = await db.collection("deposits")
             .where("status", "==", "pending")
             .where("trxId", "==", cleanTrx)
@@ -119,7 +116,6 @@ app.post("/api/gateway/sms", async (req, res) => {
             const depTime = depData.createdAt && depData.createdAt.toMillis ? depData.createdAt.toMillis() : now;
             const smsTime = timestamp || now;
 
-            // ৫ মিনিটের (৩০০,০০০ মিলি-সেকেন্ড) বেশি পুরনো হলে ডিক্লাইন
             if (Math.abs(now - smsTime) > 5 * 60 * 1000 || Math.abs(now - depTime) > 5 * 60 * 1000) {
                 await db.collection("deposits").doc(depDoc.id).update({
                     status: "rejected",
@@ -128,7 +124,6 @@ app.post("/api/gateway/sms", async (req, res) => {
                 return res.json({ ok: false, error: "EXPIRED: ৫ মিনিটের বেশি সময় পার হয়ে গেছে!" });
             }
 
-            // অ্যামাউন্ট চেক
             if (Number(depData.amount) === Number(parsed.amount)) {
                 await approveDepositSafe(depDoc.id, depData, parsed.amount, cfg.coinRate || 7);
                 return res.json({ ok: true, matched: true, autoApproved: true, depId: depDoc.id });
@@ -146,7 +141,6 @@ app.post("/api/gateway/sms", async (req, res) => {
     }
 });
 
-// ইউজার সাইটে সাবমিট করলে ফোনের আসল SMS ভেরিফাই করার এন্ডপয়েন্ট
 app.post("/api/gateway/verify-deposit", async (req, res) => {
     const { depId, trxId, amount } = req.body;
     if (!depId || !trxId) return res.status(400).json({ ok: false, error: "Missing data" });
@@ -154,18 +148,14 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
     const cleanTrx = trxId.toUpperCase().trim();
 
     try {
-        // ১. অ্যাডমিনের Auto Deposit মোড চেক করা
         const cfgSnap = await db.collection("config").doc("app").get();
         const cfg = cfgSnap.exists ? cfgSnap.data() : {};
         if (cfg.autoDeposit === false) {
-            // Auto বন্ধ থাকলে ডিক্লাইন করবে না, পেন্ডিং রেখে অ্যাডমিনকে করতে দেবে
             return res.json({ ok: true, autoApproved: false, note: "Manual Mode" });
         }
 
-        // ২. ফায়ারবেসে ফোনের আসল SMS চেক
         const smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
         if (!smsDoc.exists) {
-            // ফোনে এখনও এই TrxID এর কোনো SMS আসেনি -> রিজেক্ট
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
                 adminMsg: "❌ এই TrxID দিয়ে কোনো টাকা আসেনি বা SMS পাওয়া যায়নি!"
@@ -177,7 +167,6 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
         const smsTime = smsData.receivedAt && smsData.receivedAt.toMillis ? smsData.receivedAt.toMillis() : Date.now();
         const now = Date.now();
 
-        // ৫ মিনিট চেকিং
         if (now - smsTime > 5 * 60 * 1000) {
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
@@ -186,7 +175,6 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: false, error: "টাকা পাঠানোর ৫ মিনিট পার হয়ে গেছে! পুনরায় চেষ্টা করুন।" });
         }
 
-        // টাকার পরিমাণ চেকিং
         if (Number(smsData.amount) !== Number(amount)) {
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
@@ -195,9 +183,7 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: false, error: `টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${smsData.amount} BDT` });
         }
 
-        // সব ঠিক থাকলে অ্যাপ্রুভ (cfg উপরে ১নং ধাপে already load করা)
         const depDoc = await db.collection("deposits").doc(depId).get();
-
         await approveDepositSafe(depId, depDoc.data(), smsData.amount, cfg.coinRate || 7);
         return res.json({ ok: true, message: "Approved successfully!" });
     } catch (e) {
@@ -205,8 +191,7 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
     }
 });
 
-// ---------------- DAILY BONUS (server-side claim, cheat-proof) ----------------
-// Protidin 1 bar free coins. Date hisab Asia/Dhaka. Transaction e double-claim block.
+// ---------------- DAILY BONUS ----------------
 let bonusCfgCache = { at: 0, enabled: true };
 async function getBonusCfg() {
     try {
@@ -217,7 +202,6 @@ async function getBonusCfg() {
     } catch (e) {}
     return bonusCfgCache;
 }
-// Weighted random bonus: 0.1 sobcheye beshi (55%), 0.5 khub khub kom (2%)
 function rollBonus() {
     const r = Math.random() * 100;
     if (r < 55) return 0.1;
@@ -283,7 +267,6 @@ app.get("/api/bonus/status", async (req, res) => {
         const d = s.exists ? (s.data() || {}) : {};
         const isClaimed = d.lastBonusDay === dhakaDay(0);
         
-        // Dhaka midnight er time hisab kora (server-side tamper-proof)
         const nowServer = Date.now();
         const dhakaNextMidnight = new Date(new Date(nowServer).toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
         dhakaNextMidnight.setHours(24, 0, 0, 0);
@@ -301,7 +284,6 @@ app.get("/api/bonus/status", async (req, res) => {
     } catch (e) { return res.json({ ok: false, error: "status failed" }); }
 });
 
-// অ্যাডমিন টেলিগ্রাম থেকে সরাসরি Approve করার ফাংশন
 async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     const depDoc = await db.collection("deposits").doc(depId).get();
     if (!depDoc.exists) throw new Error("Deposit document not found");
@@ -314,7 +296,6 @@ async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     return depData;
 }
 
-// অ্যাডমিন টেলিগ্রাম থেকে সরাসরি Reject করার ফাংশন
 async function rejectDepositById(depId) {
     const depDoc = await db.collection("deposits").doc(depId).get();
     if (!depDoc.exists) throw new Error("Deposit not found");
@@ -355,7 +336,6 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             t.update(userRef, { balance: (Number(userSnap.data().balance) || 0) + coinsToAdd });
         }
 
-        // SMS রিসিভ এবং ইউজার সাবমিটের সময় ব্যবধান (সেকেন্ড হিসাব)
         let durationSec = 2;
         if (depData.createdAt && depData.createdAt.toMillis) {
             durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
@@ -378,7 +358,6 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             usedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // যদি gateway_sms এ ডকুমেন্ট থাকে তবেই আপডেট হবে, না থাকলেও merge: true দিয়ে ক্র্যাশ আটকাবে
         const smsRef = db.collection("gateway_sms").doc(cleanTrx);
         t.set(smsRef, {
             claimed: true,
@@ -403,143 +382,6 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     } catch (e) {}
 }
 
-// PAYATE Card Generator algorithm (https://www.payate.com/best-credit-cards/):
-// BIN + x-padding, random digits, Luhn check digit, |MM|YYYY|CVV
-function payateRand(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-function payateMakeCC(rawBin) {
-    let b = (rawBin || "").toString().replace(/\s+/g, "");
-    const total = /^3/.test(b) ? 15 : 16; // Amex (3...) = 15 digits
-    b = b.replace(/X/g, "x").replace(/[^0-9x]/g, "");
-    let e = "";
-    b.split("").forEach((ch) => {
-        if (e.length < total - 1) e += (ch.toLowerCase() === "x" ? String(payateRand(0, 9)) : ch);
-    });
-    while (e.length < total - 1) e += String(payateRand(0, 9));
-    // Luhn checksum digit (payate way: reversed, double even positions)
-    const rev = e.split("").reverse().join("");
-    let sum = 0;
-    for (let r = 0; r < total - 1;) {
-        let o = 2 * parseInt(rev[r], 10);
-        if (o > 9) o -= 9;
-        sum += o;
-        if (r !== total - 2) sum += parseInt(rev[r + 1], 10);
-        r += 2;
-    }
-    const check = (10 * (Math.floor(sum / 10) + 1) - sum) % 10;
-    return e + check;
-}
-
-// Card generate route (multi-BIN random: ১টা হলে ওটাই, বেশি হলে র‍্যান্ডম ১টা)
-app.post("/api/tg/generate-cards", async (req, res) => {
-    let bin = (req.body.bin || "").toString().replace(/[^0-9xX]/g, "").trim();
-    if (!bin) {
-        try {
-            const cfgSnap = await db.collection("config").doc("app").get();
-            if (cfgSnap.exists) {
-                const cfg = cfgSnap.data() || {};
-                let pool = [];
-                if (Array.isArray(cfg.bins)) pool = cfg.bins;
-                else if (Array.isArray(cfg.activeBins)) pool = cfg.activeBins;
-                else if (typeof cfg.bins === "string") pool = cfg.bins.split(/[\n,;\s]+/);
-                else if (typeof cfg.activeBins === "string") pool = cfg.activeBins.split(/[\n,;\s]+/);
-                pool = pool.map(s => String(s || "").replace(/[^0-9xX]/g, "").trim()).filter(s => s.replace(/[^0-9]/g, "").length >= 4);
-                if (!pool.length && cfg.activeBin) {
-                    const single = String(cfg.activeBin).replace(/[^0-9xX]/g, "").trim();
-                    if (single.replace(/[^0-9]/g, "").length >= 4) pool = [single];
-                }
-                if (pool.length === 1) bin = pool[0];
-                else if (pool.length > 1) bin = pool[Math.floor(Math.random() * pool.length)];
-            }
-        } catch (e) {}
-    }
-    if (!bin || bin.replace(/[^0-9]/g, "").length < 4) bin = "453590";
-
-    try {
-        const cards = [];
-        for (let i = 0; i < 10; i++) {
-            const num = payateMakeCC(bin);
-            const mm = String(payateRand(1, 12)).padStart(2, "0");
-            const yyyy = new Date().getFullYear() + payateRand(2, 5);
-            const isAmex = num.length === 15;
-            let cvv = "" + payateRand(0, 9) + payateRand(0, 9) + payateRand(0, 9) + (isAmex ? payateRand(0, 9) : "");
-            cards.push(`${num}|${mm}|${yyyy}|${cvv}`);
-        }
-        return res.json({ ok: true, bin, cards, src: "payate" });
-    } catch (err) {
-        return res.status(500).json({ ok: false, error: err.message });
-    }
-});
-
-app.listen(PORT, () => console.log(`[HTTP] Server active on port ${PORT}`));
-
-// ---------------- 1b. REFERRAL SYSTEM API ----------------
-const REF_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-function makeRefCode() {
-    let c = "";
-    for (let i = 0; i < 6; i++) c += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    return c;
-}
-// Link theke asa new user ke owner er sathe jukto kora + owner er count +1
-app.post("/api/ref/join", async (req, res) => {
-    const code = (req.body.code || "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-    const uid = (req.body.uid || "").toString().trim().slice(0, 64);
-    if (!code || !uid) return res.status(400).json({ ok: false });
-    try {
-        const rcSnap = await db.collection("refcodes").doc(code).get();
-        if (!rcSnap.exists) return res.json({ ok: false, error: "invalid" });
-        const ownerUid = (rcSnap.data().uid || "").toString();
-        if (!ownerUid || ownerUid === uid) return res.json({ ok: false, error: "self" });
-        const uRef = db.collection("users").doc(uid);
-        const uSnap = await uRef.get();
-        if (!uSnap.exists) return res.json({ ok: false, error: "nouser" });
-        if ((uSnap.data().referredBy || "").toString()) return res.json({ ok: true, already: true });
-        await uRef.update({ referredBy: ownerUid });
-        await db.collection("users").doc(ownerUid).set({
-            refCount: admin.firestore.FieldValue.increment(1)
-        }, { merge: true });
-        return res.json({ ok: true, owner: ownerUid });
-    } catch (e) {
-        return res.status(500).json({ ok: false });
-    }
-});
-// Referred user er task COMPLETE hole owner pabe +1 coin (double-pay guard: refPaid)
-async function creditReferralBonus(buyerUid, orderId, gameName) {
-    try {
-        if (!buyerUid || !orderId) return;
-        const oRef = db.collection("orders").doc(orderId);
-        const oSnap = await oRef.get();
-        const od = oSnap.exists ? oSnap.data() : {};
-        if (od.refPaid === true) return;
-        const buyerId = (od.uid || buyerUid || "").toString();
-        if (!buyerId) return;
-        const bSnap = await db.collection("users").doc(buyerId).get();
-        const ownerUid = bSnap.exists ? (bSnap.data().referredBy || "").toString().trim() : "";
-        await oRef.set({ refPaid: true }, { merge: true });
-        if (!ownerUid || ownerUid === buyerId) return;
-        await db.collection("users").doc(ownerUid).set({
-            balance: admin.firestore.FieldValue.increment(1),
-            refEarned: admin.firestore.FieldValue.increment(1)
-        }, { merge: true });
-        await db.collection("redemptions").add({
-            uid: ownerUid, name: "", email: "", code: "REFERRAL", amount: 1,
-            note: "Referral bonus: 1 task completed" + (gameName ? " (" + gameName + ")" : ""),
-            status: "approved", createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiresAt: new Date(Date.now() + 10 * 86400000)
-        });
-        try {
-            const oSnap2 = await db.collection("users").doc(ownerUid).get();
-            const tg = oSnap2.exists ? (oSnap2.data().tgChatId || "").toString().trim() : "";
-            if (tg) {
-                await notifyUserTelegram(tg,
-                    `🎁 <b>Referral Bonus!</b>\n\nআপনার রেফারে ১টি টাস্ক সম্পন্ন হয়েছে।\n🪙 <b>+1 PP Coin</b> যোগ হয়েছে!`
-                );
-            }
-        } catch (e) {}
-    } catch (e) {}
-}
-
 // ---------------- 2. FIREBASE ADMIN ----------------
 let serviceAccount;
 try {
@@ -552,153 +394,9 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-// ---------------- PENDING POINTS AUTO-MATURER (time-lock -> live) ----------------
-// Admin approve -> pending_points (unlockAt = now + pendingDays).
-// Time sesh hole auto live + users.playPoints jog, pendingPoints biyog + TG notify.
-setInterval(async () => {
-    try {
-        const snap = await db.collection("pending_points").where("status", "==", "pending").limit(50).get();
-        if (snap.empty) return;
-        const now = Date.now();
-        for (const d of snap.docs) {
-            const v = d.data() || {};
-            let ms = 0;
-            try { ms = v.unlockAt && v.unlockAt.toMillis ? v.unlockAt.toMillis() : 0; } catch (e) {}
-            if (!ms || ms > now) continue;
-            const pts = Number(v.points) || 0;
-            if (!pts) continue;
-            try {
-                await db.runTransaction(async (t) => {
-                    const pref = db.collection("pending_points").doc(d.id);
-                    const ps = await t.get(pref);
-                    if (!ps.exists || (ps.data().status || "pending") !== "pending") return;
-                    t.update(pref, { status: "live", movedAt: admin.firestore.FieldValue.serverTimestamp() });
-                    if (v.uid && v.uid !== "guest") {
-                        const uref = db.collection("users").doc(v.uid);
-                        const us = await t.get(uref);
-                        if (us.exists) {
-                            t.update(uref, {
-                                playPoints: (Number(us.data().playPoints) || 0) + pts,
-                                pendingPoints: Math.max(0, (Number(us.data().pendingPoints) || 0) - pts)
-                            });
-                        }
-                    }
-                });
-                try {
-                    if (v.uid && v.uid !== "guest") {
-                        const uSnap = await db.collection("users").doc(v.uid).get();
-                        const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
-                        if (tg) await notifyUserTelegram(tg, `🎉 <b>${pts} Points Live হয়েছে!</b>
-
-Pending সময় শেষ — এখন withdraw করতে পারবেন।`);
-                    }
-                } catch (e) {}
-            } catch (e) {}
-        }
-    } catch (e) {}
-}, 5 * 60 * 1000);
-
-// ---------------- 10-DAY HISTORY RETENTION (auto-delete, quota-safe) ----------------
-// Sob history collection e shudhu last 10 diner data thakbe, backup nei.
-// Terminal state (approved/rejected/completed/refunded/live) -> delete.
-// Taka jorito pending (orders/withdrawals) -> age user ke refund, tarpor delete.
-// Pending sells/deposits (taka move hoyni) -> direct delete. pending_points pending kokhono delete na.
-// Run: proti 6h por por + boot er 2 min por. Proti collection e max 25 delete/run.
-const RET_D = 10 * 86400000;
-function tsMs(v) {
-    try {
-        if (!v) return 0;
-        if (typeof v.toMillis === "function") return v.toMillis();
-        const n = new Date(v).getTime();
-        return isNaN(n) ? 0 : n;
-    } catch (e) { return 0; }
-}
-async function refundAndDelete(d, v, field, amount) {
-    // field: 'balance' (orders) ba 'playPoints' (withdrawals)
-    try {
-        const uid = (v.uid || "").toString();
-        const amt = Math.max(0, Math.floor(Number(amount) || 0));
-        if (uid && uid !== "guest" && amt > 0) {
-            const uref = db.collection("users").doc(uid);
-            const us = await uref.get();
-            if (us.exists) {
-                const cur = Number(us.data()[field] || 0);
-                await uref.update({ [field]: cur + amt });
-            }
-        }
-        await d.ref.delete();
-        return true;
-    } catch (e) { return false; }
-}
-async function runRetentionOnce() {
-    try {
-        const cutoff = Date.now() - RET_D;
-        let total = 0;
-        const CAP = 25;
-        // [collection, timeField, pendingMode] — pendingMode: 'del' ba 'refund:<field>:<amountKey>'
-        const jobs = [
-            ["deposits", "createdAt", "del"],
-            ["orders", "createdAt", "refund:balance:amount"],
-            ["redemptions", "createdAt", "del"],
-            ["point_sells", "createdAt", "del"],
-            ["withdrawals", "createdAt", "refund:playPoints:points"],
-            ["gateway_sms", "receivedAt", "del"],
-            ["logs", "createdAt", "del"]
-        ];
-        for (const [col, tf, mode] of jobs) {
-            try {
-                const qs = await db.collection(col).where(tf, "<", new Date(cutoff)).limit(CAP).get();
-                if (qs.empty) continue;
-                for (const d of qs.docs) {
-                    try {
-                        const v = d.data() || {};
-                        const ms = tsMs(v[tf]);
-                        if (!ms || ms >= cutoff) continue; // timestamp nei ba 10 diner vitore -> touch na
-                        const st = (v.status || "").toString();
-                        if (st === "pending" || st === "paid") {
-                            // race-guard: delete/refund er age fresh status confirm (admin approve er sathe clash hobe na)
-                            const fresh = await d.ref.get().catch(() => null);
-                            if (!fresh || !fresh.exists) continue;
-                            const fv = fresh.data() || {};
-                            const fst = (fv.status || "").toString();
-                            if (fst !== "pending" && fst !== "paid") continue;
-                            if (mode.indexOf("refund:") === 0) {
-                                const parts = mode.split(":");
-                                if (await refundAndDelete(d, fv, parts[1], fv[parts[2]])) total++;
-                            } else {
-                                await d.ref.delete();
-                                total++;
-                            }
-                        } else {
-                            await d.ref.delete();
-                            total++;
-                        }
-                    } catch (e) {}
-                }
-            } catch (e) {}
-        }
-        // pending_points: shudhu LIVE + unlock 10 din age -> delete (pending kokhono delete na)
-        try {
-            const qs = await db.collection("pending_points").where("status", "==", "live").limit(CAP).get();
-            if (!qs.empty) {
-                for (const d of qs.docs) {
-                    try {
-                        const v = d.data() || {};
-                        const ms = tsMs(v.unlockAt) || tsMs(v.movedAt) || tsMs(v.createdAt);
-                        if (ms && ms < cutoff) { await d.ref.delete(); total++; }
-                    } catch (e) {}
-                }
-            }
-        } catch (e) {}
-        if (total) console.log("[RETENTION] 10d+ purono " + total + " doc deleted");
-    } catch (e) {}
-}
-setInterval(runRetentionOnce, 6 * 60 * 60 * 1000);
-setTimeout(runRetentionOnce, 2 * 60 * 1000); // boot er 2 min por prothom run
-
-// ---------------- 3. CONFIGURATIONS ----------------
-const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 29630945);
-const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "11b73fd133a7e3edea8d683aec494d3e";
+// ---------------- 3. CONFIGURATIONS (Updated to Your New API ID & HASH) ----------------
+const DEFAULT_API_ID = Number(process.env.TELEGRAM_API_ID || 39447470);
+const DEFAULT_API_HASH = process.env.TELEGRAM_API_HASH || "eb7cac1c8ad9935d4b208dc0da076d8c";
 const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
@@ -718,387 +416,54 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 
-
-
+// 🟢 FIXED PHONE NUMBER FORMATTER (No +880017... bug)
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
-    if (num.startsWith("880")) return "+" + num;
-    if (num.startsWith("0")) return "+88" + num;
-    if (num.startsWith("1")) return "+880" + num;
+    if (num.startsWith("880")) {
+        return "+" + num;
+    }
+    if (num.startsWith("0")) {
+        // Remove leading 0 and attach +880 (e.g. 01712... -> +8801712...)
+        return "+880" + num.substring(1);
+    }
+    if (num.startsWith("1") && num.length === 10) {
+        return "+880" + num;
+    }
     return "+" + num;
-}
-
-// ---------------- 3b. USER BOT REFERRAL & FORCED JOIN SYSTEM (@Ppmod_bot) ----------------
-const REQUIRED_CHANNELS = [
-    { name: "📢 Main Channel", url: "https://t.me/googleplaypointhack", username: "@googleplaypointhack" },
-    { name: "📋 All Order Log", url: "https://t.me/ppmododderlog", username: "@ppmododderlog" },
-    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" },
-    { name: "🔒 Private Channel (Request)", url: "https://t.me/+s09ahNjWHZM4YWM9", invite: true }
-];
-
-function generateReferralCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let randomPart = "";
-    for (let i = 0; i < 6; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return `PPM-REF-${randomPart}`;
-}
-
-async function checkUserMembership(userId) {
-    for (const ch of REQUIRED_CHANNELS) {
-        if (!ch.username) continue;
-        try {
-            const member = await userNotifyBot.getChatMember(ch.username, userId);
-            const valid = ["creator", "administrator", "member", "restricted"].includes(member.status);
-            if (!valid) return false;
-        } catch (e) {
-            // যদি বট কোনো চ্যানেলে অ্যাডমিন না থাকে তবে স্কিপ করবে
-        }
-    }
-    return true;
-}
-
-function getJoinKeyboard(userId, refId = null) {
-    const rows = REQUIRED_CHANNELS.map((ch, idx) => [
-        { text: `${idx + 1}. ${ch.name}`, url: ch.url }
-    ]);
-    const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
-    rows.push([{ text: "✅ Verify / চেক করুন", callback_data: verifyData }]);
-    rows.push([{ text: "👥 আমার রেফারেল লিংক ও পরিসংখ্যান", callback_data: "my_ref_info" }]);
-    return { inline_keyboard: rows };
-}
-
-// ---------------- ADMIN SWIPE-TO-REPLY APPROVAL HANDLER ----------------
-// ডিপোজিট মেসেজে টান দিয়ে '✅' পাঠালে Approve, '❌' পাঠালে Reject
-userNotifyBot.on("message", async (msg) => {
-    try {
-        const text = (msg.text || "").trim();
-        const replyTo = msg.reply_to_message;
-
-        // শুধু যখন অ্যাডমিন কোনো ডিপোজিট মেসেজের রিপ্লাইয়ে ✅ বা ❌ দেবে
-        if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
-            const replyText = replyTo.text || replyTo.caption || "";
-            
-            // মেসেজের ভেতর থেকে ডিপোজিট ID বা TrxID বের করা
-            const depMatch = replyText.match(/🆔\s*<b>DepID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i)
-                          || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
-                          || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
-
-            if (!depMatch) return; // ডিপোজিট মেসেজ না হলে ইগনোর
-
-            const identifier = depMatch[1].trim();
-
-            if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
-                // ১. Approve ট্রিগার
-                let targetId = identifier;
-                // যদি identifier ট্রানজ্যাকশন আইডি হয় তবে doc খোঁজা
-                if (!identifier.startsWith("DEP_") && identifier.length < 15) {
-                    const snap = await db.collection("deposits").where("trxId", "==", identifier).where("status", "==", "pending").limit(1).get();
-                    if (!snap.empty) targetId = snap.docs[0].id;
-                }
-
-                try {
-                    const approvedData = await approveDepositById(targetId);
-                    await userNotifyBot.sendMessage(msg.chat.id, 
-                        `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
-                        `👤 <b>User:</b> ${approvedData.name || "User"} (${approvedData.email || ""})\n` +
-                        `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
-                        `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
-                        `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
-                        `<i>ইউজারের একাউন্টে সফলভাবে কয়েন যোগ হয়েছে এবং TrxID লক করা হয়েছে! 🚀</i>`,
-                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
-                    );
-                } catch (err) {
-                    console.error("[APPROVE ERR]:", err);
-                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message || 'Error'}`, { reply_to_message_id: msg.message_id });
-                }
-            } else if (text === "❌" || text === "/reject") {
-                // ২. Reject ট্রিগার
-                try {
-                    await rejectDepositById(identifier);
-                    await userNotifyBot.sendMessage(msg.chat.id, 
-                        `❌ <b>ডিপোজিটটি বাতিল (Rejected) করা হয়েছে!</b>`,
-                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
-                    );
-                } catch (err) {
-                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ রিজেক্ট ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
-                }
-            }
-        }
-    } catch (e) {
-        console.error("[REPLY HANDLER ERR]:", e.message);
-    }
-});
-
-// /start command handler for @Ppmod_bot
-userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
-    try {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id.toString();
-        const startParam = (match && match[1]) ? match[1].trim() : "";
-        let inviterId = null;
-
-        if (startParam.startsWith("ref_")) {
-            inviterId = startParam.replace("ref_", "").trim();
-            if (inviterId === userId) inviterId = null; // নিজের রেফার নিজে নয়
-        }
-
-        const userDoc = await db.collection("tg_bot_users").doc(userId).get();
-        if (!userDoc.exists) {
-            await db.collection("tg_bot_users").doc(userId).set({
-                id: userId,
-                name: `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim(),
-                username: msg.from.username ? `@${msg.from.username}` : "",
-                inviterId: inviterId || null,
-                isVerified: false,
-                referralCount: 0,
-                rewardsEarned: 0,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        } else if (!userDoc.data().isVerified && inviterId && !userDoc.data().inviterId) {
-            await db.collection("tg_bot_users").doc(userId).update({ inviterId });
-        }
-
-        const welcomeText = 
-            `👋 <b>হ্যালো ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
-            `PP MOD অফিসিয়াল বটে আপনাকে স্বাগতম। 🚀\n\n` +
-            `🎁 <b>স্পেশাল রেফারেল অফার:</b>\n` +
-            `প্রতি <b>১০ জন সফল রেফারে</b> আপনি পাবেন একটি <b>৩ PP Coins</b>-এর ফ্রি রিডিম কোড!\n\n` +
-            `⚠️ <b>বট অ্যাক্টিভ ও রেফার কাউন্ট হতে নিচের ৪টি লিংকেই জয়েন ও রিকোয়েস্ট পাঠান:</b>\n` +
-            `১. <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
-            `২. <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
-            `৩. <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
-            `৪. <a href="https://t.me/+s09ahNjWHZM4YWM9">Private Channel (Request Join)</a>\n\n` +
-            `সবগুলোতে জয়েন করে নিচের <b>"Verify / চেক করুন"</b> বাটনে চাপ দিন।`;
-
-        await userNotifyBot.sendMessage(chatId, welcomeText, {
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-            reply_markup: getJoinKeyboard(userId, inviterId)
-        });
-    } catch (e) {
-        console.error("[USER BOT START ERR]:", e.message);
-    }
-});
-
-// Callback Query Handler (Verification & Referral Stats)
-userNotifyBot.on("callback_query", async (query) => {
-    try {
-        const chatId = query.message.chat.id;
-        const userId = query.from.id.toString();
-        const data = query.data || "";
-
-        if (data.startsWith("verify_ref:")) {
-            const isAllJoined = await checkUserMembership(userId);
-            if (!isAllJoined) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "❌ আপনি সবগুলো চ্যানেলে জয়েন করেননি! সবগুলোতে জয়েন করে আবার চাপুন।",
-                    show_alert: true
-                });
-            }
-
-            const userRef = db.collection("tg_bot_users").doc(userId);
-            const userSnap = await userRef.get();
-            const userData = userSnap.exists ? userSnap.data() : {};
-
-            if (userData.isVerified) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "✅ আপনি ইতিমধ্যে ভেরিফাইড!",
-                    show_alert: true
-                });
-            }
-
-            // মার্ক ইউজার এজ ভেরিফাইড
-            await userRef.set({
-                isVerified: true,
-                verifiedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            await userNotifyBot.answerCallbackQuery(query.id, {
-                text: "🎉 সফলভাবে ভেরিফিকেশন সম্পন্ন হয়েছে!",
-                show_alert: true
-            });
-
-            await userNotifyBot.sendMessage(chatId, 
-                `✅ <b>ভেরিফিকেশন সফল হয়েছে!</b>\n\nএখন থেকে আপনি রেফার করে রিডিম কোড জিততে পারবেন এবং সমস্ত আপডেট সরাসরি পাবেন।`,
-                {
-                    parse_mode: "HTML",
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "👥 আমার রেফারেল লিংক দেখুন", callback_data: "my_ref_info" }]
-                        ]
-                    }
-                }
-            );
-
-            // ইনভাইটারকে রেফারেল পয়েন্ট ও রিওয়ার্ড প্রদান
-            const inviterId = userData.inviterId;
-            if (inviterId) {
-                const inviterRef = db.collection("tg_bot_users").doc(inviterId);
-                const inviterSnap = await inviterRef.get();
-
-                if (inviterSnap.exists) {
-                    const invData = inviterSnap.data();
-                    const newCount = (Number(invData.referralCount) || 0) + 1;
-                    const prevRewards = Number(invData.rewardsEarned) || 0;
-                    const eligibleRewards = Math.floor(newCount / 10);
-
-                    await inviterRef.update({ referralCount: newCount });
-
-                    // ইনভাইটারকে প্রগ্রেস নোটিফিকেশন
-                    const remaining = 10 - (newCount % 10 === 0 ? 0 : newCount % 10);
-                    await userNotifyBot.sendMessage(inviterId,
-                        `🎉 <b>নতুন রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> আপনার লিংকে সফলভাবে ভেরিফাই হয়েছে।\n\n` +
-                        `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
-                        `🎯 পরবর্তী ৩ কয়েন রিডিম কোডের জন্য আর <b>${remaining === 0 ? 10 : remaining}</b> জন রেফার প্রয়োজন!`,
-                        { parse_mode: "HTML" }
-                    ).catch(() => {});
-
-                    // ১০টি রেফার পূর্ণ হলে ৩ কয়েনের রিডিম কোড জেনারেশন
-                    if (eligibleRewards > prevRewards) {
-                        const newRewardCount = eligibleRewards - prevRewards;
-                        for (let i = 0; i < newRewardCount; i++) {
-                            const newCode = generateReferralCode();
-
-                            await db.collection("codes").doc(newCode).set({
-                                amount: 3,
-                                maxUses: 1,
-                                used: 0,
-                                active: true,
-                                note: "Referral Bonus: 10 Referrals Completed!",
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-
-                            await userNotifyBot.sendMessage(inviterId,
-                                `🎁 <b>অভিনন্দন! আপনার ১০টি সফল রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                                `আপনার ৩ কয়েন রিডিম কোড:\n<code>${newCode}</code>\n\n` +
-                                `👉 এখনই PP MOD অ্যাপ ওপেন করে <b>Profile > Redeem Code</b> বক্সে কোডটি দিয়ে ৩টি PP Coins ক্লেইম করে নিন! ✨`,
-                                { parse_mode: "HTML" }
-                            ).catch(() => {});
-                        }
-
-                        await inviterRef.update({ rewardsEarned: eligibleRewards });
-                    }
-                }
-            }
-            return;
-        }
-
-        if (data === "my_ref_info") {
-            const userSnap = await db.collection("tg_bot_users").doc(userId).get();
-            const uData = userSnap.exists ? userSnap.data() : {};
-            const refCount = Number(uData.referralCount) || 0;
-            const rewards = Number(uData.rewardsEarned) || 0;
-            const needed = 10 - (refCount % 10 === 0 && refCount > 0 ? 0 : refCount % 10);
-            const botInfo = await userNotifyBot.getMe();
-            const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
-
-            const infoMsg = 
-                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n\n` +
-                `🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>${refLink}</code>\n\n` +
-                `📊 <b>মোট সফল রেফার:</b> ${refCount} জন\n` +
-                `🎁 <b>মোট প্রাপ্ত রিডিম কোড:</b> ${rewards} টি\n` +
-                `🎯 <b>পরবর্তী কোডের জন্য বাকি:</b> ${needed === 0 ? 10 : needed} জন\n\n` +
-                `<i>আপনার রেফারেল লিংক বন্ধুদের মাঝে শেয়ার করুন এবং প্রতি ১০ জন ভেরিফাইড রেফারে জিতে নিন ৩ কয়েন ফ্রি রিডিম কোড!</i>`;
-
-            await userNotifyBot.answerCallbackQuery(query.id);
-            await userNotifyBot.sendMessage(chatId, infoMsg, {
-                parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
-                    ]
-                }
-            });
-            return;
-        }
-    } catch (e) {
-        console.error("[USER BOT CB ERR]:", e.message);
-    }
-});
-
-// ---------------- 4. BROADCAST TO ALL GROUPS API ----------------
-// ---------------- 6. DEDICATED 24/7 PRIME AUTO-RESPONDER ----------------
-async function initPrimeAutoResponder() {
-    try {
-        const snap = await db.collection("tg_accounts").where("isPrime", "==", true).limit(1).get();
-        if (snap.empty) return;
-        const primeData = snap.docs[0].data();
-        const phone = primeData.phone || snap.docs[0].id;
-        if (primeClient && primePhone === phone) return;
-
-        if (primeClient) {
-            try { await primeClient.disconnect(); } catch (e) {}
-        }
-
-        primeClient = new TelegramClient(new StringSession(primeData.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 10 });
-        await primeClient.connect();
-        primePhone = phone;
-
-        primeClient.addEventHandler(async (event) => {
-            try {
-                const msg = event.message;
-                if (!msg || msg.out || !event.isPrivate) return;
-                const sender = await msg.getSender();
-                if (!sender || sender.bot) return;
-
-                const senderId = sender.id.toString();
-                if (!(await primeCooldownClaim(senderId))) return;
-
-                await new Promise((r) => setTimeout(r, 3500));
-                const replyBtns = buildPrimeButtons();
-                try {
-                    await primeClient.sendMessage(sender.id, {
-                        file: PRIME_AUTO_REPLY_IMG,
-                        message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html",
-                        ...(replyBtns ? { buttons: replyBtns } : {})
-                    });
-                } catch (e2) {
-                    // পুরনো gramjs-এ buttons fail করলে plain মেসেজ পাঠাও (রিপ্লাই মিস হবে না)
-                    await primeClient.sendMessage(sender.id, {
-                        file: PRIME_AUTO_REPLY_IMG,
-                        message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html"
-                    });
-                }
-            } catch (err) {}
-        }, new NewMessage({ incoming: true }));
-    } catch (e) {}
-}
-
-// Prime auto-reply cooldown: Firestore-backed (survives Render restarts), 60 min per user
-async function primeCooldownClaim(senderId) {
-    try {
-        const ref = db.collection("tg_autoreply").doc(senderId);
-        const snap = await ref.get();
-        const last = snap.exists ? Number(snap.data().lastAt || 0) : 0;
-        if (Date.now() - last < 3600000) return false;
-        await ref.set({ lastAt: Date.now() }, { merge: true });
-        return true;
-    } catch (e) {
-        const last = autoReplyCooldown.get(senderId) || 0;
-        if (Date.now() - last < 3600000) return false;
-        autoReplyCooldown.set(senderId, Date.now());
-        return true;
-    }
 }
 
 // ---------------- 7. FAST DIRECT OTP API ----------------
 app.post("/api/tg/send-otp", async (req, res) => {
-    const phone = formatBdPhone(req.body.phone || "");
-    if (!phone || phone.length < 11) return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন" });
+    const rawInput = req.body.phone || "";
+    const phone = formatBdPhone(rawInput);
+
+    console.log(`[TG LOGIN] Requesting OTP for phone: ${phone} (Raw: ${rawInput}) using API_ID: ${DEFAULT_API_ID}`);
+
+    if (!phone || phone.length < 13) {
+        return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
+    }
 
     try {
-        const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+        const tempClient = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { 
+            connectionRetries: 5,
+            useWSS: false 
+        });
+
         await tempClient.connect();
-        const result = await tempClient.sendCode({ apiId: DEFAULT_API_ID, apiHash: DEFAULT_API_HASH }, phone);
+        const result = await tempClient.sendCode({ 
+            apiId: DEFAULT_API_ID, 
+            apiHash: DEFAULT_API_HASH 
+        }, phone);
+
         pendingAuthClients.set(phone, { client: tempClient, phoneCodeHash: result.phoneCodeHash });
+        console.log(`[TG LOGIN] OTP Sent Successfully to: ${phone}`);
         return res.json({ ok: true, message: "OTP sent!", phone });
     } catch (err) {
-        return res.status(500).json({ ok: false, error: err.message });
+        console.error(`[TG LOGIN ERR] Error sending OTP to ${phone}:`, err);
+        return res.status(500).json({ 
+            ok: false, 
+            error: err.errorMessage || err.message || "Failed to send code via Telegram" 
+        });
     }
 });
 
@@ -1141,7 +506,7 @@ app.post("/api/tg/verify-otp", async (req, res) => {
     const password = (req.body.password || "").toString().trim();
 
     const item = pendingAuthClients.get(phone);
-    if (!item) return res.status(400).json({ ok: false, error: "সেশন মেয়াদ শেষ!" });
+    if (!item) return res.status(400).json({ ok: false, error: "সেশন মেয়াদ শেষ! আবার OTP পাঠান।" });
 
     try {
         try {
@@ -1174,89 +539,6 @@ app.post("/api/tg/verify-otp", async (req, res) => {
         return res.json({ ok: true, message: "Account connected successfully!" });
     } catch (err) {
         return res.status(500).json({ ok: false, error: err.errorMessage || err.message });
-    }
-});
-
-// ---------------- 7b. DIRECT QR CODE LOGIN API ----------------
-const activeQrClients = new Map();
-
-app.post("/api/tg/qr-start", async (req, res) => {
-    try {
-        const qrId = "qr_" + Date.now();
-        const client = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
-        await client.connect();
-
-        const result = await client.invoke(new Api.auth.ExportLoginToken({
-            apiId: DEFAULT_API_ID,
-            apiHash: DEFAULT_API_HASH,
-            exceptIds: []
-        }));
-
-        if (result && result.token) {
-            const tokenBase64 = Buffer.from(result.token).toString("base64url");
-            const qrUrl = `tg://login?token=${tokenBase64}`;
-            activeQrClients.set(qrId, { client, expires: result.expires });
-            return res.json({ ok: true, qrId, qrUrl, expires: result.expires });
-        }
-        return res.status(400).json({ ok: false, error: "QR জেনারেট ফেইলড" });
-    } catch (e) {
-        return res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-app.post("/api/tg/qr-check", async (req, res) => {
-    const { qrId, password } = req.body;
-    const item = activeQrClients.get(qrId);
-    if (!item) return res.status(400).json({ ok: false, error: "QR এর মেয়াদ শেষ" });
-
-    try {
-        const result = await item.client.invoke(new Api.auth.ExportLoginToken({
-            apiId: DEFAULT_API_ID,
-            apiHash: DEFAULT_API_HASH,
-            exceptIds: []
-        }));
-
-        if (result instanceof Api.auth.LoginTokenSuccess) {
-            const me = await item.client.getMe();
-            const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
-            const sessionString = item.client.session.save();
-
-            await db.collection("tg_accounts").doc(phone).set({
-                phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            activeQrClients.delete(qrId);
-            return res.json({ ok: true, status: "success", phone });
-        } else if (result instanceof Api.auth.LoginTokenMigrateTo) {
-            // ডাটা সেন্টার মাইগ্রেশন (Asia/BD অ্যাকাউন্ট হলে প্রয়োজন হয়)
-            await item.client._switchDC(result.dcId);
-            return res.json({ ok: true, status: "pending" });
-        }
-        return res.json({ ok: true, status: "pending" });
-    } catch (e) {
-        if (e.errorMessage === "SESSION_PASSWORD_NEEDED" || (e.message && e.message.includes("2FA"))) {
-            if (!password) {
-                return res.json({ ok: true, status: "2fa_needed" });
-            }
-            try {
-                const srpHash = await computeSrpHash(item.client, password);
-                await item.client.invoke(new Api.auth.CheckPassword({ password: srpHash }));
-
-                const me = await item.client.getMe();
-                const phone = me.phone ? formatBdPhone(me.phone) : `+${me.id}`;
-                const sessionString = item.client.session.save();
-
-                await db.collection("tg_accounts").doc(phone).set({
-                    phone, session: sessionString, balance: 0, active: true, addedAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-
-                activeQrClients.delete(qrId);
-                return res.json({ ok: true, status: "success", phone });
-            } catch (err2) {
-                return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড ভুল হয়েছে" });
-            }
-        }
-        return res.json({ ok: true, status: "pending" });
     }
 });
 
@@ -1309,191 +591,6 @@ app.post("/api/tg/check-balance", async (req, res) => {
     }
 });
 
-// ---------------- 8b. MASS PROMO CODE REDEEM & AUTO DAILY CLAIM ----------------
-async function claimDailySingle(sessionStr) {
-    const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
-    await temp.connect();
-    try {
-        await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
-        await new Promise((r) => setTimeout(r, 2000));
-        const msgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
-        if (msgs && msgs.length > 0) {
-            const clicked = await clickInlineButton(msgs[0], "Claim Today");
-            if (clicked) {
-                await new Promise((r) => setTimeout(r, 2000));
-                const resMsgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
-                return { ok: true, message: resMsgs[0] ? resMsgs[0].message : "Claimed!" };
-            }
-        }
-        return { ok: false, message: "Claim button not found or already claimed today" };
-    } finally {
-        try { await temp.disconnect(); } catch (e) {}
-    }
-}
-
-async function redeemPromoSingle(sessionStr, code) {
-    const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
-    await temp.connect();
-    try {
-        await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
-        await new Promise((r) => setTimeout(r, 2000));
-        const msgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
-        if (!msgs || !msgs.length) return { ok: false, message: "Rewards Hub load failed" };
-
-        const clicked = await clickInlineButton(msgs[0], "Redeem Promo");
-        if (!clicked) return { ok: false, message: "Redeem Promo button not found" };
-
-        await new Promise((r) => setTimeout(r, 2000));
-        await temp.sendMessage(TARGET_BOT, { message: code });
-        await new Promise((r) => setTimeout(r, 2500));
-
-        const resMsgs = await temp.getMessages(TARGET_BOT, { limit: 1 });
-        const replyText = resMsgs && resMsgs[0] ? resMsgs[0].message : "Code sent";
-        return { ok: true, message: replyText };
-    } finally {
-        try { await temp.disconnect(); } catch (e) {}
-    }
-}
-
-app.post("/api/tg/claim-daily-all", async (req, res) => {
-    try {
-        const snap = await db.collection("tg_accounts").where("active", "==", true).get();
-        if (snap.empty) return res.json({ ok: false, error: "কোনো অ্যাক্টিভ অ্যাকাউন্ট নেই" });
-
-        const results = [];
-        for (const docSnap of snap.docs) {
-            const acc = docSnap.data();
-            const phone = acc.phone || docSnap.id;
-            if (!acc.session) continue;
-
-            try {
-                const claimRes = await claimDailySingle(acc.session);
-                results.push({ phone, ...claimRes });
-            } catch (err) {
-                results.push({ phone, ok: false, message: err.message });
-            }
-            await new Promise((r) => setTimeout(r, 1500)); // Rate limit prevention
-        }
-        return res.json({ ok: true, results });
-    } catch (e) {
-        return res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-app.post("/api/tg/redeem-code-all", async (req, res) => {
-    const code = (req.body.code || "").toString().trim();
-    if (!code) return res.status(400).json({ ok: false, error: "প্রোমো কোডটি দিন" });
-
-    try {
-        const snap = await db.collection("tg_accounts").where("active", "==", true).get();
-        if (snap.empty) return res.json({ ok: false, error: "কোনো অ্যাক্টিভ অ্যাকাউন্ট নেই" });
-
-        const results = [];
-        for (const docSnap of snap.docs) {
-            const acc = docSnap.data();
-            const phone = acc.phone || docSnap.id;
-            if (!acc.session) continue;
-
-            try {
-                const redRes = await redeemPromoSingle(acc.session, code);
-                results.push({ phone, ...redRes });
-            } catch (err) {
-                results.push({ phone, ok: false, message: err.message });
-            }
-            await new Promise((r) => setTimeout(r, 2000)); // Safe delay per account
-        }
-        return res.json({ ok: true, results });
-    } catch (e) {
-        return res.status(500).json({ ok: false, error: e.message });
-    }
-});
-
-// ---------------- 9. GROUP MODERATION API (BAN/UNBAN/MUTE) ----------------
-// ---------------- 10. USER NOTIFY HELPER (@Ppmod_bot) ----------------
-// Gmail mask: last 3 chars visible (e.g. nahid123@gmail.com -> ++++++123@gmail.com). Password NEVER logged.
-function maskGmail(email) {
-    const e = (email || "").toString().trim();
-    const at = e.lastIndexOf("@");
-    if (at <= 1) return e ? "++++++" : "—";
-    return "++++++" + e.slice(at - 3, at) + e.slice(at);
-}
-async function sendOrderLog(text) {
-    if (!text) return;
-    try {
-        await fetch(`https://api.telegram.org/bot${USER_NOTIFY_BOT_TOKEN}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: ORDER_LOG_CHANNEL, text: text, parse_mode: "HTML" })
-        });
-    } catch (e) {}
-}
-
-// ---------------- AUTO REALISTIC ORDER LOG SIMULATOR (8 - 25 MIN RANDOM) ----------------
-const POPULAR_GAMES_LOG = [
-    "8ball pool (50)", "Angry birds 2 (50)", "Best Fiends (50)", "Dice dreams (50)",
-    "Domino dreams (50)", "Farm heroes (50)", "Hey day (All)", "Lords mobile (50)",
-    "Mobile legends (50)", "Summoners War (50)", "Fruit ninja (50)", "Zenless Zone Zero (50)",
-    "War machines (50)", "Yalla Ludo (50)"
-];
-const EMAIL_SNIPPETS = ["has", "rak", "tan", "784", "902", "sh", "joy", "fah", "321", "nah", "kab", "551", "al", "sak", "619", "mim"];
-
-function generateRealisticFakeLog() {
-    const game = POPULAR_GAMES_LOG[Math.floor(Math.random() * POPULAR_GAMES_LOG.length)];
-    const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
-    const maskedEmail = `++++++${snip}@gmail.com`;
-    const elapsed = Math.floor(Math.random() * 6) + 6; // 6s to 11s realistic
-    const trxId = "WLT-" + Math.random().toString(36).substring(2, 9).toUpperCase();
-
-    return `✅ <b>TASK COMPLETED</b>\n\n` +
-           `🎮 <b>Game:</b> ${game}\n` +
-           `📧 <b>Gmail:</b> <code>${maskedEmail}</code>\n` +
-           `⏱️ <b>Time:</b> ~${elapsed}s\n` +
-           `🪙 <b>Coins:</b> 3\n` +
-           `💳 <b>Method:</b> PP Coins\n` +
-           `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
-           `📌 <b>Status:</b> Completed`;
-}
-
-function scheduleNextFakeOrderLog() {
-    // ৮ থেকে ২৫ মিনিটের মধ্যে র‍্যান্ডম বিরতি
-    const randomMinutes = Math.floor(Math.random() * (25 - 8 + 1)) + 8;
-    const delayMs = randomMinutes * 60 * 1000;
-    setTimeout(async () => {
-        try {
-            const fakeLog = generateRealisticFakeLog();
-            await sendOrderLog(fakeLog);
-        } catch (e) {}
-        scheduleNextFakeOrderLog();
-    }, delayMs);
-}
-
-async function getUserTgId(uid, fallback) {
-    try {
-        if (uid) {
-            const uSnap = await db.collection("users").doc(uid).get();
-            if (uSnap.exists) {
-                const t = (uSnap.data().tgChatId || "").toString().trim();
-                if (t) return t;
-            }
-        }
-    } catch (e) {}
-    return fallback || "";
-}
-async function notifyUserTelegram(chatId, text) {
-    if (!chatId) return;
-    try {
-        const cleanChatId = chatId.toString().replace(/[^0-9]/g, "");
-        if (cleanChatId.length >= 5) {
-            const url = `https://api.telegram.org/bot${USER_NOTIFY_BOT_TOKEN}/sendMessage`;
-            await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: cleanChatId, text: text, parse_mode: "HTML" })
-            });
-        }
-    } catch (e) {}
-}
-
 function parseBotBalance(text) {
     if (!text) return null;
     const match = text.match(/(?:balance|new balance|current balance)\s*[:\-]?\s*(\d+)/i) 
@@ -1501,485 +598,10 @@ function parseBotBalance(text) {
     return match ? Number(match[1]) : null;
 }
 
-function extractPromptNumber(text) {
-    if (!text) return null;
-    const match = text.match(/(?:tap|number|code|select|press|number:)\s*[:\-]?\s*(\d{2})/i) 
-               || text.match(/\b(\d{2})\b/);
-    return match ? match[1] : null;
-}
-
-// Bot-এর লাস্ট রিপ্লাই টেক্সট থেকে আসল সময় (সেকেন্ড) বের করা
-function extractBotElapsedTime(text) {
-    if (!text) return null;
-    const m = text.match(/(?:time|elapsed|took|completed in|in)\s*[:\-~]?\s*([\d.]+)\s*(?:s|sec|seconds)/i)
-           || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)/i);
-    return m ? Math.round(parseFloat(m[1])) : null;
-}
-
-// Bot er response pore PP MOD er nijoshwo shundor bangla shomadhan toiri kora (kono third-party branding thakbe na)
-function sanitizeBotReason(rawText) {
-    if (!rawText) return null;
-    const txt = rawText.toLowerCase();
-
-    // 1. Authenticator App এর 32/34 অক্ষরের কোড/কি চাইলে সরাসরি পাসওয়ার্ড ভুল হিসেবে বাতিল
-    if (txt.includes("32") || txt.includes("34") || txt.includes("authenticator") || txt.includes("secret key") || txt.includes("totp") || txt.includes("2fa key") || txt.includes("format:")) {
-        return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ডটি সঠিক নয় অথবা গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
-    }
-
-    // 2. Password Error
-    if (txt.includes("password error") || txt.includes("incorrect password") || txt.includes("wrong password") || txt.includes("invalid password") || txt.includes("bad password")) {
-        return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
-    }
-
-    // 3. Play Games Profile Not Created
-    if (txt.includes("play games profile") || txt.includes("gamer tag") || txt.includes("profile not created") || txt.includes("open play games")) {
-        return "🎮 <b>Play Games প্রোফাইল তৈরি করা নেই!</b>\n\nআপনার এই জিমেইলে এখনও Google Play Games প্রোফাইল সেটআপ করা হয়নি।\n💡 <b>করণীয়:</b> আপনার ফোনের Play Games অ্যাপটি ওপেন করে একটি গেমার ট্যাগ/নাম সিলেক্ট করে প্রোফাইল বানিয়ে তারপর আবার সাবমিট করুন।";
-    }
-
-    // 4. Play Points Quest Accept kora nei
-    if (txt.includes("no quests") || txt.includes("quest not started") || txt.includes("not enrolled") || txt.includes("already completed")) {
-        return "⚠️ <b>Play Points কোয়েস্ট পাওয়া যায়নি!</b>\n\nএই জিমেইলে প্লে পয়েন্ট কোয়েস্ট চালু/accept করা নেই অথবা আগেই পয়েন্ট নেওয়া হয়ে গেছে। অন্য ফ্রেশ জিমেইল দিয়ে চেষ্টা করুন।";
-    }
-
-    // 4. Captcha security check
-    if (txt.includes("captcha security check") || txt.includes("captcha")) {
-        return "🤖 <b>গুগল সিকিউরিটি ক্যাপচা!</b>\n\nগুগল স্বয়ংক্রিয় লগইনে অতিরিক্ত ভেরিফিকেশন চাচ্ছে। ৫-১০ মিনিট পর পুনরায় চেষ্টা করুন।";
-    }
-
-    // 5. Account rejected/suspended/region
-    if (txt.includes("google rejected") || txt.includes("couldn't sign you in") || txt.includes("disabled") || txt.includes("suspended")) {
-        return "🚫 <b>গুগল লগইন প্রত্যাখ্যান করেছে!</b>\n\nজিমেইলের কান্ট্রি সাপোর্ট করছে না অথবা লগইন রিজেক্ট হয়েছে। অন্য একটি সচল জিমেইল ব্যবহার করুন।";
-    }
-
-    // 6. Security code / 2FA issue
-    if (txt.includes("security code") || txt.includes("8-digit") || txt.includes("backup code")) {
-        return "🔐 <b>অতিরিক্ত টু-স্টেপ সিকিউরিটি কোড প্রয়োজন!</b>\n\nগুগল ব্যাকআপ সিকিউরিটি কোড চাচ্ছে। ঝামেলামুক্ত কাজের জন্য সাময়িকভাবে 2FA বন্ধ করে আবার সাবমিট করুন।";
-    }
-
-    return null;
-}
-
-// Bot reply থেকে Google Play Gamer name ধরা (যেমন "Google Play Gamer: SeverestGains142")
-function extractGamerName(text) {
-    if (!text) return "";
-    const pats = [
-        /google\s*play\s*gamer\s*[:\-]?\s*([A-Za-z0-9_.\- ]{2,40})/i,
-        /play\s*gamer\s*[:\-]?\s*([A-Za-z0-9_.\- ]{2,40})/i,
-        /\bgamer\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i,
-        /\bplayer\s*(?:name)?\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i,
-        /\bnickname\s*[:\-]\s*([A-Za-z0-9_.\- ]{2,40})/i
-    ];
-    for (const p of pats) {
-        const m = text.match(p);
-        if (m && m[1]) {
-            const v = m[1].trim().replace(/\s+/g, " ").slice(0, 40);
-            if (v && !/^(account|gmail|email|none|n\/a|null)$/i.test(v)) return v;
-        }
-    }
-    return "";
-}
-
-async function clickInlineButton(message, textPattern) {
-    if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
-    for (const row of message.replyMarkup.rows) {
-        for (const button of row.buttons) {
-            if (button.text && button.text.toLowerCase().includes(textPattern.toLowerCase())) {
-                try {
-                    await message.click({ text: button.text });
-                    return true;
-                } catch (e) {}
-            }
-        }
-    }
-    return false;
-}
-
-async function getLatestBotMessage() {
-    try {
-        if (!currentClient) return null;
-        // Last 3-ti message dhora jate eksathe multiple message ashleo text miss na hoy
-        const msgs = await currentClient.getMessages(TARGET_BOT, { limit: 3 });
-        if (msgs && msgs.length > 0) {
-            const incoming = msgs.filter(m => !m.out);
-            if (incoming.length > 0) {
-                const newest = incoming[0];
-                newest._combinedText = incoming.map(m => m.message || "").filter(Boolean).join("\n---\n");
-                return newest;
-            }
-        }
-    } catch (e) {}
-    return null;
-}
-
-async function waitForCondition(checkFn, timeoutMs = 45000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        const msg = await getLatestBotMessage();
-        if (msg) {
-            const res = checkFn(msg);
-            if (res) return { msg, res };
-        }
-        await new Promise((r) => setTimeout(r, 1500));
-    }
-    return null;
-}
-
-async function getUsableTelegramClient() {
-    const snap = await db.collection("tg_accounts").where("active", "==", true).get();
-    const accounts = [];
-    snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
-
-    const valid = accounts
-        .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))
-        .find((a) => (a.balance === undefined || a.balance >= 3) && a.session);
-
-    let sessionStr = "";
-    let chosenPhone = "";
-
-    if (valid) {
-        sessionStr = valid.session;
-        chosenPhone = valid.phone || valid.id;
-    } else if (process.env.TELEGRAM_SESSION) {
-        sessionStr = process.env.TELEGRAM_SESSION;
-        chosenPhone = "Primary_Account";
-    } else {
-        throw new Error("NO_BALANCE");
-    }
-
-    if (currentClient && currentPhone === chosenPhone) return currentClient;
-
-    if (currentClient) {
-        try { await currentClient.disconnect(); } catch (e) {}
-    }
-
-    const client = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 10 });
-    await client.connect();
-    currentClient = client;
-    currentPhone = chosenPhone;
-    return currentClient;
-}
-
-async function refundOrder(orderId, uid, reason, userTgId = null) {
-    try {
-        await db.runTransaction(async (t) => {
-            const ordRef = db.collection("orders").doc(orderId);
-            const userRef = db.collection("users").doc(uid);
-            const ordSnap = await t.get(ordRef);
-            if (!ordSnap.exists) return;
-            const ordData = ordSnap.data();
-            if (ordData.status === "completed" || ordData.status === "refunded") return;
-
-            const userSnap = await t.get(userRef);
-            const curBal = userSnap.exists ? Number(userSnap.data().balance || 0) : 0;
-            const refundAmt = Number(ordData.amount || 3);
-
-            t.update(userRef, { balance: curBal + refundAmt });
-            t.update(ordRef, {
-                status: "refunded",
-                adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
-                refundedAt: admin.firestore.FieldValue.serverTimestamp(),
-                botProcessing: false
-            });
-        });
-
-        if (userTgId) {
-            const notifyId = await getUserTgId(uid, userTgId);
-            await notifyUserTelegram(notifyId,
-                `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
-                `🎮 <b>গেম:</b> Task\n` +
-                `⚠️ <b>কারণ:</b> ${reason}\n` +
-                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
-            );
-        }
-        sendOrderLog(
-            `❌ <b>ORDER REFUNDED</b>\n\n` +
-            `⚠️ <b>কারণ:</b> ${reason}\n` +
-            `🪙 <b>Coins:</b> refunded\n` +
-            `🆔 <b>Order:</b> <code>${orderId}</code>\n` +
-            `📌 <b>Status:</b> Refunded`
-        );
-    } catch (e) {}
-}
-
-async function processOrder(orderId, orderData) {
-    if (activeOrders.has(orderId)) return;
-    activeOrders.add(orderId);
-
-    const startTime = Date.now();
-    const orderRef = db.collection("orders").doc(orderId);
-
-    try {
-        await orderRef.update({ adminMsg: "সার্ভার কাজ শুরু করেছে। দয়া করে অপেক্ষা করুন...", botProcessing: true });
-        
-        let tg;
-        try {
-            tg = await getUsableTelegramClient();
-        } catch (err) {
-            if (err.message === "NO_BALANCE") {
-                await refundOrder(orderId, orderData.uid, "সার্ভারে পর্যাপ্ত টোকেন না থাকায় অর্ডারটি রিফান্ড করা হলো।", orderData.userTgId);
-                return;
-            }
-            throw err;
-        }
-
-        // চ্যাট সচল করতে এবং মেনু আনতে Start পাঠানো
-        await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
-        await new Promise((r) => setTimeout(r, 1200));
-        await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
-
-        sendOrderLog(
-            `🆕 <b>NEW ORDER</b>\n\n` +
-            `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-            `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
-            `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
-            `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
-            `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-            `📌 <b>Status:</b> Pending`
-        );
-
-        // Chest মেনুর জন্য অপেক্ষা করা
-        let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest") || m.message.includes("Chests")), 25000);
-        if (!found) {
-            // বিকল্প: সরাসরি আবার Start Process ট্রাই করা
-            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
-            found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 15000);
-        }
-        if (!found) throw new Error("Bot chest menu timeout (বট রেসপন্স করেনি)");
-
-        // গেম সিলেক্ট করা
-        const cleanGame = (orderData.game || "").replace(/\(.*?\)/g, "").trim().toLowerCase();
-        let clicked = await clickInlineButton(found.msg, cleanGame);
-        if (!clicked) clicked = await clickInlineButton(found.msg, cleanGame.split(" ")[0]);
-        if (!clicked) {
-            // যদি ইনলাইন বাটনে আংশিক নাম থাকে
-            clicked = await clickInlineButton(found.msg, cleanGame.slice(0, 5));
-        }
-        if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
-
-        await new Promise((r) => setTimeout(r, 2200));
-        let promptMsg = await getLatestBotMessage();
-        if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting") || promptMsg.message.includes("Previous"))) {
-            await clickInlineButton(promptMsg, "New account");
-            await new Promise((r) => setTimeout(r, 2000));
-        }
-
-        // ইমেইল এবং পাসওয়ার্ড প্রস্তুত ও টেলিগ্রাম বটের ইনবক্সে পাঠানো
-        const credText = `${orderData.accEmail.trim()}---${orderData.accPass.trim()}`;
-        console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
-        
-        await orderRef.update({ adminMsg: "বটের কাছে জিমেইল ও পাসওয়ার্ড পাঠানো হচ্ছে..." });
-        await tg.sendMessage(TARGET_BOT, { message: credText });
-
-        // কনফার্মেশন বোতামের জন্য অপেক্ষা ও ক্লিক
-        let confirmFound = await waitForCondition((m) => {
-            const txt = (m.message || "").toLowerCase();
-            return txt.includes("confirm credentials & payment") || txt.includes("confirm and start quests") || txt.includes("confirm & pay") || txt.includes("confirm");
-        }, 20000);
-
-        if (confirmFound) {
-            let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay");
-            if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm");
-        }
-        await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে বটের কাছে পাঠানো হয়েছে! লগইন চলছে..." });
-
-        let completed = false;
-        let attempts = 0;
-        let gamerSaved = !!(orderData.gamerName);
-        let gamerName = (orderData.gamerName || "").toString();
-
-        let lastNotifiedPrompt = "";
-
-        while (!completed && attempts < 50) {
-            attempts++;
-            await new Promise((r) => setTimeout(r, 2000));
-            const curMsg = await getLatestBotMessage();
-            if (!curMsg) continue;
-
-            const rawText = (curMsg._combinedText || curMsg.message || "").trim();
-            const text = rawText.toLowerCase();
-
-            // Play gamer name পেলে order-এ সেভ
-            if (!gamerSaved) {
-                const g = extractGamerName(rawText);
-                if (g) {
-                    gamerSaved = true;
-                    gamerName = g;
-                    try { await orderRef.update({ gamerName: g }); } catch (e) {}
-                }
-            }
-
-            // 32/34 ক্যারেক্টারের Authenticator কী বা অন্য কোনো ত্রুটি আসলে কোনো কোড না চেয়ে সরাসরি রিফান্ড
-            const cleanReason = sanitizeBotReason(rawText);
-            if (cleanReason) {
-                await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
-                return;
-            }
-
-            // বট যদি পাসওয়ার্ডের পর 32/34 অক্ষরের কোড চায় তবে প্রসেস ক্যানসেল করে পাসওয়ার্ড ভুল দেখানো
-            if (text.includes("32") || text.includes("34") || text.includes("authenticator") || text.includes("secret")) {
-                await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন ব্যর্থ হয়েছে। সঠিক পাসওয়ার্ড দিয়ে পুনরায় চেষ্টা করুন।", orderData.userTgId);
-                return;
-            }
-
-            if (text.includes("captcha security check") || text.includes("captcha")) {
-                await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId);
-                return;
-            }
-
-            if (text.includes("google rejected sign-in") || text.includes("couldn't sign you in")) {
-                await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, "Google অ্যাকাউন্ট লগইন রিজেক্ট করেছে (No চাপা হয়েছে বা ভেরিফিকেশন ফেইল)।", orderData.userTgId);
-                return;
-            }
-
-            if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
-                await clickInlineButton(curMsg, "Cancel Process");
-                await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
-                return;
-            }
-
-            if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
-                await orderRef.update({ adminMsg: "✅ আপনার ফোন থেকে লগইন সফল হয়েছে! টাস্ক আনলক করা হচ্ছে, অপেক্ষা করুন..." });
-            }
-
-            // Google Prompt Code (যেমন 34): শুধু সক্রিয় ভেরিফিকেশনে এবং একবারই দেখাবে, কোনো error বা cancel থাকলে দেখাবে না
-            const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
-            const promptNum = isErrorState ? null : extractPromptNumber(rawText);
-            if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
-                lastNotifiedPrompt = promptNum;
-                await orderRef.update({ adminMsg: `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।` });
-            }
-
-            if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
-                // Bot-এর লাস্ট মেসেজে লেখা আসল সময়টি নেওয়া, না পাওয়া গেলে তবেই মোট সময়
-                const botReportedTime = extractBotElapsedTime(rawText);
-                const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
-
-                await orderRef.update({
-                    status: "completed",
-                    adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
-                    timeElapsed: elapsedSec,
-                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    botProcessing: false
-                });
-
-                if (orderData.userTgId || orderData.uid) {
-                    const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
-                    await notifyUserTelegram(notifyId,
-                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
-                        `🎮 <b>গেম:</b> ${orderData.game}\n` +
-                        `⏱️ <b>সময় লেগেছে:</b> ~${elapsedSec} সেকেন্ড\n` +
-                        `🪙 <b>ফি:</b> ৩টি PP Coins\n\n` +
-                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
-                    );
-                }
-                // Referral bonus: referred user er task complete -> owner +1 coin
-                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
-                sendOrderLog(
-                    `✅ <b>TASK COMPLETED</b>\n\n` +
-                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-                    `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
-                    `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
-                    `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
-                    `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
-                    `💳 <b>Method:</b> ${orderData.method || "PP Coins"}\n` +
-                    `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-                    `📌 <b>Status:</b> Completed`
-                );
-                completed = true;
-                return;
-            }
-        }
-        if (!completed) throw new Error("Bot login timeout");
-    } catch (err) {
-        await refundOrder(orderId, orderData.uid, err.message || "সার্ভার এরর", orderData.userTgId);
-    } finally {
-        activeOrders.delete(orderId);
-    }
-}
-
-// ---------------- 11. ADVANCED GROUP GUARDIAN (@Vareonprotection_bot) ----------------
 // ---------------- 13. MASTER WORKER START ----------------
-let botModeCache; // undefined = never configured -> keep processing (backward compatible)
 async function startMasterWorker() {
-    console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
-    await initPrimeAutoResponder();
-    db.collection("tg_accounts").onSnapshot(() => initPrimeAutoResponder());
-
-    // Start 8-25 min realistic order log simulator
-    scheduleNextFakeOrderLog();
-
-    // Watch admin Bot Mode toggle: explicit OFF = skip auto-processing (manual mode)
-    db.collection("config").doc("app").onSnapshot((snap) => {
-        try {
-            const d = snap.exists ? snap.data() : {};
-            botModeCache = (d && d.botMode === undefined) ? undefined : !!(d && d.botMode);
-            console.log("[CONFIG] botMode =", botModeCache);
-        } catch (e) {}
-    });
-
-    try { await getUsableTelegramClient(); } catch (e) {}
-
-    // Auto Daily Claim Scheduler (runs every 12 hours automatically)
-    setInterval(async () => {
-        try {
-            console.log("[AUTO CLAIM] Starting scheduled daily rewards claim...");
-            const snap = await db.collection("tg_accounts").where("active", "==", true).get();
-            for (const docSnap of snap.docs) {
-                const acc = docSnap.data();
-                if (acc.session) {
-                    await claimDailySingle(acc.session).catch(() => {});
-                    await new Promise((r) => setTimeout(r, 3000));
-                }
-            }
-            console.log("[AUTO CLAIM] Scheduled claim completed.");
-        } catch (e) {}
-    }, 12 * 60 * 60 * 1000);
-
-    // নতুন ডিপোজিট আসলে ব্যাকএন্ড সার্ভার স্বয়ংক্রিয়ভাবে অ্যাডমিনের টেলিগ্রামে মেসেজ পাঠাবে
-    const notifiedDeposits = new Set();
-    db.collection("deposits").where("status", "==", "pending").onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const dep = change.doc.data();
-                const depId = change.doc.id;
-                if (notifiedDeposits.has(depId)) return;
-                notifiedDeposits.add(depId);
-
-                // অ্যাডমিনের কাছে প্রাইভেট টেলিগ্রাম অ্যালার্ট পাঠানো
-                const adminAlert = 
-                    `💰 <b>NEW DEPOSIT PENDING!</b>\n\n` +
-                    `👤 <b>User:</b> ${dep.name || "User"} (${dep.email || "No Email"})\n` +
-                    `💳 <b>Method:</b> ${dep.method}\n` +
-                    `💵 <b>Amount:</b> ${dep.amount} BDT\n` +
-                    `🪙 <b>Coins:</b> ${dep.coins || 3} Coins\n` +
-                    `🔖 <b>TrxID:</b> <code>${dep.trxId}</code>\n` +
-                    `🆔 <b>DepID:</b> <code>${depId}</code>\n\n` +
-                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>✅</b> পাঠালে Approve হবে।</i>\n` +
-                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>❌</b> পাঠালে Reject হবে।</i>`;
-
-                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => {});
-            }
-        });
-    });
-
-    db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added" || change.type === "modified") {
-                const ord = change.doc.data();
-                const ordId = change.doc.id;
-                if (botModeCache === false) return; // manual mode
-                // accEmail o accPass thaklei bot processing shuru korbe
-                if (ord.accEmail && ord.accPass && ord.mode !== "manual" && !activeOrders.has(ordId)) {
-                    processOrder(ordId, ord);
-                }
-            }
-        });
-    });
-
+    console.log("[MASTER INIT] Starting PP MOD Master Worker...");
+    console.log(`[CONFIG] Using API_ID: ${DEFAULT_API_ID}`);
     console.log("[MASTER INIT] Active!");
 }
 
