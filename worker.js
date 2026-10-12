@@ -7,6 +7,21 @@ const { TelegramClient, Api } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 
+// ---------------- 1. EXPRESS HTTP SERVER (INSTANT BIND FOR RENDER) ----------------
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
+app.get("/ping", (req, res) => res.status(200).send("pong"));
+app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
+
+// Render port listening IMMEDIATELY to prevent "Timed Out" error
+const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[HTTP] Server successfully running on port ${PORT}`);
+});
+
 // gramjs inline Button
 let TgButton = null;
 try { TgButton = require("telegram").Button || null; } catch (e) {}
@@ -21,16 +36,6 @@ function buildPrimeButtons() {
         ];
     } catch (e) { return null; }
 }
-
-// ---------------- 1. EXPRESS HTTP SERVER & PING ROUTES ----------------
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
-app.get("/ping", (req, res) => res.status(200).send("pong"));
-app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
@@ -465,7 +470,7 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
-// ✅ FIXED: 409 Conflict ও Render Deploy Freeze আটকাতে Polling বন্ধ করে Safe Mode করা হলো
+// ✅ FIXED: Polling false (Zero 409 conflict errors)
 const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: false });
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
@@ -557,7 +562,7 @@ app.post("/api/tg/send-otp", async (req, res) => {
     const rawInput = req.body.phone || "";
     const phone = formatBdPhone(rawInput);
 
-    console.log(`[TG LOGIN] Requesting OTP for: ${phone} (API_ID: ${DEFAULT_API_ID})`);
+    console.log(`[TG LOGIN] Requesting OTP for: ${phone}`);
 
     if (!phone || phone.length < 13) {
         return res.status(400).json({ ok: false, error: "সঠিক ফোন নম্বর দিন (যেমন: 017XXXXXXXX)" });
