@@ -465,7 +465,8 @@ const TARGET_BOT = process.env.TARGET_BOT || "PlayQuestHelperBot";
 const USER_NOTIFY_BOT_TOKEN = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
 const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
-const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: true });
+// ✅ FIXED: 409 Conflict ও Render Deploy Freeze আটকাতে Polling বন্ধ করে Safe Mode করা হলো
+const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: false });
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
 const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://t.me/Ppmod_bot">@Ppmod_bot</a>\n\n📢 <b>অফিসিয়াল চ্যানেল:</b> <a href="https://t.me/googleplaypointhack">@googleplaypointhack</a>\n\nধন্যবাদ! ✨`;
@@ -486,273 +487,6 @@ function formatBdPhone(raw) {
     if (num.startsWith("1") && num.length === 10) return "+880" + num;
     return "+" + num;
 }
-
-// ---------------- 3b. USER BOT REFERRAL & FORCED JOIN SYSTEM (@Ppmod_bot) ----------------
-const REQUIRED_CHANNELS = [
-    { name: "📢 Main Channel", url: "https://t.me/googleplaypointhack", username: "@googleplaypointhack" },
-    { name: "📋 All Order Log", url: "https://t.me/ppmododderlog", username: "@ppmododderlog" },
-    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" },
-    { name: "🔒 Private Channel (Request)", url: "https://t.me/+s09ahNjWHZM4YWM9", invite: true }
-];
-
-function generateReferralCode() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let randomPart = "";
-    for (let i = 0; i < 6; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return `PPM-REF-${randomPart}`;
-}
-
-async function checkUserMembership(userId) {
-    for (const ch of REQUIRED_CHANNELS) {
-        if (!ch.username) continue;
-        try {
-            const member = await userNotifyBot.getChatMember(ch.username, userId);
-            const valid = ["creator", "administrator", "member", "restricted"].includes(member.status);
-            if (!valid) return false;
-        } catch (e) {}
-    }
-    return true;
-}
-
-function getJoinKeyboard(userId, refId = null) {
-    const rows = REQUIRED_CHANNELS.map((ch, idx) => [
-        { text: `${idx + 1}. ${ch.name}`, url: ch.url }
-    ]);
-    const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
-    rows.push([{ text: "✅ Verify / চেক করুন", callback_data: verifyData }]);
-    rows.push([{ text: "👥 আমার রেফারেল লিংক ও পরিসংখ্যান", callback_data: "my_ref_info" }]);
-    return { inline_keyboard: rows };
-}
-
-// Admin Reply Handler
-userNotifyBot.on("message", async (msg) => {
-    try {
-        const text = (msg.text || "").trim();
-        const replyTo = msg.reply_to_message;
-
-        if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
-            const replyText = replyTo.text || replyTo.caption || "";
-            const depMatch = replyText.match(/🆔\s*<b>DepID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i)
-                          || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
-                          || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
-
-            if (!depMatch) return;
-            const identifier = depMatch[1].trim();
-
-            if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
-                let targetId = identifier;
-                if (!identifier.startsWith("DEP_") && identifier.length < 15) {
-                    const snap = await db.collection("deposits").where("trxId", "==", identifier).where("status", "==", "pending").limit(1).get();
-                    if (!snap.empty) targetId = snap.docs[0].id;
-                }
-
-                try {
-                    const approvedData = await approveDepositById(targetId);
-                    await userNotifyBot.sendMessage(msg.chat.id, 
-                        `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
-                        `👤 <b>User:</b> ${approvedData.name || "User"} (${approvedData.email || ""})\n` +
-                        `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
-                        `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
-                        `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
-                        `<i>ইউজারের একাউন্টে সফলভাবে কয়েন যোগ হয়েছে এবং TrxID লক করা হয়েছে! 🚀</i>`,
-                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
-                    );
-                } catch (err) {
-                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ অ্যাপ্রুভ ব্যর্থ: ${err.message || 'Error'}`, { reply_to_message_id: msg.message_id });
-                }
-            } else if (text === "❌" || text === "/reject") {
-                try {
-                    await rejectDepositById(identifier);
-                    await userNotifyBot.sendMessage(msg.chat.id, 
-                        `❌ <b>ডিপোজিটটি বাতিল (Rejected) করা হয়েছে!</b>`,
-                        { parse_mode: "HTML", reply_to_message_id: msg.message_id }
-                    );
-                } catch (err) {
-                    await userNotifyBot.sendMessage(msg.chat.id, `⚠️ রিজেক্ট ব্যর্থ: ${err.message}`, { reply_to_message_id: msg.message_id });
-                }
-            }
-        }
-    } catch (e) {}
-});
-
-userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
-    try {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id.toString();
-        const startParam = (match && match[1]) ? match[1].trim() : "";
-        let inviterId = null;
-
-        if (startParam.startsWith("ref_")) {
-            inviterId = startParam.replace("ref_", "").trim();
-            if (inviterId === userId) inviterId = null;
-        }
-
-        const userDoc = await db.collection("tg_bot_users").doc(userId).get();
-        if (!userDoc.exists) {
-            await db.collection("tg_bot_users").doc(userId).set({
-                id: userId,
-                name: `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim(),
-                username: msg.from.username ? `@${msg.from.username}` : "",
-                inviterId: inviterId || null,
-                isVerified: false,
-                referralCount: 0,
-                rewardsEarned: 0,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        } else if (!userDoc.data().isVerified && inviterId && !userDoc.data().inviterId) {
-            await db.collection("tg_bot_users").doc(userId).update({ inviterId });
-        }
-
-        const welcomeText = 
-            `👋 <b>হ্যালো ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
-            `PP MOD অফিসিয়াল বটে আপনাকে স্বাগতম। 🚀\n\n` +
-            `🎁 <b>স্পেশাল রেফারেল অফার:</b>\n` +
-            `প্রতি <b>১০ জন সফল রেফারে</b> আপনি পাবেন একটি <b>৩ PP Coins</b>-এর ফ্রি রিডিম কোড!\n\n` +
-            `⚠️ <b>বট অ্যাক্টিভ ও রেফার কাউন্ট হতে নিচের ৪টি লিংকেই জয়েন ও রিকোয়েস্ট পাঠান:</b>\n` +
-            `১. <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
-            `২. <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
-            `৩. <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
-            `৪. <a href="https://t.me/+s09ahNjWHZM4YWM9">Private Channel (Request Join)</a>\n\n` +
-            `সবগুলোতে জয়েন করে নিচের <b>"Verify / চেক করুন"</b> বাটনে চাপ দিন।`;
-
-        await userNotifyBot.sendMessage(chatId, welcomeText, {
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-            reply_markup: getJoinKeyboard(userId, inviterId)
-        });
-    } catch (e) {}
-});
-
-userNotifyBot.on("callback_query", async (query) => {
-    try {
-        const chatId = query.message.chat.id;
-        const userId = query.from.id.toString();
-        const data = query.data || "";
-
-        if (data.startsWith("verify_ref:")) {
-            const isAllJoined = await checkUserMembership(userId);
-            if (!isAllJoined) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "❌ আপনি সবগুলো চ্যানেলে জয়েন করেননি! সবগুলোতে জয়েন করে আবার চাপুন।",
-                    show_alert: true
-                });
-            }
-
-            const userRef = db.collection("tg_bot_users").doc(userId);
-            const userSnap = await userRef.get();
-            const userData = userSnap.exists ? userSnap.data() : {};
-
-            if (userData.isVerified) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "✅ আপনি ইতিমধ্যে ভেরিফাইড!",
-                    show_alert: true
-                });
-            }
-
-            await userRef.set({
-                isVerified: true,
-                verifiedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            await userNotifyBot.answerCallbackQuery(query.id, {
-                text: "🎉 সফলভাবে ভেরিফিকেশন সম্পন্ন হয়েছে!",
-                show_alert: true
-            });
-
-            await userNotifyBot.sendMessage(chatId, 
-                `✅ <b>ভেরিফিকেশন সফল হয়েছে!</b>\n\nএখন থেকে আপনি রেফার করে রিডিম কোড জিততে পারবেন এবং সমস্ত আপডেট সরাসরি পাবেন।`,
-                {
-                    parse_mode: "HTML",
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "👥 আমার রেফারেল লিংক দেখুন", callback_data: "my_ref_info" }]
-                        ]
-                    }
-                }
-            );
-
-            const inviterId = userData.inviterId;
-            if (inviterId) {
-                const inviterRef = db.collection("tg_bot_users").doc(inviterId);
-                const inviterSnap = await inviterRef.get();
-
-                if (inviterSnap.exists) {
-                    const invData = inviterSnap.data();
-                    const newCount = (Number(invData.referralCount) || 0) + 1;
-                    const prevRewards = Number(invData.rewardsEarned) || 0;
-                    const eligibleRewards = Math.floor(newCount / 10);
-
-                    await inviterRef.update({ referralCount: newCount });
-
-                    const remaining = 10 - (newCount % 10 === 0 ? 0 : newCount % 10);
-                    await userNotifyBot.sendMessage(inviterId,
-                        `🎉 <b>নতুন রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> আপনার লিংকে সফলভাবে ভেরিফাই হয়েছে।\n\n` +
-                        `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
-                        `🎯 পরবর্তী ৩ কয়েন রিডিম কোডের জন্য আর <b>${remaining === 0 ? 10 : remaining}</b> জন রেফার প্রয়োজন!`,
-                        { parse_mode: "HTML" }
-                    ).catch(() => {});
-
-                    if (eligibleRewards > prevRewards) {
-                        const newRewardCount = eligibleRewards - prevRewards;
-                        for (let i = 0; i < newRewardCount; i++) {
-                            const newCode = generateReferralCode();
-
-                            await db.collection("codes").doc(newCode).set({
-                                amount: 3,
-                                maxUses: 1,
-                                used: 0,
-                                active: true,
-                                note: "Referral Bonus: 10 Referrals Completed!",
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-
-                            await userNotifyBot.sendMessage(inviterId,
-                                `🎁 <b>অভিনন্দন! আপনার ১০টি সফল রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                                `আপনার ৩ কয়েন রিডিম কোড:\n<code>${newCode}</code>\n\n` +
-                                `👉 এখনই PP MOD অ্যাপ ওপেন করে <b>Profile > Redeem Code</b> বক্সে কোডটি দিয়ে ৩টি PP Coins ক্লেইম করে নিন! ✨`,
-                                { parse_mode: "HTML" }
-                            ).catch(() => {});
-                        }
-                        await inviterRef.update({ rewardsEarned: eligibleRewards });
-                    }
-                }
-            }
-            return;
-        }
-
-        if (data === "my_ref_info") {
-            const userSnap = await db.collection("tg_bot_users").doc(userId).get();
-            const uData = userSnap.exists ? userSnap.data() : {};
-            const refCount = Number(uData.referralCount) || 0;
-            const rewards = Number(uData.rewardsEarned) || 0;
-            const needed = 10 - (refCount % 10 === 0 && refCount > 0 ? 0 : refCount % 10);
-            const botInfo = await userNotifyBot.getMe();
-            const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
-
-            const infoMsg = 
-                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n\n` +
-                `🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>${refLink}</code>\n\n` +
-                `📊 <b>মোট সফল রেফার:</b> ${refCount} জন\n` +
-                `🎁 <b>মোট প্রাপ্ত রিডিম কোড:</b> ${rewards} টি\n` +
-                `🎯 <b>পরবর্তী কোডের জন্য বাকি:</b> ${needed === 0 ? 10 : needed} জন\n\n` +
-                `<i>আপনার রেফারেল লিংক বন্ধুদের মাঝে শেয়ার করুন এবং প্রতি ১০ জন ভেরিফাইড রেফারে জিতে নিন ৩ কয়েন ফ্রি রিডিম কোড!</i>`;
-
-            await userNotifyBot.answerCallbackQuery(query.id);
-            await userNotifyBot.sendMessage(chatId, infoMsg, {
-                parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
-                    ]
-                }
-            });
-            return;
-        }
-    } catch (e) {}
-});
 
 // ---------------- 6. DEDICATED 24/7 PRIME AUTO-RESPONDER ----------------
 async function initPrimeAutoResponder() {
@@ -1618,7 +1352,6 @@ let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
-    // ✅ FIXED: Render deploy hang প্রতিরোধ করতে Background Asynchronous Execution করা হয়েছে
     initPrimeAutoResponder().catch(() => {});
     db.collection("tg_accounts").onSnapshot(() => {
         initPrimeAutoResponder().catch(() => {});
@@ -1634,7 +1367,6 @@ async function startMasterWorker() {
         } catch (e) {}
     });
 
-    // Background client loader (Non-blocking)
     getUsableTelegramClient().catch(() => {});
 
     setInterval(async () => {
@@ -1666,11 +1398,9 @@ async function startMasterWorker() {
                     `💵 <b>Amount:</b> ${dep.amount} BDT\n` +
                     `🪙 <b>Coins:</b> ${dep.coins || 3} Coins\n` +
                     `🔖 <b>TrxID:</b> <code>${dep.trxId}</code>\n` +
-                    `🆔 <b>DepID:</b> <code>${depId}</code>\n\n` +
-                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>✅</b> পাঠালে Approve হবে।</i>\n` +
-                    `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>❌</b> পাঠালে Reject হবে।</i>`;
+                    `🆔 <b>DepID:</b> <code>${depId}</code>`;
 
-                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => {});
+                notifyUserTelegram(process.env.ADMIN_TG_ID || "7504616242", adminAlert);
             }
         });
     });
