@@ -35,6 +35,59 @@ app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: pr
 // Render Port Instant Listening
 app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
+// ---------------- APP GATEWAY: PENDING QUEUE & SWITCH APIS ----------------
+app.get("/api/gateway/pending", async (req, res) => {
+    try {
+        const snap = await db.collection("deposits")
+            .where("status", "==", "pending")
+            .orderBy("createdAt", "desc")
+            .limit(50)
+            .get();
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        return res.json({ ok: true, list });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post("/api/gateway/approve", async (req, res) => {
+    const { depId } = req.body;
+    if (!depId) return res.status(400).json({ ok: false, error: "Missing depId" });
+    try {
+        const approved = await approveDepositById(depId, "App_Manual_Admin");
+        return res.json({ ok: true, message: "Deposit Approved!", data: approved });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post("/api/gateway/reject", async (req, res) => {
+    const { depId, reason } = req.body;
+    if (!depId) return res.status(400).json({ ok: false, error: "Missing depId" });
+    try {
+        const rejected = await rejectDepositById(depId);
+        if (reason) {
+            await db.collection("deposits").doc(depId).update({ adminMsg: reason });
+        }
+        return res.json({ ok: true, message: "Deposit Rejected!", data: rejected });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post("/api/gateway/toggle-auto", async (req, res) => {
+    const { autoDeposit } = req.body;
+    try {
+        const payload = { autoDeposit: !!autoDeposit };
+        if (autoDeposit) payload.autoDepositTurnedOnAt = admin.firestore.FieldValue.serverTimestamp();
+        await db.collection("config").doc("app").set(payload, { merge: true });
+        return res.json({ ok: true, autoDeposit: !!autoDeposit });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
 
@@ -103,6 +156,12 @@ app.post("/api/gateway/sms", async (req, res) => {
 
         if (!isAutoOn) {
             return res.json({ ok: true, matched: true, autoApproved: false, note: "Auto-deposit is OFF by Admin" });
+        }
+
+        // Auto Gateway OFF থাকা অবস্থায় কোনো পেন্ডিং ভেরিফাই হবে না
+        const autoDepStartTime = cfg.autoDepositTurnedOnAt ? cfg.autoDepositTurnedOnAt.toMillis() : 0;
+        if (timestamp && autoDepStartTime && timestamp < autoDepStartTime) {
+            return res.json({ ok: true, matched: true, autoApproved: false, note: "Ignored: SMS arrived before Auto Gateway was turned ON" });
         }
 
         const depQuery = await db.collection("deposits")
