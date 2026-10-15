@@ -669,7 +669,9 @@ const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডম�
 
 let currentClient = null;
 let currentPhone = null;
-let primeClient = null;
+// Multi-Prime pool: phone -> { client, connectedAt }
+const primeClients = new Map();
+let primeClient = null; // compat: first connected prime
 let primePhone = null;
 
 const activeOrders = new Set();
@@ -964,57 +966,99 @@ userNotifyBot.on("callback_query", async (query) => {
     } catch (e) {}
 });
 
-// ---------------- 6. DEDICATED 24/7 PRIME AUTO-RESPONDER ----------------
+// ---------------- 6. MULTI-PRIME AUTO-RESPONDER (many accounts, same time) ----------------
+function attachPrimeHandler(client, label) {
+    client.addEventHandler(async (event) => {
+        try {
+            const msg = event.message;
+            if (!msg || msg.out || !event.isPrivate) return;
+            const sender = await msg.getSender();
+            if (!sender || sender.bot) return;
+
+            const senderId = sender.id.toString();
+            if (!(await primeCooldownClaim(senderId, label))) return;
+
+            await new Promise((r) => setTimeout(r, 3500));
+            const replyBtns = buildPrimeButtons();
+            try {
+                await client.sendMessage(sender.id, {
+                    file: PRIME_AUTO_REPLY_IMG,
+                    message: PRIME_AUTO_REPLY_CAPTION,
+                    parseMode: "html",
+                    ...(replyBtns ? { buttons: replyBtns } : {})
+                });
+            } catch (e2) {
+                await client.sendMessage(sender.id, {
+                    file: PRIME_AUTO_REPLY_IMG,
+                    message: PRIME_AUTO_REPLY_CAPTION,
+                    parseMode: "html"
+                });
+            }
+        } catch (err) {}
+    }, new NewMessage({ incoming: true }));
+}
+
 async function initPrimeAutoResponder() {
     try {
-        const snap = await db.collection("tg_accounts").where("isPrime", "==", true).limit(1).get();
-        if (snap.empty) return;
-        const primeData = snap.docs[0].data();
-        const phone = primeData.phone || snap.docs[0].id;
-        if (!primeData.session || (primeClient && primePhone === phone)) return;
+        const snap = await db.collection("tg_accounts").where("isPrime", "==", true).get();
+        if (snap.empty) {
+            // সব prime off হলে পুরনো connection বন্ধ করো
+            for (const [ph, rec] of primeClients) {
+                try { await rec.client.disconnect(); } catch (e) {}
+            }
+            primeClients.clear();
+            primeClient = null;
+            primePhone = null;
+            return;
+        }
+        const wanted = new Map(); // phone -> { id, session }
+        snap.forEach(d => {
+            const v = d.data() || {};
+            const phone = v.phone || d.id;
+            if (v.session) wanted.set(phone, { id: d.id, session: v.session, phone });
+        });
 
-        if (primeClient) {
-            try { await primeClient.disconnect(); } catch (e) {}
+        // আর prime নেই এমন client disconnect করো
+        for (const [ph, rec] of primeClients) {
+            if (!wanted.has(ph)) {
+                try { await rec.client.disconnect(); } catch (e) {}
+                primeClients.delete(ph);
+                console.log(`[PRIME] Disconnected removed prime: ${ph}`);
+            }
         }
 
-        primeClient = new TelegramClient(new StringSession(primeData.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
-        await primeClient.connect();
-        primePhone = phone;
-
-        primeClient.addEventHandler(async (event) => {
+        // নতুন prime connect করো (already connected skip)
+        for (const [phone, info] of wanted) {
+            if (primeClients.has(phone)) continue;
             try {
-                const msg = event.message;
-                if (!msg || msg.out || !event.isPrivate) return;
-                const sender = await msg.getSender();
-                if (!sender || sender.bot) return;
+                const client = new TelegramClient(new StringSession(info.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+                await client.connect();
+                attachPrimeHandler(client, phone);
+                primeClients.set(phone, { client, connectedAt: Date.now(), docId: info.id });
+                console.log(`[PRIME] Multi-prime connected: ${phone} (${primeClients.size} active)`);
+            } catch (e) {
+                console.warn(`[PRIME] Connect failed ${phone}:`, (e && e.message) || e);
+            }
+        }
 
-                const senderId = sender.id.toString();
-                if (!(await primeCooldownClaim(senderId))) return;
-
-                await new Promise((r) => setTimeout(r, 3500));
-                const replyBtns = buildPrimeButtons();
-                try {
-                    await primeClient.sendMessage(sender.id, {
-                        file: PRIME_AUTO_REPLY_IMG,
-                        message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html",
-                        ...(replyBtns ? { buttons: replyBtns } : {})
-                    });
-                } catch (e2) {
-                    await primeClient.sendMessage(sender.id, {
-                        file: PRIME_AUTO_REPLY_IMG,
-                        message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html"
-                    });
-                }
-            } catch (err) {}
-        }, new NewMessage({ incoming: true }));
+        // compat: প্রথমটাকে primeClient রাখো (পুরনো কোড ভাঙবে না)
+        const first = primeClients.keys().next();
+        if (!first.done) {
+            primePhone = first.value;
+            primeClient = primeClients.get(primePhone).client;
+        } else {
+            primeClient = null;
+            primePhone = null;
+        }
+        if (wanted.size) console.log(`[PRIME] Pool status: ${primeClients.size}/${wanted.size} online`);
     } catch (e) {}
 }
 
-async function primeCooldownClaim(senderId) {
+async function primeCooldownClaim(senderId, primeLabel) {
+    // Multi-prime: প্রতিটা prime নিজের মতো cooldown রাখবে (একজন ৩টা prime এ মেসেজ দিলে ৩টাই রিপ্লাই দেবে)
+    const key = primeLabel ? (primeLabel + ':' + senderId) : senderId;
     try {
-        const ref = db.collection("tg_autoreply").doc(senderId);
+        const ref = db.collection("tg_autoreply").doc(key);
         const snap = await ref.get();
         const last = snap.exists ? Number(snap.data().lastAt || 0) : 0;
         if (Date.now() - last < 3600000) return false;
@@ -1027,6 +1071,19 @@ async function primeCooldownClaim(senderId) {
         return true;
     }
 }
+
+// Multi-prime live status (TelegramWorker থেকে দেখা যাবে)
+app.get("/api/tg/prime-status", async (req, res) => {
+    try {
+        const snap = await db.collection("tg_accounts").where("isPrime", "==", true).get();
+        const wanted = [];
+        snap.forEach(d => wanted.push(d.data().phone || d.id));
+        const online = Array.from(primeClients.keys());
+        return res.json({ ok: true, wanted, online, count: { wanted: wanted.length, online: online.length } });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
 
 // ---------------- 7. OFFICIAL WEB-LIKE SESSION GENERATOR ENGINE ----------------
 app.post("/api/tg/send-otp", async (req, res) => {
@@ -1761,8 +1818,13 @@ async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
     initPrimeAutoResponder().catch(() => {});
+    let primeReinitTimer = null;
     db.collection("tg_accounts").onSnapshot(() => {
-        initPrimeAutoResponder().catch(() => {});
+        if (primeReinitTimer) clearTimeout(primeReinitTimer);
+        primeReinitTimer = setTimeout(() => {
+            primeReinitTimer = null;
+            initPrimeAutoResponder().catch(() => {});
+        }, 3000);
     });
 
     scheduleNextFakeOrderLog();
