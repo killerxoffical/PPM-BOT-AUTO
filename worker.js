@@ -94,15 +94,26 @@ const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
 function parseSmsBody(sender, body) {
     if (!body) return null;
     let text = body.replace(/\n/g, " ");
-    let method = null, trxId = null, amount = null;
+    let method = "bKash", trxId = null, amount = null;
 
-    if (/bkash/i.test(sender) || /bkash/i.test(text)) {
-        method = "bKash";
-        let trxMatch = text.match(/TrxID\s+([A-Za-z0-9]+)/i) || text.match(/\b([A-Z0-9]{10})\b/);
-        let amtMatch = text.match(/Tk\s+([\d,]+(?:\.\d+)?)/i) || text.match(/Amount:\s*Tk\s*([\d,]+)/i);
-        if (trxMatch) trxId = trxMatch[1].trim();
-        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
-    } else if (/nagad/i.test(sender) || /nagad/i.test(text)) {
+    if (/nagad/i.test(sender) || /nagad/i.test(text)) method = "Nagad";
+    else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) method = "Rocket";
+
+    // আধুনিক বিকাশ/নগদ TrxID পার্সিং
+    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID)[:\s]*([A-Za-z0-9]{8,12})/i) 
+                || text.match(/\b([A-Z0-9]{8,12})\b/);
+    if (trxMatch) trxId = trxMatch[1].trim().toUpperCase();
+
+    // টাকা পার্সিং (15.00 এবং 15 দুটোই সঠিকভাবে গ্রহণ করবে)
+    let amtMatch = text.match(/(?:Tk|Amount|received)[:\s]*([\d,]+(?:\.\d+)?)/i)
+                || text.match(/([\d,]+(?:\.\d+)?)\s*Tk/i);
+    if (amtMatch) amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, "")));
+
+    if (trxId && amount) {
+        return { method, trxId: trxId.toUpperCase(), amount };
+    }
+    return null;
+} else if (/nagad/i.test(sender) || /nagad/i.test(text)) {
         method = "Nagad";
         let trxMatch = text.match(/TxnID:\s*([A-Za-z0-9]+)/i) || text.match(/\b([A-Z0-9]{8,10})\b/);
         let amtMatch = text.match(/Tk\s+([\d,]+(?:\.\d+)?)/i) || text.match(/Amount:\s*Tk\s*([\d,]+)/i);
@@ -238,7 +249,8 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: false, error: "টাকা পাঠানোর ৫ মিনিট পার হয়ে গেছে! পুনরায় চেষ্টা করুন।" });
         }
 
-        if (Number(smsData.amount) !== Number(amount)) {
+        // দশমিক থাকলে তা রাউন্ড করে তুলনা করা (যেমন 15.00 এবং 15 কে সমান ধরা)
+        if (Math.round(Number(smsData.amount)) !== Math.round(Number(amount))) {
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
                 adminMsg: `❌ টাকার পরিমাণ ভুল! আসল টাকা ছিল ${smsData.amount} BDT`
