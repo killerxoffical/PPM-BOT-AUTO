@@ -113,25 +113,61 @@ function parseSmsBody(sender, body) {
         return { method, trxId: trxId.toUpperCase(), amount };
     }
     return null;
-} else if (/nagad/i.test(sender) || /nagad/i.test(text)) {
-        method = "Nagad";
-        let trxMatch = text.match(/TxnID:\s*([A-Za-z0-9]+)/i) || text.match(/\b([A-Z0-9]{8,10})\b/);
-        let amtMatch = text.match(/Tk\s+([\d,]+(?:\.\d+)?)/i) || text.match(/Amount:\s*Tk\s*([\d,]+)/i);
-        if (trxMatch) trxId = trxMatch[1].trim();
-        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
-    } else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) {
-        method = "Rocket";
-        let trxMatch = text.match(/TxnId:\s*([A-Za-z0-9]+)/i) || text.match(/Txn:\s*([A-Za-z0-9]+)/i);
-        let amtMatch = text.match(/Tk\s*([\d,]+(?:\.\d+)?)/i);
-        if (trxMatch) trxId = trxMatch[1].trim();
-        if (amtMatch) amount = parseFloat(amtMatch[1].replace(/,/g, ""));
-    }
-
-    if (trxId && amount) {
-        return { method, trxId: trxId.toUpperCase(), amount };
-    }
-    return null;
 }
+
+// ---------------- P2P MARKETPLACE BACKEND APIS ----------------
+app.post("/api/p2p/payment-sent", async (req, res) => {
+    const { dealId, sellerUid, sellerName } = req.body;
+    if (!dealId) return res.status(400).json({ ok: false, error: "Missing dealId" });
+    try {
+        const dealRef = db.collection("p2p_deals").doc(dealId);
+        const snap = await dealRef.get();
+        if (!snap.exists) return res.status(404).json({ ok: false, error: "Deal not found" });
+        const deal = snap.data();
+        if (deal.status !== "processing") {
+            return res.status(400).json({ ok: false, error: "Deal is not in processing state" });
+        }
+
+        // Lock deal into payment_sent and stop timer
+        await dealRef.update({
+            status: "payment_sent",
+            paymentSentAt: admin.firestore.FieldValue.serverTimestamp(),
+            timerStopped: true
+        });
+
+        // Notify Buyer via Telegram (Prime client or Notify Bot)
+        const buyerTgUsername = (deal.buyerTg || "").replace("@", "").trim();
+        const alertMsg = `🔔 <b>P2P Payment Notification!</b>\n\n` +
+            `🤝 <b>Deal:</b> ${deal.title || "P2P Task"}\n` +
+            `👤 <b>Seller:</b> ${sellerName || "A Seller"}\n` +
+            `🪙 <b>Coins:</b> ${deal.coins} PP Coins\n\n` +
+            `✅ সেলার আপনার দেওয়া লিংকে পেমেন্ট সম্পন্ন করেছেন!\n` +
+            `অনুগ্রহ করে অ্যাপে ঢুকে চেক করে কয়েন <b>Release</b> করুন।`;
+
+        let sentViaPrime = false;
+        if (buyerTgUsername && primeClients.size > 0) {
+            for (const [phone, pRec] of primeClients) {
+                try {
+                    await pRec.client.sendMessage(buyerTgUsername, { message: alertMsg, parseMode: "html" });
+                    sentViaPrime = true;
+                    break;
+                } catch (pe) {}
+            }
+        }
+
+        if (!sentViaPrime && deal.buyerUid) {
+            const bSnap = await db.collection("users").doc(deal.buyerUid).get();
+            const tgChat = bSnap.exists ? bSnap.data().tgChatId : null;
+            if (tgChat) {
+                await notifyUserTelegram(tgChat, alertMsg);
+            }
+        }
+
+        return res.json({ ok: true, message: "Payment marked complete & buyer notified" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
 
 // Android App SMS Receiver Webhook
 app.post("/api/gateway/sms", async (req, res) => {
@@ -573,6 +609,94 @@ setInterval(async () => {
         }
     } catch (e) {}
 }, 5 * 60 * 1000);
+
+// ---------------- P2P 23H EXPIRE & ESCROW AUTO-REFUND ----------------
+setInterval(async () => {
+    try {
+        const now = Date.now();
+        // 1. Open ads expired after 23h (No seller accepted)
+        const openDeals = await db.collection("p2p_deals")
+            .where("status", "==", "open")
+            .limit(30)
+            .get();
+
+        for (const docSnap of openDeals.docs) {
+            const d = docSnap.data();
+            let expireAtMs = 0;
+            if (d.expiresAt && d.expiresAt.toMillis) expireAtMs = d.expiresAt.toMillis();
+            else if (d.createdAt && d.createdAt.toMillis) expireAtMs = d.createdAt.toMillis() + (23 * 3600 * 1000);
+
+            if (expireAtMs && now >= expireAtMs) {
+                const refundCoins = Number(d.escrowCoins || d.totalCoinsWithFee || d.coins || 0);
+                await db.runTransaction(async (t) => {
+                    const dRef = db.collection("p2p_deals").doc(docSnap.id);
+                    const freshSnap = await t.get(dRef);
+                    if (!freshSnap.exists || freshSnap.data().status !== "open") return;
+
+                    t.update(dRef, {
+                        status: "expired_refunded",
+                        expiredAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    if (d.buyerUid && refundCoins > 0) {
+                        const uRef = db.collection("users").doc(d.buyerUid);
+                        const uSnap = await t.get(uRef);
+                        if (uSnap.exists) {
+                            const curBal = Number(uSnap.data().balance || 0);
+                            t.update(uRef, { balance: curBal + refundCoins });
+                        }
+                    }
+                });
+
+                if (d.buyerUid) {
+                    const uSnap = await db.collection("users").doc(d.buyerUid).get();
+                    const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
+                    if (tg) {
+                        await notifyUserTelegram(tg, `⌛ <b>P2P Ad Expired & Refunded</b>\n\n২৩ ঘণ্টায় কোনো সেলার ডিল না নেওয়ায় <b>${refundCoins} PP Coins</b> আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।`);
+                    }
+                }
+            }
+        }
+
+        // 2. Processing deals where link validity expired without payment completed
+        const procDeals = await db.collection("p2p_deals")
+            .where("status", "==", "processing")
+            .limit(30)
+            .get();
+
+        for (const docSnap of procDeals.docs) {
+            const d = docSnap.data();
+            let linkExpMs = 0;
+            if (d.linkExpiresAt && d.linkExpiresAt.toMillis) linkExpMs = d.linkExpiresAt.toMillis();
+            else if (d.expiresAt && d.expiresAt.toMillis) linkExpMs = d.expiresAt.toMillis();
+
+            if (linkExpMs && now >= linkExpMs && !d.timerStopped) {
+                const refundCoins = Number(d.escrowCoins || d.totalCoinsWithFee || d.coins || 0);
+                await db.runTransaction(async (t) => {
+                    const dRef = db.collection("p2p_deals").doc(docSnap.id);
+                    const freshSnap = await t.get(dRef);
+                    if (!freshSnap.exists || freshSnap.data().status !== "processing") return;
+
+                    t.update(dRef, {
+                        status: "timeout_refunded",
+                        timeoutAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    if (d.buyerUid && refundCoins > 0) {
+                        const uRef = db.collection("users").doc(d.buyerUid);
+                        const uSnap = await t.get(uRef);
+                        if (uSnap.exists) {
+                            const curBal = Number(uSnap.data().balance || 0);
+                            t.update(uRef, { balance: curBal + refundCoins });
+                        }
+                    }
+                });
+            }
+        }
+    } catch (e) {
+        console.warn("[P2P CRON WARN]:", e.message);
+    }
+}, 2 * 60 * 1000);
 
 // ---------------- 10-DAY HISTORY RETENTION ----------------
 const RET_D = 10 * 86400000;
