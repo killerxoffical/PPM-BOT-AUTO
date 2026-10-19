@@ -169,6 +169,49 @@ app.post("/api/p2p/payment-sent", async (req, res) => {
     }
 });
 
+app.post("/api/p2p/release", async (req, res) => {
+    const { dealId, buyerUid } = req.body;
+    if (!dealId || !buyerUid) return res.status(400).json({ ok: false, error: "Missing data" });
+
+    try {
+        const dealRef = db.collection("p2p_deals").doc(dealId);
+        let sellerPoints = 0;
+        let sellerUid = null;
+
+        await db.runTransaction(async (t) => {
+            const dSnap = await t.get(dealRef);
+            if (!dSnap.exists) throw new Error("Deal not found");
+            const d = dSnap.data();
+
+            if (d.buyerUid !== buyerUid) throw new Error("Unauthorized buyer");
+            if (d.status === "completed") throw new Error("Deal already completed");
+            if (!d.sellerUid) throw new Error("No seller attached");
+
+            sellerUid = d.sellerUid;
+            sellerPoints = Math.floor(Number(d.coins || 0) * 10 * 0.95);
+
+            const sRef = db.collection("users").doc(sellerUid);
+            const sSnap = await t.get(sRef);
+            const curPoints = sSnap.exists ? Number(sSnap.data().playPoints || 0) : 0;
+
+            t.update(sRef, { playPoints: curPoints + sellerPoints });
+            t.update(dealRef, { status: "completed", completedAt: admin.firestore.FieldValue.serverTimestamp() });
+        });
+
+        if (sellerUid) {
+            const sSnap = await db.collection("users").doc(sellerUid).get();
+            const tgChat = sSnap.exists ? sSnap.data().tgChatId : null;
+            if (tgChat) {
+                await notifyUserTelegram(tgChat, `🎉 <b>Play Points Received!</b>\n\nবায়ার আপনার P2P ডিলটি রিলিজ করেছেন।\n🪙 <b>+${sellerPoints} Play Points</b> আপনার অ্যাকাউন্টে যুক্ত হয়েছে!`);
+            }
+        }
+
+        return res.json({ ok: true, sellerPoints });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 // Android App SMS Receiver Webhook
 app.post("/api/gateway/sms", async (req, res) => {
     const secret = req.headers["x-gateway-secret"] || req.body.secret;
