@@ -658,7 +658,7 @@ setInterval(async () => {
             }
         }
 
-        // 2. Processing deals where link validity expired without payment completed
+        // 2. Processing deals where time expired without seller pressing complete: LOCK FOR ADMIN REVIEW
         const procDeals = await db.collection("p2p_deals")
             .where("status", "==", "processing")
             .limit(30)
@@ -671,25 +671,12 @@ setInterval(async () => {
             else if (d.expiresAt && d.expiresAt.toMillis) linkExpMs = d.expiresAt.toMillis();
 
             if (linkExpMs && now >= linkExpMs && !d.timerStopped) {
-                const refundCoins = Number(d.escrowCoins || d.totalCoinsWithFee || d.coins || 0);
-                await db.runTransaction(async (t) => {
-                    const dRef = db.collection("p2p_deals").doc(docSnap.id);
-                    const freshSnap = await t.get(dRef);
-                    if (!freshSnap.exists || freshSnap.data().status !== "processing") return;
-
-                    t.update(dRef, {
-                        status: "timeout_refunded",
-                        timeoutAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    if (d.buyerUid && refundCoins > 0) {
-                        const uRef = db.collection("users").doc(d.buyerUid);
-                        const uSnap = await t.get(uRef);
-                        if (uSnap.exists) {
-                            const curBal = Number(uSnap.data().balance || 0);
-                            t.update(uRef, { balance: curBal + refundCoins });
-                        }
-                    }
+                // DO NOT delete or auto-refund — Lock the deal and send to Admin Desk
+                await db.collection("p2p_deals").doc(docSnap.id).update({
+                    status: "locked_review",
+                    timerStopped: true,
+                    isLocked: true,
+                    timedOutAt: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
         }
