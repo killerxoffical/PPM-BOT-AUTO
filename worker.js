@@ -88,6 +88,37 @@ app.post("/api/gateway/toggle-auto", async (req, res) => {
     }
 });
 
+// ---------------- CREATE RESELLER ACCOUNT API ----------------
+app.post("/api/admin/create-reseller", async (req, res) => {
+    const { email, password, name } = req.body;
+    if (!email || !password || password.length < 6) {
+        return res.status(400).json({ ok: false, error: "সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন" });
+    }
+    try {
+        const userRecord = await admin.auth().createUser({
+            email: email.trim().toLowerCase(),
+            password: password.trim(),
+            displayName: (name || "PP Reseller").trim()
+        });
+
+        await db.collection("users").doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            name: (name || "PP Reseller").trim(),
+            email: email.trim().toLowerCase(),
+            isReseller: true,
+            role: "reseller",
+            balance: 0,
+            playPoints: 0,
+            pendingPoints: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        return res.json({ ok: true, message: "রিসেলার একাউন্ট সফলভাবে তৈরি হয়েছে!", uid: userRecord.uid });
+    } catch (err) {
+        return res.status(500).json({ ok: false, error: err.message || "রিসেলার তৈরি ব্যর্থ হয়েছে" });
+    }
+});
+
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
 
