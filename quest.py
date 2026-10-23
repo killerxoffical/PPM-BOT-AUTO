@@ -1,10 +1,10 @@
+cat << 'EOF' > /data/data/com.termux/files/home/quest.py
 import glob, os, sqlite3, subprocess, time
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
 
 os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
 
-# অটো ডাটাবেজ ডিটেকশন
 try:
     db = sorted(glob.glob("/data/data/com.google.android.gms/databases/games_*.db"), key=os.path.getmtime)[-1]
 except:
@@ -32,7 +32,7 @@ print(f"{Y}📧 Email Addr : {W}{e}{NC}")
 print(f"{Y}📁 Active DB  : {C}{os.path.basename(db)}{NC}")
 print(f"{C}──────────────────────────────────────────────────────{NC}")
 print(f"{G} Select Target Quest / Game:{NC}")
-print(f"{W}  [1] Gossip Harbor (50 Play Points - Full Automation){NC}")
+print(f"{W}  [1] Gossip Harbor (50 Play Points - Perfect Sequence){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Owner : {W}Shezin Boy {C}(@Blackmoney54){NC}")
@@ -41,15 +41,15 @@ print(f"{C}───────────────────────
 choice = input(f"{Y}Enter your choice (0-1): {NC}").strip()
 
 if choice == "1":
-    print(f"\n{C}⏳ [1/6] Launching Game first to register Account & Sync DB (6s)...{NC}")
-    subprocess.run("su -c 'am start --user 0 -n com.mergegames.gossipharbor/.SplashActivity'", shell=True, capture_output=True)
-    time.sleep(6)
-    subprocess.run("su -c 'am force-stop com.mergegames.gossipharbor'", shell=True, capture_output=True)
+    print(f"\n{M}🎮 [1/5] Launching Gossip Harbor first... Staying in game for 8s to sync ID...{NC}")
+    subprocess.run("su -c 'am start --user 0 -n com.mergegames.gossipharbor/.SplashActivity'", shell=True)
+    time.sleep(8)
 
-    print(f"{Y}⚡ [2/6] Injecting Unlocked Achievements directly into Database...{NC}")
+    print(f"\n{C}⏳ [2/5] Closing game & returning to Termux to execute Quest Injections...{NC}")
+    subprocess.run("su -c 'am force-stop com.mergegames.gossipharbor'", shell=True)
+    
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
-    
     player_id = cursor.execute("SELECT external_player_id FROM players LIMIT 1").fetchone()[0]
     now = int(time.time() * 1000)
 
@@ -74,23 +74,30 @@ if choice == "1":
 
     conn.commit()
     conn.close()
-    print(f"   {G}★ 3 Quests Unlocked & Added to Cloud Queue!{NC}")
+    print(f"   {G}★ Quests Successfully Injected!{NC}")
 
-    print(f"{C}🔄 [3/6] Force Syncing with Google Play Cloud Servers...{NC}")
-    subprocess.run("su -c 'am broadcast -a com.google.android.gms.games.SYNC --user 0'", shell=True, capture_output=True)
+    print(f"\n{C}🔄 [3/5] Broadcasting Google Play Cloud Sync...{NC}")
+    subprocess.run("su -c 'am broadcast -a com.google.android.gms.games.SYNC --user 0'", shell=True)
 
-    print(f"{M}🎮 [4/6] Re-opening Game to Trigger Achievement Banners (8s)...{NC}")
-    subprocess.run("su -c 'am start --user 0 -n com.mergegames.gossipharbor/.SplashActivity'", shell=True, capture_output=True)
+    print(f"\n{M}🎮 [4/5] Re-launching Game for 8s to trigger Server Banners...{NC}")
+    subprocess.run("su -c 'am start --user 0 -n com.mergegames.gossipharbor/.SplashActivity'", shell=True)
     time.sleep(8)
-    subprocess.run("su -c 'am force-stop com.mergegames.gossipharbor'", shell=True, capture_output=True)
+    subprocess.run("su -c 'am force-stop com.mergegames.gossipharbor'", shell=True)
 
-    print(f"{G}📲 [5/6] Opening Google Play Games to verify Quest completion...{NC}")
-    subprocess.run("su -c 'am start --user 0 -n com.google.android.play.games/.ui.destination.main.MainActivity'", shell=True, capture_output=True)
+    print(f"\n{G}📲 [5/5] Opening Google Play Games directly to verify points...{NC}")
+    subprocess.run("su -c 'am start --user 0 -n com.google.android.play.games/.ui.destination.main.MainActivity'", shell=True)
 
     print(f"\n{G}╔══════════════════════════════════════════════════════╗{NC}")
-    print(f"{W}║  ✔ 100% AUTOMATION COMPLETED SUCCESSFULLY!           ║{NC}")
-    print(f"{Y}║  👉 Points are synced! Claim your 50 Points now!     ║{NC}")
+    print(f"{W}║  ✔ ALL DONE! Everything completed perfectly!         ║{NC}")
+    print(f"{Y}║  👉 Check Play Games/Play Store for 50 Pts!          ║{NC}")
     print(f"{G}╚══════════════════════════════════════════════════════╝{NC}\n")
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
+EOF
+
+cat << 'EOF' > $PREFIX/bin/qt
+#!/data/data/com.termux/files/usr/bin/bash
+su -mm -c "PATH=$PATH PYTHONPATH=$PYTHONPATH python /data/data/com.termux/files/home/quest.py"
+EOF
+chmod +x $PREFIX/bin/qt
