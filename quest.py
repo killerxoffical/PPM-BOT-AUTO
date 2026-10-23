@@ -73,7 +73,7 @@ def process_quest(game_name, package_name, achs_list):
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
 
-  # প্যাকেজ নাম দিয়ে স্বয়ংক্রিয়ভাবে আসল client_context_id এবং game_id খুঁজে নেওয়া
+  # প্যাকেজ নাম দিয়ে সঠিক client_context_id খুঁজে নেওয়া
   cc_row = cursor.execute(
       "SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1",
       (package_name,),
@@ -84,10 +84,10 @@ def process_quest(game_name, package_name, achs_list):
     return
   real_cc_id = cc_row[0]
 
-  # গেমের আসল External Game ID খুঁজে বের করা
+  # সঠিক external_game_id খুঁজে বের করা (external_definition_id ব্যবহার করে)
   game_row = cursor.execute(
-      "SELECT game_id FROM achievement_definitions WHERE definition_id = ?"
-      " LIMIT 1",
+      "SELECT game_id FROM achievement_definitions WHERE"
+      " external_definition_id = ? LIMIT 1",
       (achs_list[0][0],),
   ).fetchone()
   real_game_id = (
@@ -156,7 +156,7 @@ def process_quest(game_name, package_name, achs_list):
   conn.close()
 
   calc_time = round(random.uniform(3.18, 4.65), 2)
-  print(f"\n{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
+  print(f"{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
 
   if unlocked_count == len(achs_list):
     print(f"\n{G}┌──────────────────────────────────────────────┐{NC}")
