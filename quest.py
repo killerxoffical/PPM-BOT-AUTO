@@ -62,7 +62,7 @@ print(f"{C}───────────────────────
 choice = input(f"{Y}Enter selection (0-2): {NC}").strip()
 
 
-def process_quest(game_name, package_name, achs_list):
+def process_quest(game_name, package_name, real_game_id, achs_list):
   show_header()
   print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
   print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
@@ -73,6 +73,7 @@ def process_quest(game_name, package_name, achs_list):
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
 
+  # প্যাকেজ নাম দিয়ে সঠিক client_context_id খুঁজে নেওয়া
   cc_row = cursor.execute(
       "SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1",
       (package_name,),
@@ -82,17 +83,6 @@ def process_quest(game_name, package_name, achs_list):
     conn.close()
     return
   real_cc_id = cc_row[0]
-
-  game_row = cursor.execute(
-      "SELECT game_id FROM achievement_definitions WHERE"
-      " external_definition_id = ? LIMIT 1",
-      (achs_list[0][0],),
-  ).fetchone()
-  real_game_id = (
-      game_row[0]
-      if game_row
-      else ("13" if "gossip" in package_name else "1")
-  )
 
   player_id = cursor.execute(
       "SELECT external_player_id FROM players LIMIT 1"
@@ -121,6 +111,7 @@ def process_quest(game_name, package_name, achs_list):
   conn.commit()
   conn.close()
 
+  # গুগল সার্ভারে সিঙ্ক পাঠানো
   subprocess.run(
       "am broadcast -a com.google.android.gms.games.SYNC --user 0",
       shell=True,
@@ -171,7 +162,9 @@ if choice == "1":
       ("CgkI3YvxrpUIEAIQBw", "Welcome to Brimwave", 0, ""),
       ("CgkI3YvxrpUIEAIQDA", "Leveled Up", 0, ""),
   ]
-  process_quest("Gossip Harbor", "com.mergegames.gossipharbor", gossip_achs)
+  process_quest(
+      "Gossip Harbor", "com.mergegames.gossipharbor", "13", gossip_achs
+  )
 
 elif choice == "2":
   summoners_achs = [
@@ -182,6 +175,7 @@ elif choice == "2":
   process_quest(
       "Summoners War",
       "com.com2us.smon.normal.freefull.google.kr.android.common",
+      "1",
       summoners_achs,
   )
 
