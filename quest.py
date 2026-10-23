@@ -1,5 +1,4 @@
-cat << 'EOF' > /data/data/com.termux/files/home/quest.py
-import glob, os, sqlite3, subprocess, time
+import glob, os, sqlite3, subprocess
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
 
@@ -11,14 +10,15 @@ print(f"{W}      GOOGLE PLAY POINTS ADVANCED VERIFIER PANEL      {NC}")
 print(f"{M}                  Dev by VAREON STUDIO                 {NC}")
 print(f"{C}╚══════════════════════════════════════════════════════╝{NC}")
 
-# ১. ডাটাবেজ এবং ইমেইল প্রি-চেক
+# ১. ডাটাবেজ প্রি-চেক
 try:
     db = sorted(glob.glob("/data/data/com.google.android.gms/databases/games_*.db"), key=os.path.getmtime)[-1]
 except:
     print(f"\n{R}✖ [FATAL ERROR] No Google Play Games Database found!{NC}")
-    print(f"{Y}👉 Open Google Play Games & Gossip Harbor at least once, then try again.{NC}\n")
+    print(f"{Y}👉 Open Google Play Games once, then try again.{NC}\n")
     exit()
 
+# ২. জিমেইল এবং প্লেয়ার প্রোফাইল প্রি-চেক
 g, e = "Unknown Gamer", "No Email Found"
 try:
     c = sqlite3.connect(db)
@@ -41,7 +41,7 @@ if e == "No Email Found":
     exit()
 
 print(f"{G} Select Target Quest / Game:{NC}")
-print(f"{W}  [1] Gossip Harbor (50 Play Points - Inject & Verify){NC}")
+print(f"{W}  [1] Gossip Harbor (50 Play Points - Pure Manual Mode){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Owner : {W}Shezin Boy {C}(@Blackmoney54){NC}")
@@ -50,16 +50,11 @@ print(f"{C}───────────────────────
 choice = input(f"{Y}Enter your choice (0-1): {NC}").strip()
 
 if choice == "1":
-    print(f"\n{C}⏳ [1/4] Stopping background instances to safely write DB...{NC}")
-    subprocess.run("su -c 'am force-stop com.mergegames.gossipharbor'", shell=True, capture_output=True)
-    subprocess.run("su -c 'am force-stop com.google.android.play.games'", shell=True, capture_output=True)
-    subprocess.run("su -c 'am force-stop com.google.android.gms'", shell=True, capture_output=True)
-
-    print(f"{Y}⚡ [2/4] Injecting Quest Achievements into Database...{NC}")
+    print(f"\n{Y}⚡ [1/3] Injecting Quest Achievements into Database...{NC}")
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
     player_id = cursor.execute("SELECT external_player_id FROM players LIMIT 1").fetchone()[0]
-    now = int(time.time() * 1000)
+    now = int(subprocess.check_output("date +%s%3N", shell=True))
 
     achs = [
         ('CgkI3YvxrpUIEAIQAQ', 'Starter Snack Bar', 5, '5/5'),
@@ -82,12 +77,12 @@ if choice == "1":
 
     conn.commit()
     conn.close()
-    print(f"   {G}★ Injected into achievement_instances & achievement_pending_ops!{NC}")
+    print(f"   {G}★ Injected into achievement_instances & Pending Ops!{NC}")
 
-    print(f"{C}🔄 [3/4] Triggering Google Play Cloud Sync Services...{NC}")
-    subprocess.run("su -c 'am broadcast -a com.google.android.gms.games.SYNC --user 0'", shell=True, capture_output=True)
+    print(f"{C}🔄 [2/3] Broadcasting Google Play Cloud Sync...{NC}")
+    subprocess.run("am broadcast -a com.google.android.gms.games.SYNC --user 0", shell=True, capture_output=True)
 
-    print(f"\n{M}🔍 [4/4] Verifying Real Database & Quest Status...{NC}")
+    print(f"\n{M}🔍 [3/3] Verifying Database Confirmation...{NC}")
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
     
@@ -111,18 +106,9 @@ if choice == "1":
     if unlocked_count == 3:
         print(f"\n{G}╔══════════════════════════════════════════════════════╗{NC}")
         print(f"{W}║  ✔ 100% CONFIRMED: All 3 Quests are UNLOCKED!        ║{NC}")
-        print(f"{Y}║  👉 Now open Gossip Harbor manually, wait 5 seconds, ║{NC}")
-        print(f"{Y}║     then check Play Games/Play Store for 50 Points!  ║{NC}")
+        print(f"{Y}║  👉 Now manually open Gossip Harbor, wait 5 seconds, ║{NC}")
+        print(f"{Y}║     then check Play Store for your 50 Points!        ║{NC}")
         print(f"{G}╚══════════════════════════════════════════════════════╝{NC}\n")
-    else:
-        print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
-EOF
-
-cat << 'EOF' > $PREFIX/bin/qt
-#!/data/data/com.termux/files/usr/bin/bash
-su -mm -c "PATH=$PATH PYTHONPATH=$PYTHONPATH python /data/data/com.termux/files/home/quest.py"
-EOF
-chmod +x $PREFIX/bin/qt
