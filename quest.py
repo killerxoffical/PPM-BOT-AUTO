@@ -1,4 +1,3 @@
-cat << 'EOF' > /sdcard/Download/bin/quest.py
 import glob, os, sqlite3, subprocess, time
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
@@ -95,4 +94,3 @@ if choice == "1":
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
-EOF
