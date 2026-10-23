@@ -38,7 +38,8 @@ try:
   if r1:
     g = r1[0]
   r2 = c.execute(
-      "SELECT account_name FROM client_contexts LIMIT 1"
+      "SELECT account_name FROM client_contexts WHERE account_name IS NOT NULL"
+      " LIMIT 1"
   ).fetchone()
   if r2:
     e = r2[0]
@@ -61,7 +62,7 @@ print(f"{C}───────────────────────
 choice = input(f"{Y}Enter selection (0-2): {NC}").strip()
 
 
-def process_quest(game_name, target_game_id, achs_list):
+def process_quest(game_name, package_name, achs_list):
   show_header()
   print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
   print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
@@ -71,6 +72,30 @@ def process_quest(game_name, target_game_id, achs_list):
   print(f"{C}⏳ Synchronizing Cloud Task & Progress...{NC}")
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
+
+  # প্যাকেজ নাম দিয়ে স্বয়ংক্রিয়ভাবে আসল client_context_id এবং game_id খুঁজে নেওয়া
+  cc_row = cursor.execute(
+      "SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1",
+      (package_name,),
+  ).fetchone()
+  if not cc_row:
+    print(f"\n{R}✖ Error: Game not registered! Open {game_name} once first!{NC}")
+    conn.close()
+    return
+  real_cc_id = cc_row[0]
+
+  # গেমের আসল External Game ID খুঁজে বের করা
+  game_row = cursor.execute(
+      "SELECT game_id FROM achievement_definitions WHERE definition_id = ?"
+      " LIMIT 1",
+      (achs_list[0][0],),
+  ).fetchone()
+  real_game_id = (
+      game_row[0]
+      if game_row
+      else ("13" if "gossip" in package_name else "1")
+  )
+
   player_id = cursor.execute(
       "SELECT external_player_id FROM players LIMIT 1"
   ).fetchone()[0]
@@ -90,14 +115,15 @@ def process_quest(game_name, target_game_id, achs_list):
         """
             INSERT OR REPLACE INTO achievement_pending_ops 
             (client_context_id, external_achievement_id, achievement_type, new_state, steps_to_increment, min_steps_to_set, external_game_id, external_player_id)
-            VALUES (1, ?, 0, 0, ?, ?, ?, ?)
+            VALUES (?, ?, 0, 0, ?, ?, ?, ?)
         """,
-        (a_id, steps, steps, target_game_id, player_id),
+        (real_cc_id, a_id, steps, steps, str(real_game_id), player_id),
     )
 
   conn.commit()
   conn.close()
 
+  # গুগল সার্ভারে সিঙ্ক পাঠানো
   subprocess.run(
       "am broadcast -a com.google.android.gms.games.SYNC --user 0",
       shell=True,
@@ -130,7 +156,7 @@ def process_quest(game_name, target_game_id, achs_list):
   conn.close()
 
   calc_time = round(random.uniform(3.18, 4.65), 2)
-  print(f"{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
+  print(f"\n{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
 
   if unlocked_count == len(achs_list):
     print(f"\n{G}┌──────────────────────────────────────────────┐{NC}")
@@ -148,7 +174,7 @@ if choice == "1":
       ("CgkI3YvxrpUIEAIQBw", "Welcome to Brimwave", 0, ""),
       ("CgkI3YvxrpUIEAIQDA", "Leveled Up", 0, ""),
   ]
-  process_quest("Gossip Harbor", "13", gossip_achs)
+  process_quest("Gossip Harbor", "com.mergegames.gossipharbor", gossip_achs)
 
 elif choice == "2":
   summoners_achs = [
@@ -156,7 +182,11 @@ elif choice == "2":
       ("CgkIi9-Vv5oZEAIQEg", "Monster Transformed", 0, ""),
       ("CgkIi9-Vv5oZEAIQFA", "Celestial Island", 0, ""),
   ]
-  process_quest("Summoners War", "1", summoners_achs)
+  process_quest(
+      "Summoners War",
+      "com.com2us.smon.normal.freefull.google.kr.android.common",
+      summoners_achs,
+  )
 
 else:
   print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
