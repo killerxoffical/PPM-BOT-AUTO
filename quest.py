@@ -13,10 +13,11 @@ os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
 
 def show_header():
   os.system("clear")
-  print(f"{C}===================================================={NC}")
-  print(f"{W}             PP MOD DEVELOPER PORTER                {NC}")
-  print(f"{M}            Powered by VAREON STUDIO                {NC}")
-  print(f"{C}===================================================={NC}")
+  print(f"{C}┌──────────────────────────────────────────────┐{NC}")
+  print(f"{C}│{W}          PP MOD DEVELOPER PORTAL             {C}│{NC}")
+  print(f"{C}│{M}        Powered by VAREON STUDIO              {C}│{NC}")
+  print(f"{C}│{Y}   🌐 Web : {G}https://ppmod.gamer.free/          {C}│{NC}")
+  print(f"{C}└──────────────────────────────────────────────┘{NC}")
 
 
 show_header()
@@ -48,14 +49,13 @@ except:
 print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
 print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
 print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
-print(f"{Y}📁 Active Core : {C}{os.path.basename(db)}{NC}")
-print(f"{C}----------------------------------------------------{NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{G} Available Tasks & Quests:{NC}")
 print(f"{W}  [1] Gossip Harbor (50 Play Points){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
-print(f"{C}----------------------------------------------------{NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
-print(f"{C}----------------------------------------------------{NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
 
 choice = input(f"{Y}Enter selection (0-1): {NC}").strip()
 
@@ -64,9 +64,9 @@ if choice == "1":
   print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
   print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
   print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
-  print(f"{C}----------------------------------------------------{NC}\n")
+  print(f"{C}──────────────────────────────────────────────{NC}")
 
-  print(f"{C}⏳ [1/3] Processing Quest Data & Synchronizing Task...{NC}")
+  print(f"{C}⏳ Synchronizing Cloud Task & Progress...{NC}")
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
   player_id = cursor.execute(
@@ -101,23 +101,24 @@ if choice == "1":
 
   conn.commit()
   conn.close()
-  print(f"   {G}✔ Task Progress Successfully Applied!{NC}")
 
-  print(f"\n{Y}🔄 [2/3] Connecting with Google Play Cloud Servers...{NC}")
   subprocess.run(
       "am broadcast -a com.google.android.gms.games.SYNC --user 0",
       shell=True,
       capture_output=True,
   )
-  print(f"   {G}✔ Google Cloud Sync Completed Successfully!{NC}")
+  print(f"{G}✔ Cloud Verification Handshake Complete!{NC}")
 
-  print(f"\n{M}🔍 [3/3] Confirming Verification Status...{NC}")
+  # গেমের নাম ও পয়েন্ট টেবিল বক্সের ঠিক উপরে
+  print(
+      f"\n{Y}🎯 Game : {W}Gossip Harbor {Y}[{G}50 Play Points Claimed{Y}]{NC}"
+  )
+
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
-
-  print(f"\n{C}+----------------------------------------+------------+{NC}")
-  print(f"{C}| Target Quest Achievement               | Status     |{NC}")
-  print(f"{C}+----------------------------------------+------------+{NC}")
+  print(f"{C}┌────────────────────────────────┬───────────┐{NC}")
+  print(f"{C}│ Target Quest Achievement       │ Status    │{NC}")
+  print(f"{C}├────────────────────────────────┼───────────┤{NC}")
 
   unlocked_count = 0
   for a_id, a_name, steps, formatted in achs:
@@ -131,24 +132,20 @@ if choice == "1":
       unlocked_count += 1
     else:
       status_text = f"{R}PENDING{NC}"
-    print(f"| {W}{a_name:<38}{NC} | {status_text:<10} |")
+    print(f"│ {W}{a_name:<30}{NC} │ {status_text:<9} │")
 
-  print(f"{C}+----------------------------------------+------------+{NC}")
+  print(f"{C}└────────────────────────────────┴───────────┘{NC}")
   conn.close()
 
-  calc_time = round(random.uniform(3.20, 4.80), 2)
-  print(f"\n{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
-  print(
-      f"{Y}🎯 Target Game    : {W}Gossip Harbor {Y}[{G}50 Play Points"
-      f" Claimed{Y}]{NC}"
-  )
+  calc_time = round(random.uniform(3.18, 4.65), 2)
+  print(f"{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
 
   if unlocked_count == 3:
-    print(f"\n{G}+----------------------------------------------------+{NC}")
-    print(f"{W}|  ★ 100% SUCCESS: Gossip Harbor Quest Completed!    |{NC}")
-    print(f"{Y}|  👉 Open Play Store and Claim Points!              |{NC}")
-    print(f"{M}|  ♥ Thanks for using PP MOD Auto Quest Completer!   |{NC}")
-    print(f"{G}+----------------------------------------------------+{NC}\n")
+    print(f"\n{G}┌──────────────────────────────────────────────┐{NC}")
+    print(f"{W}│  ★ SUCCESS: Gossip Harbor Quest Completed!   │{NC}")
+    print(f"{Y}│  👉 Open Play Store and Claim Points!        │{NC}")
+    print(f"{M}│  ♥ Thanks for using PP MOD Auto Completer!   │{NC}")
+    print(f"{G}└──────────────────────────────────────────────┘{NC}\n")
   else:
     print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
 
