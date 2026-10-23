@@ -14,10 +14,10 @@ os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
 
 def show_header():
   os.system("clear")
-  print(f"{C}╔══════════════════════════════════════════════════════════════╗{NC}")
-  print(f"{W}                 PP MOD DEVELOPER PORTER                      {NC}")
-  print(f"{M}                Powered by VAREON STUDIO                      {NC}")
-  print(f"{C}╚══════════════════════════════════════════════════════════════╝{NC}")
+  print(f"{C}┌────────────────────────────────────────────────────────────┐{NC}")
+  print(f"{C}│{W}                 PP MOD DEVELOPER PORTER                    {C}│{NC}")
+  print(f"{C}│{M}                Powered by VAREON STUDIO                    {C}│{NC}")
+  print(f"{C}└────────────────────────────────────────────────────────────┘{NC}")
 
 
 show_header()
@@ -35,13 +35,26 @@ except:
   )
   exit()
 
-# ইউজার প্রোফাইল চেক
-g, e = "Unknown Gamer", "No Email Linked"
+# ইউজার প্রোফাইল, লেভেল এবং XP চেক
+g, e, lvl, xp = (
+    "Unknown Gamer",
+    "No Email Linked",
+    "Level 1",
+    "0 XP",
+)
 try:
   c = sqlite3.connect(db)
-  r1 = c.execute("SELECT profile_name FROM players LIMIT 1").fetchone()
+  r1 = c.execute(
+      "SELECT profile_name, current_xp_total, current_level_number FROM"
+      " players LIMIT 1"
+  ).fetchone()
   if r1:
     g = r1[0]
+    if len(r1) > 1 and r1[1] is not None:
+      xp = f"{r1[1]:,} XP"
+    if len(r1) > 2 and r1[2] is not None:
+      lvl = f"Level {r1[2]}"
+
   r2 = c.execute(
       "SELECT account_name FROM client_contexts LIMIT 1"
   ).fetchone()
@@ -51,9 +64,10 @@ try:
 except:
   pass
 
-print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
-print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
-print(f"{Y}📁 Active Core : {C}{os.path.basename(db)}{NC}")
+print(f"{Y}👤 Gamer Tag    : {W}{g}{NC}")
+print(f"{Y}📧 Linked Mail  : {W}{e}{NC}")
+print(f"{Y}🎮 Play Games   : {G}{lvl} {W}({xp}){NC}")
+print(f"{Y}📁 Active Core  : {C}{os.path.basename(db)}{NC}")
 print(f"{C}──────────────────────────────────────────────────────────────{NC}")
 
 if "No Email" in e:
@@ -72,8 +86,9 @@ choice = input(f"{Y}Enter selection (0-1): {NC}").strip()
 
 if choice == "1":
   show_header()
-  print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
-  print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+  print(f"{Y}👤 Gamer Tag    : {W}{g}{NC}")
+  print(f"{Y}📧 Linked Mail  : {W}{e}{NC}")
+  print(f"{Y}🎮 Play Games   : {G}{lvl} {W}({xp}){NC}")
   print(
       f"{C}──────────────────────────────────────────────────────────────{NC}\n"
   )
@@ -160,9 +175,15 @@ if choice == "1":
   calc_time = round(random.uniform(3.20, 4.80), 2)
   print(f"\n{Y}⏱ Execution Time      : {G}{calc_time}s (Ultra Fast){NC}")
 
+  # হলুদ রঙের টার্গেট গেম ও পয়েন্ট হাইলাইট
+  print(
+      f"\n{Y}🎯 Target Game         : {W}Gossip Harbor {Y}[{G}50 Play Points"
+      f" Claimed{Y}]{NC}"
+  )
+
   if unlocked_count == 3:
     print(
-        f"\n{G}╔══════════════════════════════════════════════════════════════╗{NC}"
+        f"{G}╔══════════════════════════════════════════════════════════════╗{NC}"
     )
     print(
         f"{W}║  ★ 100% SUCCESS: Gossip Harbor Quest Completed!              ║{NC}"
