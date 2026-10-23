@@ -52,14 +52,16 @@ print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{G} Available Tasks & Quests:{NC}")
 print(f"{W}  [1] Gossip Harbor (50 Play Points){NC}")
+print(f"{W}  [2] Summoners War (Quest Completed){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 
-choice = input(f"{Y}Enter selection (0-1): {NC}").strip()
+choice = input(f"{Y}Enter selection (0-2): {NC}").strip()
 
-if choice == "1":
+
+def process_quest(game_name, target_game_id, achs_list):
   show_header()
   print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
   print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
@@ -74,13 +76,7 @@ if choice == "1":
   ).fetchone()[0]
   now = int(subprocess.check_output("date +%s%3N", shell=True))
 
-  achs = [
-      ("CgkI3YvxrpUIEAIQAQ", "Starter Snack Bar", 5, "5/5"),
-      ("CgkI3YvxrpUIEAIQBw", "Welcome to Brimwave", 0, ""),
-      ("CgkI3YvxrpUIEAIQDA", "Leveled Up", 0, ""),
-  ]
-
-  for a_id, a_name, steps, formatted in achs:
+  for a_id, a_name, steps, formatted in achs_list:
     cursor.execute(
         """
             INSERT OR REPLACE INTO achievement_instances 
@@ -94,9 +90,9 @@ if choice == "1":
         """
             INSERT OR REPLACE INTO achievement_pending_ops 
             (client_context_id, external_achievement_id, achievement_type, new_state, steps_to_increment, min_steps_to_set, external_game_id, external_player_id)
-            VALUES (1, ?, 0, 0, ?, ?, '13', ?)
+            VALUES (1, ?, 0, 0, ?, ?, ?, ?)
         """,
-        (a_id, steps, steps, player_id),
+        (a_id, steps, steps, target_game_id, player_id),
     )
 
   conn.commit()
@@ -109,10 +105,7 @@ if choice == "1":
   )
   print(f"{G}✔ Cloud Verification Handshake Complete!{NC}")
 
-  # গেমের নাম ও পয়েন্ট টেবিল বক্সের ঠিক উপরে
-  print(
-      f"\n{Y}🎯 Game : {W}Gossip Harbor {Y}[{G}50 Play Points Claimed{Y}]{NC}"
-  )
+  print(f"\n{Y}🎯 Game : {W}{game_name} {Y}[{G}Quest Claimed{Y}]{NC}")
 
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
@@ -121,10 +114,9 @@ if choice == "1":
   print(f"{C}├────────────────────────────────┼───────────┤{NC}")
 
   unlocked_count = 0
-  for a_id, a_name, steps, formatted in achs:
+  for a_id, a_name, steps, formatted in achs_list:
     row = cursor.execute(
-        "SELECT state, current_steps FROM achievement_instances WHERE"
-        " definition_id = ?",
+        "SELECT state FROM achievement_instances WHERE definition_id = ?",
         (a_id,),
     ).fetchone()
     if row and row[0] == 0:
@@ -140,14 +132,31 @@ if choice == "1":
   calc_time = round(random.uniform(3.18, 4.65), 2)
   print(f"{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
 
-  if unlocked_count == 3:
+  if unlocked_count == len(achs_list):
     print(f"\n{G}┌──────────────────────────────────────────────┐{NC}")
-    print(f"{W}│  ★ SUCCESS: Gossip Harbor Quest Completed!   │{NC}")
+    print(f"{W}│  ★ SUCCESS: {game_name} Quest Completed!     │{NC}")
     print(f"{Y}│  👉 Open Play Store and Claim Points!        │{NC}")
     print(f"{M}│  ♥ Thanks for using PP MOD Auto Completer!   │{NC}")
     print(f"{G}└──────────────────────────────────────────────┘{NC}\n")
   else:
     print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
+
+
+if choice == "1":
+  gossip_achs = [
+      ("CgkI3YvxrpUIEAIQAQ", "Starter Snack Bar", 5, "5/5"),
+      ("CgkI3YvxrpUIEAIQBw", "Welcome to Brimwave", 0, ""),
+      ("CgkI3YvxrpUIEAIQDA", "Leveled Up", 0, ""),
+  ]
+  process_quest("Gossip Harbor", "13", gossip_achs)
+
+elif choice == "2":
+  summoners_achs = [
+      ("CgkIi9-Vv5oZEAIQDg", "Joy of Victory", 0, ""),
+      ("CgkIi9-Vv5oZEAIQEg", "Monster Transformed", 0, ""),
+      ("CgkIi9-Vv5oZEAIQFA", "Celestial Island", 0, ""),
+  ]
+  process_quest("Summoners War", "1", summoners_achs)
 
 else:
   print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
