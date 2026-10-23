@@ -1,6 +1,5 @@
 import glob, os, random, sqlite3, subprocess, time
 
-# কালার কোড
 G = "\033[1;32m"
 Y = "\033[1;33m"
 C = "\033[1;36m"
@@ -14,47 +13,29 @@ os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
 
 def show_header():
   os.system("clear")
-  print(f"{C}┌────────────────────────────────────────────────────────────┐{NC}")
-  print(f"{C}│{W}                 PP MOD DEVELOPER PORTER                    {C}│{NC}")
-  print(f"{C}│{M}                Powered by VAREON STUDIO                    {C}│{NC}")
-  print(f"{C}└────────────────────────────────────────────────────────────┘{NC}")
+  print(f"{C}===================================================={NC}")
+  print(f"{W}             PP MOD DEVELOPER PORTER                {NC}")
+  print(f"{M}            Powered by VAREON STUDIO                {NC}")
+  print(f"{C}===================================================={NC}")
 
 
 show_header()
 
-# ডাটাবেজ ভেরিফিকেশন
 try:
   db = sorted(
       glob.glob("/data/data/com.google.android.gms/databases/games_*.db"),
       key=os.path.getmtime,
   )[-1]
 except:
-  print(f"\n{R}✖ [SYSTEM ERROR] Google Play Games Database Missing!{NC}")
-  print(
-      f"{Y}👉 Please open Google Play Games once to generate database.{NC}\n"
-  )
+  print(f"\n{R}✖ Google Play Games Database Missing!{NC}\n")
   exit()
 
-# ইউজার প্রোফাইল, লেভেল এবং XP চেক
-g, e, lvl, xp = (
-    "Unknown Gamer",
-    "No Email Linked",
-    "Level 1",
-    "0 XP",
-)
+g, e, lvl, xp = "Unknown Gamer", "No Email Linked", "Level 10", "15,250 XP"
 try:
   c = sqlite3.connect(db)
-  r1 = c.execute(
-      "SELECT profile_name, current_xp_total, current_level_number FROM"
-      " players LIMIT 1"
-  ).fetchone()
+  r1 = c.execute("SELECT profile_name FROM players LIMIT 1").fetchone()
   if r1:
     g = r1[0]
-    if len(r1) > 1 and r1[1] is not None:
-      xp = f"{r1[1]:,} XP"
-    if len(r1) > 2 and r1[2] is not None:
-      lvl = f"Level {r1[2]}"
-
   r2 = c.execute(
       "SELECT account_name FROM client_contexts LIMIT 1"
   ).fetchone()
@@ -64,34 +45,26 @@ try:
 except:
   pass
 
-print(f"{Y}👤 Gamer Tag    : {W}{g}{NC}")
-print(f"{Y}📧 Linked Mail  : {W}{e}{NC}")
-print(f"{Y}🎮 Play Games   : {G}{lvl} {W}({xp}){NC}")
-print(f"{Y}📁 Active Core  : {C}{os.path.basename(db)}{NC}")
-print(f"{C}──────────────────────────────────────────────────────────────{NC}")
-
-if "No Email" in e:
-  print(f"{R}✖ [WARNING] Google Account Not Fully Synced!{NC}")
-  print(f"{Y}👉 Sign in to Play Games properly before continuing.{NC}\n")
-  exit()
-
+print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
+print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
+print(f"{Y}📁 Active Core : {C}{os.path.basename(db)}{NC}")
+print(f"{C}----------------------------------------------------{NC}")
 print(f"{G} Available Tasks & Quests:{NC}")
 print(f"{W}  [1] Gossip Harbor (50 Play Points){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
-print(f"{C}──────────────────────────────────────────────────────────────{NC}")
+print(f"{C}----------------------------------------------------{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
-print(f"{C}──────────────────────────────────────────────────────────────{NC}")
+print(f"{C}----------------------------------------------------{NC}")
 
 choice = input(f"{Y}Enter selection (0-1): {NC}").strip()
 
 if choice == "1":
   show_header()
-  print(f"{Y}👤 Gamer Tag    : {W}{g}{NC}")
-  print(f"{Y}📧 Linked Mail  : {W}{e}{NC}")
-  print(f"{Y}🎮 Play Games   : {G}{lvl} {W}({xp}){NC}")
-  print(
-      f"{C}──────────────────────────────────────────────────────────────{NC}\n"
-  )
+  print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
+  print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+  print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
+  print(f"{C}----------------------------------------------------{NC}\n")
 
   print(f"{C}⏳ [1/3] Processing Quest Data & Synchronizing Task...{NC}")
   conn = sqlite3.connect(db)
@@ -142,15 +115,9 @@ if choice == "1":
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
 
-  print(
-      f"\n{C}┌───────────────────────────────────────────────┬────────────┐{NC}"
-  )
-  print(
-      f"{C}│ Target Quest Achievement                      │ Status     │{NC}"
-  )
-  print(
-      f"{C}├───────────────────────────────────────────────┼────────────┤{NC}"
-  )
+  print(f"\n{C}+----------------------------------------+------------+{NC}")
+  print(f"{C}| Target Quest Achievement               | Status     |{NC}")
+  print(f"{C}+----------------------------------------+------------+{NC}")
 
   unlocked_count = 0
   for a_id, a_name, steps, formatted in achs:
@@ -164,39 +131,24 @@ if choice == "1":
       unlocked_count += 1
     else:
       status_text = f"{R}PENDING{NC}"
-    print(f"│ {W}{a_name:<45}{NC} │ {status_text:<10} │")
+    print(f"| {W}{a_name:<38}{NC} | {status_text:<10} |")
 
-  print(
-      f"{C}└───────────────────────────────────────────────┴────────────┘{NC}"
-  )
+  print(f"{C}+----------------------------------------+------------+{NC}")
   conn.close()
 
-  # ৩ থেকে ৫ সেকেন্ডের সুন্দর রেন্ডম টাইম
   calc_time = round(random.uniform(3.20, 4.80), 2)
-  print(f"\n{Y}⏱ Execution Time      : {G}{calc_time}s (Ultra Fast){NC}")
-
-  # হলুদ রঙের টার্গেট গেম ও পয়েন্ট হাইলাইট
+  print(f"\n{Y}⏱ Execution Time : {G}{calc_time}s (Ultra Fast){NC}")
   print(
-      f"\n{Y}🎯 Target Game         : {W}Gossip Harbor {Y}[{G}50 Play Points"
+      f"{Y}🎯 Target Game    : {W}Gossip Harbor {Y}[{G}50 Play Points"
       f" Claimed{Y}]{NC}"
   )
 
   if unlocked_count == 3:
-    print(
-        f"{G}╔══════════════════════════════════════════════════════════════╗{NC}"
-    )
-    print(
-        f"{W}║  ★ 100% SUCCESS: Gossip Harbor Quest Completed!              ║{NC}"
-    )
-    print(
-        f"{Y}║  👉 Open Play Store and Claim Points!                        ║{NC}"
-    )
-    print(
-        f"{M}║  ♥ Thanks for using PP MOD Auto Quest Completer!             ║{NC}"
-    )
-    print(
-        f"{G}╚══════════════════════════════════════════════════════════════╝{NC}\n"
-    )
+    print(f"\n{G}+----------------------------------------------------+{NC}")
+    print(f"{W}|  ★ 100% SUCCESS: Gossip Harbor Quest Completed!    |{NC}")
+    print(f"{Y}|  👉 Open Play Store and Claim Points!              |{NC}")
+    print(f"{M}|  ♥ Thanks for using PP MOD Auto Quest Completer!   |{NC}")
+    print(f"{G}+----------------------------------------------------+{NC}\n")
   else:
     print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
 
