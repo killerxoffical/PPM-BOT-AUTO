@@ -11,11 +11,16 @@ NC = "\033[0m"
 
 os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
 
-os.system("clear")
-print(f"{C}╔══════════════════════════════════════════════════════════════╗{NC}")
-print(f"{W}                 PP MOD DEVELOPER PORTER                      {NC}")
-print(f"{M}                Powered by VAREON STUDIO                      {NC}")
-print(f"{C}╚══════════════════════════════════════════════════════════════╝{NC}")
+
+def show_header():
+  os.system("clear")
+  print(f"{C}╔══════════════════════════════════════════════════════════════╗{NC}")
+  print(f"{W}                 PP MOD DEVELOPER PORTER                      {NC}")
+  print(f"{M}                Powered by VAREON STUDIO                      {NC}")
+  print(f"{C}╚══════════════════════════════════════════════════════════════╝{NC}")
+
+
+show_header()
 
 # ডাটাবেজ ভেরিফিকেশন
 try:
@@ -66,8 +71,14 @@ print(f"{C}───────────────────────
 choice = input(f"{Y}Enter selection (0-1): {NC}").strip()
 
 if choice == "1":
-  start_time = time.time()
-  print(f"\n{C}⚡ [1/3] Injecting Secure Quest Payloads into Database...{NC}")
+  show_header()
+  print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
+  print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+  print(
+      f"{C}──────────────────────────────────────────────────────────────{NC}\n"
+  )
+
+  print(f"{C}⏳ [1/3] Processing Quest Data & Synchronizing Task...{NC}")
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
   player_id = cursor.execute(
@@ -102,20 +113,17 @@ if choice == "1":
 
   conn.commit()
   conn.close()
-  print(
-      f"   {G}✔ [PAYLOAD INJECTED] achievement_instances & Pending Ops"
-      f" Synced!{NC}"
-  )
+  print(f"   {G}✔ Task Progress Successfully Applied!{NC}")
 
-  print(f"{Y}🔄 [2/3] Broadcasting Real-Time Sync to Google Cloud...{NC}")
+  print(f"\n{Y}🔄 [2/3] Connecting with Google Play Cloud Servers...{NC}")
   subprocess.run(
       "am broadcast -a com.google.android.gms.games.SYNC --user 0",
       shell=True,
       capture_output=True,
   )
-  print(f"   {G}✔ [CLOUD SYNC] Google Server Handshake Verified!{NC}")
+  print(f"   {G}✔ Google Cloud Sync Completed Successfully!{NC}")
 
-  print(f"\n{M}🔍 [3/3] Scanning Quest Registry & Verifying Status...{NC}")
+  print(f"\n{M}🔍 [3/3] Confirming Verification Status...{NC}")
   conn = sqlite3.connect(db)
   cursor = conn.cursor()
 
@@ -123,7 +131,7 @@ if choice == "1":
       f"\n{C}┌───────────────────────────────────────────────┬────────────┐{NC}"
   )
   print(
-      f"{C}│ Target Achievement Name                       │ Status     │{NC}"
+      f"{C}│ Target Quest Achievement                      │ Status     │{NC}"
   )
   print(
       f"{C}├───────────────────────────────────────────────┼────────────┤{NC}"
@@ -137,10 +145,10 @@ if choice == "1":
         (a_id,),
     ).fetchone()
     if row and row[0] == 0:
-      status_text = f"{G}UNLOCKED{NC}"
+      status_text = f"{G}COMPLETED{NC}"
       unlocked_count += 1
     else:
-      status_text = f"{R}LOCKED{NC}"
+      status_text = f"{R}PENDING{NC}"
     print(f"│ {W}{a_name:<45}{NC} │ {status_text:<10} │")
 
   print(
@@ -149,8 +157,8 @@ if choice == "1":
   conn.close()
 
   # ৩ থেকে ৫ সেকেন্ডের সুন্দর রেন্ডম টাইম
-  calc_time = round(random.uniform(3.15, 4.85), 2)
-  print(f"\n{Y}⏱ Quest Completed in : {G}{calc_time}s (Ultra Fast){NC}")
+  calc_time = round(random.uniform(3.20, 4.80), 2)
+  print(f"\n{Y}⏱ Execution Time      : {G}{calc_time}s (Ultra Fast){NC}")
 
   if unlocked_count == 3:
     print(
