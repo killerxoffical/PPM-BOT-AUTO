@@ -224,26 +224,36 @@ app.post("/api/adell/create-tg-group", async (req, res) => {
         let inviteLink = null;
         const groupTitle = `ADELL [${(r.title || "Trade").slice(0, 15)}]`;
 
+        // Use connected Primary Telegram Client to dynamically create Telegram Secret Group
+        let primaryTgClient = null;
         if (primeClients && primeClients.size > 0) {
-            const firstPrime = primeClients.values().next().value;
-            if (firstPrime && firstPrime.client) {
-                try {
-                    const result = await firstPrime.client.invoke(
-                        new Api.messages.CreateChat({
-                            users: [TARGET_BOT],
-                            title: groupTitle
-                        })
-                    );
-                    const chatId = result.chats[0].id;
-                    const exportLink = await firstPrime.client.invoke(
+            primaryTgClient = primeClients.values().next().value.client;
+        } else if (currentClient) {
+            primaryTgClient = currentClient;
+        }
+
+        if (primaryTgClient) {
+            try {
+                // Create Telegram Chat with target bot as member
+                const chatRes = await primaryTgClient.invoke(
+                    new Api.messages.CreateChat({
+                        users: [TARGET_BOT],
+                        title: groupTitle
+                    })
+                );
+                
+                const chatId = chatRes.chats && chatRes.chats[0] ? chatRes.chats[0].id : null;
+                if (chatId) {
+                    const exportRes = await primaryTgClient.invoke(
                         new Api.messages.ExportChatInvite({
                             peer: chatId
                         })
                     );
-                    inviteLink = exportLink.link;
-                } catch (e) {
-                    console.warn("[TG GROUP VIA PRIME WARN]:", e.message);
+                    inviteLink = exportRes.link;
+                    console.log(`[ADELL TG GROUP] Created group '${groupTitle}': ${inviteLink}`);
                 }
+            } catch (tgErr) {
+                console.warn("[ADELL TG GROUP CREATION WARN]:", tgErr.message);
             }
         }
 
