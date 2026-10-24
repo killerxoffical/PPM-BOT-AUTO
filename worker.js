@@ -200,6 +200,85 @@ app.post("/api/p2p/payment-sent", async (req, res) => {
     }
 });
 
+// ---------------- ADELL IMAGE CDN UPLOAD PROXY ----------------
+const multer = require("multer");
+const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+
+app.post("/api/tg/upload-cdn-photo", upload.single("photo"), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ ok: false, error: "No photo provided" });
+        const botToken = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
+        const logChannel = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
+
+        // Send photo to private log channel to obtain permanent Telegram CDN URL
+        const sentMsg = await userNotifyBot.sendPhoto(logChannel, req.file.buffer, { caption: "🖼 ADELL Room Chat Media" });
+        if (!sentMsg.photo || !sentMsg.photo.length) throw new Error("No photo returned");
+
+        const largestPhoto = sentMsg.photo[sentMsg.photo.length - 1];
+        const fileLink = await userNotifyBot.getFileLink(largestPhoto.file_id);
+
+        return res.json({ ok: true, url: fileLink });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ---------------- ADELL 2-PARTY SLIDE CONFIRMATION API ----------------
+app.post("/api/adell/confirm", async (req, res) => {
+    const { roomId, uid } = req.body;
+    if (!roomId || !uid) return res.status(400).json({ ok: false, error: "Missing data" });
+
+    try {
+        const roomRef = db.collection("adell_rooms").doc(roomId);
+
+        await db.runTransaction(async (t) => {
+            const rSnap = await t.get(roomRef);
+            if (!rSnap.exists) throw new Error("Room not found");
+            const r = rSnap.data();
+
+            const isBuyer = uid === r.buyerUid;
+            const isSeller = uid === r.sellerUid;
+            if (!isBuyer && !isSeller) throw new Error("Unauthorized");
+
+            const updates = {};
+            if (isBuyer) updates.buyerConfirmed = true;
+            if (isSeller) updates.sellerConfirmed = true;
+
+            const willBothConfirm = (isBuyer && r.sellerConfirmed) || (isSeller && r.buyerConfirmed);
+
+            if (willBothConfirm) {
+                updates.status = "completed";
+                updates.completedAt = admin.firestore.FieldValue.serverTimestamp();
+                // 7 days auto-deletion retention
+                updates.expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+
+                // Transfer PP Coins to Seller
+                const sRef = db.collection("users").doc(r.sellerUid);
+                const sSnap = await t.get(sRef);
+                const curCoins = sSnap.exists ? Number(sSnap.data().balance || 0) : 0;
+                const newCoins = Math.round((curCoins + Number(r.coins) + Number.EPSILON) * 100) / 100;
+
+                t.update(sRef, {
+                    balance: newCoins,
+                    dealsCompleted: admin.firestore.FieldValue.increment(1)
+                });
+
+                // Increment dealsCompleted for Buyer
+                const bRef = db.collection("users").doc(r.buyerUid);
+                t.update(bRef, {
+                    dealsCompleted: admin.firestore.FieldValue.increment(1)
+                });
+            }
+
+            t.update(roomRef, updates);
+        });
+
+        return res.json({ ok: true });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 app.post("/api/p2p/release", async (req, res) => {
     const { dealId, buyerUid } = req.body;
     if (!dealId || !buyerUid) return res.status(400).json({ ok: false, error: "Missing data" });
@@ -219,7 +298,7 @@ app.post("/api/p2p/release", async (req, res) => {
             if (!d.sellerUid) throw new Error("No seller attached");
 
             sellerUid = d.sellerUid;
-            sellerPoints = Math.floor(Number(d.coins || 0) * 10 * 0.95);
+            sellerPoints = Math.floor(Number(d.coins || 0) * 10 * 0.98); // 2% fee deducted
 
             const sRef = db.collection("users").doc(sellerUid);
             const sSnap = await t.get(sRef);
@@ -416,7 +495,7 @@ app.post("/api/bonus/claim", async (req, res) => {
             const amt = rollBonus();
             const streak = (d.lastBonusDay === yest) ? (Number(d.lastBonusStreak) || 0) + 1 : 1;
             const curBal = Number(d.balance) || 0;
-            const newBal = parseFloat((curBal + amt).toFixed(1));
+            const newBal = Math.round((curBal + amt + Number.EPSILON) * 100) / 100;
             t.update(uref, {
                 balance: newBal,
                 lastBonusDay: today,
@@ -794,7 +873,6 @@ async function runRetentionOnce() {
             ["deposits", "createdAt", "del"],
             ["orders", "createdAt", "refund:balance:amount"],
             ["redemptions", "createdAt", "del"],
-            ["point_sells", "createdAt", "del"],
             ["withdrawals", "createdAt", "refund:playPoints:points"],
             ["gateway_sms", "receivedAt", "del"],
             ["logs", "createdAt", "del"]
@@ -924,6 +1002,44 @@ function getJoinKeyboard(userId, refId = null) {
 }
 
 // ---------------- ADMIN SWIPE-TO-REPLY & COMMAND HANDLERS ----------------
+// Helper: User Dashboard Card Formatter
+function buildUserAdminCard(uid, uData) {
+    const cleanBal = Math.round(((Number(uData.balance) || 0) + Number.EPSILON) * 100) / 100;
+    const cleanPoints = Number(uData.playPoints) || 0;
+    const isBanned = uData.banned === true;
+    const joinDate = uData.createdAt && uData.createdAt.toDate ? uData.createdAt.toDate().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" }) : "—";
+
+    const text = 
+        `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
+        `📛 <b>Name:</b> ${uData.name || "User"}\n` +
+        `📧 <b>Email:</b> <code>${uData.email || "No Email"}</code>\n` +
+        `🆔 <b>UID:</b> <code>${uid}</code>\n` +
+        `🪙 <b>PP Coins:</b> <b>${cleanBal} Coins</b>\n` +
+        `⭐ <b>Play Points:</b> <b>${cleanPoints} Pts</b>\n` +
+        `✈️ <b>Telegram:</b> ${uData.tgChatId || "Not Connected"}\n` +
+        `📅 <b>Joined:</b> ${joinDate}\n` +
+        `📌 <b>Status:</b> ${isBanned ? "🚫 <b>BANNED</b>" : "✅ <b>ACTIVE</b>"}`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: isBanned ? "✅ Unban User" : "🚫 Ban User", callback_data: `u_toggle_ban:${uid}` },
+                { text: "🔄 Refresh", callback_data: `u_refresh:${uid}` }
+            ],
+            [
+                { text: "➕ Add Balance (+3)", callback_data: `u_mod_bal:${uid}:3` },
+                { text: "➖ Deduct Balance (-3)", callback_data: `u_mod_bal:${uid}:-3` }
+            ],
+            [
+                { text: "➕ Add (+10)", callback_data: `u_mod_bal:${uid}:10` },
+                { text: "➖ Deduct (-10)", callback_data: `u_mod_bal:${uid}:-10` }
+            ]
+        ]
+    };
+
+    return { text, reply_markup: keyboard };
+}
+
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
@@ -939,6 +1055,27 @@ userNotifyBot.on("message", async (msg) => {
             isAutoFakeLogEnabled = true;
             await db.collection("config").doc("app").set({ autoFakeLog: true }, { merge: true });
             return userNotifyBot.sendMessage(msg.chat.id, "✅ <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো চালু (ON) করা হয়েছে!</b>", { parse_mode: "HTML" });
+        }
+
+        // UID সার্চ বা সরাসরি UID দিলে ইউজার কার্ড ওপেন হবে
+        const adminId = process.env.ADMIN_TG_ID || "7504616242";
+        const isFromAdmin = msg.chat.id.toString() === adminId || (msg.from && msg.from.id.toString() === adminId);
+
+        let searchUid = null;
+        if (isFromAdmin && !text.startsWith("/") && text.length >= 20 && !text.includes(" ") && !text.includes("\n")) {
+            searchUid = text;
+        } else if (isFromAdmin && text.startsWith("/user ")) {
+            searchUid = text.replace("/user ", "").trim();
+        }
+
+        if (searchUid) {
+            const uDoc = await db.collection("users").doc(searchUid).get();
+            if (uDoc.exists) {
+                const card = buildUserAdminCard(searchUid, uDoc.data());
+                return userNotifyBot.sendMessage(msg.chat.id, card.text, { parse_mode: "HTML", reply_markup: card.reply_markup });
+            } else {
+                return userNotifyBot.sendMessage(msg.chat.id, `❌ <code>${searchUid}</code> এই UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`, { parse_mode: "HTML" });
+            }
         }
 
         if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
@@ -1039,6 +1176,67 @@ userNotifyBot.on("callback_query", async (query) => {
         const chatId = query.message.chat.id;
         const userId = query.from.id.toString();
         const data = query.data || "";
+
+        // Admin User Management Button Handlers
+        if (data.startsWith("u_toggle_ban:")) {
+            const targetUid = data.replace("u_toggle_ban:", "").trim();
+            const uRef = db.collection("users").doc(targetUid);
+            const uSnap = await uRef.get();
+            if (uSnap.exists) {
+                const newBannedState = !(uSnap.data().banned === true);
+                await uRef.update({ banned: newBannedState });
+                await userNotifyBot.answerCallbackQuery(query.id, { text: newBannedState ? "🚫 User Banned!" : "✅ User Unbanned!" });
+                const updatedSnap = await uRef.get();
+                const card = buildUserAdminCard(targetUid, updatedSnap.data());
+                return userNotifyBot.editMessageText(card.text, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: "HTML",
+                    reply_markup: card.reply_markup
+                });
+            }
+            return userNotifyBot.answerCallbackQuery(query.id, { text: "User not found!" });
+        }
+
+        if (data.startsWith("u_mod_bal:")) {
+            const parts = data.split(":");
+            const targetUid = parts[1];
+            const changeAmt = Number(parts[2]) || 0;
+
+            const uRef = db.collection("users").doc(targetUid);
+            await db.runTransaction(async (t) => {
+                const uSnap = await t.get(uRef);
+                if (!uSnap.exists) throw new Error("not_found");
+                const cur = Number(uSnap.data().balance) || 0;
+                const updated = Math.max(0, Math.round((cur + changeAmt + Number.EPSILON) * 100) / 100);
+                t.update(uRef, { balance: updated });
+            });
+
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `Balance: ${changeAmt > 0 ? '+' : ''}${changeAmt} Coins applied!` });
+            const updatedSnap = await uRef.get();
+            const card = buildUserAdminCard(targetUid, updatedSnap.data());
+            return userNotifyBot.editMessageText(card.text, {
+                chat_id: chatId,
+                message_id: query.message.message_id,
+                parse_mode: "HTML",
+                reply_markup: card.reply_markup
+            });
+        }
+
+        if (data.startsWith("u_refresh:")) {
+            const targetUid = data.replace("u_refresh:", "").trim();
+            const uSnap = await db.collection("users").doc(targetUid).get();
+            if (uSnap.exists) {
+                await userNotifyBot.answerCallbackQuery(query.id, { text: "Refreshed! 🔄" });
+                const card = buildUserAdminCard(targetUid, uSnap.data());
+                return userNotifyBot.editMessageText(card.text, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: "HTML",
+                    reply_markup: card.reply_markup
+                });
+            }
+        }
 
         if (data.startsWith("verify_ref:")) {
             const isAllJoined = await checkUserMembership(userId);
@@ -1252,18 +1450,19 @@ async function initPrimeAutoResponder() {
 }
 
 async function primeCooldownClaim(senderId, primeLabel) {
-    // Multi-prime: প্রতিটা prime নিজের মতো cooldown রাখবে (একজন ৩টা prime এ মেসেজ দিলে ৩টাই রিপ্লাই দেবে)
+    // Multi-prime: ২৪ ঘণ্টায় (১ দিনে) মাত্র ১ বার অটো-রিপ্লাই যাবে
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24 Hours = 1 Day
     const key = primeLabel ? (primeLabel + ':' + senderId) : senderId;
     try {
         const ref = db.collection("tg_autoreply").doc(key);
         const snap = await ref.get();
         const last = snap.exists ? Number(snap.data().lastAt || 0) : 0;
-        if (Date.now() - last < 3600000) return false;
+        if (Date.now() - last < ONE_DAY_MS) return false;
         await ref.set({ lastAt: Date.now() }, { merge: true });
         return true;
     } catch (e) {
         const last = autoReplyCooldown.get(senderId) || 0;
-        if (Date.now() - last < 3600000) return false;
+        if (Date.now() - last < ONE_DAY_MS) return false;
         autoReplyCooldown.set(senderId, Date.now());
         return true;
     }
