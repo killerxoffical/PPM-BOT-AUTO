@@ -204,22 +204,95 @@ app.post("/api/p2p/payment-sent", async (req, res) => {
 const multer = require("multer");
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
+// ---------------- AUTO CREATE TELEGRAM SECRET GROUP ----------------
+app.post("/api/adell/create-tg-group", async (req, res) => {
+    const { roomId } = req.body;
+    if (!roomId) return res.status(400).json({ ok: false, error: "Missing roomId" });
+
+    try {
+        const roomRef = db.collection("adell_rooms").doc(roomId);
+        const snap = await roomRef.get();
+        if (!snap.exists) return res.status(404).json({ ok: false, error: "Room not found" });
+        const r = snap.data();
+
+        // If Telegram Group already created, return existing
+        if (r.tgGroupLink) {
+            return res.json({ ok: true, link: r.tgGroupLink });
+        }
+
+        // Prime client ba worker diye group create kora
+        let inviteLink = null;
+        const groupTitle = `ADELL [${(r.title || "Trade").slice(0, 15)}]`;
+
+        if (primeClients && primeClients.size > 0) {
+            const firstPrime = primeClients.values().next().value;
+            if (firstPrime && firstPrime.client) {
+                try {
+                    const result = await firstPrime.client.invoke(
+                        new Api.messages.CreateChat({
+                            users: [TARGET_BOT],
+                            title: groupTitle
+                        })
+                    );
+                    const chatId = result.chats[0].id;
+                    const exportLink = await firstPrime.client.invoke(
+                        new Api.messages.ExportChatInvite({
+                            peer: chatId
+                        })
+                    );
+                    inviteLink = exportLink.link;
+                } catch (e) {
+                    console.warn("[TG GROUP VIA PRIME WARN]:", e.message);
+                }
+            }
+        }
+
+        // Fallback: Telegram Support Channel / Bot Direct Deep Link
+        if (!inviteLink) {
+            inviteLink = `https://t.me/Ppmod_bot?start=adell_${roomId}`;
+        }
+
+        await roomRef.update({
+            tgGroupLink: inviteLink,
+            tgGroupCreatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`[ADELL] Telegram Trade Group Ready for ${roomId}: ${inviteLink}`);
+        return res.json({ ok: true, link: inviteLink });
+    } catch (e) {
+        console.error("[ADELL TG GROUP ERR]:", e);
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 app.post("/api/tg/upload-cdn-photo", upload.single("photo"), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ ok: false, error: "No photo provided" });
-        const botToken = process.env.USER_NOTIFY_BOT_TOKEN || "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ ok: false, error: "No photo provided" });
+        }
         const logChannel = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
-        // Send photo to private log channel to obtain permanent Telegram CDN URL
-        const sentMsg = await userNotifyBot.sendPhoto(logChannel, req.file.buffer, { caption: "🖼 ADELL Room Chat Media" });
-        if (!sentMsg.photo || !sentMsg.photo.length) throw new Error("No photo returned");
+        // Telegram Bot file upload via form buffer
+        const sentMsg = await userNotifyBot.sendPhoto(logChannel, req.file.buffer, {
+            caption: "🖼 <b>ADELL Trade Room Media</b>",
+            parse_mode: "HTML"
+        }, {
+            filename: `adell_${Date.now()}.jpg`,
+            contentType: req.file.mimetype || "image/jpeg"
+        });
+
+        if (!sentMsg || !sentMsg.photo || !sentMsg.photo.length) {
+            throw new Error("Telegram did not return photo payload");
+        }
 
         const largestPhoto = sentMsg.photo[sentMsg.photo.length - 1];
         const fileLink = await userNotifyBot.getFileLink(largestPhoto.file_id);
 
+        console.log(`[ADELL CDN] Successfully hosted image on Telegram: ${fileLink}`);
         return res.json({ ok: true, url: fileLink });
     } catch (e) {
-        return res.status(500).json({ ok: false, error: e.message });
+        console.error("[ADELL CDN ERR]:", e);
+        return res.status(500).json({ ok: false, error: e.message || "Failed to host on Telegram" });
     }
 });
 
