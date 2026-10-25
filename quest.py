@@ -1,4 +1,3 @@
-cat << 'EOF' > /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py
 import glob, os, random, sqlite3, subprocess, time
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
@@ -68,16 +67,14 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     if not real_game_id:
         real_game_id = ext_game_id
 
-    # If achievement list is not hardcoded, pull automatically from DB
     if not achs_list:
         db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE external_game_id = ?", (ext_game_id,)).fetchall()
         if not db_achs:
-            # Fallback query if external_game_id differs
             db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE game_id = (SELECT game_id FROM client_contexts WHERE package_name = ? LIMIT 1)", (package_name,)).fetchall()
         achs_list = [(row[0], row[1], row[2] if row[2] else 0, row[3] if row[3] else '') for row in db_achs]
 
     if not achs_list:
-        print(f"\n{R}✖ No achievements found in cache! Launch {game_name} and play 1 level.{NC}")
+        print(f"\n{R}✖ No achievements found in cache! Launch {game_name} once.{NC}")
         conn.close()
         return
 
@@ -153,9 +150,7 @@ elif choice == "2":
     process_quest("Summoners War", "com.com2us.smon.normal.freefull.google.kr.android.common", "1", summoners_achs)
 
 elif choice == "3":
-    # Auto-detects and completes Domino Dreams achievements
     process_quest("Domino Dreams", "com.screenshake.dominodreams")
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
-EOF
