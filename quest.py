@@ -1,8 +1,3 @@
-# ১. রুট দিয়ে পুরোনো লক হয়ে থাকা ফাইল পুরোপুরি ডিলিট করা
-su -c "rm -f /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py"
-
-# ২. একদম ফ্রেশ ও নির্ভুল ফাইল তৈরি করা
-cat << 'EOF' > /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py
 import glob, os, random, sqlite3, subprocess, sys, time
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
@@ -65,7 +60,6 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
     
-    # শুধুমাত্র _id খোঁজা (যাতে কোনো কলাম এরর না আসে)
     cc_row = cursor.execute("SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
     if not cc_row:
         print(f"\n{R}✖ Error: Game not registered! Open {game_name} once first!{NC}")
@@ -83,7 +77,6 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     if not real_game_id:
         real_game_id = str(real_cc_id)
 
-    # অটোমেটিক Domino Dreams এর achievement ডিটেক্ট করা
     if not achs_list:
         achs_list = []
         try:
@@ -108,7 +101,7 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
                 pass
 
     if not achs_list:
-        print(f"\n{R}✖ No achievements found! Open {game_name} once and log in with Google.{NC}")
+        print(f"\n{R}✖ No achievements found in cache! Open {game_name} once and log in.{NC}")
         conn.close()
         return
 
@@ -188,17 +181,3 @@ elif choice in ["3", "d", "c"]:
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
-EOF
-
-# ৩. পারমিশন ঠিক করে 'qt' শর্টকাট আপডেট করা
-cat << 'EOF' > $PREFIX/bin/qt
-#!/data/data/com.termux/files/usr/bin/bash
-su -mm -c "PATH=$PATH PYTHONPATH=$PYTHONPATH python /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py \"$1\""
-EOF
-
-chmod +x $PREFIX/bin/qt
-chmod 777 /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py
-hash -r
-
-# সরাসরি রান করা
-qt d
