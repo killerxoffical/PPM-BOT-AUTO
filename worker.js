@@ -232,34 +232,49 @@ app.post("/api/adell/create-tg-group", async (req, res) => {
             primaryTgClient = currentClient;
         }
 
+        if (!primaryTgClient) {
+            try { primaryTgClient = await getUsableTelegramClient(); } catch (e) {}
+        }
+
         if (primaryTgClient) {
             try {
-                // Create Telegram Chat with target bot as member
-                const chatRes = await primaryTgClient.invoke(
-                    new Api.messages.CreateChat({
-                        users: [TARGET_BOT],
-                        title: groupTitle
+                // কোনো বট ছাড়া সম্পূর্ণ নিরাপদ সুপারগ্রুপ তৈরি (Zero bot, 100% private)
+                const createRes = await primaryTgClient.invoke(
+                    new Api.channels.CreateChannel({
+                        title: groupTitle,
+                        about: "ADELL Private Escrow Trade Room",
+                        megagroup: true
                     })
                 );
                 
-                const chatId = chatRes.chats && chatRes.chats[0] ? chatRes.chats[0].id : null;
-                if (chatId) {
+                const channel = createRes.chats && createRes.chats[0];
+                if (channel) {
                     const exportRes = await primaryTgClient.invoke(
                         new Api.messages.ExportChatInvite({
-                            peer: chatId
+                            peer: channel
                         })
                     );
                     inviteLink = exportRes.link;
-                    console.log(`[ADELL TG GROUP] Created group '${groupTitle}': ${inviteLink}`);
+                    console.log(`[ADELL TG GROUP] Created clean private supergroup (No Bot): ${inviteLink}`);
+
+                    // গ্রুপের ভেতর অফিশিয়াল নোটিশ পিন করা
+                    try {
+                        await primaryTgClient.sendMessage(channel, {
+                            message: `🤝 <b>ADELL Private Trade Room</b>\n\n` +
+                                     `📦 <b>Deal:</b> ${r.title || "Trade"}\n` +
+                                     `🪙 <b>Escrow:</b> ${r.coins} Coins (হোল্ড করা আছে)\n\n` +
+                                     `⚠️ <b>সতর্কবার্তা:</b> ডিল সংক্রান্ত আলোচনা ও প্রুফ এখানে শেয়ার করুন। কাজ সম্পন্ন হলে অ্যাপে ফিরে Slide Confirm করুন।`,
+                            parseMode: "html"
+                        });
+                    } catch (mErr) {}
                 }
             } catch (tgErr) {
-                console.warn("[ADELL TG GROUP CREATION WARN]:", tgErr.message);
+                console.error("[ADELL TG GROUP CREATION ERR]:", tgErr);
             }
         }
 
-        // Fallback: Telegram Support Channel / Bot Direct Deep Link
         if (!inviteLink) {
-            inviteLink = `https://t.me/Ppmod_bot?start=adell_${roomId}`;
+            return res.status(500).json({ ok: false, error: "Telegram group creation failed" });
         }
 
         await roomRef.update({
