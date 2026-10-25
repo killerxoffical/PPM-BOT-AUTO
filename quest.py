@@ -39,14 +39,15 @@ print(f"{C}───────────────────────
 print(f"{G} Available Tasks & Quests:{NC}")
 print(f"{W}  [1] Gossip Harbor (50 Play Points){NC}")
 print(f"{W}  [2] Summoners War (Quest Completed){NC}")
+print(f"{W}  [3] Domino Dreams (Quest Completed){NC}")
 print(f"{R}  [0] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 
-choice = input(f"{Y}Enter selection (0-2): {NC}").strip()
+choice = input(f"{Y}Enter selection (0-3): {NC}").strip()
 
-def process_quest(game_name, package_name, real_game_id, achs_list):
+def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     show_header()
     print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
     print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
@@ -57,12 +58,28 @@ def process_quest(game_name, package_name, real_game_id, achs_list):
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
     
-    cc_row = cursor.execute("SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
+    cc_row = cursor.execute("SELECT _id, external_game_id FROM client_contexts WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
     if not cc_row:
         print(f"\n{R}✖ Error: Game not registered! Open {game_name} once first!{NC}")
         conn.close()
         return
     real_cc_id = cc_row[0]
+    ext_game_id = cc_row[1]
+    if not real_game_id:
+        real_game_id = ext_game_id
+
+    # If achievement list is not hardcoded, pull automatically from DB
+    if not achs_list:
+        db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE external_game_id = ?", (ext_game_id,)).fetchall()
+        if not db_achs:
+            # Fallback query if external_game_id differs
+            db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE game_id = (SELECT game_id FROM client_contexts WHERE package_name = ? LIMIT 1)", (package_name,)).fetchall()
+        achs_list = [(row[0], row[1], row[2] if row[2] else 0, row[3] if row[3] else '') for row in db_achs]
+
+    if not achs_list:
+        print(f"\n{R}✖ No achievements found in cache! Launch {game_name} and play 1 level.{NC}")
+        conn.close()
+        return
 
     player_id = cursor.execute("SELECT external_player_id FROM players LIMIT 1").fetchone()[0]
     now = int(subprocess.check_output("date +%s%3N", shell=True))
@@ -102,7 +119,7 @@ def process_quest(game_name, package_name, real_game_id, achs_list):
             unlocked_count += 1
         else:
             status_text = f"{R}PENDING{NC}"
-        print(f"│ {W}{a_name:<30}{NC} │ {status_text:<9} │")
+        print(f"│ {W}{a_name[:30]:<30}{NC} │ {status_text:<9} │")
 
     print(f"{C}└────────────────────────────────┴───────────┘{NC}")
     conn.close()
@@ -135,13 +152,10 @@ elif choice == "2":
     ]
     process_quest("Summoners War", "com.com2us.smon.normal.freefull.google.kr.android.common", "1", summoners_achs)
 
+elif choice == "3":
+    # Auto-detects and completes Domino Dreams achievements
+    process_quest("Domino Dreams", "com.screenshake.dominodreams")
+
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
 EOF
-
-# শর্টকাটটি এই নতুন লোকাল ফাইলের সাথে ফিক্স করে দিচ্ছি যাতে আর কোনো ক্যাশ এরর না আসে
-cat << 'EOF' > $PREFIX/bin/qt
-#!/data/data/com.termux/files/usr/bin/bash
-su -mm -c "PATH=$PATH PYTHONPATH=$PYTHONPATH python /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py"
-EOF
-chmod +x $PREFIX/bin/qt
