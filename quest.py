@@ -1,4 +1,5 @@
-import glob, os, random, sqlite3, subprocess, time
+cat << 'EOF' > /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py
+import glob, os, random, sqlite3, subprocess, sys, time
 
 G = "\033[1;32m"; Y = "\033[1;33m"; C = "\033[1;36m"; W = "\033[1;37m"; M = "\033[1;35m"; R = "\033[1;31m"; NC = "\033[0m"
 
@@ -36,15 +37,18 @@ print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
 print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{G} Available Tasks & Quests:{NC}")
-print(f"{W}  [1] Gossip Harbor (50 Play Points){NC}")
-print(f"{W}  [2] Summoners War (Quest Completed){NC}")
-print(f"{W}  [3] Domino Dreams (Quest Completed){NC}")
-print(f"{R}  [0] Exit Panel{NC}")
+print(f"{W}  [1/G] Gossip Harbor (50 Play Points){NC}")
+print(f"{W}  [2/S] Summoners War (Quest Completed){NC}")
+print(f"{W}  [3/D] Domino Dreams (Quest Completed){NC}")
+print(f"{R}  [0/X] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 
-choice = input(f"{Y}Enter selection (0-3): {NC}").strip()
+if len(sys.argv) > 1:
+    choice = sys.argv[1].strip().lower()
+else:
+    choice = input(f"{Y}Enter selection (1, 2, d/3, 0): {NC}").strip().lower()
 
 def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     show_header()
@@ -57,24 +61,50 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     conn = sqlite3.connect(db)
     cursor = conn.cursor()
     
-    cc_row = cursor.execute("SELECT _id, external_game_id FROM client_contexts WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
+    cc_row = cursor.execute("SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
     if not cc_row:
         print(f"\n{R}✖ Error: Game not registered! Open {game_name} once first!{NC}")
         conn.close()
         return
     real_cc_id = cc_row[0]
-    ext_game_id = cc_row[1]
+
+    # Safe identification of real_game_id from games table
     if not real_game_id:
-        real_game_id = ext_game_id
+        try:
+            g_row = cursor.execute("SELECT _id FROM games WHERE package_name = ? LIMIT 1", (package_name,)).fetchone()
+            if g_row:
+                real_game_id = str(g_row[0])
+        except:
+            pass
+    if not real_game_id:
+        real_game_id = str(real_cc_id)
+
+    # Pull achievements automatically from DB if not hardcoded
+    if not achs_list:
+        achs_list = []
+        try:
+            db_achs = cursor.execute("""
+                SELECT external_achievement_id, name, total_steps, formatted_total_steps 
+                FROM achievement_definitions 
+                WHERE game_id = (SELECT _id FROM games WHERE package_name = ? LIMIT 1)
+            """, (package_name,)).fetchall()
+            achs_list = [(r[0], r[1], r[2] if r[2] else 0, r[3] if r[3] else '') for r in db_achs]
+        except:
+            pass
+
+        if not achs_list:
+            try:
+                db_achs = cursor.execute("""
+                    SELECT external_achievement_id, name, total_steps, formatted_total_steps 
+                    FROM achievement_definitions 
+                    WHERE game_id = ?
+                """, (real_game_id,)).fetchall()
+                achs_list = [(r[0], r[1], r[2] if r[2] else 0, r[3] if r[3] else '') for r in db_achs]
+            except:
+                pass
 
     if not achs_list:
-        db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE external_game_id = ?", (ext_game_id,)).fetchall()
-        if not db_achs:
-            db_achs = cursor.execute("SELECT external_achievement_id, name, total_steps, formatted_total_steps FROM achievement_definitions WHERE game_id = (SELECT game_id FROM client_contexts WHERE package_name = ? LIMIT 1)", (package_name,)).fetchall()
-        achs_list = [(row[0], row[1], row[2] if row[2] else 0, row[3] if row[3] else '') for row in db_achs]
-
-    if not achs_list:
-        print(f"\n{R}✖ No achievements found in cache! Launch {game_name} once.{NC}")
+        print(f"\n{R}✖ No achievements found in cache! Launch {game_name} once and log in.{NC}")
         conn.close()
         return
 
@@ -133,7 +163,7 @@ def process_quest(game_name, package_name, real_game_id=None, achs_list=None):
     else:
         print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
 
-if choice == "1":
+if choice in ["1", "g"]:
     gossip_achs = [
         ('CgkI3YvxrpUIEAIQAQ', 'Starter Snack Bar', 5, '5/5'),
         ('CgkI3YvxrpUIEAIQBw', 'Welcome to Brimwave', 0, ''),
@@ -141,7 +171,7 @@ if choice == "1":
     ]
     process_quest("Gossip Harbor", "com.mergegames.gossipharbor", "13", gossip_achs)
 
-elif choice == "2":
+elif choice in ["2", "s"]:
     summoners_achs = [
         ('CgkIi9-Vv5oZEAIQDg', 'Joy of Victory', 0, ''),
         ('CgkIi9-Vv5oZEAIQEg', 'Monster Transformed', 0, ''),
@@ -149,8 +179,17 @@ elif choice == "2":
     ]
     process_quest("Summoners War", "com.com2us.smon.normal.freefull.google.kr.android.common", "1", summoners_achs)
 
-elif choice == "3":
+elif choice in ["3", "d", "c"]:
     process_quest("Domino Dreams", "com.screenshake.dominodreams")
 
 else:
     print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
+EOF
+
+# শর্টকাট আপডেট করা হলো যাতে 'qt d' সরাসরি কাজ করে
+cat << 'EOF' > $PREFIX/bin/qt
+#!/data/data/com.termux/files/usr/bin/bash
+su -mm -c "PATH=$PATH PYTHONPATH=$PYTHONPATH python /data/data/com.termux/files/home/google_play_achievement_unlocker/run_live.py \"$1\""
+EOF
+chmod +x $PREFIX/bin/qt
+hash -r
