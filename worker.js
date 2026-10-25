@@ -381,7 +381,7 @@ app.post("/api/p2p/release", async (req, res) => {
             if (!d.sellerUid) throw new Error("No seller attached");
 
             sellerUid = d.sellerUid;
-            sellerPoints = Math.floor(Number(d.coins || 0) * 10 * 0.98); // 2% fee deducted
+            sellerPoints = Math.floor(Number(d.coins || 0) * 10); // 0% fee deducted (Full 100% payout)
 
             const sRef = db.collection("users").doc(sellerUid);
             const sSnap = await t.get(sRef);
@@ -1092,6 +1092,7 @@ function buildUserAdminCard(uid, uData) {
     const isBanned = uData.banned === true;
     const joinDate = uData.createdAt && uData.createdAt.toDate ? uData.createdAt.toDate().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" }) : "—";
 
+    const curStars = Number(uData.loyaltyStars || 0);
     const text = 
         `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
         `📛 <b>Name:</b> ${uData.name || "User"}\n` +
@@ -1099,6 +1100,7 @@ function buildUserAdminCard(uid, uData) {
         `🆔 <b>UID:</b> <code>${uid}</code>\n` +
         `🪙 <b>PP Coins:</b> <b>${cleanBal} Coins</b>\n` +
         `⭐ <b>Play Points:</b> <b>${cleanPoints} Pts</b>\n` +
+        `🎖️ <b>Loyalty Stars:</b> <b>${curStars} / 10 Stars</b>\n` +
         `✈️ <b>Telegram:</b> ${uData.tgChatId || "Not Connected"}\n` +
         `📅 <b>Joined:</b> ${joinDate}\n` +
         `📌 <b>Status:</b> ${isBanned ? "🚫 <b>BANNED</b>" : "✅ <b>ACTIVE</b>"}`;
@@ -1110,12 +1112,12 @@ function buildUserAdminCard(uid, uData) {
                 { text: "🔄 Refresh", callback_data: `u_refresh:${uid}` }
             ],
             [
-                { text: "➕ Add Balance (+3)", callback_data: `u_mod_bal:${uid}:3` },
-                { text: "➖ Deduct Balance (-3)", callback_data: `u_mod_bal:${uid}:-3` }
+                { text: "➕ Add Coins", callback_data: `u_ask_add:${uid}` },
+                { text: "➖ Deduct Coins", callback_data: `u_ask_sub:${uid}` }
             ],
             [
-                { text: "➕ Add (+10)", callback_data: `u_mod_bal:${uid}:10` },
-                { text: "➖ Deduct (-10)", callback_data: `u_mod_bal:${uid}:-10` }
+                { text: "⭐ +1 Star", callback_data: `u_mod_star:${uid}:1` },
+                { text: "⭐ -1 Star", callback_data: `u_mod_star:${uid}:-1` }
             ]
         ]
     };
@@ -1127,6 +1129,50 @@ userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
         const replyTo = msg.reply_to_message;
+        const chatId = msg.chat.id;
+
+        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা হ্যান্ডেল করা
+        if (replyTo && replyTo.text) {
+            const repText = replyTo.text;
+            const uidMatch = repText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
+
+            if (uidMatch) {
+                const targetUid = uidMatch[1].trim();
+                const numVal = parseFloat(text);
+
+                if (!isNaN(numVal) && numVal > 0) {
+                    const isAdd = repText.includes("কত কয়েন যোগ করতে চান");
+                    const isSub = repText.includes("কত কয়েন কাটতে চান");
+
+                    if (isAdd || isSub) {
+                        const changeAmt = isAdd ? numVal : -numVal;
+                        const uRef = db.collection("users").doc(targetUid);
+                        let updatedBal = 0;
+
+                        await db.runTransaction(async (t) => {
+                            const uSnap = await t.get(uRef);
+                            if (!uSnap.exists) throw new Error("User not found");
+                            const cur = Number(uSnap.data().balance) || 0;
+                            updatedBal = Math.max(0, Math.round((cur + changeAmt + Number.EPSILON) * 100) / 100);
+                            t.update(uRef, { balance: updatedBal });
+                        });
+
+                        const uDoc = await uRef.get();
+                        const card = buildUserAdminCard(targetUid, uDoc.data());
+
+                        await userNotifyBot.sendMessage(chatId,
+                            `✅ <b>সফল!</b> ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> আপডেট হয়েছে।\n🪙 বর্তমান মোট ব্যালেন্স: <b>${updatedBal} Coins</b>`,
+                            { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                        );
+
+                        return userNotifyBot.sendMessage(chatId, card.text, {
+                            parse_mode: "HTML",
+                            reply_markup: card.reply_markup
+                        });
+                    }
+                }
+            }
+        }
 
         // /logon এবং /logoff কমান্ড
         if (text === "/logoff") {
@@ -1268,7 +1314,10 @@ userNotifyBot.on("callback_query", async (query) => {
             if (uSnap.exists) {
                 const newBannedState = !(uSnap.data().banned === true);
                 await uRef.update({ banned: newBannedState });
-                await userNotifyBot.answerCallbackQuery(query.id, { text: newBannedState ? "🚫 User Banned!" : "✅ User Unbanned!" });
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: newBannedState ? "🚫 ইউজার ব্যান করা হয়েছে!" : "✅ ইউজার আনব্যান করা হয়েছে!",
+                    show_alert: true
+                });
                 const updatedSnap = await uRef.get();
                 const card = buildUserAdminCard(targetUid, updatedSnap.data());
                 return userNotifyBot.editMessageText(card.text, {
@@ -1281,21 +1330,46 @@ userNotifyBot.on("callback_query", async (query) => {
             return userNotifyBot.answerCallbackQuery(query.id, { text: "User not found!" });
         }
 
-        if (data.startsWith("u_mod_bal:")) {
+        if (data.startsWith("u_ask_add:")) {
+            const targetUid = data.replace("u_ask_add:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `➕ <b>ব্যালেন্স যোগ করুন</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত কয়েন যোগ করতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 10 বা 50):`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: { force_reply: true, selective: true }
+                }
+            );
+        }
+
+        if (data.startsWith("u_ask_sub:")) {
+            const targetUid = data.replace("u_ask_sub:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `➖ <b>ব্যালেন্স কাটুন</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত কয়েন কাটতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 5 বা 20):`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: { force_reply: true, selective: true }
+                }
+            );
+        }
+
+        if (data.startsWith("u_mod_star:")) {
             const parts = data.split(":");
             const targetUid = parts[1];
-            const changeAmt = Number(parts[2]) || 0;
-
+            const change = Number(parts[2]) || 0;
             const uRef = db.collection("users").doc(targetUid);
+            let newStars = 0;
+
             await db.runTransaction(async (t) => {
                 const uSnap = await t.get(uRef);
-                if (!uSnap.exists) throw new Error("not_found");
-                const cur = Number(uSnap.data().balance) || 0;
-                const updated = Math.max(0, Math.round((cur + changeAmt + Number.EPSILON) * 100) / 100);
-                t.update(uRef, { balance: updated });
+                if (!uSnap.exists) throw new Error("User not found");
+                const cur = Number(uSnap.data().loyaltyStars || 0);
+                newStars = Math.max(0, Math.min(10, cur + change));
+                t.update(uRef, { loyaltyStars: newStars });
             });
 
-            await userNotifyBot.answerCallbackQuery(query.id, { text: `Balance: ${changeAmt > 0 ? '+' : ''}${changeAmt} Coins applied!` });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `⭐ Stars: ${newStars}/10 applied!` });
             const updatedSnap = await uRef.get();
             const card = buildUserAdminCard(targetUid, updatedSnap.data());
             return userNotifyBot.editMessageText(card.text, {
