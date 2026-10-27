@@ -2,11 +2,9 @@
 
 PP MOD DEVELOPER PORTAL - AUTO QUEST ENGINE (CLOUD DEPLOYMENT)
 Architecture Note:
-    - This script is designed to be dynamically downloaded and executed via
-    GitHub Raw URL.
-    - It connects to Google Play Services local databases using Root (su -mm).
-    - It supports Dual Input Key Mapping (e.g. 1 or 'a', 2 or 'b', 3 or 'c')
-      for users with malfunctioning number pads or custom terminals.
+    - This script is dynamically executed from GitHub Raw URL.
+    - Connects to Google Play Services local databases using Root (su -mm).
+    - Supports Dual Input Key Mapping (1/a, 2/b, 3/c, 4/d).
 ============================================================================="""
 
 import glob, os, random, sqlite3, subprocess, time
@@ -68,13 +66,13 @@ print(f"{G} Available Tasks & Quests:{NC}")
 print(f"{W}  [1 / a] Gossip Harbor (50 Play Points){NC}")
 print(f"{W}  [2 / b] Summoners War (Quest Completed){NC}")
 print(f"{W}  [3 / c] Domino Dreams (Quest Completed){NC}")
+print(f"{W}  [4 / d] Farm Heroes Saga (70 Play Points){NC}")
 print(f"{R}  [0 / x] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 
-# ডুয়াল ইনপুট রিডার (1 বা a, 2 বা b ইত্যাদি)
-choice = input(f"{Y}Enter choice (1/a, 2/b, 3/c): {NC}").strip().lower()
+choice = input(f"{Y}Enter choice (1-4 or a-d): {NC}").strip().lower()
 
 
 def process_quest(game_name, package_name, real_game_id, achs_list):
@@ -169,7 +167,6 @@ def process_quest(game_name, package_name, real_game_id, achs_list):
     print(f"\n{R}✖ Verification failed! Some quests were not updated.{NC}\n")
 
 
-# কীবোর্ড ইনপুট হ্যান্ডলার (নাম্বার অথবা অক্ষর)
 if choice in ["1", "a"]:
   gossip_achs = [
       ("CgkI3YvxrpUIEAIQAQ", "Starter Snack Bar", 5, "5/5"),
@@ -202,7 +199,16 @@ elif choice in ["3", "c"]:
       "Domino Dreams", "com.screenshake.dominodreams", "1", domino_achs
   )
 
+elif choice in ["4", "d"]:
+  farm_achs = [
+      ("CgkIu7q4p9MfEAIQCw", "Flawless", 0, ""),
+      ("CgkIu7q4p9MfEAIQCQ", "Adept Farmer", 0, ""),
+      ("CgkIu7q4p9MfEAIQDA", "Reward Harvest", 0, ""),
+      ("CgkIu7q4p9MfEAIQCg", "Battle Rancid", 0, ""),
+  ]
+  process_quest("Farm Heroes Saga", "com.king.farmheroessaga", "3", farm_achs)
+
 elif choice in ["0", "x"]:
   print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
 else:
-  print(f"\n{R}✖ Invalid Option! Please type 1, 2, 3 or a, b, c{NC}\n")
+  print(f"\n{R}✖ Invalid Option! Please type 1-4 or a-d{NC}\n")
