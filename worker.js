@@ -1061,11 +1061,13 @@ function formatBdPhone(raw) {
 }
 
 // ---------------- 3b. USER BOT REFERRAL SYSTEM ----------------
+const FOLDER_INVITE_LINK = "https://t.me/addlist/XKUnq4HScawxYWFl";
+const WELCOME_BANNER_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1793161477971_file_000000003be882468416131a626117c0.png";
+
 const REQUIRED_CHANNELS = [
     { name: "📢 Main Channel", url: "https://t.me/googleplaypointhack", username: "@googleplaypointhack" },
     { name: "📋 All Order Log", url: "https://t.me/ppmododderlog", username: "@ppmododderlog" },
-    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" },
-    { name: "🔒 Private Channel (Request)", url: "https://t.me/+s09ahNjWHZM4YWM9", invite: true }
+    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" }
 ];
 
 function generateReferralCode() {
@@ -1090,13 +1092,17 @@ async function checkUserMembership(userId) {
 }
 
 function getJoinKeyboard(userId, refId = null) {
-    const rows = REQUIRED_CHANNELS.map((ch, idx) => [
-        { text: `${idx + 1}. ${ch.name}`, url: ch.url }
-    ]);
     const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
-    rows.push([{ text: "✅ Verify / চেক করুন", callback_data: verifyData }]);
-    rows.push([{ text: "👥 আমার রেফারেল লিংক ও পরিসংখ্যান", callback_data: "my_ref_info" }]);
-    return { inline_keyboard: rows };
+    return {
+        inline_keyboard: [
+            [{ text: "🚀 Join All Channels (1-Click Folder)", url: FOLDER_INVITE_LINK }],
+            [{ text: "✅ Verify / চেক করুন", callback_data: verifyData }],
+            [
+                { text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" },
+                { text: "👥 Referral Stats", callback_data: "my_ref_info" }
+            ]
+        ]
+    };
 }
 
 // ---------------- ADMIN SWIPE-TO-REPLY & COMMAND HANDLERS ----------------
@@ -1296,22 +1302,33 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
         }
 
         const welcomeText = 
-            `👋 <b>হ্যালো ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
-            `PP MOD অফিসিয়াল বটে আপনাকে স্বাগতম। 🚀\n\n` +
-            `🎁 <b>স্পেশাল রেফারেল অফার:</b>\n` +
-            `প্রতি <b>১০ জন সফল রেফারে</b> আপনি পাবেন একটি <b>৩ PP Coins</b>-এর ফ্রি রিডিম কোড!\n\n` +
-            `⚠️ <b>বট অ্যাক্টিভ ও রেফার কাউন্ট হতে নিচের ৪টি লিংকেই জয়েন ও রিকোয়েস্ট পাঠান:</b>\n` +
-            `১. <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
-            `২. <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
-            `৩. <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
-            `৪. <a href="https://t.me/+s09ahNjWHZM4YWM9">Private Channel (Request Join)</a>\n\n` +
-            `সবগুলোতে জয়েন করে নিচের <b>"Verify / চেক করুন"</b> বাটনে চাপ দিন।`;
+            `👑 <b>WELCOME TO PP MOD OFFICIAL</b> 🚀\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `👋 <b>হ্যালো, ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
+            `🎁 <b>রেফারেল বোনাস অফার:</b>\n` +
+            `প্রতি <b>১০ জন ভেরিফাইড রেফারে</b> পাবেন ১টি <b>৩ PP Coins</b>-এর রিডিম কোড!\n\n` +
+            `⚡ <b>আমাদের অফিসিয়াল কমিউনিটি:</b>\n` +
+            `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
+            `├ 📋 <a href="https://t.me/ppmododderlog">All Order Logs</a>\n` +
+            `├ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
+            `└ 🔒 <a href="https://t.me/+s09ahNjWHZM4YWM9">VIP Private Access</a>\n\n` +
+            `📌 <b>করণীয়:</b>\n` +
+            `নিচের <b>"🚀 Join All Channels"</b> বাটনে চাপ দিলে ১-ক্লিকে সব চ্যানেল অ্যাড হয়ে যাবে। এরপর <b>"✅ Verify"</b> বাটনে চাপ দিয়ে একাউন্ট অ্যাক্টিভ করুন।\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━`;
 
-        await userNotifyBot.sendMessage(chatId, welcomeText, {
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-            reply_markup: getJoinKeyboard(userId, inviterId)
-        });
+        try {
+            await userNotifyBot.sendPhoto(chatId, WELCOME_BANNER_IMG, {
+                caption: welcomeText,
+                parse_mode: "HTML",
+                reply_markup: getJoinKeyboard(userId, inviterId)
+            });
+        } catch (imgErr) {
+            await userNotifyBot.sendMessage(chatId, welcomeText, {
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                reply_markup: getJoinKeyboard(userId, inviterId)
+            });
+        }
     } catch (e) {}
 });
 
@@ -1460,43 +1477,23 @@ userNotifyBot.on("callback_query", async (query) => {
                 if (inviterSnap.exists) {
                     const invData = inviterSnap.data();
                     const newCount = (Number(invData.referralCount) || 0) + 1;
-                    const prevRewards = Number(invData.rewardsEarned) || 0;
-                    const eligibleRewards = Math.floor(newCount / 10);
+                    const curBal = Number(invData.refBalance || 0);
+                    const newBal = Math.round((curBal + 0.5 + Number.EPSILON) * 100) / 100;
 
-                    await inviterRef.update({ referralCount: newCount });
+                    await inviterRef.update({
+                        referralCount: newCount,
+                        refBalance: newBal
+                    });
 
-                    const remaining = 10 - (newCount % 10 === 0 ? 0 : newCount % 10);
                     await userNotifyBot.sendMessage(inviterId,
-                        `🎉 <b>নতুন রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> আপনার লিংকে সফলভাবে ভেরিফাই হয়েছে।\n\n` +
+                        `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
+                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> সফলভাবে ভেরিফাই সম্পন্ন করেছেন।\n` +
+                        `🪙 <b>+0.5 PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
+                        `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
                         `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
-                        `🎯 পরবর্তী ৩ কয়েন রিডিম কোডের জন্য আর <b>${remaining === 0 ? 10 : remaining}</b> জন রেফার প্রয়োজন!`,
+                        `📌 <i>(ব্যালেন্স ৩ কয়েন বা তার বেশি হলে রিডিম কোড তুলে নিতে পারবেন)</i>`,
                         { parse_mode: "HTML" }
                     ).catch(() => {});
-
-                    if (eligibleRewards > prevRewards) {
-                        const newRewardCount = eligibleRewards - prevRewards;
-                        for (let i = 0; i < newRewardCount; i++) {
-                            const newCode = generateReferralCode();
-
-                            await db.collection("codes").doc(newCode).set({
-                                amount: 3,
-                                maxUses: 1,
-                                used: 0,
-                                active: true,
-                                note: "Referral Bonus: 10 Referrals Completed!",
-                                createdAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-
-                            await userNotifyBot.sendMessage(inviterId,
-                                `🎁 <b>অভিনন্দন! আপনার ১০টি সফল রেফার সম্পন্ন হয়েছে!</b>\n\n` +
-                                `আপনার ৩ কয়েন রিডিম কোড:\n<code>${newCode}</code>\n\n` +
-                                `👉 এখনই PP MOD অ্যাপ ওপেন করে <b>Profile > Redeem Code</b> বক্সে কোডটি দিয়ে ৩টি PP Coins ক্লেইম করে নিন! ✨`,
-                                { parse_mode: "HTML" }
-                            ).catch(() => {});
-                        }
-                        await inviterRef.update({ rewardsEarned: eligibleRewards });
-                    }
                 }
             }
             return;
@@ -1506,29 +1503,171 @@ userNotifyBot.on("callback_query", async (query) => {
             const userSnap = await db.collection("tg_bot_users").doc(userId).get();
             const uData = userSnap.exists ? userSnap.data() : {};
             const refCount = Number(uData.referralCount) || 0;
-            const rewards = Number(uData.rewardsEarned) || 0;
-            const needed = 10 - (refCount % 10 === 0 && refCount > 0 ? 0 : refCount % 10);
+            const refBal = Number(uData.refBalance || 0);
             const botInfo = await userNotifyBot.getMe();
             const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
 
             const infoMsg = 
-                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n\n` +
-                `🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>${refLink}</code>\n\n` +
-                `📊 <b>মোট সফল রেফার:</b> ${refCount} জন\n` +
-                `🎁 <b>মোট প্রাপ্ত রিডিম কোড:</b> ${rewards} টি\n` +
-                `🎯 <b>পরবর্তী কোডের জন্য বাকি:</b> ${needed === 0 ? 10 : needed} জন\n\n` +
-                `<i>আপনার রেফারেল লিংক বন্ধুদের মাঝে শেয়ার করুন এবং প্রতি ১০ জন ভেরিফাইড রেফারে জিতে নিন ৩ কয়েন ফ্রি রিডিম কোড!</i>`;
+                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🔗 <b>আপনার ইনভাইট লিংক:</b>\n<code>${refLink}</code>\n\n` +
+                `💰 <b>রেফার ব্যালেন্স:</b> <b>${refBal} PP Coins</b>\n` +
+                `📊 <b>মোট সফল রেফার:</b> <b>${refCount}</b> জন\n` +
+                `🪙 <b>রেফার রেট:</b> প্রতি রেফারে <b>০.৫ Coins</b>\n` +
+                `⚠️ <b>উইথড্র শর্ত:</b> ন্যূনতম ৩ কয়েন হলে কোড বানানো যাবে।\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `<i>আপনার লিংক বন্ধুদের সাথে শেয়ার করুন এবং ব্যালেন্স জমিয়ে সরাসরি রিডিম কোড নিন!</i>`;
 
             await userNotifyBot.answerCallbackQuery(query.id);
-            await userNotifyBot.sendMessage(chatId, infoMsg, {
+            return userNotifyBot.sendMessage(chatId, infoMsg, {
                 parse_mode: "HTML",
                 reply_markup: {
                     inline_keyboard: [
+                        [{ text: `🎁 রিডিম কোড তৈরি করুন (${refBal} Coins)`, callback_data: "withdraw_ref_code" }],
+                        [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }],
                         [{ text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
                     ]
                 }
             });
-            return;
+        }
+
+        // ---------------- DYNAMIC REDEEM CODE WITHDRAW HANDLER ----------------
+        if (data === "withdraw_ref_code") {
+            const uRef = db.collection("tg_bot_users").doc(userId);
+            
+            try {
+                let codeGenerated = null;
+                let withdrawnAmount = 0;
+
+                await db.runTransaction(async (t) => {
+                    const uSnap = await t.get(uRef);
+                    if (!uSnap.exists) throw new Error("NO_USER");
+                    const uData = uSnap.data();
+                    const curBal = Number(uData.refBalance || 0);
+
+                    if (curBal < 3) {
+                        throw new Error("LOW_BALANCE");
+                    }
+
+                    withdrawnAmount = Math.round((curBal + Number.EPSILON) * 100) / 100;
+                    codeGenerated = generateReferralCode();
+
+                    // ব্যালেন্স ০ করা এবং উইথড্র লগ রাখা
+                    t.update(uRef, {
+                        refBalance: 0,
+                        totalWithdrawn: admin.firestore.FieldValue.increment(withdrawnAmount),
+                        lastWithdrawnAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // codes কালেকশনে ফুল ব্যালেন্সের কোড তৈরি
+                    const codeRef = db.collection("codes").doc(codeGenerated);
+                    t.set(codeRef, {
+                        amount: withdrawnAmount,
+                        maxUses: 1,
+                        used: 0,
+                        active: true,
+                        creatorTgId: userId,
+                        note: `Referral Balance Withdrawal (${withdrawnAmount} Coins)`,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: `✅ ${withdrawnAmount} Coins-এর রিডিম কোড তৈরি হয়েছে!`,
+                    show_alert: true
+                });
+
+                const successMsg = 
+                    `🎁 <b>অভিনন্দন! রিডিম কোড সফলভাবে তৈরি হয়েছে!</b> 🎉\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🪙 <b>কয়েন পরিমাণ:</b> <b>${withdrawnAmount} PP Coins</b>\n` +
+                    `🔖 <b>আপনার রিডিম কোড:</b>\n<code>${codeGenerated}</code>\n\n` +
+                    `👉 <b>ক্লেইম করার নিয়ম:</b>\n` +
+                    `১. কোডটি কপি করতে কোডের ওপর চাপুন।\n` +
+                    `২. <b>PP MOD</b> অ্যাপ ওপেন করে <b>Profile > Redeem Code</b> বক্সে কোডটি পেস্ট করুন।\n` +
+                    `৩. সাথে সাথে আপনার ওয়ালেটে <b>${withdrawnAmount} PP Coins</b> যোগ হয়ে যাবে! 🚀\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━`;
+
+                return userNotifyBot.sendMessage(chatId, successMsg, { parse_mode: "HTML" });
+
+            } catch (err) {
+                if (err.message === "LOW_BALANCE") {
+                    const curDoc = await uRef.get();
+                    const nowBal = curDoc.exists ? (curDoc.data().refBalance || 0) : 0;
+                    const needed = Math.max(0, Math.round((3 - nowBal) * 100) / 100);
+                    return userNotifyBot.answerCallbackQuery(query.id, {
+                        text: `❌ ন্যূনতম ৩ কয়েন লাগবে!\nআপনার ব্যালেন্স: ${nowBal} Coins। আরো ${needed} Coins প্রয়োজন।`,
+                        show_alert: true
+                    });
+                }
+                return userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "⚠️ কোড তৈরিতে সমস্যা হয়েছে! আবার চেষ্টা করুন।",
+                    show_alert: true
+                });
+            }
+        }
+
+        // ---------------- LEADERBOARD HANDLER ----------------
+        if (data === "show_leaderboard") {
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "🏆 লিডারবোর্ড লোড হচ্ছে..." });
+
+            try {
+                // টপ ১০ রেফারার ফেচ করা
+                const topSnap = await db.collection("tg_bot_users")
+                    .where("referralCount", ">", 0)
+                    .orderBy("referralCount", "desc")
+                    .limit(10)
+                    .get();
+
+                // ইউজারের নিজস্ব তথ্য ও র‍্যাংক হিসেব করা
+                const myDoc = await db.collection("tg_bot_users").doc(userId).get();
+                const myData = myDoc.exists ? myDoc.data() : {};
+                const myRefCount = Number(myData.referralCount) || 0;
+
+                let myRank = "—";
+                if (myRefCount > 0) {
+                    const higherSnap = await db.collection("tg_bot_users")
+                        .where("referralCount", ">", myRefCount)
+                        .get();
+                    myRank = `#${higherSnap.size + 1}`;
+                }
+
+                const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+                let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
+                                `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                if (topSnap.empty) {
+                    boardText += `<i>এখনো কোনো সফল রেফারেল রেকর্ড নেই। প্রথম রেফার করে শীর্ষে চলে আসুন!</i>\n\n`;
+                } else {
+                    let idx = 0;
+                    topSnap.forEach((doc) => {
+                        const d = doc.data();
+                        const medal = medals[idx] || `[${idx + 1}]`;
+                        const safeName = (d.name || d.username || "Anonymous").slice(0, 18);
+                        const isMe = doc.id === userId ? " 👈 (আপনি)" : "";
+                        boardText += `${medal} <b>${safeName}</b>${isMe}\n`;
+                        boardText += `   └ 👥 রেফার: <b>${d.referralCount || 0}</b> জন | 🎁 কোড: <b>${d.rewardsEarned || 0}</b> টি\n\n`;
+                        idx++;
+                    });
+                }
+
+                boardText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+                boardText += `📍 <b>আপনার বর্তমান পজিশন:</b> <b>${myRank}</b>\n`;
+                boardText += `👥 <b>আপনার সফল রেফার:</b> <b>${myRefCount}</b> জন\n`;
+                boardText += `🎯 <i>নিয়মিত বন্ধুদের ইনভাইট করুন এবং টপ লিডারবোর্ডে জায়গা করে নিন!</i>`;
+
+                return userNotifyBot.sendMessage(chatId, boardText, {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🔄 Refresh", callback_data: "show_leaderboard" }],
+                            [{ text: "👥 My Referral Link", callback_data: "my_ref_info" }]
+                        ]
+                    }
+                });
+            } catch (lErr) {
+                return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।");
+            }
         }
     } catch (e) {}
 });
