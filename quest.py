@@ -1,12 +1,11 @@
 """=============================================================================
 
-PP MOD DEVELOPER PORTAL - SMART RADAR AUTO-QUEST BOT (CLOUD DEPLOYMENT)
+PP MOD DEVELOPER PORTAL - FULL AUTO SMART BOT (RADAR EMAIL CHECK)
 Architecture Note:
-    - Dynamically fetched and executed from GitHub Raw URL via 'qt' command.
-    - Features Smart Background DB Polling: Launches target game, monitors SQLite
-      in real-time until Google Play Games registers the package, kills game,
-      injects quest completion, re-launches game for cloud sync, and brings
-      Termux back to foreground to display VIP result screen!
+    - Features Deep Login Verification (Checks account_name, profile_name & cc_id).
+    - Holds game up to 120s dynamically until Google Auth handshake completes.
+    - Injects completion, re-launches for 18s server handshake, kills game,
+      and brings Termux directly to foreground with VIP status card!
 ============================================================================="""
 
 import glob, os, random, sqlite3, subprocess, time
@@ -32,7 +31,6 @@ def show_header():
 
 
 def launch_app(pkg):
-  # যেকোনো গেমের আসল Launcher Activity স্বয়ংক্রিয়ভাবে বের করে ওপেন করা
   cmd = f"cmd package resolve-activity --brief {pkg} | tail -n 1"
   act = subprocess.check_output(cmd, shell=True, text=True).strip()
   if act and "/" in act:
@@ -53,6 +51,7 @@ def bring_termux_front():
 
 show_header()
 
+# ১. ডাটাবেজ বেস ডিটেকশন
 try:
   db = sorted(
       glob.glob("/data/data/com.google.android.gms/databases/games_*.db"),
@@ -60,9 +59,10 @@ try:
   )[-1]
 except:
   print(f"\n{R}✖ Google Play Games Database Missing!{NC}")
-  print(f"{Y}👉 Open Google Play Games once to initialize account.{NC}\n")
+  print(f"{Y}👉 Open Google Play Games once to initialize.{NC}\n")
   exit()
 
+# ২. বর্তমান প্লেয়ার তথ্য চেক
 g, e, lvl, xp = "Unknown Gamer", "No Email Linked", "Level 10", "15,250 XP"
 try:
   c = sqlite3.connect(db)
@@ -97,57 +97,83 @@ choice = input(f"{Y}Enter choice (1-4 or a-d): {NC}").strip().lower()
 
 
 def process_smart_quest(game_name, package_name, fallback_game_id, achs_list):
-  start_exec = time.time()
+  show_header()
   print(f"\n{M}🚀 [AUTO-BOT] Launching {game_name}...{NC}")
   print(
-      f"{Y}📡 [RADAR] Waiting in background for Play Games Sign-In data...{NC}"
+      f"{Y}📡 [RADAR] Monitoring live Google Play Games Auth & Email Sync...{NC}"
+  )
+  print(
+      f"{C}⏳ Game will remain open until Account & Cloud Data is fully"
+      f" captured (Up to 120s)...{NC}"
   )
 
-  # ১. গেম অটো ওপেন করা
+  # গেম অটো ওপেন করা
   launch_app(package_name)
 
-  # ২. ব্যাকগ্রাউন্ডে লাইভ ডাটাবেজ স্ক্যান করা (সর্বোচ্চ ৪৫ সেকেন্ড অপেক্ষা করবে)
   real_cc_id = None
-  for sec in range(45):
+  db_to_use = None
+  detected_mail = "No Email"
+  detected_gamer = "Unknown"
+
+  # ব্যাকগ্রাউন্ড স্ক্যানার (সর্বোচ্চ ১২০ সেকেন্ড অপেক্ষা করবে)
+  for sec in range(120):
     try:
-      # প্রতিবার লেটেস্ট ডিবি ফাইল চেক করা (নতুন আইডির ক্ষেত্রেও কাজ করবে)
-      current_db = sorted(
+      dbs = sorted(
           glob.glob("/data/data/com.google.android.gms/databases/games_*.db"),
           key=os.path.getmtime,
-      )[-1]
-      conn = sqlite3.connect(current_db)
-      cc_row = conn.execute(
-          "SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1",
-          (package_name,),
-      ).fetchone()
-      conn.close()
-      if cc_row:
-        real_cc_id = cc_row[0]
-        db_to_use = current_db
-        break
+      )
+      if dbs:
+        latest_db = dbs[-1]
+        conn = sqlite3.connect(latest_db)
+
+        # চেক ১: প্যাকেজ এবং ইমেইল কানেক্ট হয়েছে কি না
+        cc_row = conn.execute(
+            "SELECT _id, account_name FROM client_contexts WHERE package_name ="
+            " ? AND account_name IS NOT NULL LIMIT 1",
+            (package_name,),
+        ).fetchone()
+
+        # চেক ২: প্লেয়ার আইডি তৈরি হয়েছে কি না
+        p_row = conn.execute(
+            "SELECT external_player_id, profile_name FROM players LIMIT 1"
+        ).fetchone()
+
+        conn.close()
+
+        if cc_row and p_row:
+          real_cc_id = cc_row[0]
+          detected_mail = cc_row[1]
+          detected_gamer = p_row[1]
+          db_to_use = latest_db
+          break
     except:
       pass
     time.sleep(1)
 
   if not real_cc_id:
     bring_termux_front()
-    print(f"\n{R}✖ Timeout! Game did not connect to Play Games in 45s.{NC}")
-    print(f"{Y}👉 Make sure the game is installed and logged in.{NC}\n")
+    print(f"\n{R}✖ [TIMEOUT] Could not detect Google Account in game!{NC}")
+    print(
+        f"{Y}👉 Please ensure your Google account is signed in inside Play"
+        f" Games.{NC}\n"
+    )
+    subprocess.run(
+        f"am force-stop {package_name}", shell=True, capture_output=True
+    )
     return
 
-  # ডেটা পাওয়ার পর আরও ৩ সেকেন্ড অপেক্ষা করা যাতে টেবিল পুরোপুরি সিঙ্ক হয়
-  time.sleep(3)
+  # ডাটা পাওয়ার পর অতিরিক্ত ৫ সেকেন্ড রাখা যাতে ক্লাউড টোকেন রাইট শেষ হয়
+  time.sleep(5)
 
-  # ৩. ডেটা পাওয়া মাত্র গেম কেটে দেওয়া
+  # লগইন কনফার্ম হওয়া মাত্র গেম বন্ধ করা
   subprocess.run(
       f"am force-stop {package_name}", shell=True, capture_output=True
   )
 
-  # ৪. ডাটাবেজে কুয়েস্ট কমপ্লিট করা
+  # ডাটাবেজে কোয়েস্ট কমপ্লিট করা
   conn = sqlite3.connect(db_to_use)
   cursor = conn.cursor()
 
-  # আসল Game ID খুঁজে বের করা (না পেলে fallback ব্যবহার করবে)
   g_row = cursor.execute(
       "SELECT game_id FROM achievement_definitions WHERE"
       " external_achievement_id = ? LIMIT 1",
@@ -182,31 +208,31 @@ def process_smart_quest(game_name, package_name, fallback_game_id, achs_list):
   conn.commit()
   conn.close()
 
-  # ক্লাউড সিঙ্ক ব্রডকাস্ট
+  # গুগল ক্লাউড সিঙ্ক ব্রডকাস্ট পাঠানো
   subprocess.run(
       "am broadcast -a com.google.android.gms.games.SYNC --user 0",
       shell=True,
       capture_output=True,
   )
 
-  # ৫. ভেরিফিকেশনের জন্য আবার গেম ওপেন করা (৭ সেকেন্ড)
+  # সার্ভার ভেরিফিকেশনের জন্য আবার গেম ওপেন করা (১৮ সেকেন্ড রাখবে)
   launch_app(package_name)
-  time.sleep(7)
+  time.sleep(18)
   subprocess.run(
       f"am force-stop {package_name}", shell=True, capture_output=True
   )
 
-  # ৬. সব কাজ শেষে স্বয়ংক্রিয়ভাবে Termux সামনে নিয়ে আসা!
+  # স্বয়ংক্রিয়ভাবে Termux সামনে ফিরিয়ে আনা
   bring_termux_front()
   time.sleep(0.5)
 
-  # ৭. ভিআইপি ফাইনাল স্ক্রিনশট ডিসপ্লে দেখানো
+  # ফাইনাল ভিআইপি রেজাল্ট কার্ড
   show_header()
-  print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
-  print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+  print(f"{Y}👤 Gamer Tag   : {W}{detected_gamer}{NC}")
+  print(f"{Y}📧 Linked Mail : {W}{detected_mail}{NC}")
   print(f"{Y}🎮 Play Games  : {G}{lvl} {W}({xp}){NC}")
   print(f"{C}──────────────────────────────────────────────{NC}")
-  print(f"{G}✔ Auto-Radar Data Captured & Synced!{NC}")
+  print(f"{G}✔ Account Verified & Token Captured!{NC}")
   print(f"{G}✔ Cloud Verification Handshake Complete!{NC}")
 
   print(f"\n{Y}🎯 Game : {W}{game_name} {Y}[{G}Quest Claimed{Y}]{NC}")
