@@ -1301,12 +1301,13 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
             await db.collection("tg_bot_users").doc(userId).update({ inviterId });
         }
 
+        const cleanFirstName = (msg.from.first_name || "ইউজার").replace(/[<>&]/g, "");
         const welcomeText = 
             `👑 <b>WELCOME TO PP MOD OFFICIAL</b> 🚀\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `👋 <b>হ্যালো, ${msg.from.first_name || "ইউজার"}!</b>\n\n` +
+            `👋 <b>হ্যালো, ${cleanFirstName}!</b>\n\n` +
             `🎁 <b>রেফারেল বোনাস অফার:</b>\n` +
-            `প্রতি <b>১০ জন ভেরিফাইড রেফারে</b> পাবেন ১টি <b>৩ PP Coins</b>-এর রিডিম কোড!\n\n` +
+            `প্রতি সফল রেফারে পাবেন <b>০.৫ PP Coins</b>! মাত্র <b>৩ কয়েন</b> ব্যালেন্স জমলেই সাথে সাথে রিডিম কোড তুলে নিতে পারবেন।\n\n` +
             `⚡ <b>আমাদের অফিসিয়াল কমিউনিটি:</b>\n` +
             `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
             `├ 📋 <a href="https://t.me/ppmododderlog">All Order Logs</a>\n` +
@@ -1609,64 +1610,75 @@ userNotifyBot.on("callback_query", async (query) => {
 
         // ---------------- LEADERBOARD HANDLER ----------------
         if (data === "show_leaderboard") {
-            await userNotifyBot.answerCallbackQuery(query.id, { text: "🏆 লিডারবোর্ড লোড হচ্ছে..." });
-
             try {
-                // টপ ১০ রেফারার ফেচ করা
+                await userNotifyBot.answerCallbackQuery(query.id);
+
+                // কোনো ইনডেক্সিং এরর ছাড়াই স্মুথলি টপ ১০ ফেচ করা
                 const topSnap = await db.collection("tg_bot_users")
-                    .where("referralCount", ">", 0)
                     .orderBy("referralCount", "desc")
                     .limit(10)
                     .get();
 
-                // ইউজারের নিজস্ব তথ্য ও র‍্যাংক হিসেব করা
+                // ইউজারের নিজস্ব তথ্য ও পজিশন
                 const myDoc = await db.collection("tg_bot_users").doc(userId).get();
                 const myData = myDoc.exists ? myDoc.data() : {};
                 const myRefCount = Number(myData.referralCount) || 0;
 
                 let myRank = "—";
                 if (myRefCount > 0) {
-                    const higherSnap = await db.collection("tg_bot_users")
-                        .where("referralCount", ">", myRefCount)
-                        .get();
-                    myRank = `#${higherSnap.size + 1}`;
+                    try {
+                        const higherSnap = await db.collection("tg_bot_users")
+                            .where("referralCount", ">", myRefCount)
+                            .get();
+                        myRank = `#${higherSnap.size + 1}`;
+                    } catch (re) {
+                        myRank = "Active";
+                    }
                 }
 
                 const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
                 let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
                                 `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-                if (topSnap.empty) {
-                    boardText += `<i>এখনো কোনো সফল রেফারেল রেকর্ড নেই। প্রথম রেফার করে শীর্ষে চলে আসুন!</i>\n\n`;
-                } else {
-                    let idx = 0;
-                    topSnap.forEach((doc) => {
-                        const d = doc.data();
-                        const medal = medals[idx] || `[${idx + 1}]`;
-                        const safeName = (d.name || d.username || "Anonymous").slice(0, 18);
+                let countAdded = 0;
+                topSnap.forEach((doc) => {
+                    const d = doc.data();
+                    const refNum = Number(d.referralCount) || 0;
+                    if (refNum > 0) {
+                        const medal = medals[countAdded] || `[${countAdded + 1}]`;
+                        // HTML ট্যাগ ভেঙে যাওয়া প্রতিরোধে নাম ক্লিন করা
+                        let rawName = (d.name || d.username || "User").replace(/[<>&]/g, "");
+                        if (!rawName.trim()) rawName = "User";
+                        const safeName = rawName.slice(0, 16);
+
                         const isMe = doc.id === userId ? " 👈 (আপনি)" : "";
                         boardText += `${medal} <b>${safeName}</b>${isMe}\n`;
-                        boardText += `   └ 👥 রেফার: <b>${d.referralCount || 0}</b> জন | 🎁 কোড: <b>${d.rewardsEarned || 0}</b> টি\n\n`;
-                        idx++;
-                    });
+                        boardText += `   └ 👥 সফল রেফার: <b>${refNum}</b> জন\n\n`;
+                        countAdded++;
+                    }
+                });
+
+                if (countAdded === 0) {
+                    boardText += `<i>এখনো কোনো সফল রেফারেল ডাটা নেই। রেফার করে টপে চলে আসুন!</i>\n\n`;
                 }
 
                 boardText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
                 boardText += `📍 <b>আপনার বর্তমান পজিশন:</b> <b>${myRank}</b>\n`;
-                boardText += `👥 <b>আপনার সফল রেফার:</b> <b>${myRefCount}</b> জন\n`;
-                boardText += `🎯 <i>নিয়মিত বন্ধুদের ইনভাইট করুন এবং টপ লিডারবোর্ডে জায়গা করে নিন!</i>`;
+                boardText += `👥 <b>আপনার মোট সফল রেফার:</b> <b>${myRefCount}</b> জন\n`;
+                boardText += `🎯 <i>বন্ধুদের ইনভাইট করুন এবং টপ লিডারবোর্ডে জায়গা করে নিন!</i>`;
 
                 return userNotifyBot.sendMessage(chatId, boardText, {
                     parse_mode: "HTML",
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "🔄 Refresh", callback_data: "show_leaderboard" }],
-                            [{ text: "👥 My Referral Link", callback_data: "my_ref_info" }]
+                            [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
                         ]
                     }
                 });
             } catch (lErr) {
-                return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।");
+                console.error("[LEADERBOARD ERR]:", lErr);
+                return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করতে সাময়িক সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।");
             }
         }
     } catch (e) {}
