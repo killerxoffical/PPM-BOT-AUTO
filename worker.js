@@ -1317,19 +1317,18 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
             `নিচের <b>"🚀 Join All Channels"</b> বাটনে চাপ দিলে ১-ক্লিকে সব চ্যানেল অ্যাড হয়ে যাবে। এরপর <b>"✅ Verify"</b> বাটনে চাপ দিয়ে একাউন্ট অ্যাক্টিভ করুন।\n` +
             `━━━━━━━━━━━━━━━━━━━━━━`;
 
-        try {
-            await userNotifyBot.sendPhoto(chatId, WELCOME_BANNER_IMG, {
-                caption: welcomeText,
-                parse_mode: "HTML",
-                reply_markup: getJoinKeyboard(userId, inviterId)
-            });
-        } catch (imgErr) {
-            await userNotifyBot.sendMessage(chatId, welcomeText, {
+        // ইমেজ ডাউনলোডের সময় নষ্ট না করে ইনস্ট্যান্ট রেসপন্স পাঠানো
+        userNotifyBot.sendPhoto(chatId, WELCOME_BANNER_IMG, {
+            caption: welcomeText,
+            parse_mode: "HTML",
+            reply_markup: getJoinKeyboard(userId, inviterId)
+        }).catch(() => {
+            userNotifyBot.sendMessage(chatId, welcomeText, {
                 parse_mode: "HTML",
                 disable_web_page_preview: true,
                 reply_markup: getJoinKeyboard(userId, inviterId)
-            });
-        }
+            }).catch(() => {});
+        });
     } catch (e) {}
 });
 
@@ -1608,58 +1607,50 @@ userNotifyBot.on("callback_query", async (query) => {
             }
         }
 
-        // ---------------- LEADERBOARD HANDLER ----------------
+        // ---------------- LEADERBOARD HANDLER (SUPERFAST & ZERO CRASH) ----------------
         if (data === "show_leaderboard") {
+            // ১ মিলিসেকেন্ডেই টেলিগ্রামের লোডিং চাকা বন্ধ করা
+            userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+
             try {
-                await userNotifyBot.answerCallbackQuery(query.id);
+                // ইনডেক্স ছাড়াই মেমোরিতে ফাস্ট সর্ট (জিরো এরর)
+                const snap = await db.collection("tg_bot_users").limit(100).get();
+                const allUsers = [];
+                snap.forEach(d => {
+                    const u = d.data() || {};
+                    allUsers.push({
+                        id: d.id,
+                        name: u.name || u.username || "User",
+                        referralCount: Number(u.referralCount) || 0
+                    });
+                });
 
-                // কোনো ইনডেক্সিং এরর ছাড়াই স্মুথলি টপ ১০ ফেচ করা
-                const topSnap = await db.collection("tg_bot_users")
-                    .orderBy("referralCount", "desc")
-                    .limit(10)
-                    .get();
+                // রেফারেল অনুযায়ী বড় থেকে ছোট সাজানো
+                allUsers.sort((a, b) => b.referralCount - a.referralCount);
 
-                // ইউজারের নিজস্ব তথ্য ও পজিশন
-                const myDoc = await db.collection("tg_bot_users").doc(userId).get();
-                const myData = myDoc.exists ? myDoc.data() : {};
-                const myRefCount = Number(myData.referralCount) || 0;
+                const top10 = allUsers.filter(u => u.referralCount > 0).slice(0, 10);
 
-                let myRank = "—";
-                if (myRefCount > 0) {
-                    try {
-                        const higherSnap = await db.collection("tg_bot_users")
-                            .where("referralCount", ">", myRefCount)
-                            .get();
-                        myRank = `#${higherSnap.size + 1}`;
-                    } catch (re) {
-                        myRank = "Active";
-                    }
-                }
+                // ইউজারের নিজস্ব র‍্যাংক বের করা
+                const myIndex = allUsers.findIndex(u => u.id === userId);
+                const myData = myIndex !== -1 ? allUsers[myIndex] : null;
+                const myRefCount = myData ? myData.referralCount : 0;
+                const myRank = (myData && myRefCount > 0) ? `#${myIndex + 1}` : "—";
 
                 const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
                 let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
                                 `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-                let countAdded = 0;
-                topSnap.forEach((doc) => {
-                    const d = doc.data();
-                    const refNum = Number(d.referralCount) || 0;
-                    if (refNum > 0) {
-                        const medal = medals[countAdded] || `[${countAdded + 1}]`;
-                        // HTML ট্যাগ ভেঙে যাওয়া প্রতিরোধে নাম ক্লিন করা
-                        let rawName = (d.name || d.username || "User").replace(/[<>&]/g, "");
-                        if (!rawName.trim()) rawName = "User";
-                        const safeName = rawName.slice(0, 16);
-
-                        const isMe = doc.id === userId ? " 👈 (আপনি)" : "";
-                        boardText += `${medal} <b>${safeName}</b>${isMe}\n`;
-                        boardText += `   └ 👥 সফল রেফার: <b>${refNum}</b> জন\n\n`;
-                        countAdded++;
-                    }
-                });
-
-                if (countAdded === 0) {
+                if (top10.length === 0) {
                     boardText += `<i>এখনো কোনো সফল রেফারেল ডাটা নেই। রেফার করে টপে চলে আসুন!</i>\n\n`;
+                } else {
+                    top10.forEach((u, idx) => {
+                        const medal = medals[idx] || `[${idx + 1}]`;
+                        let cleanName = (u.name || "User").replace(/[<>&]/g, "").trim().slice(0, 15);
+                        if (!cleanName) cleanName = "User";
+                        const isMe = u.id === userId ? " 👈 (আপনি)" : "";
+                        boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
+                        boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount}</b> জন\n\n`;
+                    });
                 }
 
                 boardText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -1677,8 +1668,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     }
                 });
             } catch (lErr) {
-                console.error("[LEADERBOARD ERR]:", lErr);
-                return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করতে সাময়িক সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।");
+                return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করা যায়নি। পুনরায় চেষ্টা করুন।");
             }
         }
     } catch (e) {}
