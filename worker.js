@@ -1734,42 +1734,52 @@ function attachPrimeHandler(client, label) {
             const isPrivate = msg.isPrivate || event.isPrivate || (msg.peerId && msg.peerId.className === "PeerUser");
             if (!isPrivate) return;
 
-            let sender = null;
-            try { sender = await msg.getSender(); } catch (e) {}
-            if (sender && sender.bot) return;
+            let senderId = null;
+            if (msg.senderId) {
+                senderId = msg.senderId.toString();
+            } else if (msg.peerId && msg.peerId.userId) {
+                senderId = msg.peerId.userId.toString();
+            }
 
-            const senderId = (sender && sender.id) ? sender.id.toString() : (msg.senderId ? msg.senderId.toString() : null);
+            if (!senderId) {
+                try {
+                    const s = await msg.getSender();
+                    if (s && s.id) senderId = s.id.toString();
+                    if (s && s.bot) return;
+                } catch (e) {}
+            }
             if (!senderId) return;
 
             console.log(`[PRIME] 📩 New message from [${senderId}] on account [${label}]`);
 
-            if (!(await primeCooldownClaim(senderId, label))) {
-                console.log(`[PRIME] ⏳ Cooldown active for [${senderId}] (Today's limit reached)`);
+            // দিনে ঠিক ১ বার (Daily 1 time only) রিপ্লাই চেক
+            const canReplyToday = await primeCooldownClaim(senderId, label);
+            if (!canReplyToday) {
+                console.log(`[PRIME] ⏳ User [${senderId}] already received today's 1-time auto-reply.`);
                 return;
             }
 
-            console.log(`[PRIME] 🚀 Replying to user [${senderId}]...`);
-            await new Promise((r) => setTimeout(r, 2000));
-            const replyBtns = buildPrimeButtons();
+            console.log(`[PRIME] 🚀 Replying 1-time to user [${senderId}]...`);
+            await new Promise((r) => setTimeout(r, 1200));
 
-            // msg.reply সরাসরি মেসেজের উত্তরে কাজ করে (কোনো PeerID এরর ছাড়াই ১০০% নিশ্চিত রিপ্লাই)
+            // ১০০% নির্ভরযোগ্য রিপ্লাই মেথড (প্রথমে ইমেজসহ, ফেইল হলে সরাসরি টেক্সট)
             try {
-                await msg.reply({
+                await client.sendMessage(msg.peerId, {
                     file: PRIME_AUTO_REPLY_IMG,
                     message: PRIME_AUTO_REPLY_CAPTION,
                     parseMode: "html",
-                    ...(replyBtns ? { buttons: replyBtns } : {})
+                    replyTo: msg.id
                 });
-                console.log(`[PRIME] ✅ Photo + Buttons reply sent to [${senderId}]!`);
+                console.log(`[PRIME] ✅ Photo auto-reply sent to [${senderId}]!`);
             } catch (e1) {
-                console.warn(`[PRIME] Photo reply failed (${e1.message}), sending text reply...`);
+                console.warn(`[PRIME] Photo reply failed (${e1.message}), fallback to text...`);
                 try {
-                    await msg.reply({
+                    await client.sendMessage(msg.peerId, {
                         message: PRIME_AUTO_REPLY_CAPTION,
                         parseMode: "html",
-                        ...(replyBtns ? { buttons: replyBtns } : {})
+                        replyTo: msg.id
                     });
-                    console.log(`[PRIME] ✅ Text reply sent to [${senderId}]!`);
+                    console.log(`[PRIME] ✅ Text auto-reply sent to [${senderId}]!`);
                 } catch (e2) {
                     console.error(`[PRIME CRITICAL ERROR] Failed to reply:`, e2.message);
                 }
@@ -1849,33 +1859,40 @@ async function initPrimeAutoResponder() {
 }
 
 async function primeCooldownClaim(senderId, primeLabel) {
-    // Multi-prime: প্রতিদিন সর্বোচ্চ ১১ বার অটো-রিপ্লাই যাবে, পরদিন স্বয়ংক্রিয়ভাবে রিসেট হবে
-    const MAX_DAILY_REPLIES = 11;
+    // দিনে ঠিক ১ বার মাত্র অটো রিপ্লাই যাবে (যাতে ইউজার বিরক্ত না হয়)
     const today = dhakaDay(0);
-    const key = primeLabel ? (primeLabel + ':' + senderId) : senderId;
+    const key = (primeLabel ? (primeLabel + ':' + senderId) : senderId).replace(/[^a-zA-Z0-9_:-]/g, '');
+
+    // ১. লোকাল মেমোরি চেক (সুপারফাস্ট)
+    const mem = autoReplyCooldown.get(key);
+    if (mem && mem === today) {
+        return false; // আজকের দিনে ইতিমধ্যে ১ বার রিপ্লাই গেছে
+    }
+
     try {
         const ref = db.collection("tg_autoreply").doc(key);
         const snap = await ref.get();
-        const data = snap.exists ? snap.data() : {};
-        
-        const lastDay = data.day || "";
-        let count = (lastDay === today) ? Number(data.count || 0) : 0;
-        
-        // দিনে ১১ বার পার হয়ে গেলে আর রিপ্লাই যাবে না
-        if (count >= MAX_DAILY_REPLIES) return false;
+        if (snap.exists) {
+            const data = snap.data();
+            if (data.day === today) {
+                autoReplyCooldown.set(key, today);
+                return false; // আজকের দিনে অলরেডি রিপ্লাই পেয়ে গেছে
+            }
+        }
 
-        // কাউন্টার ১ বাড়িয়ে আজকের তারিখসহ সেভ করা
+        // আজকের জন্য লক করা
+        autoReplyCooldown.set(key, today);
         await ref.set({
             day: today,
-            count: count + 1,
-            lastAt: Date.now()
+            senderId: senderId,
+            lastAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+
         return true;
     } catch (e) {
-        const memoryRecord = autoReplyCooldown.get(key) || { day: today, count: 0 };
-        let count = (memoryRecord.day === today) ? memoryRecord.count : 0;
-        if (count >= MAX_DAILY_REPLIES) return false;
-        autoReplyCooldown.set(key, { day: today, count: count + 1, lastAt: Date.now() });
+        // ফায়ারস্টোর এরর হলেও মেমোরি রেকর্ড দিয়ে দিনে ১ বার নিশ্চিত করা
+        if (mem && mem === today) return false;
+        autoReplyCooldown.set(key, today);
         return true;
     }
 }
