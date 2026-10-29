@@ -1730,30 +1730,31 @@ function attachPrimeHandler(client, label) {
             const msg = event.message;
             if (!msg || msg.out) return;
 
-            // শুধুমাত্র প্রাইভেট ইনবক্স (DM) মেসেজ ফিল্টার (গ্রুপ বা চ্যানেল নয়)
-            const isPrivate = msg.isPrivate || event.isPrivate || (msg.peerId && msg.peerId.className === "PeerUser");
-            if (!isPrivate) return;
+            // ১. কঠোর গ্রুপ/চ্যানেল ফিল্টার: কোনো গ্রুপ বা চ্যানেলের মেসেজ হলে পুরোপুরি বাদ
+            if (msg.isGroup || msg.isChannel) return;
+            if (msg.peerId && (msg.peerId.className === "PeerChat" || msg.peerId.className === "PeerChannel")) return;
 
-            let senderId = (msg.senderId || (msg.peerId && msg.peerId.userId)) ? (msg.senderId || msg.peerId.userId).toString() : null;
-            if (!senderId) {
-                try {
-                    const s = await msg.getSender();
-                    if (s) {
-                        senderId = s.id ? s.id.toString() : null;
-                        if (s.bot) return;
-                    }
-                } catch (e) {}
-            }
+            // শুধুমাত্র ইউজার-টু-ইউজার ১-অন-১ প্রাইভেট ইনবক্স নিশ্চিত করা
+            const isStrictPrivateUser = (msg.peerId && msg.peerId.className === "PeerUser") || (msg.isPrivate && !msg.isGroup);
+            if (!isStrictPrivateUser) return;
+
+            let sender = null;
+            try { sender = await msg.getSender(); } catch (e) {}
+            if (sender && sender.bot) return; // অন্য কোনো বটের মেসেজে রিপ্লাই দেবে না
+
+            let senderId = (sender && sender.id) ? sender.id.toString() : null;
+            if (!senderId && msg.senderId) senderId = msg.senderId.toString();
+            if (!senderId && msg.peerId && msg.peerId.userId) senderId = msg.peerId.userId.toString();
             if (!senderId) return;
 
-            console.log(`[PRIME] 📩 Incoming message from [${senderId}] on [${label}]: "${(msg.message || '').slice(0, 30)}"`);
-
-            // দিনে ঠিক ১ বার (Daily 1 time only) রিপ্লাই চেক
+            // ২. দিনে ঠিক ১ বার (Strict 1-Time Per Day) রিপ্লাই চেক
             const canReplyToday = await primeCooldownClaim(senderId, label);
             if (!canReplyToday) {
-                console.log(`[PRIME] ⏳ User [${senderId}] already received today's 1-time auto-reply on [${label}]. Skipping.`);
+                // আজকের দিনে এই ইউজার ইতিমধ্যে ১ বার রিপ্লাই পেয়েছে, তাই সম্পূর্ণ নীরব থাকবে
                 return;
             }
+
+            console.log(`[PRIME] 📩 Strict DM received from [${senderId}] on [${label}]. Sending 1-time daily reply...`);
 
             console.log(`[PRIME] 🚀 Replying to user [${senderId}]...`);
             await new Promise((r) => setTimeout(r, 1000));
