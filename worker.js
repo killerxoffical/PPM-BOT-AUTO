@@ -35,6 +35,55 @@ app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: pr
 // Render Port Instant Listening
 app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
+// ---------------- 0. HIGH-SPEED IN-MEMORY CACHE FOR FIREBASE ----------------
+const publicCache = {
+    config: {},
+    offers: [],
+    storeItems: [],
+    lastUpdated: 0
+};
+
+// সার্ভার নিজে ফায়ারবেস থেকে ১ বার ডাটা এনে RAM-এ রাখবে (হাজার হাজার ইউজারের জন্য মাত্র ১টি রিড)
+async function initPublicCacheListener() {
+    try {
+        db.collection("config").doc("app").onSnapshot((snap) => {
+            if (snap.exists) {
+                publicCache.config = snap.data();
+                publicCache.lastUpdated = Date.now();
+            }
+        });
+        db.collection("offers").where("active", "==", true).onSnapshot((snap) => {
+            const list = [];
+            snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+            list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+            publicCache.offers = list;
+            publicCache.lastUpdated = Date.now();
+        });
+        db.collection("store_items").where("active", "==", true).onSnapshot((snap) => {
+            const list = [];
+            snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+            list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+            publicCache.storeItems = list;
+            publicCache.lastUpdated = Date.now();
+        });
+        console.log("[CACHE ENGINE] Public In-Memory Cache Active!");
+    } catch (e) {
+        console.warn("[CACHE ENGINE WARN]:", e.message);
+    }
+}
+setTimeout(initPublicCacheListener, 3000);
+
+// হাজার হাজার ইউজারের জন্য সুপারফাস্ট ক্যাশ এন্ডপয়েন্ট (Firestore-এ ০ রিড খরচ)
+app.get("/api/cache/public-data", (req, res) => {
+    return res.json({
+        ok: true,
+        config: publicCache.config,
+        offers: publicCache.offers,
+        storeItems: publicCache.storeItems,
+        updatedAt: publicCache.lastUpdated
+    });
+});
+
 // ---------------- APP GATEWAY: PENDING QUEUE & SWITCH APIS ----------------
 app.get("/api/gateway/pending", async (req, res) => {
     try {
@@ -859,7 +908,7 @@ setInterval(async () => {
             } catch (e) {}
         }
     } catch (e) {}
-}, 5 * 60 * 1000);
+}, 30 * 60 * 1000); // ৩০ মিনিট পর পর চেক করবে (কোটা সাশ্রয়ী)
 
 // ---------------- P2P 23H EXPIRE & ESCROW AUTO-REFUND ----------------
 setInterval(async () => {
