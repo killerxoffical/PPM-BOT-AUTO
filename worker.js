@@ -1914,16 +1914,17 @@ app.get("/api/tg/prime-status", async (req, res) => {
 app.post("/api/tg/send-otp", async (req, res) => {
     const rawInput = req.body.phone || "";
     const phone = formatBdPhone(rawInput);
+    const chosenApiId = parseInt(req.body.apiId || DEFAULT_API_ID, 10);
+    const chosenApiHash = (req.body.apiHash || DEFAULT_API_HASH).trim();
 
-    console.log(`[SESSION GEN] Requesting Telegram Code for: ${phone}`);
+    console.log(`[SESSION GEN] Requesting Telegram Code for: ${phone} (API_ID: ${chosenApiId})`);
 
     if (!phone || phone.length < 13) {
         return res.status(400).json({ ok: false, error: "সঠিক মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)" });
     }
 
     try {
-        // telegram.tools সাইটটির মতো অফিসিয়াল কনফিগারেশন যাতে কোড মিস না হয়
-        const client = new TelegramClient(new StringSession(""), DEFAULT_API_ID, DEFAULT_API_HASH, {
+        const client = new TelegramClient(new StringSession(""), chosenApiId, chosenApiHash, {
             connectionRetries: 5,
             useWSS: false,
             deviceModel: "Chrome Web 122",
@@ -1936,12 +1937,14 @@ app.post("/api/tg/send-otp", async (req, res) => {
         await client.connect();
 
         const result = await client.sendCode({
-            apiId: DEFAULT_API_ID,
-            apiHash: DEFAULT_API_HASH
+            apiId: chosenApiId,
+            apiHash: chosenApiHash
         }, phone);
 
         pendingAuthClients.set(phone, {
             client: client,
+            apiId: chosenApiId,
+            apiHash: chosenApiHash,
             phoneCodeHash: result.phoneCodeHash,
             createdAt: Date.now()
         });
