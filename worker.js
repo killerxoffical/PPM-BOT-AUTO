@@ -1954,31 +1954,34 @@ app.post("/api/tg/send-otp", async (req, res) => {
     }
 });
 
-async function computeSrpHash(client, password) {
+async function handleTelegram2FALogin(client, password) {
+    // অফিশিয়াল GramJS 2FA Password হ্যান্ডলার
+    if (typeof client.signInWithPassword === "function") {
+        return await client.signInWithPassword({ password });
+    }
+
+    let computeFn = null;
+    try {
+        const pwdMod = require("telegram/Password");
+        computeFn = pwdMod.computeCheckPassword || (pwdMod.default && pwdMod.default.computeCheckPassword) || pwdMod;
+    } catch (e1) {
+        try {
+            const tlMod = require("telegram");
+            computeFn = tlMod.computeCheckPassword || (tlMod.Password && tlMod.Password.computeCheckPassword);
+        } catch (e2) {}
+    }
+
+    const passwordInfo = await client.invoke(new Api.account.GetPassword());
+    if (typeof computeFn === "function") {
+        const passwordSrpHash = await computeFn(passwordInfo, password);
+        return await client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
+    }
+
+    // অল্টারনেটিভ চেক পাসওয়ার্ড কল
     if (typeof client.checkPassword === "function") {
         return await client.checkPassword(password);
     }
-    let computeFn = null;
-    const candidates = [
-        () => require("telegram/Password").computeCheckPassword,
-        () => require("telegram/Password"),
-        () => require("telegram/Password.js").computeCheckPassword,
-        () => require("telegram/Password.js"),
-        () => require("telegram").computeCheckPassword,
-        () => require("telegram").Password?.computeCheckPassword,
-        () => require("telegram/Utils")?.computeCheckPassword
-    ];
-    for (const cand of candidates) {
-        try {
-            const fn = cand();
-            if (typeof fn === "function") { computeFn = fn; break; }
-            if (fn && typeof fn.default === "function") { computeFn = fn.default; break; }
-            if (fn && typeof fn.computeCheckPassword === "function") { computeFn = fn.computeCheckPassword; break; }
-        } catch (e) {}
-    }
-    const srpResult = await client.invoke(new Api.account.GetPassword());
-    if (computeFn) return await computeFn(srpResult, password);
-    throw new Error("2FA Password module resolution failed");
+    throw new Error("টেলিগ্রাম 2FA পাসওয়ার্ড প্রসেস করা সম্ভব হয়নি");
 }
 
 app.post("/api/tg/verify-otp", async (req, res) => {
@@ -1997,15 +2000,11 @@ app.post("/api/tg/verify-otp", async (req, res) => {
                 phoneCode: code
             }));
         } catch (signInErr) {
-            if (signInErr.errorMessage === "SESSION_PASSWORD_NEEDED" || (signInErr.message && (signInErr.message.includes("2FA") || signInErr.message.includes("PASSWORD")))) {
-                if (!password) return res.status(400).json({ ok: false, error: "Two-Step পাসওয়ার্ড দিন" });
+            const errStr = (signInErr.errorMessage || signInErr.message || "").toUpperCase();
+            if (errStr.includes("SESSION_PASSWORD_NEEDED") || errStr.includes("2FA") || errStr.includes("PASSWORD")) {
+                if (!password) return res.status(400).json({ ok: false, error: "আপনার টেলিগ্রামে 2FA চালু আছে! পাসওয়ার্ডটি দিন।" });
 
-                if (typeof item.client.checkPassword === "function") {
-                    await item.client.checkPassword(password);
-                } else {
-                    const passwordSrpHash = await computeSrpHash(item.client, password);
-                    await item.client.invoke(new Api.auth.CheckPassword({ password: passwordSrpHash }));
-                }
+                await handleTelegram2FALogin(item.client, password);
             } else {
                 throw signInErr;
             }
