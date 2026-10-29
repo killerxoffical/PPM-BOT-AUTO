@@ -2033,6 +2033,49 @@ app.post("/api/tg/verify-otp", async (req, res) => {
     }
 });
 
+// ---------------- 7b. DIRECT SESSION CONNECT API ----------------
+app.post("/api/tg/connect-session", async (req, res) => {
+    const rawInput = req.body.phone || "";
+    const phone = formatBdPhone(rawInput);
+    const sessionString = (req.body.session || "").toString().trim();
+
+    if (!phone || !sessionString) {
+        return res.status(400).json({ ok: false, error: "ফোন নম্বর ও সেশন উভয়ই প্রয়োজন" });
+    }
+
+    try {
+        // সেশনটি আসলেই কাজ করছে কিনা তাৎক্ষণিক টেস্ট
+        const testClient = new TelegramClient(new StringSession(sessionString), DEFAULT_API_ID, DEFAULT_API_HASH, {
+            connectionRetries: 3
+        });
+        await testClient.connect();
+        const me = await testClient.getMe().catch(() => null);
+
+        if (!me) {
+            await testClient.disconnect();
+            return res.status(400).json({ ok: false, error: "সেশনটি অবৈধ বা মেয়াদোত্তীর্ণ!" });
+        }
+
+        const docId = phone.replace('+', '');
+        await db.collection("tg_accounts").doc(docId).set({
+            phone,
+            session: sessionString,
+            balance: 0,
+            active: true,
+            isPrime: false,
+            firstName: me.firstName || "Telegram User",
+            addedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        await testClient.disconnect();
+        console.log(`[DIRECT SESSION CONNECTED] Successfully attached account ${phone} (${me.firstName})`);
+        return res.json({ ok: true, message: "অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে!", phone, name: me.firstName });
+    } catch (err) {
+        console.error("[DIRECT SESSION ERR]:", err);
+        return res.status(500).json({ ok: false, error: err.message || "কানেক্ট ব্যর্থ হয়েছে" });
+    }
+});
+
 // ---------------- 8. REAL BALANCE AUDIT API ----------------
 function parseBotBalance(text) {
     if (!text) return null;
