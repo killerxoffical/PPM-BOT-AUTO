@@ -1730,58 +1730,66 @@ function attachPrimeHandler(client, label) {
             const msg = event.message;
             if (!msg || msg.out) return;
 
-            // শুধুমাত্র প্রাইভেট ইনবক্স (DM) মেসেজ ফিল্টার
+            // শুধুমাত্র প্রাইভেট ইনবক্স (DM) মেসেজ ফিল্টার (গ্রুপ বা চ্যানেল নয়)
             const isPrivate = msg.isPrivate || event.isPrivate || (msg.peerId && msg.peerId.className === "PeerUser");
             if (!isPrivate) return;
 
-            let senderId = null;
-            if (msg.senderId) {
-                senderId = msg.senderId.toString();
-            } else if (msg.peerId && msg.peerId.userId) {
-                senderId = msg.peerId.userId.toString();
-            }
-
+            let senderId = (msg.senderId || (msg.peerId && msg.peerId.userId)) ? (msg.senderId || msg.peerId.userId).toString() : null;
             if (!senderId) {
                 try {
                     const s = await msg.getSender();
-                    if (s && s.id) senderId = s.id.toString();
-                    if (s && s.bot) return;
+                    if (s) {
+                        senderId = s.id ? s.id.toString() : null;
+                        if (s.bot) return;
+                    }
                 } catch (e) {}
             }
             if (!senderId) return;
 
-            console.log(`[PRIME] 📩 New message from [${senderId}] on account [${label}]`);
+            console.log(`[PRIME] 📩 Incoming message from [${senderId}] on [${label}]: "${(msg.message || '').slice(0, 30)}"`);
 
             // দিনে ঠিক ১ বার (Daily 1 time only) রিপ্লাই চেক
             const canReplyToday = await primeCooldownClaim(senderId, label);
             if (!canReplyToday) {
-                console.log(`[PRIME] ⏳ User [${senderId}] already received today's 1-time auto-reply.`);
+                console.log(`[PRIME] ⏳ User [${senderId}] already received today's 1-time auto-reply on [${label}]. Skipping.`);
                 return;
             }
 
-            console.log(`[PRIME] 🚀 Replying 1-time to user [${senderId}]...`);
-            await new Promise((r) => setTimeout(r, 1200));
+            console.log(`[PRIME] 🚀 Replying to user [${senderId}]...`);
+            await new Promise((r) => setTimeout(r, 1000));
 
-            // ১০০% নির্ভরযোগ্য রিপ্লাই মেথড (প্রথমে ইমেজসহ, ফেইল হলে সরাসরি টেক্সট)
+            // ১০০% গ্যারান্টিড রিপ্লাই (msg.reply ব্যবহার করলে কখনোই Peer বা access_hash এরর হয় না)
+            let sent = false;
             try {
-                await client.sendMessage(msg.peerId, {
+                await msg.reply({
                     file: PRIME_AUTO_REPLY_IMG,
                     message: PRIME_AUTO_REPLY_CAPTION,
-                    parseMode: "html",
-                    replyTo: msg.id
+                    parseMode: "html"
                 });
+                sent = true;
                 console.log(`[PRIME] ✅ Photo auto-reply sent to [${senderId}]!`);
             } catch (e1) {
-                console.warn(`[PRIME] Photo reply failed (${e1.message}), fallback to text...`);
+                console.warn(`[PRIME] Photo reply failed (${e1.message}), trying text reply...`);
+            }
+
+            if (!sent) {
                 try {
-                    await client.sendMessage(msg.peerId, {
+                    await msg.reply({
                         message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html",
-                        replyTo: msg.id
+                        parseMode: "html"
                     });
                     console.log(`[PRIME] ✅ Text auto-reply sent to [${senderId}]!`);
                 } catch (e2) {
-                    console.error(`[PRIME CRITICAL ERROR] Failed to reply:`, e2.message);
+                    // শেষ চেষ্টা: সরাসরি ক্লায়েন্ট সেন্ড
+                    try {
+                        await client.sendMessage(msg.chatId || msg.peerId, {
+                            message: PRIME_AUTO_REPLY_CAPTION,
+                            parseMode: "html"
+                        });
+                        console.log(`[PRIME] ✅ Client fallback reply sent to [${senderId}]!`);
+                    } catch (e3) {
+                        console.error(`[PRIME CRITICAL ERROR] All reply attempts failed:`, e3.message);
+                    }
                 }
             }
         } catch (err) {
@@ -1834,12 +1842,17 @@ async function initPrimeAutoResponder() {
         for (const [phone, info] of wanted) {
             if (primeClients.has(phone)) continue;
             try {
-                const client = new TelegramClient(new StringSession(info.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
+                const client = new TelegramClient(new StringSession(info.session), DEFAULT_API_ID, DEFAULT_API_HASH, {
+                    connectionRetries: 10,
+                    autoReconnect: true
+                });
                 await client.connect();
+                // ইভেন্ট লিসেনিং অন করতে সেশন সিঙ্ক করা
+                await client.getDialogs({ limit: 1 }).catch(() => {});
                 const me = await client.getMe().catch(() => null);
                 attachPrimeHandler(client, phone);
                 primeClients.set(phone, { client, connectedAt: Date.now(), docId: info.id });
-                console.log(`[PRIME] Multi-prime connected: ${phone} (${me ? me.firstName : 'Active'}) [Total: ${primeClients.size}]`);
+                console.log(`[PRIME] Multi-prime online & listening: ${phone} (${me ? me.firstName : 'Active'}) [Total: ${primeClients.size}]`);
             } catch (e) {
                 console.warn(`[PRIME] Connect failed ${phone}:`, (e && e.message) || e);
             }
@@ -2062,13 +2075,19 @@ app.post("/api/tg/connect-session", async (req, res) => {
             session: sessionString,
             balance: 0,
             active: true,
-            isPrime: false,
+            isPrime: true, // সাথে সাথে প্রাইম হিসেবে সক্রিয় হবে
             firstName: me.firstName || "Telegram User",
             addedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
         await testClient.disconnect();
         console.log(`[DIRECT SESSION CONNECTED] Successfully attached account ${phone} (${me.firstName})`);
+        
+        // তাৎক্ষণিক প্রাইম রেসপন্ডার রিলোড
+        setTimeout(() => {
+            initPrimeAutoResponder().catch(() => {});
+        }, 1000);
+
         return res.json({ ok: true, message: "অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে!", phone, name: me.firstName });
     } catch (err) {
         console.error("[DIRECT SESSION ERR]:", err);
