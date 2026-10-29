@@ -1728,47 +1728,62 @@ function attachPrimeHandler(client, label) {
     client.addEventHandler(async (event) => {
         try {
             const msg = event.message;
-            if (!msg || msg.out || !event.isPrivate) return;
-            const sender = await msg.getSender();
-            if (!sender || sender.bot) return;
+            if (!msg || msg.out) return;
 
-            const senderId = sender.id.toString();
-            if (!(await primeCooldownClaim(senderId, label))) return;
+            // শুধুমাত্র প্রাইভেট ইনবক্স (DM) মেসেজ ফিল্টার
+            const isPrivate = msg.isPrivate || event.isPrivate || (msg.peerId && msg.peerId.className === "PeerUser");
+            if (!isPrivate) return;
 
-            await new Promise((r) => setTimeout(r, 3500));
+            let sender = null;
+            try { sender = await msg.getSender(); } catch (e) {}
+            if (sender && sender.bot) return;
+
+            const senderId = (sender && sender.id) ? sender.id.toString() : (msg.senderId ? msg.senderId.toString() : null);
+            if (!senderId) return;
+
+            console.log(`[PRIME] 📩 New message from [${senderId}] on account [${label}]`);
+
+            if (!(await primeCooldownClaim(senderId, label))) {
+                console.log(`[PRIME] ⏳ Cooldown active for [${senderId}] (Today's limit reached)`);
+                return;
+            }
+
+            console.log(`[PRIME] 🚀 Replying to user [${senderId}]...`);
+            await new Promise((r) => setTimeout(r, 2000));
             const replyBtns = buildPrimeButtons();
+
+            // msg.reply সরাসরি মেসেজের উত্তরে কাজ করে (কোনো PeerID এরর ছাড়াই ১০০% নিশ্চিত রিপ্লাই)
             try {
-                await client.sendMessage(sender.id, {
+                await msg.reply({
                     file: PRIME_AUTO_REPLY_IMG,
                     message: PRIME_AUTO_REPLY_CAPTION,
                     parseMode: "html",
                     ...(replyBtns ? { buttons: replyBtns } : {})
                 });
-            } catch (e2) {
+                console.log(`[PRIME] ✅ Photo + Buttons reply sent to [${senderId}]!`);
+            } catch (e1) {
+                console.warn(`[PRIME] Photo reply failed (${e1.message}), sending text reply...`);
                 try {
-                    await client.sendMessage(sender.id, {
-                        file: PRIME_AUTO_REPLY_IMG,
-                        message: PRIME_AUTO_REPLY_CAPTION,
-                        parseMode: "html"
-                    });
-                } catch (e3) {
-                    // ইমেজ লোডে সমস্যা হলেও টেক্সট মেসেজ অবশ্যই সেন্ড হবে
-                    await client.sendMessage(sender.id, {
+                    await msg.reply({
                         message: PRIME_AUTO_REPLY_CAPTION,
                         parseMode: "html",
                         ...(replyBtns ? { buttons: replyBtns } : {})
                     });
+                    console.log(`[PRIME] ✅ Text reply sent to [${senderId}]!`);
+                } catch (e2) {
+                    console.error(`[PRIME CRITICAL ERROR] Failed to reply:`, e2.message);
                 }
             }
-        } catch (err) {}
+        } catch (err) {
+            console.error(`[PRIME HANDLER ERROR]:`, err.message);
+        }
     }, new NewMessage({ incoming: true }));
 }
 
 async function initPrimeAutoResponder() {
     try {
-        const snap = await db.collection("tg_accounts").where("isPrime", "==", true).get();
+        const snap = await db.collection("tg_accounts").get();
         if (snap.empty) {
-            // সব prime off হলে পুরনো connection বন্ধ করো
             for (const [ph, rec] of primeClients) {
                 try { await rec.client.disconnect(); } catch (e) {}
             }
@@ -1777,8 +1792,20 @@ async function initPrimeAutoResponder() {
             primePhone = null;
             return;
         }
+
+        // যদি কোনো একাউন্টে isPrime: true করা থাকে তা নেবে
+        // আর কোনো একাউন্টে Prime অন করা না থাকলেও স্বয়ংক্রিয়ভাবে প্রথম একটিভ একাউন্ট দিয়েই রিপ্লাই চালু রাখবে
+        let primeDocs = snap.docs.filter(d => (d.data() || {}).isPrime === true);
+        if (primeDocs.length === 0) {
+            const firstActive = snap.docs.find(d => (d.data() || {}).active !== false && (d.data() || {}).session);
+            if (firstActive) {
+                primeDocs = [firstActive];
+                console.log(`[PRIME] No prime explicitly set. Auto-selected [${firstActive.id}] as Prime responder.`);
+            }
+        }
+
         const wanted = new Map(); // phone -> { id, session }
-        snap.forEach(d => {
+        primeDocs.forEach(d => {
             const v = d.data() || {};
             const phone = v.phone || d.id;
             if (v.session) wanted.set(phone, { id: d.id, session: v.session, phone });
@@ -1799,15 +1826,16 @@ async function initPrimeAutoResponder() {
             try {
                 const client = new TelegramClient(new StringSession(info.session), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 5 });
                 await client.connect();
+                const me = await client.getMe().catch(() => null);
                 attachPrimeHandler(client, phone);
                 primeClients.set(phone, { client, connectedAt: Date.now(), docId: info.id });
-                console.log(`[PRIME] Multi-prime connected: ${phone} (${primeClients.size} active)`);
+                console.log(`[PRIME] Multi-prime connected: ${phone} (${me ? me.firstName : 'Active'}) [Total: ${primeClients.size}]`);
             } catch (e) {
                 console.warn(`[PRIME] Connect failed ${phone}:`, (e && e.message) || e);
             }
         }
 
-        // compat: প্রথমটাকে primeClient রাখো (পুরনো কোড ভাঙবে না)
+        // compat: প্রথমটাকে primeClient রাখো
         const first = primeClients.keys().next();
         if (!first.done) {
             primePhone = first.value;
