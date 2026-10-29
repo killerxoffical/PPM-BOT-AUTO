@@ -1696,11 +1696,20 @@ function attachPrimeHandler(client, label) {
                     ...(replyBtns ? { buttons: replyBtns } : {})
                 });
             } catch (e2) {
-                await client.sendMessage(sender.id, {
-                    file: PRIME_AUTO_REPLY_IMG,
-                    message: PRIME_AUTO_REPLY_CAPTION,
-                    parseMode: "html"
-                });
+                try {
+                    await client.sendMessage(sender.id, {
+                        file: PRIME_AUTO_REPLY_IMG,
+                        message: PRIME_AUTO_REPLY_CAPTION,
+                        parseMode: "html"
+                    });
+                } catch (e3) {
+                    // ইমেজ লোডে সমস্যা হলেও টেক্সট মেসেজ অবশ্যই সেন্ড হবে
+                    await client.sendMessage(sender.id, {
+                        message: PRIME_AUTO_REPLY_CAPTION,
+                        parseMode: "html",
+                        ...(replyBtns ? { buttons: replyBtns } : {})
+                    });
+                }
             }
         } catch (err) {}
     }, new NewMessage({ incoming: true }));
@@ -1763,20 +1772,33 @@ async function initPrimeAutoResponder() {
 }
 
 async function primeCooldownClaim(senderId, primeLabel) {
-    // Multi-prime: ২৪ ঘণ্টায় (১ দিনে) মাত্র ১ বার অটো-রিপ্লাই যাবে
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24 Hours = 1 Day
+    // Multi-prime: প্রতিদিন সর্বোচ্চ ১১ বার অটো-রিপ্লাই যাবে, পরদিন স্বয়ংক্রিয়ভাবে রিসেট হবে
+    const MAX_DAILY_REPLIES = 11;
+    const today = dhakaDay(0);
     const key = primeLabel ? (primeLabel + ':' + senderId) : senderId;
     try {
         const ref = db.collection("tg_autoreply").doc(key);
         const snap = await ref.get();
-        const last = snap.exists ? Number(snap.data().lastAt || 0) : 0;
-        if (Date.now() - last < ONE_DAY_MS) return false;
-        await ref.set({ lastAt: Date.now() }, { merge: true });
+        const data = snap.exists ? snap.data() : {};
+        
+        const lastDay = data.day || "";
+        let count = (lastDay === today) ? Number(data.count || 0) : 0;
+        
+        // দিনে ১১ বার পার হয়ে গেলে আর রিপ্লাই যাবে না
+        if (count >= MAX_DAILY_REPLIES) return false;
+
+        // কাউন্টার ১ বাড়িয়ে আজকের তারিখসহ সেভ করা
+        await ref.set({
+            day: today,
+            count: count + 1,
+            lastAt: Date.now()
+        }, { merge: true });
         return true;
     } catch (e) {
-        const last = autoReplyCooldown.get(senderId) || 0;
-        if (Date.now() - last < ONE_DAY_MS) return false;
-        autoReplyCooldown.set(senderId, Date.now());
+        const memoryRecord = autoReplyCooldown.get(key) || { day: today, count: 0 };
+        let count = (memoryRecord.day === today) ? memoryRecord.count : 0;
+        if (count >= MAX_DAILY_REPLIES) return false;
+        autoReplyCooldown.set(key, { day: today, count: count + 1, lastAt: Date.now() });
         return true;
     }
 }
