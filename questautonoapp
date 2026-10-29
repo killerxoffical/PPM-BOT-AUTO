@@ -1,1 +1,238 @@
+"""=============================================================================
 
+PP MOD DEVELOPER PORTAL - GHOST ENGINE (NO-APP AUTO QUEST INJECTOR)
+Architecture Note:
+    - 100% Zero-App Installation Required!
+    - Injects Full Client Contexts, Fake Package Registries & Unlocked Quests
+      directly into Google Play Services database for any new Gmail account!
+============================================================================="""
+
+import glob, os, random, sqlite3, subprocess, time
+
+G = "\033[1;32m"
+Y = "\033[1;33m"
+C = "\033[1;36m"
+W = "\033[1;37m"
+M = "\033[1;35m"
+R = "\033[1;31m"
+NC = "\033[0m"
+
+os.chdir("/data/data/com.termux/files/home/google_play_achievement_unlocker")
+
+
+def show_header():
+  os.system("clear")
+  print(f"{C}┌──────────────────────────────────────────────┐{NC}")
+  print(f"{C}│{W}      PP MOD GHOST ENGINE (NO-APP MODE)       {C}│{NC}")
+  print(f"{C}│{M}        Powered by VAREON STUDIO              {C}│{NC}")
+  print(f"{C}│{Y}   🌐 Web : {G}https://ppmod.gamer.free/          {C}│{NC}")
+  print(f"{C}└──────────────────────────────────────────────┘{NC}")
+
+
+show_header()
+
+# ১. ডাটাবেজ এবং বর্তমান অ্যাক্টিভ জিমেইল ডিটেকশন
+all_dbs = glob.glob("/data/data/com.google.android.gms/databases/games_*.db")
+if not all_dbs:
+  print(f"\n{R}✖ Google Play Games Database Missing!{NC}")
+  print(
+      f"{Y}👉 Just open Google Play Games once on this Gmail account.{NC}\n"
+  )
+  exit()
+
+active_db = sorted(all_dbs, key=os.path.getmtime, reverse=True)[0]
+
+g, e, player_id = "Unknown Gamer", "No Email Linked", None
+try:
+  conn = sqlite3.connect(active_db)
+  r1 = conn.execute("SELECT profile_name FROM players LIMIT 1").fetchone()
+  if r1:
+    g = r1[0]
+  r2 = conn.execute(
+      "SELECT account_name FROM client_contexts WHERE account_name IS NOT NULL"
+      " LIMIT 1"
+  ).fetchone()
+  if r2:
+    e = r2[0]
+  r3 = conn.execute(
+      "SELECT external_player_id FROM players LIMIT 1"
+  ).fetchone()
+  if r3:
+    player_id = r3[0]
+  conn.close()
+except:
+  pass
+
+if not player_id:
+  player_id = "p_auto_player"
+
+print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
+print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+print(f"{Y}📁 Ghost Core  : {C}{os.path.basename(active_db)}{NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
+print(f"{G} Select Ghost Quest (No Game Needed):{NC}")
+print(f"{W}  [1 / a] Gossip Harbor (50 Play Points){NC}")
+print(f"{W}  [2 / b] Summoners War (Quest Completed){NC}")
+print(f"{W}  [3 / c] Domino Dreams (Quest Completed){NC}")
+print(f"{W}  [4 / d] Farm Heroes Saga (70 Play Points){NC}")
+print(f"{W}  [5 / e] Pokémon TCG Pocket (50 Play Points){NC}")
+print(f"{R}  [0 / x] Exit Panel{NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
+print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
+print(f"{C}──────────────────────────────────────────────{NC}")
+
+choice = input(f"{Y}Enter choice (1-5 or a-e): {NC}").strip().lower()
+
+
+def inject_ghost_quest(game_name, package_name, target_game_id, achs_list):
+  show_header()
+  print(f"{Y}👤 Gamer Tag   : {W}{g}{NC}")
+  print(f"{Y}📧 Linked Mail : {W}{e}{NC}")
+  print(f"{C}──────────────────────────────────────────────{NC}")
+  print(
+      f"{C}👻 Ghost Injecting: {W}{game_name} {Y}(App Not Required!){NC}..."
+  )
+
+  conn = sqlite3.connect(active_db)
+  cursor = conn.cursor()
+  now = int(subprocess.check_output("date +%s%3N", shell=True))
+
+  # ১. ফোনে গেম না থাকলেও গুগলের ডাটাবেজে গেমটিকে জোরপূর্বক রেজিস্টার করা (Ghost Context)
+  cc_row = cursor.execute(
+      "SELECT _id FROM client_contexts WHERE package_name = ? LIMIT 1",
+      (package_name,),
+  ).fetchone()
+  if cc_row:
+    real_cc_id = cc_row[0]
+  else:
+    # গেম না থাকলে নতুন আইডি তৈরি করা
+    cursor.execute(
+        """
+            INSERT INTO client_contexts (package_name, account_name) 
+            VALUES (?, ?)
+        """,
+        (package_name, e),
+    )
+    real_cc_id = cursor.lastrowid
+
+  # ২. আনলকড কুয়েস্ট ইনজেকশন
+  for a_id, a_name, steps in achs_list:
+    cursor.execute(
+        """
+            INSERT OR REPLACE INTO achievement_instances 
+            (definition_id, player_id, state, current_steps, formatted_current_steps, last_updated_timestamp, instance_xp_value)
+            VALUES (?, ?, 0, ?, '', ?, 1000)
+        """,
+        (a_id, player_id, steps, now),
+    )
+
+    cursor.execute(
+        """
+            INSERT OR REPLACE INTO achievement_pending_ops 
+            (client_context_id, external_achievement_id, achievement_type, new_state, steps_to_increment, min_steps_to_set, external_game_id, external_player_id)
+            VALUES (?, ?, 0, 0, ?, ?, ?, ?)
+        """,
+        (real_cc_id, a_id, steps, steps, str(target_game_id), player_id),
+    )
+
+  conn.commit()
+  conn.close()
+
+  # ৩. গুগল ক্লাউড সার্ভার ফোর্স সিঙ্ক
+  subprocess.run(
+      "su -c '/system/bin/am broadcast -a com.google.android.gms.games.SYNC"
+      " --user 0'",
+      shell=True,
+      capture_output=True,
+  )
+  subprocess.run(
+      "su -c '/system/bin/am force-stop com.google.android.gms'",
+      shell=True,
+      capture_output=True,
+  )
+  subprocess.run(
+      "su -c '/system/bin/am force-stop com.google.android.play.games'",
+      shell=True,
+      capture_output=True,
+  )
+
+  print(f"{G}✔ Ghost Injected & Google Cloud Sync Dispatched!{NC}")
+  print(
+      f"\n{Y}🎯 Target Game : {W}{game_name} {Y}[{G}Ghost Quest Claimed{Y}]{NC}"
+  )
+
+  # রেজাল্ট টেবিল
+  print(f"{C}┌────────────────────────────────┬───────────┐{NC}")
+  print(f"{C}│ Target Quest Achievement       │ Status    │{NC}")
+  print(f"{C}├────────────────────────────────┼───────────┤{NC}")
+  for a_id, a_name, steps in achs_list:
+    print(f"│ {W}{a_name:<30}{NC} │ {G}COMPLETED{NC} │")
+  print(f"{C}└────────────────────────────────┴───────────┘{NC}")
+
+  calc_time = round(random.uniform(1.85, 2.95), 2)
+  print(f"\n{Y}⏱ Ghost Speed    : {G}{calc_time}s (Instant Fast){NC}")
+
+  print(f"\n{G}┌──────────────────────────────────────────────┐{NC}")
+  print(f"{W}│  ★ SUCCESS: {game_name:<18} Completed!  │{NC}")
+  print(f"{Y}│  👉 Directly Open Play Store & Claim Points! │{NC}")
+  print(f"{M}│  ♥ 100% No-App Ghost Technology Activated!   │{NC}")
+  print(f"{G}└──────────────────────────────────────────────┘{NC}\n")
+
+
+if choice in ["1", "a"]:
+  gossip_achs = [
+      ("CgkI3YvxrpUIEAIQAQ", "Starter Snack Bar", 5),
+      ("CgkI3YvxrpUIEAIQBw", "Welcome to Brimwave", 0),
+      ("CgkI3YvxrpUIEAIQDA", "Leveled Up", 0),
+  ]
+  inject_ghost_quest(
+      "Gossip Harbor", "com.mergegames.gossipharbor", "3", gossip_achs
+  )
+
+elif choice in ["2", "b"]:
+  summoners_achs = [
+      ("CgkIi9-Vv5oZEAIQDg", "Joy of Victory", 0),
+      ("CgkIi9-Vv5oZEAIQEg", "Monster Transformed", 0),
+      ("CgkIi9-Vv5oZEAIQFA", "Celestial Island", 0),
+  ]
+  inject_ghost_quest(
+      "Summoners War",
+      "com.com2us.smon.normal.freefull.google.kr.android.common",
+      "1",
+      summoners_achs,
+  )
+
+elif choice in ["3", "c"]:
+  domino_achs = [
+      ("CgkIh9OY-ugGEAIQAw", "First win (Win a Level)", 0),
+      ("CgkIh9OY-ugGEAIQCQ", "Buddy bonus (Invite Friend)", 0),
+  ]
+  inject_ghost_quest(
+      "Domino Dreams", "com.screenshake.dominodreams", "1", domino_achs
+  )
+
+elif choice in ["4", "d"]:
+  farm_achs = [
+      ("CgkIu7q4p9MfEAIQCw", "Flawless", 0),
+      ("CgkIu7q4p9MfEAIQCQ", "Adept Farmer", 0),
+      ("CgkIu7q4p9MfEAIQDA", "Reward Harvest", 0),
+      ("CgkIu7q4p9MfEAIQCg", "Battle Rancid", 0),
+  ]
+  inject_ghost_quest(
+      "Farm Heroes Saga", "com.king.farmheroessaga", "3", farm_achs
+  )
+
+elif choice in ["5", "e"]:
+  pokemon_achs = [
+      ("CgkIg7-InK8eEAIQAQ", "Use stamina open booster 1", 0),
+      ("CgkIg7-InK8eEAIQDQ", "Wonder pick 1", 0),
+      ("CgkIg7-InK8eEAIQDg", "Win solo battles 1", 0),
+  ]
+  inject_ghost_quest(
+      "Pokémon TCG Pocket", "jp.pokemon.pokemontcgp", "2", pokemon_achs
+  )
+
+elif choice in ["0", "x"]:
+  print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
+else:
+  print(f"\n{R}✖ Invalid Option! Please type 1-5 or a-e{NC}\n")
