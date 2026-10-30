@@ -27,6 +27,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ---------------- 2. FIREBASE ADMIN INITIALIZATION ----------------
+let serviceAccount;
+try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} catch (e) {
+    try { serviceAccount = require("./serviceAccountKey.json"); } catch (err) {}
+}
+if (!admin.apps.length && serviceAccount) {
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+const db = admin.firestore();
+
 const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"));
 app.get("/ping", (req, res) => res.status(200).send("pong"));
@@ -874,18 +886,6 @@ async function creditReferralBonus(buyerUid, orderId, gameName) {
     } catch (e) {}
 }
 
-// ---------------- 2. FIREBASE ADMIN ----------------
-let serviceAccount;
-try {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-} catch (e) {
-    serviceAccount = require("./serviceAccountKey.json");
-}
-if (!admin.apps.length) {
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-}
-const db = admin.firestore();
-
 // ---------------- PENDING POINTS AUTO-MATURER ----------------
 setInterval(async () => {
     try {
@@ -1244,21 +1244,23 @@ userNotifyBot.on("message", async (msg) => {
                 const numVal = parseFloat(text);
 
                 if (!isNaN(numVal) && numVal > 0) {
-                    const isAdd = repText.includes("কত কয়েন যোগ করতে চান");
-                    const isSub = repText.includes("কত কয়েন কাটতে চান");
+                    const isAdd = repText.includes("যোগ করতে চান") || repText.includes("Add") || repText.includes("➕");
+                    const isSub = repText.includes("কাটতে চান") || repText.includes("Deduct") || repText.includes("➖");
 
                     if (isAdd || isSub) {
                         const changeAmt = isAdd ? numVal : -numVal;
-                        const isTargetReal = repText.includes("[REAL]");
+                        const isTargetReal = repText.includes("[REAL]") || repText.includes("REAL") || repText.includes("রিয়েল");
                         const uRef = db.collection("users").doc(targetUid);
                         let updatedReal = 0, updatedBonus = 0, updatedTotal = 0;
 
                         await db.runTransaction(async (t) => {
                             const uSnap = await t.get(uRef);
-                            if (!uSnap.exists) throw new Error("User not found");
-                            const ud = uSnap.data();
-                            const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                            const curBonus = Number(ud.bonusBalance || 0);
+                            let curReal = 0, curBonus = 0;
+                            if (uSnap.exists) {
+                                const ud = uSnap.data();
+                                curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                                curBonus = Number(ud.bonusBalance || 0);
+                            }
 
                             if (isTargetReal) {
                                 updatedReal = Math.max(0, Math.round((curReal + changeAmt + Number.EPSILON) * 100) / 100);
@@ -1268,11 +1270,12 @@ userNotifyBot.on("message", async (msg) => {
                                 updatedBonus = Math.max(0, Math.round((curBonus + changeAmt + Number.EPSILON) * 100) / 100);
                             }
                             updatedTotal = Math.round((updatedReal + updatedBonus + Number.EPSILON) * 100) / 100;
-                            t.update(uRef, {
+                            t.set(uRef, {
                                 realBalance: updatedReal,
                                 bonusBalance: updatedBonus,
-                                balance: updatedTotal
-                            });
+                                balance: updatedTotal,
+                                uid: targetUid
+                            }, { merge: true });
                         });
 
                         const uDoc = await uRef.get();
@@ -1290,6 +1293,50 @@ userNotifyBot.on("message", async (msg) => {
                     }
                 }
             }
+        }
+
+        // অ্যাডমিন টেলিগ্রাম বট থেকে সরাসরি প্রোমো কোড তৈরি (/create বা /code)
+        if (text.startsWith("/create") || text.startsWith("/code")) {
+            const parts = text.split(/\s+/).filter(Boolean);
+            let codeName = "";
+            let amount = 0;
+
+            if (parts.length === 2) {
+                // e.g. /create 50
+                amount = parseFloat(parts[1]);
+                codeName = "PPM-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+            } else if (parts.length >= 3) {
+                // e.g. /create GIFT100 100
+                codeName = parts[1].toUpperCase();
+                amount = parseFloat(parts[2]);
+            }
+
+            if (!amount || isNaN(amount) || amount <= 0) {
+                return userNotifyBot.sendMessage(chatId,
+                    `💡 <b>রিডিম কোড তৈরির নিয়ম:</b>\n\n` +
+                    `👉 <code>/create 50</code> (অটোমেটিক কোড জেনারেট হবে)\n` +
+                    `👉 <code>/create PROMO50 50</code> (কাস্টম কোড তৈরি হবে)`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
+            await db.collection("codes").doc(codeName).set({
+                amount: amount,
+                maxUses: 1,
+                used: 0,
+                active: true,
+                note: "Generated via Admin Telegram",
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return userNotifyBot.sendMessage(chatId,
+                `🎉 <b>REWARD CODE CREATED!</b>\n\n` +
+                `🔖 <b>Code:</b> <code>${codeName}</code>\n` +
+                `🪙 <b>Amount:</b> <b>${amount} PP Coins</b>\n` +
+                `👥 <b>Max Uses:</b> 1 User\n\n` +
+                `<i>ইউজার এই কোডটি অ্যাপের Rewards বক্সে দিলে সাথে সাথে ${amount} Coins পাবে!</i>`,
+                { parse_mode: "HTML" }
+            );
         }
 
         // /logon এবং /logoff কমান্ড
