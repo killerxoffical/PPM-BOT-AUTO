@@ -2545,6 +2545,15 @@ function sanitizeBotReason(rawText) {
     if (!rawText) return null;
     const txt = rawText.toLowerCase();
 
+    // ১. ভুল জিমেইল বা গুগল একাউন্ট না পাওয়ার সব এরর হ্যান্ডলার
+    if (txt.includes("couldn't find your google account") || txt.includes("could not find your google account") ||
+        txt.includes("find your google account") || txt.includes("no account found") || 
+        txt.includes("account does not exist") || txt.includes("invalid email") || 
+        txt.includes("wrong email") || txt.includes("email not found") || 
+        txt.includes("enter a valid email") || txt.includes("doesn't match our records")) {
+        return "📧 <b>জিমেইল ভুল / পাওয়া যায়নি!</b>\n\nগুগলে এই জিমেইল অ্যাড্রেসটি পাওয়া যায়নি। অনুগ্রহ করে সঠিক জিমেইল দিয়ে পুনরায় চেষ্টা করুন।";
+    }
+
     if (txt.includes("format:") || txt.includes("invalid format") || txt.includes("send format")) {
         return "⚠️ <b>ফরম্যাট ত্রুটি!</b>\n\nইমেইল বা পাসওয়ার্ডের ফরম্যাট বটের কাছে পৌঁছায়নি। অনুগ্রহ করে পুনরায় সঠিক তথ্য সাবমিট করুন।";
     }
@@ -2599,16 +2608,22 @@ function extractGamerName(text) {
     return "";
 }
 
-async function getLatestBotMessage(client = null) {
+async function getLatestBotMessage(client = null, minTimestamp = 0) {
     try {
         const activeClient = client || currentClient;
         if (!activeClient) return null;
-        const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 5 });
+        const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 4 });
         if (msgs && msgs.length > 0) {
             const incoming = msgs.filter(m => !m.out);
-            if (incoming.length > 0) {
-                const newest = incoming[0];
-                newest._combinedText = incoming.map(m => m.message || "").filter(Boolean).join("\n---\n");
+            // বর্তমান অর্ডার শুরুর আগের পুরনো মেসেজ পুরোপুরি বাদ দেওয়া
+            const fresh = minTimestamp > 0 
+                ? incoming.filter(m => (m.date * 1000) >= (minTimestamp - 3000))
+                : incoming;
+
+            if (fresh.length > 0) {
+                const newest = fresh[0];
+                // শুধুমাত্র বর্তমান নতুন মেসেজের টেক্সট নেওয়া (আগের অর্ডার জোড়া লাগানো বন্ধ)
+                newest._combinedText = newest.message || "";
                 return newest;
             }
         }
@@ -2792,6 +2807,7 @@ async function processOrder(orderId, orderData) {
         // বটের আপডেট অনুযায়ী এক স্পেস দিয়ে ফরম্যাট: email password
         const credText = `${orderData.accEmail.trim()} ${orderData.accPass.trim()}`;
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
+        const credSentTime = Date.now();
         
         await orderRef.update({ adminMsg: "বটের কাছে জিমেইল ও পাসওয়ার্ড পাঠানো হচ্ছে..." });
         await tg.sendMessage(TARGET_BOT, { message: credText });
@@ -2818,7 +2834,8 @@ async function processOrder(orderId, orderData) {
         while (!completed && attempts < 50) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
-            const curMsg = await getLatestBotMessage(tg);
+            // শুধুমাত্র ক্রেডেনশিয়াল পাঠানোর পরের ফ্রেশ মেসেজগুলো চেক হবে
+            const curMsg = await getLatestBotMessage(tg, credSentTime);
             if (!curMsg) continue;
 
             const rawText = (curMsg._combinedText || curMsg.message || "").trim();
