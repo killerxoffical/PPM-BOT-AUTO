@@ -2259,7 +2259,7 @@ app.post("/api/tg/check-balance", async (req, res) => {
 });
 
 // ---------------- 8b. MASS PROMO & DAILY CLAIM ----------------
-async function clickInlineButton(message, textPattern) {
+async function clickInlineButton(message, textPattern, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
     for (const row of message.replyMarkup.rows) {
         for (const button of row.buttons) {
@@ -2267,7 +2267,15 @@ async function clickInlineButton(message, textPattern) {
                 try {
                     await message.click({ text: button.text });
                     return true;
-                } catch (e) {}
+                } catch (e) {
+                    try {
+                        const activeClient = client || currentClient;
+                        if (activeClient) {
+                            await activeClient.sendMessage(TARGET_BOT, { message: button.text });
+                            return true;
+                        }
+                    } catch (e2) {}
+                }
             }
         }
     }
@@ -2529,10 +2537,11 @@ function extractGamerName(text) {
     return "";
 }
 
-async function getLatestBotMessage() {
+async function getLatestBotMessage(client = null) {
     try {
-        if (!currentClient) return null;
-        const msgs = await currentClient.getMessages(TARGET_BOT, { limit: 3 });
+        const activeClient = client || currentClient;
+        if (!activeClient) return null;
+        const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 5 });
         if (msgs && msgs.length > 0) {
             const incoming = msgs.filter(m => !m.out);
             if (incoming.length > 0) {
@@ -2545,10 +2554,10 @@ async function getLatestBotMessage() {
     return null;
 }
 
-async function waitForCondition(checkFn, timeoutMs = 45000) {
+async function waitForCondition(checkFn, timeoutMs = 45000, client = null) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        const msg = await getLatestBotMessage();
+        const msg = await getLatestBotMessage(client || currentClient);
         if (msg) {
             const res = checkFn(msg);
             if (res) return { msg, res };
@@ -2649,6 +2658,7 @@ async function processOrder(orderId, orderData) {
         assignedWorker = workerClientObj.phone;
         busyWorkers.add(assignedWorker);
         const tg = workerClientObj.client;
+        currentClient = tg;
 
         console.log(`[DISPATCH] Assigned order ${orderId} to worker [${assignedWorker}]`);
         await orderRef.update({
@@ -2660,17 +2670,35 @@ async function processOrder(orderId, orderData) {
         });
 
         await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
-        await new Promise((r) => setTimeout(r, 1200));
-        await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
+        await new Promise((r) => setTimeout(r, 1500));
 
-        // পেন্ডিং অবস্থায় চ্যানেলে লগ পাঠানো বন্ধ করা হয়েছে (Only completed logs allowed)
-
-        let found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest") || m.message.includes("Chests")), 25000);
-        if (!found) {
-            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" });
-            found = await waitForCondition((m) => m.message && (m.message.includes("Available Chests") || m.message.includes("Select the desired chest")), 15000);
+        // নতুন বট মেনু অনুযায়ী '📍 Select Quest' বাটন ক্লিক বা টেক্সট পাঠানো
+        let initialMsg = await getLatestBotMessage(tg);
+        let btnClicked = false;
+        if (initialMsg) {
+            btnClicked = await clickInlineButton(initialMsg, "Select Quest", tg);
+            if (!btnClicked) btnClicked = await clickInlineButton(initialMsg, "Quest", tg);
         }
-        if (!found) throw new Error("Bot chest menu timeout (বট রেসপন্স করেনি)");
+        if (!btnClicked) {
+            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => {});
+            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => {});
+            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" }).catch(() => {});
+        }
+
+        let found = await waitForCondition((m) => {
+            const txt = (m.message || "").toLowerCase();
+            return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest") || txt.includes("select quest") || txt.includes("choose");
+        }, 25000, tg);
+
+        if (!found) {
+            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => {});
+            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => {});
+            found = await waitForCondition((m) => {
+                const txt = (m.message || "").toLowerCase();
+                return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest");
+            }, 15000, tg);
+        }
+        if (!found) throw new Error("Bot quest menu timeout (বট রেসপন্স করেনি)");
 
         const cleanGame = (orderData.game || "").replace(/\(.*?\)/g, "").trim().toLowerCase();
         let clicked = await clickInlineButton(found.msg, cleanGame);
@@ -2679,9 +2707,9 @@ async function processOrder(orderId, orderData) {
         if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
 
         await new Promise((r) => setTimeout(r, 2200));
-        let promptMsg = await getLatestBotMessage();
+        let promptMsg = await getLatestBotMessage(tg);
         if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting") || promptMsg.message.includes("Previous"))) {
-            await clickInlineButton(promptMsg, "New account");
+            await clickInlineButton(promptMsg, "New account", tg);
             await new Promise((r) => setTimeout(r, 2000));
         }
 
@@ -2695,13 +2723,13 @@ async function processOrder(orderId, orderData) {
         let confirmFound = await waitForCondition((m) => {
             const txt = (m.message || "").toLowerCase();
             return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
-        }, 20000);
+        }, 20000, tg);
 
         if (confirmFound) {
-            let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay");
-            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Start");
-            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials");
-            if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm");
+            let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay", tg);
+            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Start", tg);
+            if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials", tg);
+            if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm", tg);
         }
         await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে বটের কাছে পাঠানো হয়েছে! লগইন চলছে..." });
 
@@ -2714,7 +2742,7 @@ async function processOrder(orderId, orderData) {
         while (!completed && attempts < 50) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
-            const curMsg = await getLatestBotMessage();
+            const curMsg = await getLatestBotMessage(tg);
             if (!curMsg) continue;
 
             const rawText = (curMsg._combinedText || curMsg.message || "").trim();
@@ -2977,7 +3005,7 @@ async function startMasterWorker() {
                 const ord = change.doc.data();
                 const ordId = change.doc.id;
                 if (botModeCache === false) return;
-                if (ord.accEmail && ord.accPass && ord.mode !== "manual" && !activeOrders.has(ordId)) {
+                if (ord.accEmail && ord.accPass && !activeOrders.has(ordId)) {
                     processOrder(ordId, ord);
                 }
             }
