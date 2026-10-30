@@ -1187,11 +1187,13 @@ function buildUserAdminCard(uid, uData) {
     const curStars = Number(uData.loyaltyStars || 0);
     const realBal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
     const bonusBal = Number(uData.bonusBalance || 0);
+    const cleanName = (uData.name || "User").replace(/[<>&]/g, "").trim().slice(0, 30);
+    const cleanEmail = (uData.email || "No Email").replace(/[<>&]/g, "").trim();
 
     const text = 
         `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
-        `📛 <b>Name:</b> ${uData.name || "User"}\n` +
-        `📧 <b>Email:</b> <code>${uData.email || "No Email"}</code>\n` +
+        `📛 <b>Name:</b> ${cleanName}\n` +
+        `📧 <b>Email:</b> <code>${cleanEmail}</code>\n` +
         `🆔 <b>UID:</b> <code>${uid}</code>\n\n` +
         `💰 <b>Real (Deposit):</b> <code>${realBal} Coins</code>\n` +
         `🎁 <b>Bonus (Other):</b> <code>${bonusBal} Coins</code>\n` +
@@ -1302,24 +1304,37 @@ userNotifyBot.on("message", async (msg) => {
             return userNotifyBot.sendMessage(msg.chat.id, "✅ <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো চালু (ON) করা হয়েছে!</b>", { parse_mode: "HTML" });
         }
 
-        // UID সার্চ বা সরাসরি UID দিলে ইউজার কার্ড ওপেন হবে
-        const adminId = process.env.ADMIN_TG_ID || "7504616242";
-        const isFromAdmin = msg.chat.id.toString() === adminId || (msg.from && msg.from.id.toString() === adminId);
+        // শুধুমাত্র অ্যাডমিন (7504616242) এর জন্য UID সার্চ হ্যান্ডলার
+        const ADMIN_ID = "7504616242";
+        const isFromAdmin = msg.chat.id.toString() === ADMIN_ID || (msg.from && msg.from.id.toString() === ADMIN_ID);
 
         let searchUid = null;
-        if (isFromAdmin && !text.startsWith("/") && text.length >= 20 && !text.includes(" ") && !text.includes("\n")) {
-            searchUid = text;
-        } else if (isFromAdmin && text.startsWith("/user ")) {
-            searchUid = text.replace("/user ", "").trim();
+        if (isFromAdmin) {
+            if (!text.startsWith("/") && text.length >= 10 && !text.includes(" ") && !text.includes("\n")) {
+                searchUid = text;
+            } else if (text.startsWith("/user ")) {
+                searchUid = text.replace("/user ", "").trim();
+            }
         }
 
         if (searchUid) {
-            const uDoc = await db.collection("users").doc(searchUid).get();
-            if (uDoc.exists) {
-                const card = buildUserAdminCard(searchUid, uDoc.data());
-                return userNotifyBot.sendMessage(msg.chat.id, card.text, { parse_mode: "HTML", reply_markup: card.reply_markup });
-            } else {
-                return userNotifyBot.sendMessage(msg.chat.id, `❌ <code>${searchUid}</code> এই UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`, { parse_mode: "HTML" });
+            try {
+                const uDoc = await db.collection("users").doc(searchUid).get();
+                if (uDoc.exists) {
+                    const card = buildUserAdminCard(searchUid, uDoc.data());
+                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
+                        parse_mode: "HTML", 
+                        reply_markup: card.reply_markup 
+                    });
+                } else {
+                    return await userNotifyBot.sendMessage(msg.chat.id, 
+                        `❌ <code>${searchUid}</code> এই UID দিয়ে ফায়ারবেসে কোনো ইউজার পাওয়া যায়নি!`, 
+                        { parse_mode: "HTML" }
+                    );
+                }
+            } catch (err) {
+                console.error("[ADMIN UID SEARCH ERR]:", err);
+                return await userNotifyBot.sendMessage(msg.chat.id, `⚠️ ইউজার লোড করতে সমস্যা: ${err.message}`);
             }
         }
 
