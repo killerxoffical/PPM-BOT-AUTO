@@ -558,6 +558,12 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
     const cleanTrx = trxId.toUpperCase().trim();
 
     try {
+        // ১. আগে থেকেই TrxID ব্যবহৃত হয়েছে কিনা চেক
+        const usedCheck = await db.collection("used_trx").doc(cleanTrx).get();
+        if (usedCheck.exists) {
+            return res.status(400).json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" });
+        }
+
         const cfgSnap = await db.collection("config").doc("app").get();
         const cfg = cfgSnap.exists ? cfgSnap.data() : {};
         if (cfg.autoDeposit === false) {
@@ -641,10 +647,13 @@ app.post("/api/bonus/claim", async (req, res) => {
             if (d.lastBonusDay === today) throw new Error("claimed");
             const amt = rollBonus();
             const streak = (d.lastBonusDay === yest) ? (Number(d.lastBonusStreak) || 0) + 1 : 1;
-            const curBal = Number(d.balance) || 0;
-            const newBal = Math.round((curBal + amt + Number.EPSILON) * 100) / 100;
+            const curReal = Number(d.realBalance !== undefined ? d.realBalance : (d.balance || 0));
+            const curBonus = Number(d.bonusBalance || 0);
+            const newBonus = Math.round((curBonus + amt + Number.EPSILON) * 100) / 100;
+            const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
             t.update(uref, {
-                balance: newBal,
+                bonusBalance: newBonus,
+                balance: newTotal,
                 lastBonusDay: today,
                 lastBonusStreak: streak
             });
@@ -739,10 +748,19 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
                 email: depData.email || "",
                 photo: "",
                 balance: coinsToAdd,
+                realBalance: coinsToAdd,
+                bonusBalance: 0,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
         } else {
-            t.update(userRef, { balance: (Number(userSnap.data().balance) || 0) + coinsToAdd });
+            const uData = userSnap.data();
+            const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
+            const curBonus = Number(uData.bonusBalance || 0);
+            const newReal = curReal + coinsToAdd;
+            t.update(userRef, {
+                realBalance: newReal,
+                balance: newReal + curBonus
+            });
         }
 
         let durationSec = 2;
@@ -985,8 +1003,8 @@ setInterval(async () => {
     }
 }, 2 * 60 * 1000);
 
-// ---------------- 10-DAY HISTORY RETENTION ----------------
-const RET_D = 10 * 86400000;
+// ---------------- 7-DAY HISTORY RETENTION ----------------
+const RET_D = 7 * 86400000;
 function tsMs(v) {
     try {
         if (!v) return 0;
@@ -1100,6 +1118,10 @@ const activeOrders = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
 
+// --- SMART WORKER LOAD BALANCER & QUEUE ENGINE ---
+const busyWorkers = new Set(); // কোন কোন টেলিগ্রাম অ্যাকাউন্ট এখন কাজে ব্যস্ত
+let isQueueProcessing = false;
+
 // সঠিক BD Phone Formatter
 function formatBdPhone(raw) {
     let num = (raw || "").toString().replace(/[^0-9]/g, "");
@@ -1163,14 +1185,19 @@ function buildUserAdminCard(uid, uData) {
     const joinDate = uData.createdAt && uData.createdAt.toDate ? uData.createdAt.toDate().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" }) : "—";
 
     const curStars = Number(uData.loyaltyStars || 0);
+    const realBal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
+    const bonusBal = Number(uData.bonusBalance || 0);
+
     const text = 
         `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
         `📛 <b>Name:</b> ${uData.name || "User"}\n` +
         `📧 <b>Email:</b> <code>${uData.email || "No Email"}</code>\n` +
-        `🆔 <b>UID:</b> <code>${uid}</code>\n` +
-        `🪙 <b>PP Coins:</b> <b>${cleanBal} Coins</b>\n` +
+        `🆔 <b>UID:</b> <code>${uid}</code>\n\n` +
+        `💰 <b>Real (Deposit):</b> <code>${realBal} Coins</code>\n` +
+        `🎁 <b>Bonus (Other):</b> <code>${bonusBal} Coins</code>\n` +
+        `🪙 <b>Total Coins:</b> <b>${cleanBal} Coins</b>\n\n` +
         `⭐ <b>Play Points:</b> <b>${cleanPoints} Pts</b>\n` +
-        `🎖️ <b>Loyalty Stars:</b> <b>${curStars} / 10 Stars</b>\n` +
+        `🎖️ <b>Loyalty Stars:</b> <b>${curStars} / 10 Stars</b> <i>(Real-এ বাড়ে)</i>\n` +
         `✈️ <b>Telegram:</b> ${uData.tgChatId || "Not Connected"}\n` +
         `📅 <b>Joined:</b> ${joinDate}\n` +
         `📌 <b>Status:</b> ${isBanned ? "🚫 <b>BANNED</b>" : "✅ <b>ACTIVE</b>"}`;
@@ -1182,8 +1209,12 @@ function buildUserAdminCard(uid, uData) {
                 { text: "🔄 Refresh", callback_data: `u_refresh:${uid}` }
             ],
             [
-                { text: "➕ Add Coins", callback_data: `u_ask_add:${uid}` },
-                { text: "➖ Deduct Coins", callback_data: `u_ask_sub:${uid}` }
+                { text: "➕ Add Real", callback_data: `u_ask_add_real:${uid}` },
+                { text: "➖ Deduct Real", callback_data: `u_ask_sub_real:${uid}` }
+            ],
+            [
+                { text: "➕ Add Bonus", callback_data: `u_ask_add_bonus:${uid}` },
+                { text: "➖ Deduct Bonus", callback_data: `u_ask_sub_bonus:${uid}` }
             ],
             [
                 { text: "⭐ +1 Star", callback_data: `u_mod_star:${uid}:1` },
@@ -1216,22 +1247,37 @@ userNotifyBot.on("message", async (msg) => {
 
                     if (isAdd || isSub) {
                         const changeAmt = isAdd ? numVal : -numVal;
+                        const isTargetReal = repText.includes("[REAL]");
                         const uRef = db.collection("users").doc(targetUid);
-                        let updatedBal = 0;
+                        let updatedReal = 0, updatedBonus = 0, updatedTotal = 0;
 
                         await db.runTransaction(async (t) => {
                             const uSnap = await t.get(uRef);
                             if (!uSnap.exists) throw new Error("User not found");
-                            const cur = Number(uSnap.data().balance) || 0;
-                            updatedBal = Math.max(0, Math.round((cur + changeAmt + Number.EPSILON) * 100) / 100);
-                            t.update(uRef, { balance: updatedBal });
+                            const ud = uSnap.data();
+                            const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                            const curBonus = Number(ud.bonusBalance || 0);
+
+                            if (isTargetReal) {
+                                updatedReal = Math.max(0, Math.round((curReal + changeAmt + Number.EPSILON) * 100) / 100);
+                                updatedBonus = curBonus;
+                            } else {
+                                updatedReal = curReal;
+                                updatedBonus = Math.max(0, Math.round((curBonus + changeAmt + Number.EPSILON) * 100) / 100);
+                            }
+                            updatedTotal = Math.round((updatedReal + updatedBonus + Number.EPSILON) * 100) / 100;
+                            t.update(uRef, {
+                                realBalance: updatedReal,
+                                bonusBalance: updatedBonus,
+                                balance: updatedTotal
+                            });
                         });
 
                         const uDoc = await uRef.get();
                         const card = buildUserAdminCard(targetUid, uDoc.data());
 
                         await userNotifyBot.sendMessage(chatId,
-                            `✅ <b>সফল!</b> ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> আপডেট হয়েছে।\n🪙 বর্তমান মোট ব্যালেন্স: <b>${updatedBal} Coins</b>`,
+                            `✅ <b>সফল!</b> [${isTargetReal ? 'REAL' : 'BONUS'}] ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> আপডেট হয়েছে।\n💰 Real: <b>${updatedReal}</b> | 🎁 Bonus: <b>${updatedBonus}</b>\n🪙 বর্তমান মোট: <b>${updatedTotal} Coins</b>`,
                             { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                         );
 
@@ -1411,27 +1457,39 @@ userNotifyBot.on("callback_query", async (query) => {
             return userNotifyBot.answerCallbackQuery(query.id, { text: "User not found!" });
         }
 
-        if (data.startsWith("u_ask_add:")) {
-            const targetUid = data.replace("u_ask_add:", "").trim();
+        if (data.startsWith("u_ask_add_real:")) {
+            const targetUid = data.replace("u_ask_add_real:", "").trim();
             await userNotifyBot.answerCallbackQuery(query.id);
             return userNotifyBot.sendMessage(chatId,
-                `➕ <b>ব্যালেন্স যোগ করুন</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত কয়েন যোগ করতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 10 বা 50):`,
-                {
-                    parse_mode: "HTML",
-                    reply_markup: { force_reply: true, selective: true }
-                }
+                `➕ <b>ব্যালেন্স যোগ করুন [REAL]</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত রিয়েল কয়েন যোগ করতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 10 বা 50):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
             );
         }
 
-        if (data.startsWith("u_ask_sub:")) {
-            const targetUid = data.replace("u_ask_sub:", "").trim();
+        if (data.startsWith("u_ask_sub_real:")) {
+            const targetUid = data.replace("u_ask_sub_real:", "").trim();
             await userNotifyBot.answerCallbackQuery(query.id);
             return userNotifyBot.sendMessage(chatId,
-                `➖ <b>ব্যালেন্স কাটুন</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত কয়েন কাটতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 5 বা 20):`,
-                {
-                    parse_mode: "HTML",
-                    reply_markup: { force_reply: true, selective: true }
-                }
+                `➖ <b>ব্যালেন্স কাটুন [REAL]</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত রিয়েল কয়েন কাটতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 5 বা 20):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data.startsWith("u_ask_add_bonus:")) {
+            const targetUid = data.replace("u_ask_add_bonus:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `➕ <b>ব্যালেন্স যোগ করুন [BONUS]</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত বোনাস কয়েন যোগ করতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 5 বা 10):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data.startsWith("u_ask_sub_bonus:")) {
+            const targetUid = data.replace("u_ask_sub_bonus:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `➖ <b>ব্যালেন্স কাটুন [BONUS]</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n\nকত বোনাস কয়েন কাটতে চান? সংখ্যাটি লিখে এই মেসেজে Reply দিন (যেমন: 5 বা 10):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
             );
         }
 
@@ -1747,50 +1805,73 @@ function attachPrimeHandler(client, label) {
             if (!senderId && msg.peerId && msg.peerId.userId) senderId = msg.peerId.userId.toString();
             if (!senderId) return;
 
-            // ২. দিনে ঠিক ১ বার (Strict 1-Time Per Day) রিপ্লাই চেক
-            const canReplyToday = await primeCooldownClaim(senderId, label);
-            if (!canReplyToday) {
-                // আজকের দিনে এই ইউজার ইতিমধ্যে ১ বার রিপ্লাই পেয়েছে, তাই সম্পূর্ণ নীরব থাকবে
-                return;
-            }
+            // মেসেজের টেক্সট পরীক্ষা (বাংলা বা ইংরেজিতে লিংক চেয়েছে কিনা)
+            const incomingText = (msg.message || "").toLowerCase().trim();
+            const isAskingLink = /(?:^|\s)(?:link|links|site|website|web|লিংক|লেংক|সাইট|ওয়েবসাইট)(?:$|\s|[?!.,])/i.test(incomingText)
+                                || incomingText.includes("link")
+                                || incomingText.includes("লিংক")
+                                || incomingText.includes("লেংক");
 
-            console.log(`[PRIME] 📩 Strict DM received from [${senderId}] on [${label}]. Sending 1-time daily reply...`);
+            const LINK_REPLY_TEXT = `🔗 <b>PP MOD অফিশিয়াল ওয়েবসাইট লিংক:</b>\n\n` +
+                                   `আমাদের সমস্ত কোয়েস্ট ও সার্ভিস ব্যবহার করতে নিচের লিংকে ক্লিক করুন:\n` +
+                                   `👉 <a href="https://ppmod.gamer.free/?i=1">https://ppmod.gamer.free/?i=1</a>\n\n` +
+                                   `⚡ <i>মাত্র ৩ সেকেন্ডে প্লে পয়েন্ট টাস্ক সম্পন্ন করুন!</i> ✨`;
 
-            console.log(`[PRIME] 🚀 Replying to user [${senderId}]...`);
-            await new Promise((r) => setTimeout(r, 1000));
+            // ২. দিনে ঠিক ১ বার (Strict 1-Time Per Day across all primes) জেনারেল অটো-রিপ্লাই চেক
+            const canReplyToday = await primeCooldownClaim(senderId);
 
-            // ১০০% গ্যারান্টিড রিপ্লাই (msg.reply ব্যবহার করলে কখনোই Peer বা access_hash এরর হয় না)
-            let sent = false;
-            try {
-                await msg.reply({
-                    file: PRIME_AUTO_REPLY_IMG,
-                    message: PRIME_AUTO_REPLY_CAPTION,
-                    parseMode: "html"
-                });
-                sent = true;
-                console.log(`[PRIME] ✅ Photo auto-reply sent to [${senderId}]!`);
-            } catch (e1) {
-                console.warn(`[PRIME] Photo reply failed (${e1.message}), trying text reply...`);
-            }
+            if (canReplyToday) {
+                console.log(`[PRIME] 📩 Strict 1-Time Daily Reply to [${senderId}] on [${label}]...`);
+                await new Promise((r) => setTimeout(r, 800));
 
-            if (!sent) {
+                let sent = false;
                 try {
                     await msg.reply({
+                        file: PRIME_AUTO_REPLY_IMG,
                         message: PRIME_AUTO_REPLY_CAPTION,
                         parseMode: "html"
                     });
-                    console.log(`[PRIME] ✅ Text auto-reply sent to [${senderId}]!`);
-                } catch (e2) {
-                    // শেষ চেষ্টা: সরাসরি ক্লায়েন্ট সেন্ড
+                    sent = true;
+                    console.log(`[PRIME] ✅ Welcome Photo auto-reply sent to [${senderId}]!`);
+                } catch (e1) {
                     try {
-                        await client.sendMessage(msg.chatId || msg.peerId, {
+                        await msg.reply({
                             message: PRIME_AUTO_REPLY_CAPTION,
                             parseMode: "html"
                         });
-                        console.log(`[PRIME] ✅ Client fallback reply sent to [${senderId}]!`);
-                    } catch (e3) {
-                        console.error(`[PRIME CRITICAL ERROR] All reply attempts failed:`, e3.message);
-                    }
+                        sent = true;
+                    } catch (e2) {}
+                }
+
+                // যদি প্রথম মেসেজেই লিংক চাওয়া হয়ে থাকে -> সাথে সাথে লিংক মেসেজটিও চলে যাবে
+                if (isAskingLink) {
+                    await new Promise((r) => setTimeout(r, 1200));
+                    try {
+                        await msg.reply({
+                            message: LINK_REPLY_TEXT,
+                            parseMode: "html"
+                        });
+                        console.log(`[PRIME] ✅ Follow-up Link reply sent to [${senderId}]!`);
+                    } catch (le) {}
+                }
+                return;
+            }
+
+            // যদি আজকের দিনের জেনারেল রিপ্লাই আগেই পেয়ে থাকে, কিন্তু এখন লিংক চেয়েছে -> শুধু লিংক রিপ্লাই দেবে
+            if (isAskingLink) {
+                const linkCooldownKey = `link:${senderId}`;
+                const lastLinkSent = autoReplyCooldown.get(linkCooldownKey) || 0;
+                // প্রতি ১০ মিনিটে ১ বারের বেশি লিংক স্প্যাম করবে না
+                if (Date.now() - lastLinkSent > 10 * 60 * 1000) {
+                    autoReplyCooldown.set(linkCooldownKey, Date.now());
+                    await new Promise((r) => setTimeout(r, 800));
+                    try {
+                        await msg.reply({
+                            message: LINK_REPLY_TEXT,
+                            parseMode: "html"
+                        });
+                        console.log(`[PRIME] ✅ Standalone Link reply sent to [${senderId}]!`);
+                    } catch (le) {}
                 }
             }
         } catch (err) {
@@ -1872,16 +1953,25 @@ async function initPrimeAutoResponder() {
     } catch (e) {}
 }
 
-async function primeCooldownClaim(senderId, primeLabel) {
-    // দিনে ঠিক ১ বার মাত্র অটো রিপ্লাই যাবে (যাতে ইউজার বিরক্ত না হয়)
-    const today = dhakaDay(0);
-    const key = (primeLabel ? (primeLabel + ':' + senderId) : senderId).replace(/[^a-zA-Z0-9_:-]/g, '');
+// রিয়েলটাইম রেস-কন্ডিশন ব্লক করার জন্য তাৎক্ষণিক মেমোরি লক
+const instantReplyLock = new Set();
 
-    // ১. লোকাল মেমোরি চেক (সুপারফাস্ট)
+async function primeCooldownClaim(senderId) {
+    // দিনে ঠিক ১ বার মাত্র অটো রিপ্লাই যাবে (সব অ্যাকাউন্ট মিলিয়ে গ্লোবাল লক)
+    const today = dhakaDay(0);
+    const key = String(senderId).replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // ১. ইনস্ট্যান্ট মেমোরি লক (একই মিলিসেকেন্ডে একাধিক প্রাইম অ্যাকাউন্ট ব্লক করা)
+    if (instantReplyLock.has(key)) return false;
+
+    // ২. আজকের দিনের মেমোরি রেকর্ড চেক
     const mem = autoReplyCooldown.get(key);
     if (mem && mem === today) {
-        return false; // আজকের দিনে ইতিমধ্যে ১ বার রিপ্লাই গেছে
+        return false;
     }
+
+    // তৎক্ষণাৎ লক করা
+    instantReplyLock.add(key);
 
     try {
         const ref = db.collection("tg_autoreply").doc(key);
@@ -1894,8 +1984,9 @@ async function primeCooldownClaim(senderId, primeLabel) {
             }
         }
 
-        // আজকের জন্য লক করা
+        // আজকের জন্য পার্মানেন্ট লক করা
         autoReplyCooldown.set(key, today);
+        setTimeout(() => instantReplyLock.delete(key), 15000); // ১৫ সেকেন্ড পর টেম্পোরারি লক রিলিজ
         await ref.set({
             day: today,
             senderId: senderId,
@@ -1904,9 +1995,9 @@ async function primeCooldownClaim(senderId, primeLabel) {
 
         return true;
     } catch (e) {
-        // ফায়ারস্টোর এরর হলেও মেমোরি রেকর্ড দিয়ে দিনে ১ বার নিশ্চিত করা
         if (mem && mem === today) return false;
         autoReplyCooldown.set(key, today);
+        setTimeout(() => instantReplyLock.delete(key), 15000);
         return true;
     }
 }
@@ -2452,39 +2543,36 @@ async function waitForCondition(checkFn, timeoutMs = 45000) {
     return null;
 }
 
-async function getUsableTelegramClient() {
+// ফ্রি এবং পর্যাপ্ত টোকেন থাকা একক ক্লায়েন্ট খোঁজা
+async function getAvailableWorkerClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
     snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
 
-    const valid = accounts
+    // যে অ্যাকাউন্ট এখন busy নয় এবং কমপক্ষে ৩ টোকেন আছে
+    const freeAccount = accounts
+        .filter(a => !busyWorkers.has(a.phone || a.id))
         .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))
         .find((a) => (a.balance === undefined || a.balance >= 3) && a.session);
 
-    let sessionStr = "";
-    let chosenPhone = "";
-
-    if (valid) {
-        sessionStr = valid.session;
-        chosenPhone = valid.phone || valid.id;
-    } else if (process.env.TELEGRAM_SESSION) {
-        sessionStr = process.env.TELEGRAM_SESSION;
-        chosenPhone = "Primary_Account";
-    } else {
-        throw new Error("NO_BALANCE");
+    if (!freeAccount) {
+        return null; // সব অ্যাকাউন্ট এখন ব্যস্ত!
     }
 
-    if (currentClient && currentPhone === chosenPhone) return currentClient;
-
-    if (currentClient) {
-        try { await currentClient.disconnect(); } catch (e) {}
-    }
-
-    const client = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 10 });
+    const chosenPhone = freeAccount.phone || freeAccount.id;
+    const client = new TelegramClient(new StringSession(freeAccount.session), DEFAULT_API_ID, DEFAULT_API_HASH, {
+        connectionRetries: 5,
+        autoReconnect: true
+    });
     await client.connect();
-    currentClient = client;
-    currentPhone = chosenPhone;
-    return currentClient;
+    return { client, phone: chosenPhone, docId: freeAccount.id };
+}
+
+// কমপ্যাটিবিলিটি ব্যাকওয়ার্ড কল
+async function getUsableTelegramClient() {
+    const res = await getAvailableWorkerClient();
+    if (res) return res.client;
+    throw new Error("ALL_WORKERS_BUSY");
 }
 
 async function refundOrder(orderId, uid, reason, userTgId = null) {
@@ -2529,20 +2617,32 @@ async function processOrder(orderId, orderData) {
 
     const startTime = Date.now();
     const orderRef = db.collection("orders").doc(orderId);
+    let assignedWorker = null;
 
     try {
-        await orderRef.update({ adminMsg: "সার্ভার কাজ শুরু করেছে। দয়া করে অপেক্ষা করুন...", botProcessing: true });
-        
-        let tg;
-        try {
-            tg = await getUsableTelegramClient();
-        } catch (err) {
-            if (err.message === "NO_BALANCE") {
-                await refundOrder(orderId, orderData.uid, "সার্ভারে পর্যাপ্ত টোকেন না থাকায় অর্ডারটি রিফান্ড করা হলো।", orderData.userTgId);
-                return;
-            }
-            throw err;
+        // ১. ফ্রি ওয়ার্কার খোঁজা
+        let workerClientObj = await getAvailableWorkerClient();
+
+        // যদি সব ওয়ার্কার ব্যস্ত থাকে -> অর্ডারে কিউ স্ট্যাটাস সেট করা (রিফান্ড হবে না)
+        if (!workerClientObj) {
+            console.log(`[QUEUE] All workers busy. Holding order ${orderId} in fair queue.`);
+            activeOrders.delete(orderId);
+            await updateQueuePositions();
+            return;
         }
+
+        assignedWorker = workerClientObj.phone;
+        busyWorkers.add(assignedWorker);
+        const tg = workerClientObj.client;
+
+        console.log(`[DISPATCH] Assigned order ${orderId} to worker [${assignedWorker}]`);
+        await orderRef.update({
+            adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...",
+            botProcessing: true,
+            inQueue: false,
+            queuePosition: 0,
+            assignedWorker: assignedWorker
+        });
 
         await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
         await new Promise((r) => setTimeout(r, 1200));
@@ -2665,7 +2765,8 @@ async function processOrder(orderId, orderData) {
                     adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
                     timeElapsed: elapsedSec,
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    botProcessing: false
+                    botProcessing: false,
+                    inQueue: false
                 });
 
                 if (orderData.userTgId || orderData.uid) {
@@ -2678,6 +2779,15 @@ async function processOrder(orderId, orderData) {
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
                     );
                 }
+                try {
+                    // শর্ত: শুধুমাত্র রিয়েল ব্যালেন্স দিয়ে করা টাস্কে স্টার বাড়বে (বোনাসে বাড়বে না)
+                    const paidWithReal = Number(orderData.paidWithReal || 0);
+                    if (orderData.uid && orderData.uid !== 'guest' && paidWithReal > 0) {
+                        await db.collection("users").doc(orderData.uid).update({
+                            loyaltyStars: admin.firestore.FieldValue.increment(1)
+                        });
+                    }
+                } catch (sErr) {}
                 try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
                 sendOrderLog(
                     `✅ <b>TASK COMPLETED</b>\n\n` +
@@ -2699,6 +2809,66 @@ async function processOrder(orderId, orderData) {
         await refundOrder(orderId, orderData.uid, err.message || "সার্ভার এরর", orderData.userTgId);
     } finally {
         activeOrders.delete(orderId);
+        if (assignedWorker) {
+            busyWorkers.delete(assignedWorker);
+            console.log(`[WORKER RELEASED] Worker [${assignedWorker}] is now FREE.`);
+        }
+        // কিউতে থাকা পরবর্তী অর্ডারের প্রসেসিং কল
+        setTimeout(() => {
+            processNextQueueOrder();
+        }, 800);
+    }
+}
+
+// কিউ ক্যালকুলেটর ও পরবর্তী কাজ শুরুর মেকানিজম
+async function updateQueuePositions() {
+    try {
+        const snap = await db.collection("orders")
+            .where("status", "==", "pending")
+            .orderBy("createdAt", "asc")
+            .get();
+
+        let pos = 1;
+        for (const docSnap of snap.docs) {
+            const ord = docSnap.data();
+            // যে কাজগুলো অলরেডি প্রসেসিংয়ে চলছে সেগুলোকে বাদ দিয়ে কিউ কাউন্ট
+            if (!activeOrders.has(docSnap.id) && ord.accEmail) {
+                const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 18))));
+                await docSnap.ref.update({
+                    inQueue: true,
+                    queuePosition: pos,
+                    queuePercent: percentDone,
+                    adminMsg: `⏳ সার্ভার এই মুহূর্তে ব্যস্ত! আপনি সিরিয়ালে #${pos} নম্বরে আছেন (${percentDone}% কাজ অগ্রগতিতে)। পেজ কেটে বের হবেন না, সামনের টাস্ক শেষ হলেই স্বয়ংক্রিয়ভাবে আপনার কাজ শুরু হবে!`
+                });
+                pos++;
+            }
+        }
+    } catch (e) {
+        console.warn("[QUEUE SYNC ERR]:", e.message);
+    }
+}
+
+async function processNextQueueOrder() {
+    if (isQueueProcessing) return;
+    isQueueProcessing = true;
+    try {
+        const snap = await db.collection("orders")
+            .where("status", "==", "pending")
+            .orderBy("createdAt", "asc")
+            .limit(10)
+            .get();
+
+        for (const docSnap of snap.docs) {
+            const ord = docSnap.data();
+            if (ord.accEmail && ord.accPass && !activeOrders.has(docSnap.id)) {
+                processOrder(docSnap.id, ord);
+                break; // একবারে একটি ফ্রি অ্যাকাউন্টে একটি টাস্ক পাঠাবে
+            }
+        }
+        await updateQueuePositions();
+    } catch (e) {}
+    finally {
+        isQueueProcessing = false;
     }
 }
 
@@ -2728,6 +2898,25 @@ async function startMasterWorker() {
     });
 
     getUsableTelegramClient().catch(() => {});
+
+    async function claimDailySingle(sessionStr) {
+        if (!sessionStr) return;
+        const temp = new TelegramClient(new StringSession(sessionStr), DEFAULT_API_ID, DEFAULT_API_HASH, { connectionRetries: 3 });
+        try {
+            await temp.connect();
+            await temp.sendMessage(TARGET_BOT, { message: "🎁 Rewards Hub" });
+            await new Promise((r) => setTimeout(r, 2200));
+            const msgs = await temp.getMessages(TARGET_BOT, { limit: 2 });
+            const targetMsg = (msgs && msgs.length > 0) ? (msgs.find(m => !m.out) || msgs[0]) : null;
+            if (targetMsg) {
+                let clicked = await clickInlineButton(targetMsg, "Claim Today");
+                if (!clicked) clicked = await clickInlineButton(targetMsg, "Claim");
+                if (!clicked) clicked = await clickInlineButton(targetMsg, "Daily");
+            }
+        } finally {
+            try { await temp.disconnect(); } catch (e) {}
+        }
+    }
 
     setInterval(async () => {
         try {
