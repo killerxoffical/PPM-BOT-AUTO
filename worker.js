@@ -2259,6 +2259,68 @@ app.post("/api/tg/check-balance", async (req, res) => {
 });
 
 // ---------------- 8b. MASS PROMO & DAILY CLAIM ----------------
+function normalizeGameStr(str) {
+    return (str || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // é -> e, è -> e ইত্যাদি রূপান্তর
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, " ")     // ™, |, (), ব্র্যাকেট সব স্পেস করে ফেলা
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+async function triggerButtonClick(message, button, client) {
+    try {
+        await message.click({ text: button.text });
+        return true;
+    } catch (e) {
+        try {
+            const activeClient = client || currentClient;
+            if (activeClient) {
+                await activeClient.sendMessage(TARGET_BOT, { message: button.text });
+                return true;
+            }
+        } catch (e2) {}
+    }
+    return false;
+}
+
+async function clickChestButton(message, gameName, client = null) {
+    if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
+    const cleanTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, ""));
+    const targetWords = cleanTarget.split(" ").filter(w => w.length >= 2);
+
+    for (const row of message.replyMarkup.rows) {
+        for (const button of row.buttons) {
+            if (!button.text) continue;
+            const cleanBtn = normalizeGameStr(button.text);
+
+            if (cleanBtn.includes(cleanTarget) || cleanTarget.includes(cleanBtn)) {
+                return await triggerButtonClick(message, button, client);
+            }
+
+            const matchCount = targetWords.filter(w => cleanBtn.includes(w)).length;
+            if (targetWords.length > 0 && matchCount >= Math.min(2, targetWords.length)) {
+                return await triggerButtonClick(message, button, client);
+            }
+        }
+    }
+
+    if (targetWords.length > 0) {
+        const primaryKeyword = targetWords[0];
+        for (const row of message.replyMarkup.rows) {
+            for (const button of row.buttons) {
+                if (!button.text) continue;
+                const cleanBtn = normalizeGameStr(button.text);
+                if (cleanBtn.includes(primaryKeyword)) {
+                    return await triggerButtonClick(message, button, client);
+                }
+            }
+        }
+    }
+    return false;
+}
+
 async function clickInlineButton(message, textPattern, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
     for (const row of message.replyMarkup.rows) {
@@ -2609,10 +2671,23 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             if (ordData.status === "completed" || ordData.status === "refunded") return;
 
             const userSnap = await t.get(userRef);
-            const curBal = userSnap.exists ? Number(userSnap.data().balance || 0) : 0;
-            const refundAmt = Number(ordData.amount || 3);
+            const ud = userSnap.exists ? userSnap.data() : {};
+            const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+            const curBonus = Number(ud.bonusBalance || 0);
 
-            t.update(userRef, { balance: curBal + refundAmt });
+            const refundAmt = Number(ordData.amount || 3);
+            const refundReal = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : refundAmt);
+            const refundBonus = Number(ordData.paidWithBonus || 0);
+
+            const newReal = Math.round((curReal + refundReal + Number.EPSILON) * 100) / 100;
+            const newBonus = Math.round((curBonus + refundBonus + Number.EPSILON) * 100) / 100;
+            const newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
+
+            t.update(userRef, {
+                realBalance: newReal,
+                bonusBalance: newBonus,
+                balance: newTotal
+            });
             t.update(ordRef, {
                 status: "refunded",
                 adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
@@ -2699,10 +2774,12 @@ async function processOrder(orderId, orderData) {
         }
         if (!found) throw new Error("Bot quest menu timeout (বট রেসপন্স করেনি)");
 
-        const cleanGame = (orderData.game || "").replace(/\(.*?\)/g, "").trim().toLowerCase();
-        let clicked = await clickInlineButton(found.msg, cleanGame);
-        if (!clicked) clicked = await clickInlineButton(found.msg, cleanGame.split(" ")[0]);
-        if (!clicked) clicked = await clickInlineButton(found.msg, cleanGame.slice(0, 5));
+        let clicked = await clickChestButton(found.msg, orderData.game || "", tg);
+        if (!clicked) {
+            await new Promise((r) => setTimeout(r, 1500));
+            const retryMenu = await getLatestBotMessage(tg);
+            if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
+        }
         if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
 
         await new Promise((r) => setTimeout(r, 2200));
