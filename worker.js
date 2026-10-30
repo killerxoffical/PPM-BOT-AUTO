@@ -2567,17 +2567,16 @@ async function waitForCondition(checkFn, timeoutMs = 45000, client = null) {
     return null;
 }
 
-// ফ্রি এবং পর্যাপ্ত টোকেন থাকা একক ক্লায়েন্ট খোঁজা
+// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা
 async function getAvailableWorkerClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
     snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
 
-    // যে অ্যাকাউন্ট এখন busy নয় এবং কমপক্ষে ৩ টোকেন আছে
+    // যে অ্যাকাউন্ট এখন busy নয় এবং সেশন একটিভ আছে
     const freeAccount = accounts
-        .filter(a => !busyWorkers.has(a.phone || a.id))
-        .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))
-        .find((a) => (a.balance === undefined || a.balance >= 3) && a.session);
+        .filter(a => !busyWorkers.has(a.phone || a.id) && a.session)
+        .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))[0];
 
     if (!freeAccount) {
         return null; // সব অ্যাকাউন্ট এখন ব্যস্ত!
@@ -3004,8 +3003,9 @@ async function startMasterWorker() {
             if (change.type === "added" || change.type === "modified") {
                 const ord = change.doc.data();
                 const ordId = change.doc.id;
-                if (botModeCache === false) return;
+                // জিমেইল এবং পাসওয়ার্ড থাকলেই সরাসরি টেলিগ্রাম অ্যাকাউন্টে পাঠিয়ে কাজ শুরু করবে
                 if (ord.accEmail && ord.accPass && !activeOrders.has(ordId)) {
+                    console.log(`[ORDER DETECTED] Starting bot execution for order: ${ordId}`);
                     processOrder(ordId, ord);
                 }
             }
