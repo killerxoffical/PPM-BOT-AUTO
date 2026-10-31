@@ -2321,7 +2321,7 @@ app.post("/api/tg/connect-session", async (req, res) => {
             session: sessionString,
             balance: 0,
             active: true,
-            isPrime: true, // সাথে সাথে প্রাইম হিসেবে সক্রিয় হবে
+            isPrime: false, // ডিফল্টভাবে টাস্ক ওয়ার্কার হিসেবে যুক্ত হবে (প্রাইম শুধুমাত্র অটো-রিপ্লাইয়ের জন্য)
             firstName: me.firstName || "Telegram User",
             addedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
@@ -2791,15 +2791,18 @@ async function waitForCondition(checkFn, timeoutMs = 45000, client = null) {
     return null;
 }
 
-// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা
+// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা (Prime হোক বা নরমাল, সব অ্যাকাউন্টই টাস্ক সম্পন্ন করবে)
 async function getAvailableWorkerClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
     snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
 
+    // সব সচল অ্যাকাউন্টই টাস্ক ওয়ার্কার (Prime অ্যাকাউন্টের কাজ টাস্ক করা + বাড়তি ইনবক্স অটো-রিপ্লাই দেওয়া)
+    const workerAccounts = accounts.filter(a => a.session && a.active !== false);
+
     // যে অ্যাকাউন্ট এখন busy নয় এবং সেশন একটিভ আছে
-    const freeAccount = accounts
-        .filter(a => !busyWorkers.has(a.phone || a.id) && a.session)
+    const freeAccount = workerAccounts
+        .filter(a => !busyWorkers.has(a.phone || a.id))
         .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))[0];
 
     if (!freeAccount) {
@@ -2866,7 +2869,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 body: JSON.stringify({
                     orderId: orderId,
                     status: "refunded",
-                    adminMsg: `${reason}\n\n🪙 আপনার ${orderData?.amount || 3} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
+                    adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
                 })
             });
         } catch (cfErr) {}
@@ -2884,7 +2887,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
     } catch (e) {}
 }
 
-async function processOrder(orderId, orderData) {
+async function processOrder(orderId, orderData, preAssignedWorker = null) {
     if (activeOrders.has(orderId)) return;
     activeOrders.add(orderId);
 
@@ -2905,7 +2908,7 @@ async function processOrder(orderId, orderData) {
 
     try {
         // ১. ফ্রি ওয়ার্কার খোঁজা
-        let workerClientObj = await getAvailableWorkerClient();
+        let workerClientObj = preAssignedWorker || await getAvailableWorkerClient();
 
         // যদি সব ওয়ার্কার ব্যস্ত থাকে -> অর্ডারে কিউ স্ট্যাটাস সেট করা (রিফান্ড হবে না)
         if (!workerClientObj) {
@@ -3024,31 +3027,31 @@ async function processOrder(orderId, orderData) {
 
             const cleanReason = sanitizeBotReason(rawText);
             if (cleanReason) {
-                await clickInlineButton(curMsg, "Cancel Process");
+                await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
                 return;
             }
 
             if (text.includes("32") || text.includes("34") || text.includes("authenticator") || text.includes("secret")) {
-                await clickInlineButton(curMsg, "Cancel Process");
+                await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন ব্যর্থ হয়েছে। সঠিক পাসওয়ার্ড দিয়ে পুনরায় চেষ্টা করুন।", orderData.userTgId);
                 return;
             }
 
             if (text.includes("captcha security check") || text.includes("captcha")) {
-                await clickInlineButton(curMsg, "Cancel Process");
+                await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId);
                 return;
             }
 
             if (text.includes("google rejected sign-in") || text.includes("couldn't sign you in")) {
-                await clickInlineButton(curMsg, "Cancel Process");
+                await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "Google অ্যাকাউন্ট লগইন রিজেক্ট করেছে (No চাপা হয়েছে বা ভেরিফিকেশন ফেইল)।", orderData.userTgId);
                 return;
             }
 
             if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
-                await clickInlineButton(curMsg, "Cancel Process");
+                await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
                 return;
             }
@@ -3155,13 +3158,34 @@ async function updateQueuePositions() {
             const ord = docSnap.data();
             // যে কাজগুলো অলরেডি প্রসেসিংয়ে চলছে সেগুলোকে বাদ দিয়ে কিউ কাউন্ট
             if (!activeOrders.has(docSnap.id) && ord.accEmail) {
-                const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 18))));
+                const estWaitSec = Math.max(15, pos * 25);
+                const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 15))));
+                // ইউজারকে সিরিয়াল নম্বর না দেখিয়ে প্রফেশনাল ক্লাউড প্রসেসিং মেসেজ দেওয়া (সিরিয়াল ইন্টারনাল থাকবে)
+                const msg = `⏳ ক্লাউড সার্ভারে আপনার রিকোয়েস্ট প্রসেসিং চলছে (${percentDone}% সম্পন্ন)। অনুগ্রহ করে পেজ কেটে বের হবেন না, লাইভ থাকুন...`;
+                
                 await docSnap.ref.update({
                     inQueue: true,
                     queuePosition: pos,
                     queuePercent: percentDone,
-                    adminMsg: `⏳ সার্ভার এই মুহূর্তে ব্যস্ত! আপনি সিরিয়ালে #${pos} নম্বরে আছেন (${percentDone}% কাজ অগ্রগতিতে)। পেজ কেটে বের হবেন না, সামনের টাস্ক শেষ হলেই স্বয়ংক্রিয়ভাবে আপনার কাজ শুরু হবে!`
-                });
+                    estimatedWaitSec: estWaitSec,
+                    adminMsg: msg
+                }).catch(() => {});
+
+                // Cloudflare D1-এ লাইভ কিউ স্ট্যাটাস আপডেট
+                try {
+                    await fetch(`${CF_API}/api/orders/update`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            orderId: docSnap.id,
+                            inQueue: true,
+                            queuePosition: pos,
+                            queuePercent: percentDone,
+                            adminMsg: msg
+                        })
+                    });
+                } catch (cfErr) {}
+
                 pos++;
             }
         }
@@ -3177,18 +3201,26 @@ async function processNextQueueOrder() {
         const snap = await db.collection("orders")
             .where("status", "==", "pending")
             .orderBy("createdAt", "asc")
-            .limit(10)
+            .limit(20)
             .get();
 
         for (const docSnap of snap.docs) {
             const ord = docSnap.data();
             if (ord.accEmail && ord.accPass && !activeOrders.has(docSnap.id)) {
-                processOrder(docSnap.id, ord);
-                break; // একবারে একটি ফ্রি অ্যাকাউন্টে একটি টাস্ক পাঠাবে
+                // একাধিক ওয়ার্কার ফ্রি থাকলে সমান্তরালভাবে প্যারালাল ডিসপ্যাচ হবে (কোনো break নেই)
+                const workerObj = await getAvailableWorkerClient();
+                if (!workerObj) {
+                    // কোনো ফ্রি ওয়ার্কার এখন খালি নেই
+                    break;
+                }
+                console.log(`[QUEUE DISPATCH] Assigned order ${docSnap.id} to worker [${workerObj.phone}]`);
+                processOrder(docSnap.id, ord, workerObj);
             }
         }
         await updateQueuePositions();
-    } catch (e) {}
+    } catch (e) {
+        console.error("[QUEUE DISPATCH ERR]:", e);
+    }
     finally {
         isQueueProcessing = false;
     }
@@ -3287,9 +3319,10 @@ async function startMasterWorker() {
             if (data && data.ok && Array.isArray(data.orders)) {
                 for (const ord of data.orders) {
                     if (ord.accEmail && ord.accPass && !activeOrders.has(ord.id)) {
-                        console.log(`[CF D1 ORDER DETECTED] Starting bot execution for: ${ord.id}`);
-                        processOrder(ord.id, ord);
-                        break;
+                        const workerObj = await getAvailableWorkerClient();
+                        if (!workerObj) break;
+                        console.log(`[CF D1 ORDER DETECTED] Starting bot execution for ${ord.id} on worker [${workerObj.phone}]`);
+                        processOrder(ord.id, ord, workerObj);
                     }
                 }
             }
@@ -3300,13 +3333,14 @@ async function startMasterWorker() {
     setInterval(async () => {
         try {
             if (isQueueProcessing) return;
-            const snap = await db.collection("orders").where("status", "==", "pending").limit(5).get();
+            const snap = await db.collection("orders").where("status", "==", "pending").limit(10).get();
             for (const doc of snap.docs) {
                 const ord = doc.data();
                 if (ord.accEmail && ord.accPass && !activeOrders.has(doc.id)) {
-                    console.log(`[FIRESTORE FALLBACK ORDER] Starting execution: ${doc.id}`);
-                    processOrder(doc.id, ord);
-                    break;
+                    const workerObj = await getAvailableWorkerClient();
+                    if (!workerObj) break;
+                    console.log(`[FIRESTORE FALLBACK ORDER] Starting execution for ${doc.id} on worker [${workerObj.phone}]`);
+                    processOrder(doc.id, ord, workerObj);
                 }
             }
         } catch (e) {}
