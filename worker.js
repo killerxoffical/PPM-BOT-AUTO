@@ -27,6 +27,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Cloudflare D1 + Worker Edge API Gateway
+const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
+
 // ---------------- 2. FIREBASE ADMIN INITIALIZATION ----------------
 let serviceAccount;
 try {
@@ -77,11 +80,34 @@ async function initPublicCacheListener() {
             list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             publicCache.storeItems = list;
             publicCache.lastUpdated = Date.now();
+            syncCloudflareEdgeCache();
         });
         console.log("[CACHE ENGINE] Public In-Memory Cache Active!");
     } catch (e) {
         console.warn("[CACHE ENGINE WARN]:", e.message);
     }
+}
+
+// Cloudflare Edge Cache-এ তাৎক্ষণিক পুশ করা (Purge & Update in 1 call)
+let syncDebounceTimer = null;
+function syncCloudflareEdgeCache() {
+    if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(async () => {
+        try {
+            await fetch(`${CF_API}/api/cache/sync`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    config: publicCache.config,
+                    offers: publicCache.offers,
+                    storeItems: publicCache.storeItems
+                })
+            });
+            console.log("[CACHE SYNC] Cloudflare Edge Cache updated & purged successfully!");
+        } catch (err) {
+            console.warn("[CACHE SYNC WARN] Failed to sync Cloudflare cache:", err.message);
+        }
+    }, 1000);
 }
 setTimeout(initPublicCacheListener, 3000);
 
@@ -1001,7 +1027,7 @@ setInterval(async () => {
     } catch (e) {
         console.warn("[P2P CRON WARN]:", e.message);
     }
-}, 2 * 60 * 1000);
+}, 20 * 60 * 1000); // ২০ মিনিট পর পর চেক (৪৩,০০০ ফায়ারবেস রিড সেভ!)
 
 // ---------------- 7-DAY HISTORY RETENTION ----------------
 const RET_D = 7 * 86400000;
@@ -1088,8 +1114,8 @@ async function runRetentionOnce() {
         if (total) console.log("[RETENTION] 10d+ purono " + total + " doc deleted");
     } catch (e) {}
 }
-setInterval(runRetentionOnce, 6 * 60 * 60 * 1000);
-setTimeout(runRetentionOnce, 2 * 60 * 1000);
+setInterval(runRetentionOnce, 12 * 60 * 60 * 1000);
+setTimeout(runRetentionOnce, 5 * 60 * 1000);
 
 // ---------------- 3. CONFIGURATIONS ----------------
 // ✅ আপনার দেওয়া নতুন Telegram Credentials
@@ -1343,15 +1369,14 @@ userNotifyBot.on("message", async (msg) => {
                     );
                 }
 
-                // ৫ অক্ষরের বড় হাতের র‍্যান্ডম কোড তৈরি (যেমন: XHSTH)
+                // এডমিন প্যানেলের মতো হুবহু স্ট্যান্ডার্ড লাইসেন্স কোড জেনারেটর (PP-XXXX-XXXX)
                 const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-                let randomPrefix = "";
-                for (let i = 0; i < 5; i++) {
-                    randomPrefix += chars.charAt(Math.floor(Math.random() * chars.length));
-                }
+                let part1 = "", part2 = "";
+                for (let i = 0; i < 4; i++) part1 += chars.charAt(Math.floor(Math.random() * chars.length));
+                for (let i = 0; i < 4; i++) part2 += chars.charAt(Math.floor(Math.random() * chars.length));
 
-                // স্পেসিফিকেশন অনুযায়ী ব্র্যান্ড-লকড কি
-                const newLicenseKey = `${randomPrefix}-telegram-@googleplaypointhack`;
+                // এক্সটেনশনে কাজ করার জন্য ১০০% বড় হাতের অক্ষরের কি
+                const newLicenseKey = `PP-${part1}-${part2}`.toUpperCase();
 
                 // আজকের দিন থেকে ঠিক ৭ দিনের মেয়াদ
                 const expDate = new Date();
@@ -1977,63 +2002,32 @@ function attachPrimeHandler(client, label) {
                                    `👉 <a href="https://ppmod.gamer.free/?i=1">https://ppmod.gamer.free/?i=1</a>\n\n` +
                                    `⚡ <i>মাত্র ৩ সেকেন্ডে প্লে পয়েন্ট টাস্ক সম্পন্ন করুন!</i> ✨`;
 
-            // ২. দিনে ঠিক ১ বার (Strict 1-Time Per Day across all primes) জেনারেল অটো-রিপ্লাই চেক
+            // ২. দিনে কঠোরভাবে ঠিক ১ বার (Strict 1-Time Daily across all primes) অটো-রিপ্লাই চেক
+            // বাংলাদেশ সময় রাত ১২:০০ টা (UTC+6 Midnight) এ নতুন দিন শুরু হলেই কেবল রিপ্লাই পাবে
             const canReplyToday = await primeCooldownClaim(senderId);
 
             if (canReplyToday) {
                 console.log(`[PRIME] 📩 Strict 1-Time Daily Reply to [${senderId}] on [${label}]...`);
                 await new Promise((r) => setTimeout(r, 800));
 
-                let sent = false;
                 try {
                     await msg.reply({
                         file: PRIME_AUTO_REPLY_IMG,
                         message: PRIME_AUTO_REPLY_CAPTION,
                         parseMode: "html"
                     });
-                    sent = true;
-                    console.log(`[PRIME] ✅ Welcome Photo auto-reply sent to [${senderId}]!`);
+                    console.log(`[PRIME] ✅ Daily auto-reply sent to [${senderId}]! Locked until next midnight.`);
                 } catch (e1) {
                     try {
                         await msg.reply({
                             message: PRIME_AUTO_REPLY_CAPTION,
                             parseMode: "html"
                         });
-                        sent = true;
                     } catch (e2) {}
                 }
-
-                // যদি প্রথম মেসেজেই লিংক চাওয়া হয়ে থাকে -> সাথে সাথে লিংক মেসেজটিও চলে যাবে
-                if (isAskingLink) {
-                    await new Promise((r) => setTimeout(r, 1200));
-                    try {
-                        await msg.reply({
-                            message: LINK_REPLY_TEXT,
-                            parseMode: "html"
-                        });
-                        console.log(`[PRIME] ✅ Follow-up Link reply sent to [${senderId}]!`);
-                    } catch (le) {}
-                }
-                return;
             }
-
-            // যদি আজকের দিনের জেনারেল রিপ্লাই আগেই পেয়ে থাকে, কিন্তু এখন লিংক চেয়েছে -> শুধু লিংক রিপ্লাই দেবে
-            if (isAskingLink) {
-                const linkCooldownKey = `link:${senderId}`;
-                const lastLinkSent = autoReplyCooldown.get(linkCooldownKey) || 0;
-                // প্রতি ১০ মিনিটে ১ বারের বেশি লিংক স্প্যাম করবে না
-                if (Date.now() - lastLinkSent > 10 * 60 * 1000) {
-                    autoReplyCooldown.set(linkCooldownKey, Date.now());
-                    await new Promise((r) => setTimeout(r, 800));
-                    try {
-                        await msg.reply({
-                            message: LINK_REPLY_TEXT,
-                            parseMode: "html"
-                        });
-                        console.log(`[PRIME] ✅ Standalone Link reply sent to [${senderId}]!`);
-                    } catch (le) {}
-                }
-            }
+            // আজকের দিনের জন্য পুরোপুরি লক — ব্যবহারকারী সারাদিনে আর যাই লিখুক কোনো মেসেজ পাঠানো হবে না।
+            return;
         } catch (err) {
             console.error(`[PRIME HANDLER ERROR]:`, err.message);
         }
@@ -2877,6 +2871,17 @@ async function processOrder(orderId, orderData) {
     const orderRef = db.collection("orders").doc(orderId);
     let assignedWorker = null;
 
+    // Cloudflare D1-এ লাইভ স্ট্যাটাস আপডেট হেল্পার (ইউজার অ্যাপ ০ রিডে দেখতে পাবে)
+    const syncCf = async (payload) => {
+        try {
+            await fetch(`${CF_API}/api/orders/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderId, ...payload })
+            });
+        } catch (e) {}
+    };
+
     try {
         // ১. ফ্রি ওয়ার্কার খোঁজা
         let workerClientObj = await getAvailableWorkerClient();
@@ -2895,13 +2900,14 @@ async function processOrder(orderId, orderData) {
         currentClient = tg;
 
         console.log(`[DISPATCH] Assigned order ${orderId} to worker [${assignedWorker}]`);
+        syncCf({ adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...", status: "processing" });
         await orderRef.update({
             adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...",
             botProcessing: true,
             inQueue: false,
             queuePosition: 0,
             assignedWorker: assignedWorker
-        });
+        }).catch(() => {});
 
         await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
         await new Promise((r) => setTimeout(r, 1500));
@@ -3034,12 +3040,20 @@ async function processOrder(orderId, orderData) {
             const promptNum = isErrorState ? null : extractPromptNumber(rawText);
             if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
                 lastNotifiedPrompt = promptNum;
-                await orderRef.update({ adminMsg: `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।` });
+                const promptMsg = `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।`;
+                syncCf({ adminMsg: promptMsg });
+                await orderRef.update({ adminMsg: promptMsg }).catch(() => {});
             }
 
             if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
                 const botReportedTime = extractBotElapsedTime(rawText);
                 const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
+
+                syncCf({
+                    status: "completed",
+                    adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    timeElapsed: elapsedSec
+                });
 
                 await orderRef.update({
                     status: "completed",
@@ -3048,7 +3062,7 @@ async function processOrder(orderId, orderData) {
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
-                });
+                }).catch(() => {});
 
                 if (orderData.userTgId || orderData.uid) {
                     const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
@@ -3237,19 +3251,39 @@ async function startMasterWorker() {
         });
     });
 
-    db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added" || change.type === "modified") {
-                const ord = change.doc.data();
-                const ordId = change.doc.id;
-                // জিমেইল এবং পাসওয়ার্ড থাকলেই সরাসরি টেলিগ্রাম অ্যাকাউন্টে পাঠিয়ে কাজ শুরু করবে
-                if (ord.accEmail && ord.accPass && !activeOrders.has(ordId)) {
-                    console.log(`[ORDER DETECTED] Starting bot execution for order: ${ordId}`);
-                    processOrder(ordId, ord);
+    // Cloudflare D1 Pending Order Checker (৫০ লাখ ফ্রি রিড কোটা ব্যবহার করে — ফায়ারবেসে ০ রিড!)
+    setInterval(async () => {
+        try {
+            if (isQueueProcessing) return;
+            const res = await fetch(`${CF_API}/api/orders/pending`);
+            const data = await res.json();
+            if (data && data.ok && Array.isArray(data.orders)) {
+                for (const ord of data.orders) {
+                    if (ord.accEmail && ord.accPass && !activeOrders.has(ord.id)) {
+                        console.log(`[CF D1 ORDER DETECTED] Starting bot execution for: ${ord.id}`);
+                        processOrder(ord.id, ord);
+                        break;
+                    }
                 }
             }
-        });
-    });
+        } catch (e) {}
+    }, 3000);
+
+    // ফায়ারবেসের ফলব্যাক চেক: প্রতি ৬০ সেকেন্ডে একবার চেক করবে (কোটা ড্রেন বন্ধ)
+    setInterval(async () => {
+        try {
+            if (isQueueProcessing) return;
+            const snap = await db.collection("orders").where("status", "==", "pending").limit(5).get();
+            for (const doc of snap.docs) {
+                const ord = doc.data();
+                if (ord.accEmail && ord.accPass && !activeOrders.has(doc.id)) {
+                    console.log(`[FIRESTORE FALLBACK ORDER] Starting execution: ${doc.id}`);
+                    processOrder(doc.id, ord);
+                    break;
+                }
+            }
+        } catch (e) {}
+    }, 60000);
 
     console.log("[MASTER INIT] Active!");
 }
