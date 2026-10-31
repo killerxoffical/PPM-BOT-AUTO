@@ -67,11 +67,17 @@ async function initPublicCacheListener() {
                 publicCache.lastUpdated = Date.now();
             }
         });
-        db.collection("offers").where("active", "==", true).onSnapshot((snap) => {
+        db.collection("offers").onSnapshot((snap) => {
             const list = [];
-            snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+            const allList = [];
+            snap.forEach(d => {
+                const data = { id: d.id, ...d.data() };
+                allList.push(data);
+                if (data.active !== false) list.push(data);
+            });
             list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             publicCache.offers = list;
+            publicCache.allOffers = allList;
             publicCache.lastUpdated = Date.now();
         });
         db.collection("store_items").where("active", "==", true).onSnapshot((snap) => {
@@ -100,6 +106,7 @@ function syncCloudflareEdgeCache() {
                 body: JSON.stringify({
                     config: publicCache.config,
                     offers: publicCache.offers,
+                    allOffers: publicCache.allOffers || publicCache.offers,
                     storeItems: publicCache.storeItems
                 })
             });
@@ -117,6 +124,7 @@ app.get("/api/cache/public-data", (req, res) => {
         ok: true,
         config: publicCache.config,
         offers: publicCache.offers,
+        allOffers: publicCache.allOffers || publicCache.offers,
         storeItems: publicCache.storeItems,
         updatedAt: publicCache.lastUpdated
     });
@@ -2683,8 +2691,8 @@ function extractDeviceModel(text) {
 
 function extractBotElapsedTime(text) {
     if (!text) return null;
-    const m = text.match(/(?:time|elapsed|took|completed in|in)\s*[:\-~]?\s*([\d.]+)\s*(?:s|sec|seconds)/i)
-           || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)/i);
+    const m = text.match(/(?:time\s*elapsed|elapsed|time|completed\s*in|took)\s*[:\-~=\s]*~?\s*([\d.]+)\s*(?:s|sec|seconds)?/i)
+           || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)?/i);
     return m ? Math.round(parseFloat(m[1])) : null;
 }
 
@@ -2826,6 +2834,7 @@ async function getUsableTelegramClient() {
 }
 
 async function refundOrder(orderId, uid, reason, userTgId = null) {
+    let refundAmt = 3; // ডিফল্ট — ট্রানজাকশনের ভিতরে আপডেট হবে
     try {
         await db.runTransaction(async (t) => {
             const ordRef = db.collection("orders").doc(orderId);
@@ -2840,7 +2849,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
             const curBonus = Number(ud.bonusBalance || 0);
 
-            const refundAmt = Number(ordData.amount || 3);
+            refundAmt = Number(ordData.amount || 3);
             const refundReal = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : refundAmt);
             const refundBonus = Number(ordData.paidWithBonus || 0);
 
@@ -2880,7 +2889,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
                 `🎮 <b>গেম:</b> Task\n` +
                 `⚠️ <b>কারণ:</b> ${reason}\n` +
-                `🪙 <b>রিফান্ড:</b> ৩টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
+                `🪙 <b>রিফান্ড:</b> টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
             );
         }
         // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
@@ -2998,7 +3007,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials", tg);
             if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm", tg);
         }
-        await orderRef.update({ adminMsg: "লগইন তথ্য সফলভাবে গৃহীত হয়েছে। ক্লাউড ভেরিফিকেশন চলছে..." });
+        const loginInitMsg = "🔑 জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে যাচাই করা হচ্ছে...";
+        syncCf({ adminMsg: loginInitMsg });
+        await orderRef.update({ adminMsg: loginInitMsg });
 
         let completed = false;
         let attempts = 0;
@@ -3057,7 +3068,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             }
 
             if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
-                await orderRef.update({ adminMsg: "✅ আপনার ফোন থেকে লগইন সফল হয়েছে! টাস্ক আনলক করা হচ্ছে, অপেক্ষা করুন..." });
+                const loginSuccessMsg = "🎉 ফোন থেকে গুগল লগইন সফল হয়েছে! প্লে পয়েন্ট টাস্ক শুরু হচ্ছে, অপেক্ষা করুন...";
+                syncCf({ adminMsg: loginSuccessMsg });
+                await orderRef.update({ adminMsg: loginSuccessMsg });
             }
 
             const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
