@@ -79,6 +79,7 @@ async function initPublicCacheListener() {
             publicCache.offers = list;
             publicCache.allOffers = allList;
             publicCache.lastUpdated = Date.now();
+            syncCloudflareEdgeCache();
         });
         db.collection("store_items").where("active", "==", true).onSnapshot((snap) => {
             const list = [];
@@ -3069,8 +3070,11 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
 
             if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
                 const loginSuccessMsg = "🎉 ফোন থেকে গুগল লগইন সফল হয়েছে! প্লে পয়েন্ট টাস্ক শুরু হচ্ছে, অপেক্ষা করুন...";
-                syncCf({ adminMsg: loginSuccessMsg });
-                await orderRef.update({ adminMsg: loginSuccessMsg });
+                syncCf({ adminMsg: loginSuccessMsg, promptNumber: null });
+                await orderRef.update({
+                    adminMsg: loginSuccessMsg,
+                    promptNumber: admin.firestore.FieldValue.delete()
+                }).catch(() => {});
             }
 
             const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
@@ -3091,12 +3095,14 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 syncCf({
                     status: "completed",
                     adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    promptNumber: null,
                     timeElapsed: elapsedSec
                 });
 
                 await orderRef.update({
                     status: "completed",
                     adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
+                    promptNumber: admin.firestore.FieldValue.delete(),
                     timeElapsed: elapsedSec,
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
