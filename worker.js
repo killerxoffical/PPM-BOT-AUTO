@@ -2668,9 +2668,17 @@ async function notifyUserTelegram(chatId, text) {
 
 function extractPromptNumber(text) {
     if (!text) return null;
-    const match = text.match(/(?:tap|number|code|select|press|number:)\s*[:\-]?\s*(\d{2})/i) 
-               || text.match(/\b(\d{2})\b/);
+    // ১ এবং ২ ডিজিটের যেকোনো Google Prompt সংখ্যা ডিটেক্ট করার নির্ভুল রেজেক্স
+    const match = text.match(/(?:tap\s*number|tap|select|press|code|number)\s*[:\-]?\s*(\d{1,2})\b/i)
+               || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i)
+               || text.match(/\b(\d{1,2})\b/);
     return match ? match[1] : null;
+}
+
+function extractDeviceModel(text) {
+    if (!text) return "";
+    const m = text.match(/phone\s*\(([^)]+)\)/i);
+    return m ? m[1].trim() : "";
 }
 
 function extractBotElapsedTime(text) {
@@ -3038,11 +3046,13 @@ async function processOrder(orderId, orderData) {
 
             const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
             const promptNum = isErrorState ? null : extractPromptNumber(rawText);
+            const devModel = extractDeviceModel(rawText);
             if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
                 lastNotifiedPrompt = promptNum;
-                const promptMsg = `⚠️ আপনার ফোনে Google Prompt এসেছে! অনুগ্রহ করে নোটিফিকেশনে [ ${promptNum} ] নম্বরে ট্যাপ করে Yes দিন।`;
-                syncCf({ adminMsg: promptMsg });
-                await orderRef.update({ adminMsg: promptMsg }).catch(() => {});
+                const devText = devModel ? ` (${devModel})` : "";
+                const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
+                syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
+                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
             }
 
             if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
