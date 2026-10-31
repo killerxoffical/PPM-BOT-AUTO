@@ -2677,10 +2677,9 @@ async function notifyUserTelegram(chatId, text) {
 
 function extractPromptNumber(text) {
     if (!text) return null;
-    // ১ এবং ২ ডিজিটের যেকোনো Google Prompt সংখ্যা ডিটেক্ট করার নির্ভুল রেজেক্স
+    // শুধুমাত্র গুগল সিকিউরিটি ট্যাপ নম্বর সংক্রান্ত মেসেজ আসলেই প্রম্পট নম্বর ডিটেক্ট করবে
     const match = text.match(/(?:tap\s*number|tap|select|press|code|number)\s*[:\-]?\s*(\d{1,2})\b/i)
-               || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i)
-               || text.match(/\b(\d{1,2})\b/);
+               || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i);
     return match ? match[1] : null;
 }
 
