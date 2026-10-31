@@ -2858,6 +2858,19 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             });
         });
 
+        // Cloudflare D1 ও ট্রানজাকশন হিস্ট্রিতে তাৎক্ষণিক Refund সিঙ্ক করা
+        try {
+            await fetch(`${CF_API}/api/orders/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    orderId: orderId,
+                    status: "refunded",
+                    adminMsg: `${reason}\n\n🪙 আপনার ${orderData?.amount || 3} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
+                })
+            });
+        } catch (cfErr) {}
+
         if (userTgId) {
             const notifyId = await getUserTgId(uid, userTgId);
             await notifyUserTelegram(notifyId,
@@ -2946,7 +2959,7 @@ async function processOrder(orderId, orderData) {
                 return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest");
             }, 15000, tg);
         }
-        if (!found) throw new Error("Bot quest menu timeout (বট রেসপন্স করেনি)");
+        if (!found) throw new Error("সার্ভার রেসপন্স টাইমআউট! সংযোগে বিঘ্ন ঘটেছে, পুনরায় চেষ্টা করুন।");
 
         let clicked = await clickChestButton(found.msg, orderData.game || "", tg);
         if (!clicked) {
@@ -2954,7 +2967,7 @@ async function processOrder(orderId, orderData) {
             const retryMenu = await getLatestBotMessage(tg);
             if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
         }
-        if (!clicked) throw new Error(`Chest "${orderData.game}" bot-e paowa jayni`);
+        if (!clicked) throw new Error(`Google Play সার্ভারে বর্তমানে "${orderData.game}" গেমটির কোয়েস্ট সক্রিয় নেই। দয়া করে লিস্ট থেকে অন্য কোনো সচল গেম বেছে নিন।`);
 
         await new Promise((r) => setTimeout(r, 2200));
         let promptMsg = await getLatestBotMessage(tg);
@@ -3109,9 +3122,13 @@ async function processOrder(orderId, orderData) {
                 return;
             }
         }
-        if (!completed) throw new Error("Bot login timeout");
+        if (!completed) throw new Error("সার্ভার রেসপন্স সময়সীমা অতিক্রম করেছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
     } catch (err) {
-        await refundOrder(orderId, orderData.uid, err.message || "সার্ভার এরর", orderData.userTgId);
+        let cleanErr = err.message || "সার্ভার সংযোগে সমস্যা হয়েছে।";
+        if (cleanErr.includes("bot") || cleanErr.includes("timeout")) {
+            cleanErr = "সার্ভারে লগইন ভেরিফিকেশন সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আপনার জিমেইল তথ্য চেক করে পুনরায় চেষ্টা করুন।";
+        }
+        await refundOrder(orderId, orderData.uid, cleanErr, orderData.userTgId);
     } finally {
         activeOrders.delete(orderId);
         if (assignedWorker) {
