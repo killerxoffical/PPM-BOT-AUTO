@@ -226,14 +226,15 @@ function parseSmsBody(sender, body) {
     if (/nagad/i.test(sender) || /nagad/i.test(text)) method = "Nagad";
     else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) method = "Rocket";
 
-    // আধুনিক বিকাশ/নগদ TrxID পার্সিং
-    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID)[:\s]*([A-Za-z0-9]{8,12})/i) 
-                || text.match(/\b([A-Z0-9]{8,12})\b/);
+    // আধুনিক বিকাশ/নগদ/রকেট TrxID পার্সিং (সহজে সব ধরনের ফরম্যাট গ্রহণ করে)
+    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i) 
+                || text.match(/\b([A-Z0-9]{8,12})\b/i);
     if (trxMatch) trxId = trxMatch[1].trim().toUpperCase();
 
-    // টাকা পার্সিং (15.00 এবং 15 দুটোই সঠিকভাবে গ্রহণ করবে)
-    let amtMatch = text.match(/(?:Tk|Amount|received)[:\s]*([\d,]+(?:\.\d+)?)/i)
-                || text.match(/([\d,]+(?:\.\d+)?)\s*Tk/i);
+    // টাকা পার্সিং (টাকা, Tk, BDT, Amount বা received ইত্যাদি সব হ্যান্ডেল করা)
+    let amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i)
+                || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i)
+                || text.match(/(?:Tk|টাকা)\s*([\d,]+(?:\.\d+)?)/i);
     if (amtMatch) amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, "")));
 
     if (trxId && amount) {
@@ -617,13 +618,20 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: true, autoApproved: false, note: "Manual Mode" });
         }
 
-        const smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
+        // গেটওয়ে ফোন থেকে সার্ভারে এসএমএস পৌঁছানোর জন্য ৩ সেকেন্ড স্মার্ট পোলিং
+        let smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
         if (!smsDoc.exists) {
+            await new Promise(r => setTimeout(r, 2000));
+            smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
+        }
+
+        if (!smsDoc.exists) {
+            // সাথে সাথে সরাসরি বাতিল না করে পেন্ডিং রেখে অ্যাডমিন পর্যালোচনায় পাঠানো
             await db.collection("deposits").doc(depId).update({
-                status: "rejected",
-                adminMsg: "❌ এই TrxID দিয়ে কোনো টাকা আসেনি বা SMS পাওয়া যায়নি!"
+                status: "pending",
+                adminMsg: "⏳ এসএমএস ভেরিফিকেশন প্রক্রিয়াধীন। অ্যাডমিন পর্যালোচনায় রয়েছে।"
             });
-            return res.json({ ok: false, error: "কোনো পেমেন্ট পাওয়া যায়নি! সঠিক TrxID দিন।" });
+            return res.json({ ok: true, autoApproved: false, pendingReview: true, message: "ডিপোজিট জমা হয়েছে, অ্যাডমিন ভেরিফাই করে দেবে।" });
         }
 
         const smsData = smsDoc.data();
@@ -638,17 +646,28 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: false, error: "টাকা পাঠানোর ৫ মিনিট পার হয়ে গেছে! পুনরায় চেষ্টা করুন।" });
         }
 
-        // দশমিক থাকলে তা রাউন্ড করে তুলনা করা (যেমন 15.00 এবং 15 কে সমান ধরা)
-        if (Math.round(Number(smsData.amount)) !== Math.round(Number(amount))) {
+        // TrxID + টাকার অংকের কঠোর যাচাই (ইউজার বেশি বা কম টাকা লিখে যাতে কয়েন হাতিয়ে নিতে না পারে)
+        const realSmsAmount = Math.round(Number(smsData.amount));
+        const userClaimedAmount = Math.round(Number(amount));
+
+        if (realSmsAmount !== userClaimedAmount) {
+            const failReason = `❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${realSmsAmount} BDT কিন্তু সাবমিট করেছেন ${userClaimedAmount} BDT`;
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
-                adminMsg: `❌ টাকার পরিমাণ ভুল! আসল টাকা ছিল ${smsData.amount} BDT`
+                adminMsg: failReason,
+                rejectedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            return res.json({ ok: false, error: `টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${smsData.amount} BDT` });
+
+            // ব্যবহারকারী এবং অ্যাডমিনকে সাথে সাথে রিজেক্টের পূর্ণাঙ্গ রিপোর্ট পাঠানো
+            const depDoc = await db.collection("deposits").doc(depId).get();
+            const dData = depDoc.exists ? depDoc.data() : { uid: "", method: "bKash" };
+            await sendDepositTelegramNotification(dData, "rejected", failReason, userClaimedAmount, 0);
+
+            return res.json({ ok: false, error: failReason });
         }
 
         const depDoc = await db.collection("deposits").doc(depId).get();
-        await approveDepositSafe(depId, depDoc.data(), smsData.amount, cfg.coinRate || 7);
+        await approveDepositSafe(depId, depDoc.data(), realSmsAmount, cfg.coinRate || 7);
         return res.json({ ok: true, message: "Approved successfully!" });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
@@ -749,6 +768,66 @@ app.get("/api/bonus/status", async (req, res) => {
     } catch (e) { return res.json({ ok: false, error: "status failed" }); }
 });
 
+// ডিপোজিট অ্যাপ্রুভ বা রিজেক্টের চমৎকার ফুল টেলিগ্রাম মেসেজ জেনারেটর
+async function sendDepositTelegramNotification(depData, status, extraNote = "", verifiedAmt = null, coinsAdded = 0) {
+    try {
+        const isApproved = status === "approved" || status === "completed";
+        const cleanTrx = (depData.trxId || "—").toUpperCase();
+        const amt = verifiedAmt !== null ? verifiedAmt : (depData.amount || 0);
+        const method = depData.method || "bKash";
+        const userName = depData.name || "User";
+        const userEmail = depData.email || "No Email";
+        const uid = depData.uid || "—";
+
+        let alertMessage = "";
+
+        if (isApproved) {
+            alertMessage =
+                `✅ <b>DEPOSIT APPROVED & CREDITED!</b> 🎉\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👤 <b>User:</b> ${userName} (${userEmail})\n` +
+                `🆔 <b>UID:</b> <code>${uid}</code>\n` +
+                `💳 <b>Payment Method:</b> ${method}\n` +
+                `💵 <b>Verified Amount:</b> <b>${amt} BDT</b>\n` +
+                `🪙 <b>Coins Credited:</b> <b>+${coinsAdded} PP Coins</b>\n` +
+                `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+                `📌 <b>Status:</b> Completed (অ্যাপ্রুভড) ✅\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🚀 <i>ব্যালেন্স ইউজারের ওয়ালেটে স্বয়ংক্রিয়ভাবে যোগ হয়েছে এবং TrxID লক করা হয়েছে!</i>`;
+        } else {
+            alertMessage =
+                `❌ <b>DEPOSIT REJECTED / DECLINED!</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👤 <b>User:</b> ${userName} (${userEmail})\n` +
+                `🆔 <b>UID:</b> <code>${uid}</code>\n` +
+                `💳 <b>Method:</b> ${method}\n` +
+                `💵 <b>Submitted Amount:</b> ${amt} BDT\n` +
+                `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+                `⚠️ <b>Reject Reason:</b>\n<i>${extraNote || "পেমেন্ট তথ্যে অসঙ্গতি থাকায় বাতিল করা হয়েছে।"}</i>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `📌 <i>প্রয়োজনে স্ক্রিনশট ও প্রমাণসহ এডমিন সাপোর্টে যোগাযোগ করুন: @Blackmoney54</i>`;
+        }
+
+        // ১. অ্যাডমিন প্রাইভেট টেলিগ্রাম ও অর্ডার চ্যানেলে পাঠানো
+        const adminChat = process.env.ADMIN_TG_ID || "7504616242";
+        await notifyUserTelegram(adminChat, alertMessage);
+        await sendOrderLog(alertMessage);
+
+        // ২. ইউজার যদি টেলিগ্রাম কানেক্ট করে থাকে তবে ইউজারের ইনবক্সেও ফুল মেসেজ পাঠানো
+        if (depData.uid) {
+            const uSnap = await db.collection("users").doc(depData.uid).get();
+            if (uSnap.exists) {
+                const userTgChat = uSnap.data().tgChatId;
+                if (userTgChat) {
+                    await notifyUserTelegram(userTgChat, alertMessage);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("[TG DEPOSIT ALERT ERR]:", err.message);
+    }
+}
+
 async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     const depDoc = await db.collection("deposits").doc(depId).get();
     if (!depDoc.exists) throw new Error("Deposit document not found");
@@ -761,18 +840,37 @@ async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     return depData;
 }
 
-async function rejectDepositById(depId) {
+async function rejectDepositById(depId, reason = "") {
     const depDoc = await db.collection("deposits").doc(depId).get();
     if (!depDoc.exists) throw new Error("Deposit not found");
+    const dData = depDoc.data();
+
+    const rejectMsg = reason || "❌ অ্যাডমিন প্যানেল থেকে ডিপোজিট বাতিল করা হয়েছে।";
     await db.collection("deposits").doc(depId).update({
         status: "rejected",
+        adminMsg: rejectMsg,
         rejectedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    return depDoc.data();
+
+    // Cloudflare D1-এ স্ট্যাটাস রিজেক্ট করা
+    try {
+        await fetch(`${CF_API}/api/transactions/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: depId, status: "rejected" })
+        });
+    } catch (e) {}
+
+    // টেলিগ্রামে সম্পূর্ণ রিজেক্ট মেসেজ পাঠানো
+    await sendDepositTelegramNotification(dData, "rejected", rejectMsg, dData.amount, 0);
+
+    return dData;
 }
 
 async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     const cleanTrx = depData.trxId.toUpperCase();
+    let finalCoinsCalculated = 0;
+
     await db.runTransaction(async (t) => {
         const usedRef = db.collection("used_trx").doc(cleanTrx);
         const usedSnap = await t.get(usedRef);
@@ -782,8 +880,86 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
         const ds = await t.get(depRef);
         if (!ds.exists || ds.data().status !== "pending") throw new Error("DEP_INVALID");
 
+        // সিকিউরিটি: ইউজার বা ক্লায়েন্ট সাইডের পাঠানো কয়েন কখনোই ট্রাস্ট করা হবে না
+        // আসল এসএমএস এর টাকা ও সার্ভারের রেট দিয়ে কয়েন নির্ধারণ
         const rate = Number(coinRate || 7);
-        const coinsToAdd = Number(depData.coins) || Math.floor(Number(verifiedAmount) / rate) || 3;
+        const verifiedTaka = Number(verifiedAmount);
+        finalCoinsCalculated = Math.max(1, Math.floor(verifiedTaka / rate));
+
+        const userRef = db.collection("users").doc(depData.uid);
+        const userSnap = await t.get(userRef);
+
+        if (!userSnap.exists) {
+            t.set(userRef, {
+                uid: depData.uid,
+                name: depData.name || "User",
+                email: depData.email || "",
+                photo: "",
+                balance: finalCoinsCalculated,
+                realBalance: finalCoinsCalculated,
+                bonusBalance: 0,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            const uData = userSnap.data();
+            const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
+            const curBonus = Number(uData.bonusBalance || 0);
+            const newReal = curReal + finalCoinsCalculated;
+            t.update(userRef, {
+                realBalance: newReal,
+                balance: newReal + curBonus
+            });
+        }
+
+        let durationSec = 2;
+        if (depData.createdAt && depData.createdAt.toMillis) {
+            durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
+        }
+
+        t.update(depRef, {
+            status: "approved",
+            autoApproved: true,
+            coins: finalCoinsCalculated,
+            amount: verifiedTaka,
+            submittedAt: depData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+            smsReceivedAt: depData.smsReceivedAt || admin.firestore.FieldValue.serverTimestamp(),
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            processDurationSec: durationSec
+        });
+
+        t.set(usedRef, {
+            trxId: cleanTrx,
+            uid: depData.uid,
+            amount: verifiedTaka,
+            coins: finalCoinsCalculated,
+            depId: depId,
+            usedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const smsRef = db.collection("gateway_sms").doc(cleanTrx);
+        t.set(smsRef, {
+            claimed: true,
+            claimedBy: depData.uid,
+            claimedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    });
+
+    // Cloudflare D1-এ ডিপোজিট সম্পন্ন ও TrxID লক সিঙ্ক
+    try {
+        await fetch(`${CF_API}/api/trx/check-lock`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ trxId: cleanTrx, uid: depData.uid, amount: verifiedAmount, lockNow: true })
+        });
+        await fetch(`${CF_API}/api/transactions/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: depId, status: "approved" })
+        });
+    } catch (cfErr) {}
+
+    // টেলিগ্রামে সম্পূর্ণ অ্যাপ্রুভ মেসেজ পাঠানো
+    await sendDepositTelegramNotification(depData, "approved", "Auto Verified", verifiedAmount, finalCoinsCalculated);
 
         const userRef = db.collection("users").doc(depData.uid);
         const userSnap = await t.get(userRef);
@@ -839,21 +1015,6 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             claimedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
     });
-
-    try {
-        const uSnap = await db.collection("users").doc(depData.uid).get();
-        const tgChat = uSnap.exists ? uSnap.data().tgChatId : null;
-        if (tgChat) {
-            await notifyUserTelegram(tgChat,
-                `✅ <b>ডিপোজিট সফলভাবে অ্যাপ্রুভ হয়েছে!</b>\n\n` +
-                `💳 <b>মেথড:</b> ${depData.method}\n` +
-                `💵 <b>টাকা:</b> ${verifiedAmount} BDT\n` +
-                `🪙 <b>প্রাপ্ত কয়েন:</b> ${Number(depData.coins) || 3} Coins\n` +
-                `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n\n` +
-                `আপনার ব্যালেন্স স্বয়ংক্রিয়ভাবে যোগ করা হয়েছে! 🚀`
-            );
-        }
-    } catch (e) {}
 }
 
 // ---------------- 1b. REFERRAL SYSTEM API ----------------
@@ -1269,6 +1430,147 @@ userNotifyBot.on("message", async (msg) => {
         const replyTo = msg.reply_to_message;
         const chatId = msg.chat.id;
 
+        const ADMIN_ID = "7504616242";
+        const isFromAdmin = msg.chat.id.toString() === ADMIN_ID || (msg.from && msg.from.id.toString() === ADMIN_ID);
+
+        // ---------------- 1. USER COMMAND: /referr বা /refer ----------------
+        if (text.toLowerCase() === "/referr" || text.toLowerCase() === "/refer" || text.toLowerCase() === "/referral") {
+            const userId = msg.from.id.toString();
+            const userSnap = await db.collection("tg_bot_users").doc(userId).get();
+            const uData = userSnap.exists ? userSnap.data() : {};
+            const refCount = Number(uData.referralCount) || 0;
+            const refBal = Number(uData.refBalance || 0);
+            const botInfo = await userNotifyBot.getMe();
+            const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
+
+            let bonusPerRef = 0.5;
+            try {
+                const cSnap = await db.collection("config").doc("app").get();
+                if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) bonusPerRef = Number(cSnap.data().tgRefBonus);
+            } catch (e) {}
+
+            const infoMsg = 
+                `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🔗 <b>আপনার ইনভাইট লিংক:</b>\n<code>${refLink}</code>\n\n` +
+                `💰 <b>রেফার ব্যালেন্স:</b> <b>${refBal} PP Coins</b>\n` +
+                `📊 <b>মোট সফল রেফার:</b> <b>${refCount}</b> জন\n` +
+                `🪙 <b>রেফার রেট:</b> প্রতি রেফারে <b>${bonusPerRef} Coins</b>\n` +
+                `⚠️ <b>উইথড্র শর্ত:</b> ন্যূনতম ৩ কয়েন হলে কোড বানানো যাবে।\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `<i>আপনার লিংক বন্ধুদের সাথে শেয়ার করুন এবং ব্যালেন্স জমিয়ে সরাসরি রিডিম কোড নিন!</i>`;
+
+            return userNotifyBot.sendMessage(chatId, infoMsg, {
+                parse_mode: "HTML",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: `🎁 রিডিম কোড তৈরি করুন (${refBal} Coins)`, callback_data: "withdraw_ref_code" }],
+                        [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }],
+                        [{ text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
+                    ]
+                }
+            });
+        }
+
+        // ---------------- 2. USER COMMAND: /profile ----------------
+        if (text.toLowerCase() === "/profile") {
+            const userId = msg.from.id.toString();
+            const tgUserSnap = await db.collection("tg_bot_users").doc(userId).get();
+            const tgData = tgUserSnap.exists ? tgUserSnap.data() : {};
+
+            // ওয়েবসাইট ইউজার একাউন্ট খোঁজা (যদি টেলিগ্রাম কানেক্ট করা থাকে)
+            const webUserQuery = await db.collection("users").where("tgChatId", "==", userId).limit(1).get().catch(() => null);
+            const webUser = (webUserQuery && !webUserQuery.empty) ? webUserQuery.docs[0].data() : null;
+
+            const name = (msg.from.first_name || "User").replace(/[<>&]/g, "");
+            const username = msg.from.username ? `@${msg.from.username}` : "None";
+            const coinsBal = webUser ? Number(webUser.balance || 0) : 0;
+            const realBal = webUser ? Number(webUser.realBalance !== undefined ? webUser.realBalance : webUser.balance || 0) : 0;
+            const bonusBal = webUser ? Number(webUser.bonusBalance || 0) : 0;
+            const playPoints = webUser ? Number(webUser.playPoints || 0) : 0;
+            const loyaltyStars = webUser ? Number(webUser.loyaltyStars || 0) : 0;
+            const refBal = Number(tgData.refBalance || 0);
+
+            const profileMsg = 
+                `👤 <b>MY ACCOUNT PROFILE</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `📛 <b>Name:</b> ${name}\n` +
+                `✈️ <b>Username:</b> ${username}\n` +
+                `🆔 <b>Telegram ID:</b> <code>${userId}</code>\n` +
+                (webUser ? `🌐 <b>Web UID:</b> <code>${webUser.uid}</code>\n` : `🌐 <b>Web Link:</b> <i>নট কানেক্টেড (অ্যাপের Profile > Connect Telegram এ এই ID দিন)</i>\n`) +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🪙 <b>Total PP Coins:</b> <b>${coinsBal} Coins</b>\n` +
+                `   ├ 💰 Real: <b>${realBal}</b> | 🎁 Bonus: <b>${bonusBal}</b>\n` +
+                `⭐ <b>Play Points:</b> <b>${playPoints} Pts</b>\n` +
+                `🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n` +
+                `👥 <b>Bot Refer Balance:</b> <b>${refBal} Coins</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🚀 <a href="https://ppmod.gamer.free/">Open PP MOD Web App</a>`;
+
+            return userNotifyBot.sendMessage(chatId, profileMsg, {
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "👥 রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }],
+                        [{ text: "🏆 লিডারবোর্ড", callback_data: "show_leaderboard" }]
+                    ]
+                }
+            });
+        }
+
+        // ---------------- 3. SECRET ADMIN PANEL: panel544 (Strictly Admin Only) ----------------
+        if (text.toLowerCase() === "panel544" || text.toLowerCase() === "/panel544") {
+            if (!isFromAdmin) return; // সাধারণ ইউজার দিলে সম্পূর্ণ নিরব থাকবে (কোনো রিপ্লাই নেই)
+
+            let refBonus = 0.5;
+            let autoDep = true;
+            let fakeLog = isAutoFakeLogEnabled;
+            try {
+                const cSnap = await db.collection("config").doc("app").get();
+                if (cSnap.exists) {
+                    const cd = cSnap.data();
+                    if (cd.tgRefBonus !== undefined) refBonus = Number(cd.tgRefBonus);
+                    if (cd.autoDeposit !== undefined) autoDep = cd.autoDeposit;
+                }
+            } catch (e) {}
+
+            const panelText = 
+                `⚡ <b>PP MOD EXECUTIVE ADMIN BOT PANEL</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👑 <b>Admin:</b> Authorized (@${msg.from.username || 'Admin'})\n` +
+                `🎁 <b>Current Refer Bonus:</b> <b>${refBonus} Coins / Invite</b>\n` +
+                `⚡ <b>Auto Deposit Gateway:</b> ${autoDep ? '✅ ON' : '🛑 OFF'}\n` +
+                `📢 <b>Channel Order Log:</b> ${fakeLog ? '✅ ACTIVE' : '🛑 OFF'}\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `<i>নিচের কন্ট্রোল বাটনগুলো দিয়ে ইনস্ট্যান্ট কনফিগার করুন:</i>`;
+
+            return userNotifyBot.sendMessage(chatId, panelText, {
+                parse_mode: "HTML",
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: `➕ Ref Bonus (+0.1)`, callback_data: `panel_ref_mod:0.1` },
+                            { text: `➖ Ref Bonus (-0.1)`, callback_data: `panel_ref_mod:-0.1` }
+                        ],
+                        [
+                            { text: `Set Ref: 0.2c`, callback_data: `panel_ref_set:0.2` },
+                            { text: `Set Ref: 0.5c`, callback_data: `panel_ref_set:0.5` },
+                            { text: `Set Ref: 1.0c`, callback_data: `panel_ref_set:1.0` }
+                        ],
+                        [
+                            { text: autoDep ? "🛑 Disable Auto Dep" : "✅ Enable Auto Dep", callback_data: "panel_toggle_autodep" },
+                            { text: fakeLog ? "🛑 Pause Order Log" : "✅ Resume Order Log", callback_data: "panel_toggle_fakelog" }
+                        ],
+                        [
+                            { text: "📊 Live Server Stats", callback_data: "panel_view_stats" },
+                            { text: "🔄 Refresh Panel", callback_data: "panel_refresh" }
+                        ]
+                    ]
+                }
+            });
+        }
+
         // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা হ্যান্ডেল করা
         if (replyTo && replyTo.text) {
             const repText = replyTo.text;
@@ -1330,7 +1632,7 @@ userNotifyBot.on("message", async (msg) => {
             }
         }
 
-        // ---------------- 7-DAYS EXTENSION LICENSE CREATOR (/DID) ----------------
+        // ---------------- EXTENSION LICENSE CREATOR (/DID) WITH ADMIN BUTTONS ----------------
         if (text.toLowerCase().startsWith("/did")) {
             const rawDevId = text.replace(/\/did/i, "").trim();
 
@@ -1346,6 +1648,41 @@ userNotifyBot.on("message", async (msg) => {
 
             const cleanDevId = rawDevId.toUpperCase().replace(/\s+/g, "");
 
+            // যদি অ্যাডমিন এই কমান্ড দেয় -> ডাইনামিক মেয়াদের বাটন মেনু আসবে
+            if (isFromAdmin) {
+                return userNotifyBot.sendMessage(chatId,
+                    `🔑 <b>GENERATE EXTENSION LICENSE KEY</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📱 <b>Device ID:</b> <code>${cleanDevId}</code>\n` +
+                    `👑 <b>Admin:</b> Authorized\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `নিচ থেকে মেয়াদের বাটন নির্বাচন করুন:`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    { text: "⏳ 7 Days (Trial)", callback_data: `did_gen:${cleanDevId}:7` },
+                                    { text: "⚡ 15 Days", callback_data: `did_gen:${cleanDevId}:15` }
+                                ],
+                                [
+                                    { text: "📅 30 Days (1 Month)", callback_data: `did_gen:${cleanDevId}:30` },
+                                    { text: "💎 90 Days (3 Months)", callback_data: `did_gen:${cleanDevId}:90` }
+                                ],
+                                [
+                                    { text: "🔥 180 Days (6 Months)", callback_data: `did_gen:${cleanDevId}:180` },
+                                    { text: "👑 365 Days (1 Year)", callback_data: `did_gen:${cleanDevId}:365` }
+                                ],
+                                [
+                                    { text: "♾️ Lifetime (10 Years)", callback_data: `did_gen:${cleanDevId}:3650` }
+                                ]
+                            ]
+                        }
+                    }
+                );
+            }
+
+            // সাধারণ ইউজারদের জন্য সরাসরি ৭ দিনের ট্রায়াল কি তৈরি
             try {
                 const extRef = db.collection("config").doc("extension");
                 const extSnap = await extRef.get();
@@ -1728,6 +2065,144 @@ userNotifyBot.on("callback_query", async (query) => {
             }
         }
 
+        // ---------------- ADMIN PANEL CALLBACKS (panel544) ----------------
+        if (data.startsWith("panel_ref_mod:") || data.startsWith("panel_ref_set:")) {
+            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+
+            let newRate = 0.5;
+            const cSnap = await db.collection("config").doc("app").get();
+            const curRate = (cSnap.exists && cSnap.data().tgRefBonus !== undefined) ? Number(cSnap.data().tgRefBonus) : 0.5;
+
+            if (data.startsWith("panel_ref_mod:")) {
+                const delta = parseFloat(data.replace("panel_ref_mod:", ""));
+                newRate = Math.max(0.1, Math.round((curRate + delta + Number.EPSILON) * 100) / 100);
+            } else {
+                newRate = parseFloat(data.replace("panel_ref_set:", ""));
+            }
+
+            await db.collection("config").doc("app").set({ tgRefBonus: newRate }, { merge: true });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `✅ Ref Bonus set to ${newRate} Coins!` });
+
+            let autoDep = true;
+            if (cSnap.exists && cSnap.data().autoDeposit !== undefined) autoDep = cSnap.data().autoDeposit;
+
+            const updatedPanel = 
+                `⚡ <b>PP MOD EXECUTIVE ADMIN BOT PANEL</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👑 <b>Admin:</b> Authorized (@${query.from.username || 'Admin'})\n` +
+                `🎁 <b>Current Refer Bonus:</b> <b>${newRate} Coins / Invite</b>\n` +
+                `⚡ <b>Auto Deposit Gateway:</b> ${autoDep ? '✅ ON' : '🛑 OFF'}\n` +
+                `📢 <b>Channel Order Log:</b> ${isAutoFakeLogEnabled ? '✅ ACTIVE' : '🛑 OFF'}\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `<i>নিচের কন্ট্রোল বাটনগুলো দিয়ে ইনস্ট্যান্ট কনফিগার করুন:</i>`;
+
+            return userNotifyBot.editMessageText(updatedPanel, {
+                chat_id: chatId,
+                message_id: query.message.message_id,
+                parse_mode: "HTML",
+                reply_markup: query.message.reply_markup
+            });
+        }
+
+        if (data === "panel_toggle_autodep") {
+            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            const cSnap = await db.collection("config").doc("app").get();
+            const curState = (cSnap.exists && cSnap.data().autoDeposit !== undefined) ? cSnap.data().autoDeposit : true;
+            const nextState = !curState;
+
+            await db.collection("config").doc("app").set({ autoDeposit: nextState }, { merge: true });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `Auto Deposit: ${nextState ? 'ON' : 'OFF'}` });
+
+            return userNotifyBot.sendMessage(chatId, `⚡ <b>Auto Deposit Gateway is now: ${nextState ? '✅ ON' : '🛑 OFF'}</b>`, { parse_mode: "HTML" });
+        }
+
+        if (data === "panel_toggle_fakelog") {
+            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            isAutoFakeLogEnabled = !isAutoFakeLogEnabled;
+            await db.collection("config").doc("app").set({ autoFakeLog: isAutoFakeLogEnabled }, { merge: true });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `Channel Order Log: ${isAutoFakeLogEnabled ? 'ON' : 'OFF'}` });
+
+            return userNotifyBot.sendMessage(chatId, `📢 <b>Channel Order Log is now: ${isAutoFakeLogEnabled ? '✅ ACTIVE' : '🛑 OFF'}</b>`, { parse_mode: "HTML" });
+        }
+
+        if (data === "panel_view_stats") {
+            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "Loading Stats..." });
+
+            const [usersSnap, tgUsersSnap, depSnap] = await Promise.all([
+                db.collection("users").count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+                db.collection("tg_bot_users").count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+                db.collection("deposits").where("status", "==", "pending").count().get().catch(() => ({ data: () => ({ count: 0 }) }))
+            ]);
+
+            const statsMsg = 
+                `📊 <b>LIVE SYSTEM STATISTICS</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👥 <b>Web Users:</b> ${usersSnap.data().count} accounts\n` +
+                `🤖 <b>Bot Verified Users:</b> ${tgUsersSnap.data().count} users\n` +
+                `⏳ <b>Pending Deposits:</b> ${depSnap.data().count} requests\n` +
+                `🔋 <b>Active Prime Clients:</b> ${primeClients.size} online\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━`;
+
+            return userNotifyBot.sendMessage(chatId, statsMsg, { parse_mode: "HTML" });
+        }
+
+        if (data === "panel_refresh") {
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "Refreshed!" });
+            return;
+        }
+
+        // ---------------- DYNAMIC /DID BUTTON GENERATOR (FOR ADMIN) ----------------
+        if (data.startsWith("did_gen:")) {
+            const parts = data.split(":");
+            const targetDevId = parts[1];
+            const days = parseInt(parts[2], 10) || 7;
+
+            await userNotifyBot.answerCallbackQuery(query.id, { text: `Generating ${days}-day Key...` });
+
+            try {
+                const extRef = db.collection("config").doc("extension");
+                const extSnap = await extRef.get();
+                const extData = extSnap.exists ? extSnap.data() : {};
+                const validKeys = extData.valid_keys || {};
+
+                const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                let part1 = "", part2 = "";
+                for (let i = 0; i < 4; i++) part1 += chars.charAt(Math.floor(Math.random() * chars.length));
+                for (let i = 0; i < 4; i++) part2 += chars.charAt(Math.floor(Math.random() * chars.length));
+
+                const newLicenseKey = `PP-${part1}-${part2}`.toUpperCase();
+
+                const expDate = new Date();
+                expDate.setDate(expDate.getDate() + days);
+                const expiryStr = expDate.toISOString().split("T")[0];
+
+                validKeys[newLicenseKey] = {
+                    device_id: targetDevId,
+                    expiry: expiryStr,
+                    status: "active",
+                    note: `Generated by Admin (${days} Days)`,
+                    createdAt: new Date().toISOString()
+                };
+
+                await extRef.set({ valid_keys: validKeys }, { merge: true });
+
+                const successKeyMsg = 
+                    `🎉 <b>CUSTOM EXTENSION LICENSE GENERATED!</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🔑 <b>License Key:</b>\n<code>${newLicenseKey}</code>\n\n` +
+                    `📱 <b>Device ID:</b> <code>${targetDevId}</code>\n` +
+                    `⏱️ <b>Validity:</b> <b>${days >= 3650 ? 'Lifetime (10 Years)' : days + ' Days'}</b> (মেয়াদ: ${expiryStr})\n` +
+                    `📌 <b>Status:</b> Active ✅\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `<i>কি (Key) কপি করতে সেটির ওপর চাপুন।</i>`;
+
+                return userNotifyBot.sendMessage(chatId, successKeyMsg, { parse_mode: "HTML" });
+            } catch (err) {
+                return userNotifyBot.sendMessage(chatId, `⚠️ কি তৈরিতে সমস্যা: ${err.message}`);
+            }
+        }
+
         if (data.startsWith("verify_ref:")) {
             const isAllJoined = await checkUserMembership(userId);
             if (!isAllJoined) {
@@ -1779,7 +2254,16 @@ userNotifyBot.on("callback_query", async (query) => {
                     const invData = inviterSnap.data();
                     const newCount = (Number(invData.referralCount) || 0) + 1;
                     const curBal = Number(invData.refBalance || 0);
-                    const newBal = Math.round((curBal + 0.5 + Number.EPSILON) * 100) / 100;
+
+                    let bonusToAdd = 0.5;
+                    try {
+                        const cSnap = await db.collection("config").doc("app").get();
+                        if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
+                            bonusToAdd = Number(cSnap.data().tgRefBonus);
+                        }
+                    } catch (e) {}
+
+                    const newBal = Math.round((curBal + bonusToAdd + Number.EPSILON) * 100) / 100;
 
                     await inviterRef.update({
                         referralCount: newCount,
@@ -1789,7 +2273,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     await userNotifyBot.sendMessage(inviterId,
                         `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
                         `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> সফলভাবে ভেরিফাই সম্পন্ন করেছেন।\n` +
-                        `🪙 <b>+0.5 PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
+                        `🪙 <b>+${bonusToAdd} PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
                         `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
                         `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
                         `📌 <i>(ব্যালেন্স ৩ কয়েন বা তার বেশি হলে রিডিম কোড তুলে নিতে পারবেন)</i>`,
