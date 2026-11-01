@@ -1647,9 +1647,10 @@ userNotifyBot.on("message", async (msg) => {
             }
 
             const cleanDevId = rawDevId.toUpperCase().replace(/\s+/g, "");
+            const isAdminSender = msg.chat.id.toString() === "7504616242" || (msg.from && msg.from.id.toString() === "7504616242");
 
-            // যদি অ্যাডমিন এই কমান্ড দেয় -> ডাইনামিক মেয়াদের বাটন মেনু আসবে
-            if (isFromAdmin) {
+            // যদি অ্যাডমিন কমান্ড দেয় -> ডাইনামিক মেয়াদের বাটন মেনু আসবে
+            if (isAdminSender) {
                 return userNotifyBot.sendMessage(chatId,
                     `🔑 <b>GENERATE EXTENSION LICENSE KEY</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1820,9 +1821,9 @@ userNotifyBot.on("message", async (msg) => {
             return userNotifyBot.sendMessage(msg.chat.id, "✅ <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো চালু (ON) করা হয়েছে!</b>", { parse_mode: "HTML" });
         }
 
-        // শুধুমাত্র অ্যাডমিন (7504616242) এর জন্য UID সার্চ হ্যান্ডলার
-        const ADMIN_ID = "7504616242";
-        const isFromAdmin = msg.chat.id.toString() === ADMIN_ID || (msg.from && msg.from.id.toString() === ADMIN_ID);
+        // গ্লোবাল অ্যাডমিন চেক (ডুপ্লিকেট এরর মুক্ত)
+        const ADMIN_ID_SAFE = "7504616242";
+        const isSenderAdmin = msg.chat.id.toString() === ADMIN_ID_SAFE || (msg.from && msg.from.id.toString() === ADMIN_ID_SAFE);
 
         let searchUid = null;
         if (isFromAdmin) {
@@ -1899,6 +1900,156 @@ userNotifyBot.on("message", async (msg) => {
     } catch (e) {}
 });
 
+// ---------------- GUARANTEED USER COMMAND: /referr & /refer ----------------
+userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id.toString();
+        const userSnap = await db.collection("tg_bot_users").doc(userId).get();
+        const uData = userSnap.exists ? userSnap.data() : {};
+        const refCount = Number(uData.referralCount) || 0;
+        const refBal = Number(uData.refBalance || 0);
+        const botInfo = await userNotifyBot.getMe();
+        const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
+
+        let bonusPerRef = 0.5;
+        try {
+            const cSnap = await db.collection("config").doc("app").get();
+            if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
+                bonusPerRef = Number(cSnap.data().tgRefBonus);
+            }
+        } catch (e) {}
+
+        const infoMsg = 
+            `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔗 <b>আপনার ইনভাইট লিংক:</b>\n<code>${refLink}</code>\n\n` +
+            `💰 <b>রেফার ব্যালেন্স:</b> <b>${refBal} PP Coins</b>\n` +
+            `📊 <b>মোট সফল রেফার:</b> <b>${refCount}</b> জন\n` +
+            `🪙 <b>রেফার বোনাস:</b> প্রতি রেফারে <b>${bonusPerRef} Coins</b>\n` +
+            `⚠️ <b>উইথড্র শর্ত:</b> ন্যূনতম ৩ কয়েন হলে কোড তৈরি করতে পারবেন।\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `<i>আপনার লিংক বন্ধুদের শেয়ার করুন এবং ব্যালেন্স জমিয়ে রিডিম কোড নিন!</i>`;
+
+        return userNotifyBot.sendMessage(chatId, infoMsg, {
+            parse_mode: "HTML",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: `🎁 রিডিম কোড তৈরি করুন (${refBal} Coins)`, callback_data: "withdraw_ref_code" }],
+                    [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }],
+                    [{ text: "📤 বন্ধুদের শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }]
+                ]
+            }
+        });
+    } catch (e) {}
+});
+
+// ---------------- GUARANTEED USER COMMAND: /profile ----------------
+userNotifyBot.onText(/^\/profile/i, async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id.toString();
+        const tgUserSnap = await db.collection("tg_bot_users").doc(userId).get();
+        const tgData = tgUserSnap.exists ? tgUserSnap.data() : {};
+
+        const webUserQuery = await db.collection("users").where("tgChatId", "==", userId).limit(1).get().catch(() => null);
+        const webUser = (webUserQuery && !webUserQuery.empty) ? webUserQuery.docs[0].data() : null;
+
+        const name = (msg.from.first_name || "User").replace(/[<>&]/g, "");
+        const username = msg.from.username ? `@${msg.from.username}` : "None";
+        const coinsBal = webUser ? Number(webUser.balance || 0) : 0;
+        const realBal = webUser ? Number(webUser.realBalance !== undefined ? webUser.realBalance : webUser.balance || 0) : 0;
+        const bonusBal = webUser ? Number(webUser.bonusBalance || 0) : 0;
+        const playPoints = webUser ? Number(webUser.playPoints || 0) : 0;
+        const loyaltyStars = webUser ? Number(webUser.loyaltyStars || 0) : 0;
+        const refBal = Number(tgData.refBalance || 0);
+
+        const profileMsg = 
+            `👤 <b>MY ACCOUNT PROFILE</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📛 <b>Name:</b> ${name}\n` +
+            `✈️ <b>Username:</b> ${username}\n` +
+            `🆔 <b>Telegram ID:</b> <code>${userId}</code>\n` +
+            (webUser ? `🌐 <b>Web UID:</b> <code>${webUser.uid}</code>\n` : `🌐 <b>Web Status:</b> <i>Not Linked (ওয়েবসাইটে Profile > Connect Telegram এ এই ID দিন)</i>\n`) +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🪙 <b>Total PP Coins:</b> <b>${coinsBal} Coins</b>\n` +
+            `   ├ 💰 Real: <b>${realBal}</b> | 🎁 Bonus: <b>${bonusBal}</b>\n` +
+            `⭐ <b>Play Points:</b> <b>${playPoints} Pts</b>\n` +
+            `🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n` +
+            `👥 <b>Bot Refer Balance:</b> <b>${refBal} Coins</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🚀 <a href="https://ppmod.gamer.free/">Open PP MOD Web App</a>`;
+
+        return userNotifyBot.sendMessage(chatId, profileMsg, {
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "👥 রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }],
+                    [{ text: "🏆 লিডারবোর্ড", callback_data: "show_leaderboard" }]
+                ]
+            }
+        });
+    } catch (e) {}
+});
+
+// ---------------- SECRET ADMIN PANEL: panel544 / /panel544 (Strictly Admin 7504616242 Only) ----------------
+userNotifyBot.onText(/^\/?panel544$/i, async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const senderId = (msg.from && msg.from.id) ? msg.from.id.toString() : chatId.toString();
+
+        // অ্যাডমিন আইডি ছাড়া অন্য কেউ দিলে কোনো রিপ্লাই দেওয়া হবে না
+        if (senderId !== "7504616242") return;
+
+        let refBonus = 0.5;
+        let autoDep = true;
+        try {
+            const cSnap = await db.collection("config").doc("app").get();
+            if (cSnap.exists) {
+                const cd = cSnap.data();
+                if (cd.tgRefBonus !== undefined) refBonus = Number(cd.tgRefBonus);
+                if (cd.autoDeposit !== undefined) autoDep = cd.autoDeposit;
+            }
+        } catch (e) {}
+
+        const panelText = 
+            `⚡ <b>PP MOD EXECUTIVE ADMIN BOT PANEL</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `👑 <b>Admin:</b> Authorized (@${msg.from.username || 'Admin'})\n` +
+            `🎁 <b>Current Refer Bonus:</b> <b>${refBonus} Coins / Invite</b>\n` +
+            `⚡ <b>Auto Deposit Gateway:</b> ${autoDep ? '✅ ON' : '🛑 OFF'}\n` +
+            `📢 <b>Channel Order Log:</b> ${isAutoFakeLogEnabled ? '✅ ACTIVE' : '🛑 OFF'}\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `<i>নিচের কন্ট্রোল বাটনগুলো দিয়ে ইনস্ট্যান্ট কনফিগার করুন:</i>`;
+
+        return userNotifyBot.sendMessage(chatId, panelText, {
+            parse_mode: "HTML",
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: `➕ Ref Bonus (+0.1)`, callback_data: `panel_ref_mod:0.1` },
+                        { text: `➖ Ref Bonus (-0.1)`, callback_data: `panel_ref_mod:-0.1` }
+                    ],
+                    [
+                        { text: `Set 0.2c`, callback_data: `panel_ref_set:0.2` },
+                        { text: `Set 0.5c`, callback_data: `panel_ref_set:0.5` },
+                        { text: `Set 1.0c`, callback_data: `panel_ref_set:1.0` }
+                    ],
+                    [
+                        { text: autoDep ? "🛑 Disable Auto Dep" : "✅ Enable Auto Dep", callback_data: "panel_toggle_autodep" },
+                        { text: isAutoFakeLogEnabled ? "🛑 Pause Order Log" : "✅ Resume Order Log", callback_data: "panel_toggle_fakelog" }
+                    ],
+                    [
+                        { text: "📊 Live Server Stats", callback_data: "panel_view_stats" },
+                        { text: "🔄 Refresh Panel", callback_data: "panel_refresh" }
+                    ]
+                ]
+            }
+        });
+    } catch (e) {}
+});
+
 userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     try {
         const chatId = msg.chat.id;
@@ -1924,7 +2075,7 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
         } else if (!userDoc.data().isVerified && inviterId && !userDoc.data().inviterId) {
-            await db.collection("tg_bot_users").doc(userId).update({ inviterId });
+            await db.collection("tg_bot_users").doc(userId).set({ inviterId }, { merge: true });
         }
 
         const cleanFirstName = (msg.from.first_name || "ইউজার").replace(/[<>&]/g, "");
@@ -2245,30 +2396,35 @@ userNotifyBot.on("callback_query", async (query) => {
                 }
             );
 
-            const inviterId = userData.inviterId;
-            if (inviterId) {
-                const inviterRef = db.collection("tg_bot_users").doc(inviterId);
+            // বাটন ডেটা এবং ইউজার ডেটা উভয় স্থান থেকেই ইনভাইটার আইডি নেওয়া
+            const dataParts = data.split(":");
+            const passedInviterId = (dataParts[1] && dataParts[1] !== "none") ? dataParts[1].trim() : null;
+            const targetInviterId = userData.inviterId || passedInviterId;
+
+            if (targetInviterId && targetInviterId !== userId) {
+                const inviterRef = db.collection("tg_bot_users").doc(targetInviterId);
                 const inviterSnap = await inviterRef.get();
+                const invData = inviterSnap.exists ? inviterSnap.data() : {};
 
-                if (inviterSnap.exists) {
-                    const invData = inviterSnap.data();
-                    const newCount = (Number(invData.referralCount) || 0) + 1;
-                    const curBal = Number(invData.refBalance || 0);
+                const newCount = (Number(invData.referralCount) || 0) + 1;
+                const curBal = Number(invData.refBalance || 0);
 
-                    let bonusToAdd = 0.5;
-                    try {
-                        const cSnap = await db.collection("config").doc("app").get();
-                        if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
-                            bonusToAdd = Number(cSnap.data().tgRefBonus);
-                        }
-                    } catch (e) {}
+                let bonusToAdd = 0.5;
+                try {
+                    const cSnap = await db.collection("config").doc("app").get();
+                    if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
+                        bonusToAdd = Number(cSnap.data().tgRefBonus);
+                    }
+                } catch (e) {}
 
-                    const newBal = Math.round((curBal + bonusToAdd + Number.EPSILON) * 100) / 100;
+                const newBal = Math.round((curBal + bonusToAdd + Number.EPSILON) * 100) / 100;
 
-                    await inviterRef.update({
-                        referralCount: newCount,
-                        refBalance: newBal
-                    });
+                // ইনভাইটারের একাউন্ট আগে না থাকলেও কয়েন সেভ নিশ্চিত করা
+                await inviterRef.set({
+                    id: targetInviterId,
+                    referralCount: newCount,
+                    refBalance: newBal
+                }, { merge: true });
 
                     await userNotifyBot.sendMessage(inviterId,
                         `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
