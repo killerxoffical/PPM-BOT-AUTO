@@ -960,61 +960,6 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
 
     // টেলিগ্রামে সম্পূর্ণ অ্যাপ্রুভ মেসেজ পাঠানো
     await sendDepositTelegramNotification(depData, "approved", "Auto Verified", verifiedAmount, finalCoinsCalculated);
-
-        const userRef = db.collection("users").doc(depData.uid);
-        const userSnap = await t.get(userRef);
-
-        if (!userSnap.exists) {
-            t.set(userRef, {
-                uid: depData.uid,
-                name: depData.name || "User",
-                email: depData.email || "",
-                photo: "",
-                balance: coinsToAdd,
-                realBalance: coinsToAdd,
-                bonusBalance: 0,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        } else {
-            const uData = userSnap.data();
-            const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
-            const curBonus = Number(uData.bonusBalance || 0);
-            const newReal = curReal + coinsToAdd;
-            t.update(userRef, {
-                realBalance: newReal,
-                balance: newReal + curBonus
-            });
-        }
-
-        let durationSec = 2;
-        if (depData.createdAt && depData.createdAt.toMillis) {
-            durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
-        }
-
-        t.update(depRef, {
-            status: "approved",
-            autoApproved: true,
-            submittedAt: depData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
-            smsReceivedAt: depData.smsReceivedAt || admin.firestore.FieldValue.serverTimestamp(),
-            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
-            processDurationSec: durationSec
-        });
-
-        t.set(usedRef, {
-            trxId: cleanTrx,
-            uid: depData.uid,
-            amount: verifiedAmount,
-            depId: depId,
-            usedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        const smsRef = db.collection("gateway_sms").doc(cleanTrx);
-        t.set(smsRef, {
-            claimed: true,
-            claimedBy: depData.uid,
-            claimedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-    });
 }
 
 // ---------------- 1b. REFERRAL SYSTEM API ----------------
@@ -2426,16 +2371,15 @@ userNotifyBot.on("callback_query", async (query) => {
                     refBalance: newBal
                 }, { merge: true });
 
-                    await userNotifyBot.sendMessage(inviterId,
-                        `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
-                        `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> সফলভাবে ভেরিফাই সম্পন্ন করেছেন।\n` +
-                        `🪙 <b>+${bonusToAdd} PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
-                        `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
-                        `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
-                        `📌 <i>(ব্যালেন্স ৩ কয়েন বা তার বেশি হলে রিডিম কোড তুলে নিতে পারবেন)</i>`,
-                        { parse_mode: "HTML" }
-                    ).catch(() => {});
-                }
+                await userNotifyBot.sendMessage(targetInviterId,
+                    `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
+                    `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> সফলভাবে ভেরিফাই সম্পন্ন করেছেন।\n` +
+                    `🪙 <b>+${bonusToAdd} PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
+                    `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
+                    `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
+                    `📌 <i>(ব্যালেন্স ৩ কয়েন বা তার বেশি হলে রিডিম কোড তুলে নিতে পারবেন)</i>`,
+                    { parse_mode: "HTML" }
+                ).catch(() => {});
             }
             return;
         }
