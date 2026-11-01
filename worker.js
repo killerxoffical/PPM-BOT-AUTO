@@ -3147,6 +3147,12 @@ function sanitizeBotReason(rawText) {
     if (!rawText) return null;
     const txt = rawText.toLowerCase();
 
+    // সেফগার্ড: মেসেজে যদি গুগল প্রম্পট, ফোন অনুমোদন বা কাজ শেষের টেক্সট থাকে, তবে কখনোই এরর ধরবে না
+    if (txt.includes("tap") || txt.includes("notification to your phone") || txt.includes("confirmed from your phone") || 
+        txt.includes("unlocking task") || txt.includes("all quests") || txt.includes("completed") || txt.includes("claim your points")) {
+        return null;
+    }
+
     // ১. ভুল জিমেইল বা গুগল একাউন্ট না পাওয়ার সব এরর হ্যান্ডলার
     if (txt.includes("couldn't find your google account") || txt.includes("could not find your google account") ||
         txt.includes("find your google account") || txt.includes("no account found") || 
@@ -3160,8 +3166,9 @@ function sanitizeBotReason(rawText) {
         return "⚠️ <b>ফরম্যাট ত্রুটি!</b>\n\nইমেইল বা পাসওয়ার্ডের ফরম্যাট বটের কাছে পৌঁছায়নি। অনুগ্রহ করে পুনরায় সঠিক তথ্য সাবমিট করুন।";
     }
 
-    if (txt.includes("32") || txt.includes("34") || txt.includes("authenticator") || txt.includes("secret key") || txt.includes("totp") || txt.includes("2fa key")) {
-        return "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ডটি সঠিক নয় অথবা গুগলে লগইন করা যাচ্ছে না। দয়া করে সঠিক পাসওয়ার্ড দিয়ে পুনরায় সাবমিট করুন।";
+    // শুধুমাত্র খাঁটি অথেন্টিকেটর কি চাচ্ছে কিনা চেক (কোনো সাধারণ সংখ্যা 32/34 এর সাথে মিলবে না)
+    if (txt.includes("authenticator app") || txt.includes("totp key") || txt.includes("2fa secret key") || txt.includes("enter 32-character")) {
+        return "🔑 <b>জিমেইলে অথেন্টিকেটর অ্যাপ সিকিউরিটি চালু আছে!</b>\n\nলগইন সম্পন্ন করতে সাময়িকভাবে Authenticator 2FA বন্ধ করে আবার সাবমিট করুন।";
     }
 
     if (txt.includes("password error") || txt.includes("incorrect password") || txt.includes("wrong password") || txt.includes("invalid password") || txt.includes("bad password")) {
@@ -3463,11 +3470,11 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let gamerSaved = !!(orderData.gamerName);
         let gamerName = (orderData.gamerName || "").toString();
         let lastNotifiedPrompt = "";
+        let hasPassedPasswordStage = false; // গুগল প্রম্পট বা ফোন লগইন স্টেজ পার হলে ট্রু হবে
 
         while (!completed && attempts < 50) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
-            // শুধুমাত্র ক্রেডেনশিয়াল পাঠানোর পরের ফ্রেশ মেসেজগুলো চেক হবে
             const curMsg = await getLatestBotMessage(tg, credSentTime);
             if (!curMsg) continue;
 
@@ -3483,19 +3490,104 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 }
             }
 
-            const cleanReason = sanitizeBotReason(rawText);
-            if (cleanReason) {
-                await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
+            // ১. সবার আগে চেক: কাজ কি সম্পন্ন হয়েছে? (সবার আগে সাফল্য নিশ্চিত করা)
+            if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points") || text.includes("quest completed")) {
+                const botReportedTime = extractBotElapsedTime(rawText);
+                const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
+
+                syncCf({
+                    status: "completed",
+                    adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    promptNumber: null,
+                    timeElapsed: elapsedSec
+                });
+
+                await orderRef.update({
+                    status: "completed",
+                    adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
+                    promptNumber: admin.firestore.FieldValue.delete(),
+                    timeElapsed: elapsedSec,
+                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    botProcessing: false,
+                    inQueue: false
+                }).catch(() => {});
+
+                if (orderData.userTgId || orderData.uid) {
+                    const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
+                    await notifyUserTelegram(notifyId,
+                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
+                        `🎮 <b>গেম:</b> ${orderData.game}\n` +
+                        `⏱️ <b>সময় লেগেছে:</b> ~${elapsedSec} সেকেন্ড\n` +
+                        `🪙 <b>ফি:</b> ৩টি PP Coins\n\n` +
+                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
+                    );
+                }
+                try {
+                    const paidWithReal = Number(orderData.paidWithReal || 0);
+                    if (orderData.uid && orderData.uid !== 'guest' && paidWithReal > 0) {
+                        await db.collection("users").doc(orderData.uid).update({
+                            loyaltyStars: admin.firestore.FieldValue.increment(1)
+                        });
+                    }
+                } catch (sErr) {}
+                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
+                sendOrderLog(
+                    `✅ <b>TASK COMPLETED</b>\n\n` +
+                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
+                    `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
+                    `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
+                    `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
+                    `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
+                    `💳 <b>Method:</b> PP Coins\n` +
+                    `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
+                    `📌 <b>Status:</b> Completed`
+                );
+                completed = true;
                 return;
             }
 
-            if (text.includes("32") || text.includes("34") || text.includes("authenticator") || text.includes("secret")) {
-                await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, "🔑 <b>জিমেইল পাসওয়ার্ড ভুল হয়েছে!</b>\n\nআপনার দেওয়া পাসওয়ার্ড দিয়ে গুগলে লগইন ব্যর্থ হয়েছে। সঠিক পাসওয়ার্ড দিয়ে পুনরায় চেষ্টা করুন।", orderData.userTgId);
-                return;
+            // ২. ফোন থেকে গুগল লগইন অনুমোদন হয়েছে কিনা চেক
+            if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task") || text.includes("login successful")) {
+                hasPassedPasswordStage = true;
+                const loginSuccessMsg = "🎉 ফোন থেকে গুগল লগইন সফল হয়েছে! প্লে পয়েন্ট টাস্ক শুরু হচ্ছে, অপেক্ষা করুন...";
+                syncCf({ adminMsg: loginSuccessMsg, promptNumber: null });
+                await orderRef.update({
+                    adminMsg: loginSuccessMsg,
+                    promptNumber: admin.firestore.FieldValue.delete()
+                }).catch(() => {});
             }
 
+            // ৩. গুগল সিকিউরিটি ট্যাপ প্রম্পট এসেছে কিনা চেক (প্রম্পট আসার অর্থই পাসওয়ার্ড সঠিক!)
+            const isErrorState = text.includes("google rejected") || text.includes("couldn't sign you in");
+            const promptNum = isErrorState ? null : extractPromptNumber(rawText);
+            const devModel = extractDeviceModel(rawText);
+
+            if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
+                hasPassedPasswordStage = true; // গুগল প্রম্পট দিয়েছে মানেই পাসওয়ার্ড ১০০% সঠিক!
+                lastNotifiedPrompt = promptNum;
+                const devText = devModel ? ` (${devModel})` : "";
+                const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
+                syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
+                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
+            }
+
+            // ৪. এরর ফিল্টার: একবার পাসওয়ার্ড পার হয়ে প্রম্পট স্টেজে চলে গেলে বা লগইন হলে কখনোই পাসওয়ার্ড ভুল ধরা যাবে না!
+            if (!hasPassedPasswordStage) {
+                const cleanReason = sanitizeBotReason(rawText);
+                if (cleanReason) {
+                    await clickInlineButton(curMsg, "Cancel Process", tg);
+                    await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
+                    return;
+                }
+
+                if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
+                    await clickInlineButton(curMsg, "Cancel Process", tg);
+                    await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
+                    return;
+                }
+            }
+
+            // ৫. সাধারণ গুগল রিজেকশন বা ক্যাপচা এরর
             if (text.includes("captcha security check") || text.includes("captcha")) {
                 await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId);
@@ -3508,33 +3600,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 return;
             }
 
-            if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
-                await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
-                return;
-            }
-
-            if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task")) {
-                const loginSuccessMsg = "🎉 ফোন থেকে গুগল লগইন সফল হয়েছে! প্লে পয়েন্ট টাস্ক শুরু হচ্ছে, অপেক্ষা করুন...";
-                syncCf({ adminMsg: loginSuccessMsg, promptNumber: null });
-                await orderRef.update({
-                    adminMsg: loginSuccessMsg,
-                    promptNumber: admin.firestore.FieldValue.delete()
-                }).catch(() => {});
-            }
-
-            const isErrorState = text.includes("error") || text.includes("cancel") || text.includes("failed") || text.includes("incorrect");
-            const promptNum = isErrorState ? null : extractPromptNumber(rawText);
-            const devModel = extractDeviceModel(rawText);
-            if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
-                lastNotifiedPrompt = promptNum;
-                const devText = devModel ? ` (${devModel})` : "";
-                const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
-                syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
-                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
-            }
-
-            if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points")) {
+            if (false) {
                 const botReportedTime = extractBotElapsedTime(rawText);
                 const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
 
