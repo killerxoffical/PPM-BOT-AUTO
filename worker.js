@@ -2356,28 +2356,24 @@ userNotifyBot.on("callback_query", async (query) => {
 
         // ---------------- LEADERBOARD HANDLER (SUPERFAST & ZERO CRASH) ----------------
         if (data === "show_leaderboard") {
-            // ১ মিলিসেকেন্ডেই টেলিগ্রামের লোডিং চাকা বন্ধ করা
             userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
 
             try {
-                // ইনডেক্স ছাড়াই মেমোরিতে ফাস্ট সর্ট (জিরো এরর)
-                const snap = await db.collection("tg_bot_users").limit(100).get();
+                // মেমোরিতে সব রেফারেল ইউজার ফেচ করা
+                const snap = await db.collection("tg_bot_users").limit(150).get();
                 const allUsers = [];
                 snap.forEach(d => {
                     const u = d.data() || {};
                     allUsers.push({
                         id: d.id,
-                        name: u.name || u.username || "User",
+                        name: (u.name || u.username || "User").replace(/[<>&]/g, "").trim().slice(0, 15),
                         referralCount: Number(u.referralCount) || 0
                     });
                 });
 
-                // রেফারেল অনুযায়ী বড় থেকে ছোট সাজানো
                 allUsers.sort((a, b) => b.referralCount - a.referralCount);
-
                 const top10 = allUsers.filter(u => u.referralCount > 0).slice(0, 10);
 
-                // ইউজারের নিজস্ব র‍্যাংক বের করা
                 const myIndex = allUsers.findIndex(u => u.id === userId);
                 const myData = myIndex !== -1 ? allUsers[myIndex] : null;
                 const myRefCount = myData ? myData.referralCount : 0;
@@ -2392,10 +2388,8 @@ userNotifyBot.on("callback_query", async (query) => {
                 } else {
                     top10.forEach((u, idx) => {
                         const medal = medals[idx] || `[${idx + 1}]`;
-                        let cleanName = (u.name || "User").replace(/[<>&]/g, "").trim().slice(0, 15);
-                        if (!cleanName) cleanName = "User";
                         const isMe = u.id === userId ? " 👈 (আপনি)" : "";
-                        boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
+                        boardText += `${medal} <b>${u.name}</b>${isMe}\n`;
                         boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount}</b> জন\n\n`;
                     });
                 }
@@ -2405,14 +2399,21 @@ userNotifyBot.on("callback_query", async (query) => {
                 boardText += `👥 <b>আপনার মোট সফল রেফার:</b> <b>${myRefCount}</b> জন\n`;
                 boardText += `🎯 <i>বন্ধুদের ইনভাইট করুন এবং টপ লিডারবোর্ডে জায়গা করে নিন!</i>`;
 
+                const keyboard = {
+                    inline_keyboard: [
+                        [{ text: "🔄 Refresh", callback_data: "show_leaderboard" }],
+                        [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
+                    ]
+                };
+
+                // ফেইল-সেফ ডেলিভারি (HTML ব্যর্থ হলে প্লেইন টেক্সট হিসেবে পাঠাবে)
                 return userNotifyBot.sendMessage(chatId, boardText, {
                     parse_mode: "HTML",
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "🔄 Refresh", callback_data: "show_leaderboard" }],
-                            [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
-                        ]
-                    }
+                    reply_markup: keyboard
+                }).catch(() => {
+                    return userNotifyBot.sendMessage(chatId, boardText.replace(/<[^>]*>/g, ""), {
+                        reply_markup: keyboard
+                    });
                 });
             } catch (lErr) {
                 return userNotifyBot.sendMessage(chatId, "⚠️ লিডারবোর্ড লোড করা যায়নি। পুনরায় চেষ্টা করুন।");
