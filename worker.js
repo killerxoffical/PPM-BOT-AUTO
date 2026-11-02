@@ -1788,18 +1788,41 @@ userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
         const chatId = msg.chat.id;
         const userId = msg.from.id.toString();
 
-        // ফায়ারস্টোর কোটার জন্য ৫-১০ সেকেন্ড দেরি না করে সরাসরি Cloudflare D1 ও লোকাল ক্যাশ থেকে রিড
         let refCount = 0;
         let refBal = 0;
 
-        try {
-            const uRes = await fetch(`${CF_API}/api/bot/user?id=${userId}`);
-            const uData = await uRes.json();
-            if (uData && uData.ok && uData.user) {
-                refCount = Number(uData.user.referralCount) || 0;
-                refBal = Number(uData.user.refBalance) || 0;
+        // D1 এবং ফায়ারস্টোর উভয় জায়গা থেকে নিশ্চিত সংখ্যাটি নেওয়া
+        const [uRes, uSnap] = await Promise.all([
+            fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => null),
+            db.collection("tg_bot_users").doc(userId).get().catch(() => null)
+        ]);
+
+        if (uRes && uRes.ok && uRes.user) {
+            refCount = Number(uRes.user.referralCount) || 0;
+            refBal = Number(uRes.user.refBalance) || 0;
+        }
+
+        if (uSnap && uSnap.exists) {
+            const fbD = uSnap.data();
+            const fbCount = Number(fbD.referralCount) || 0;
+            const fbBal = Number(fbD.refBalance) || 0;
+            if (fbCount > refCount) {
+                refCount = fbCount;
+                refBal = fbBal;
+                // D1 আপডেট করে রাখা যাতে লিডারবোর্ডে সাথে সাথে রিফ্লেক্ট করে
+                fetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: userId,
+                        name: `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim() || "User",
+                        username: msg.from.username ? `@${msg.from.username}` : "",
+                        addRefCount: fbCount,
+                        addRefBalance: fbBal
+                    })
+                }).catch(() => {});
             }
-        } catch (e) {}
+        }
 
         const botInfo = await userNotifyBot.getMe();
         const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
@@ -2509,14 +2532,54 @@ userNotifyBot.on("callback_query", async (query) => {
             userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
 
             try {
-                // ১. প্যারালালে Cloudflare D1 থেকে টপ ১০ লিডারবোর্ড এবং ইউজারের নিজের ডাটা ফেচ
-                const [lbRes, myRes] = await Promise.all([
+                // ১. D1 এবং Firestore দুটো থেকেই প্যারালালে ডাটা নিয়ে আসা (যাতে কোনো ডাটাই মিস না হয়)
+                const [lbRes, myRes, fbSnap] = await Promise.all([
                     fetch(`${CF_API}/api/bot/leaderboard`).then(r => r.json()).catch(() => ({ ok: false, leaderboard: [] })),
-                    fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => ({ ok: false, user: null }))
+                    fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => ({ ok: false, user: null })),
+                    db.collection("tg_bot_users").orderBy("referralCount", "desc").limit(10).get().catch(() => null)
                 ]);
 
-                let top10 = (lbRes && lbRes.ok && Array.isArray(lbRes.leaderboard)) ? lbRes.leaderboard : [];
-                let myRefCount = (myRes && myRes.ok && myRes.user) ? (Number(myRes.user.referralCount) || 0) : 0;
+                let top10 = (lbRes && lbRes.ok && Array.isArray(lbRes.leaderboard) && lbRes.leaderboard.length > 0) ? lbRes.leaderboard : [];
+
+                // যদি D1 এ এখনও ডাটা না থাকে, ফায়ারস্টোর থেকে সরাসরি টপ ১০ তৈরি করা এবং D1 এ সিঙ্ক করা
+                if (top10.length === 0 && fbSnap && !fbSnap.empty) {
+                    fbSnap.forEach(docSnap => {
+                        const d = docSnap.data();
+                        const rCount = Number(d.referralCount || 0);
+                        if (rCount > 0) {
+                            top10.push({
+                                id: docSnap.id,
+                                name: d.name || d.username || "User",
+                                username: d.username || "",
+                                referralCount: rCount,
+                                refBalance: Number(d.refBalance || 0)
+                            });
+                            // ব্যাকগ্রাউন্ডে D1 এ সিঙ্ক করে দেওয়া
+                            fetch(`${CF_API}/api/bot/user/update`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    id: docSnap.id,
+                                    name: d.name || "User",
+                                    username: d.username || "",
+                                    addRefCount: rCount,
+                                    addRefBalance: Number(d.refBalance || 0)
+                                })
+                            }).catch(() => {});
+                        }
+                    });
+                }
+
+                // নিজের রেফারেল সংখ্যা বের করা (Firestore বা D1 থেকে যেটা বড়)
+                let myRefCount = 0;
+                if (myRes && myRes.user && myRes.user.referralCount) {
+                    myRefCount = Number(myRes.user.referralCount);
+                }
+                const myFbDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
+                if (myFbDoc && myFbDoc.exists) {
+                    const fbCount = Number(myFbDoc.data().referralCount || 0);
+                    if (fbCount > myRefCount) myRefCount = fbCount;
+                }
 
                 const myRank = myRefCount > 0 ? "Active" : "—";
 
@@ -3000,6 +3063,7 @@ function normalizeGameStr(str) {
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "") // é -> e, è -> e ইত্যাদি রূপান্তর
         .toLowerCase()
+        .replace(/\s*\(\d+\)|\s*\(all\)/gi, "") // (50), (All) পয়েন্ট ট্যাগ রিমুভ
         .replace(/[^a-z0-9]/g, " ")     // ™, |, (), ব্র্যাকেট সব স্পেস করে ফেলা
         .replace(/\s+/g, " ")
         .trim();
