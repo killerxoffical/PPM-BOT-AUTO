@@ -1311,15 +1311,21 @@ function generateReferralCode() {
 }
 
 async function checkUserMembership(userId) {
-    for (const ch of REQUIRED_CHANNELS) {
-        if (!ch.username) continue;
-        try {
-            const member = await userNotifyBot.getChatMember(ch.username, userId);
-            const valid = ["creator", "administrator", "member", "restricted"].includes(member.status);
-            if (!valid) return false;
-        } catch (e) {}
+    try {
+        const checks = REQUIRED_CHANNELS.map(async (ch) => {
+            if (!ch.username) return true;
+            try {
+                const member = await userNotifyBot.getChatMember(ch.username, userId);
+                return ["creator", "administrator", "member", "restricted"].includes(member.status);
+            } catch (e) {
+                return false;
+            }
+        });
+        const results = await Promise.all(checks);
+        return results.every(Boolean);
+    } catch (e) {
+        return true;
     }
-    return true;
 }
 
 function getJoinKeyboard(userId, refId = null) {
@@ -1391,6 +1397,7 @@ function buildUserAdminCard(uid, uData) {
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
+        if (text.startsWith("/")) return; // কমান্ডগুলো আলাদা হ্যান্ডলার দিয়ে ইনস্ট্যান্ট এক্সিকিউট হবে
         const replyTo = msg.reply_to_message;
         const chatId = msg.chat.id;
 
@@ -1874,7 +1881,7 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
             `🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n` +
             `👥 <b>Bot Refer Balance:</b> <b>${refBal} Coins</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🚀 <a href="https://ppmod.gamer.free/">Open PP MOD Web App</a>`;
+            `🚀 <a href="https://ppmods.netlify.app/">Open PP MOD Web App</a>`;
 
         return userNotifyBot.sendMessage(chatId, profileMsg, {
             parse_mode: "HTML",
@@ -2338,6 +2345,17 @@ userNotifyBot.on("callback_query", async (query) => {
                 let newCount = 1;
                 let newBal = bonusToAdd;
 
+                // ইনভাইটারের নাম নিয়ে Cloudflare D1 এ সেভ করা যাতে লিডারবোর্ডে লাইভ শো করে
+                let inviterName = "User";
+                let inviterUsername = "";
+                try {
+                    const invChat = await userNotifyBot.getChat(targetInviterId).catch(() => null);
+                    if (invChat) {
+                        inviterName = `${invChat.first_name || ""} ${invChat.last_name || ""}`.trim() || invChat.username || "User";
+                        inviterUsername = invChat.username ? `@${invChat.username}` : "";
+                    }
+                } catch (e) {}
+
                 // ১. সরাসরি Cloudflare D1-এ সাথে সাথে রেফারেল সংখ্যা ও ব্যালেন্স বাড়ানো (লিডারবোর্ডের জন্য)
                 try {
                     const refUpRes = await fetch(`${CF_API}/api/bot/user/update`, {
@@ -2345,6 +2363,8 @@ userNotifyBot.on("callback_query", async (query) => {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             id: targetInviterId,
+                            name: inviterName,
+                            username: inviterUsername,
                             addRefCount: 1,
                             addRefBalance: bonusToAdd
                         })
@@ -2489,23 +2509,14 @@ userNotifyBot.on("callback_query", async (query) => {
             userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
 
             try {
-                // ১. সরাসরি Cloudflare D1 থেকে টপ ১০ লিডারবোর্ড ইনস্ট্যান্ট ফেচ
-                let top10 = [];
-                try {
-                    const lbRes = await fetch(`${CF_API}/api/bot/leaderboard`);
-                    const lbData = await lbRes.json();
-                    if (lbData && lbData.ok && Array.isArray(lbData.leaderboard)) {
-                        top10 = lbData.leaderboard;
-                    }
-                } catch (e) {}
+                // ১. প্যারালালে Cloudflare D1 থেকে টপ ১০ লিডারবোর্ড এবং ইউজারের নিজের ডাটা ফেচ
+                const [lbRes, myRes] = await Promise.all([
+                    fetch(`${CF_API}/api/bot/leaderboard`).then(r => r.json()).catch(() => ({ ok: false, leaderboard: [] })),
+                    fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => ({ ok: false, user: null }))
+                ]);
 
-                // ২. যদি ক্লাউডফ্লেয়ার খালি থাকে, তবে মেমোরি থেকে ডাটা নেওয়া
-                let myRefCount = 0;
-                try {
-                    const myRes = await fetch(`${CF_API}/api/bot/user?id=${userId}`);
-                    const myData = await myRes.json();
-                    if (myData && myData.user) myRefCount = Number(myData.user.referralCount) || 0;
-                } catch (e) {}
+                let top10 = (lbRes && lbRes.ok && Array.isArray(lbRes.leaderboard)) ? lbRes.leaderboard : [];
+                let myRefCount = (myRes && myRes.ok && myRes.user) ? (Number(myRes.user.referralCount) || 0) : 0;
 
                 const myRank = myRefCount > 0 ? "Active" : "—";
 
@@ -2585,7 +2596,7 @@ function attachPrimeHandler(client, label) {
 
             const LINK_REPLY_TEXT = `🔗 <b>PP MOD অফিশিয়াল ওয়েবসাইট লিংক:</b>\n\n` +
                                    `আমাদের সমস্ত কোয়েস্ট ও সার্ভিস ব্যবহার করতে নিচের লিংকে ক্লিক করুন:\n` +
-                                   `👉 <a href="https://ppmod.gamer.free/?i=1">https://ppmod.gamer.free/?i=1</a>\n\n` +
+                                   `👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n` +
                                    `⚡ <i>মাত্র ৩ সেকেন্ডে প্লে পয়েন্ট টাস্ক সম্পন্ন করুন!</i> ✨`;
 
             // ২. দিনে কঠোরভাবে ঠিক ১ বার (Strict 1-Time Daily across all primes) অটো-রিপ্লাই চেক
