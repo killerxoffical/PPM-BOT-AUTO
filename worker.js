@@ -3594,15 +3594,48 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
                     );
                 }
-                try {
-                    const paidWithReal = Number(orderData.paidWithReal || 0);
-                    if (orderData.uid && orderData.uid !== 'guest' && paidWithReal > 0) {
+
+                // ১. রিয়েল ব্যালেন্স দিয়ে করা হলে Cloudflare D1 ওয়ালেটে সাথে সাথে স্টার (+1 Star) যোগ করা
+                const paidWithReal = Number(orderData.paidWithReal !== undefined ? orderData.paidWithReal : (orderData.amount || 3));
+                const isRealTask = !orderData.isFreeTask && paidWithReal > 0;
+
+                if (orderData.uid && orderData.uid !== 'guest' && isRealTask) {
+                    fetch(`${CF_API}/api/wallet/credit`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uid: orderData.uid, loyaltyStarsInc: 1 })
+                    }).catch(() => {});
+
+                    try {
                         await db.collection("users").doc(orderData.uid).update({
                             loyaltyStars: admin.firestore.FieldValue.increment(1)
                         });
-                    }
-                } catch (sErr) {}
+                    } catch (sErr) {}
+                }
+
                 try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
+
+                // ২. সম্পূর্ণ ডেটাসহ সরাসরি অ্যাডমিনের টেলিগ্রামে ইনস্ট্যান্ট নোটিফিকেশন পাঠানো
+                const adminTgChatId = process.env.ADMIN_TG_ID || "7504616242";
+                const adminAlertText = 
+                    `🎉 <b>QUEST COMPLETED ALERT!</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 <b>User:</b> ${orderData.name || "User"} (${orderData.email || "No Email"})\n` +
+                    `🆔 <b>UID:</b> <code>${orderData.uid || "—"}</code>\n` +
+                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
+                    `🕹️ <b>Gamer Tag:</b> ${(gamerName || "").trim() || "—"}\n` +
+                    `📧 <b>Gmail:</b> <code>${orderData.accEmail}</code>\n` +
+                    `🔑 <b>Pass:</b> <code>${orderData.accPass || "—"}</code>\n` +
+                    `✈️ <b>User TG:</b> ${orderData.userTgId || "Not Given"}\n` +
+                    `⏱️ <b>Time Elapsed:</b> ~${elapsedSec}s\n` +
+                    `🪙 <b>Fee:</b> ${orderData.amount || 3} Coins ${isRealTask ? '(⭐ +1 Star Added)' : ''}\n` +
+                    `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ <i>Status: Completed on Worker [${assignedWorker || 'Bot'}]</i>`;
+
+                userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
+
+                // ৩. চ্যানেলে পাবলিক লগ পাঠানো
                 sendOrderLog(
                     `✅ <b>TASK COMPLETED</b>\n\n` +
                     `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
