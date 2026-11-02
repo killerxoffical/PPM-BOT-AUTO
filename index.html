@@ -9188,11 +9188,15 @@
             }
         };
 
-        // Clean, compact 3-Step Tracker: Submit -> Login -> Success / Refund
+        // Clean, compact 3-Step Tracker: Submit -> Login -> Success / Refund (Screenshot 2 Match)
         window.renderOrderTimeline = (ord) => {
             const box = document.getElementById('orderTimeline');
             const receiptStepsEl = document.getElementById('receiptSteps');
             if (receiptStepsEl) receiptStepsEl.style.display = 'none';
+
+            // স্ক্রিনের অন্যান্য ডুপ্লিকেট বা পুরনো স্টেপস মুছে ফেলা
+            document.querySelectorAll('#screenSuccess .steps').forEach(el => el.remove());
+
             if (!box) return;
             if (!ord) {
                 box.style.display = 'none';
@@ -9204,7 +9208,7 @@
                 try {
                     if (!ts) return '';
                     const d = ts.toDate ? ts.toDate() : new Date(ts);
-                    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' });
+                    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Dhaka' });
                 } catch (e) { return ''; }
             };
 
@@ -9394,20 +9398,98 @@
                 `;
             }
 
-            const line1Done = hasCreds || isCompleted || isRefunded;
-            const line2Class = isCompleted 
-                ? 'bg-emerald-500' 
-                : (isRefunded 
-                    ? 'bg-rose-400' 
-                    : (isLoginSuccess ? 'bg-emerald-400 animate-pulse' : 'bg-slate-200'));
+            // স্ক্রিনশট ২-এর হুবহু ডিজাইন: [SUBMIT] ➔ [VERIFY] ➔ [SUCCESS]
+            const timeFormatted = fms(ord.createdAt) || '22:41';
 
-            box.className = "flex items-center justify-between w-full px-2.5 py-2 bg-slate-50 border border-slate-200/90 rounded-2xl";
+            // Step 2 (Verify) স্টাইল
+            let s2Bg = 'bg-slate-100 text-slate-400';
+            let s2Icon = '2';
+            let s2Title = 'text-slate-400';
+            let s2Sub = 'text-slate-400';
+            let s2SubText = 'Pending';
+            let line1Color = 'bg-slate-200';
+
+            if (isPassError) {
+                s2Bg = 'bg-rose-500 text-white shadow-xs';
+                s2Icon = '✕';
+                s2Title = 'text-rose-600';
+                s2Sub = 'text-rose-500';
+                s2SubText = 'Wrong Pass';
+                line1Color = 'bg-rose-400';
+            } else if (isLoginSuccess || isCompleted) {
+                s2Bg = 'bg-emerald-600 text-white shadow-xs';
+                s2Icon = '✓';
+                s2Title = 'text-emerald-800';
+                s2Sub = 'text-emerald-600';
+                s2SubText = 'Verified';
+                line1Color = 'bg-amber-400';
+            } else if (hasCreds) {
+                s2Bg = 'bg-amber-400 text-white shadow-xs';
+                s2Icon = '2';
+                s2Title = 'text-amber-800';
+                s2Sub = 'text-amber-600';
+                s2SubText = promptNum ? `Tap [${promptNum}]` : 'Checking';
+                line1Color = 'bg-amber-300';
+            }
+
+            // Step 3 (Success) স্টাইল
+            let s3Bg = 'bg-slate-100 text-slate-400';
+            let s3Icon = '3';
+            let s3Title = 'text-slate-400';
+            let s3Sub = 'text-slate-400';
+            let s3SubText = 'Pending';
+            let line2Color = 'bg-slate-200';
+
+            if (isCompleted) {
+                s3Bg = 'bg-emerald-600 text-white shadow-xs';
+                s3Icon = '✓';
+                s3Title = 'text-emerald-800';
+                s3Sub = 'text-emerald-600';
+                s3SubText = 'Done';
+                line2Color = 'bg-emerald-500';
+            } else if (isRefunded) {
+                s3Bg = 'bg-rose-500 text-white shadow-xs';
+                s3Icon = '!';
+                s3Title = 'text-rose-600';
+                s3Sub = 'text-rose-500';
+                s3SubText = 'Refunded';
+                line2Color = 'bg-rose-400';
+            }
+
+            box.className = "flex items-center justify-between w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl shadow-xs";
             box.innerHTML = `
-                ${s1}
-                <div class="flex-1 h-[2px] mx-1.5 rounded-full ${line1Done ? (isPassError ? 'bg-rose-400' : 'bg-emerald-500') : 'bg-slate-200'}"></div>
-                ${s2Html}
-                <div class="flex-1 h-[2px] mx-1.5 rounded-full ${line2Class}"></div>
-                ${s3Html}
+                <!-- Step 1: SUBMIT -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">✓</span>
+                    <div class="text-left leading-tight">
+                        <span class="text-xs font-black text-emerald-900 uppercase tracking-wide block">SUBMIT</span>
+                        <span class="text-[10px] font-bold text-slate-400 block">${timeFormatted}</span>
+                    </div>
+                </div>
+
+                <!-- Connector 1 -->
+                <div class="flex-1 h-[2px] mx-2 rounded-full ${line1Color}"></div>
+
+                <!-- Step 2: VERIFY -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="w-7 h-7 rounded-full ${s2Bg} flex items-center justify-center text-xs font-black">${s2Icon}</span>
+                    <div class="text-left leading-tight">
+                        <span class="text-xs font-black ${s2Title} uppercase tracking-wide block">VERIFY</span>
+                        <span class="text-[10px] font-bold ${s2Sub} block">${s2SubText}</span>
+                    </div>
+                </div>
+
+                <!-- Connector 2 -->
+                <div class="flex-1 h-[2px] mx-2 rounded-full ${line2Color}"></div>
+
+                <!-- Step 3: SUCCESS -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="w-7 h-7 rounded-full ${s3Bg} flex items-center justify-center text-xs font-black">${s3Icon}</span>
+                    <div class="text-left leading-tight">
+                        <span class="text-xs font-black ${s3Title} uppercase tracking-wide block">SUCCESS</span>
+                        <span class="text-[10px] font-bold ${s3Sub} block">${s3SubText}</span>
+                    </div>
+                </div>
             `;
             box.style.display = 'flex';
         };
@@ -9787,13 +9869,13 @@
             }
         });
 
-        // ইউজার ক্লেইম চাপলে প্রথমে অ্যাড স্ক্রিন চালু হবে
+        // সরাসরি ইনস্ট্যান্ট বোনাস ক্লেইম (কোনো অ্যাড বা টাইমার ছাড়া)
         window.claimBonus = async () => {
             const u = auth && auth.currentUser;
             if (!u || !db) { toast('Please login first'); return; }
 
             const btn = document.getElementById('bonusClaimBtn');
-            if (btn) { btn.disabled = true; btn.textContent = '...'; }
+            if (btn) { btn.disabled = true; btn.textContent = 'Claiming...'; }
 
             const today = getDhakaDateStr(0);
             const uDoc = await _getDoc(_doc(db, 'users', u.uid)).catch(() => null);
@@ -9803,6 +9885,10 @@
                 if (btn) { btn.disabled = true; btn.textContent = 'Claimed'; }
                 return;
             }
+
+            // কোনো অ্যাড বা অপেক্ষা ছাড়া সরাসরি ফায়ারবেস থেকে কয়েন ক্লেইম
+            await executeRealDailyBonusClaim(u);
+            return;
 
             // অ্যাড স্ক্রিন দৃশ্যমান ও টাইমার রিসেট
             _adRemainingSec = 30;
