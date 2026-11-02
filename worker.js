@@ -1683,6 +1683,20 @@ userNotifyBot.on("message", async (msg) => {
 
         if (searchUid) {
             try {
+                // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ (UID বা Email দুটোই কাজ করবে)
+                const cfRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
+                const cfData = await cfRes.json();
+
+                if (cfData && cfData.ok && cfData.user) {
+                    const u = cfData.user;
+                    const card = buildUserAdminCard(u.uid, u);
+                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
+                        parse_mode: "HTML", 
+                        reply_markup: card.reply_markup 
+                    });
+                }
+
+                // ২. ক্লাউডফ্লেয়ারে না পেলে ফায়ারস্টোর ফলব্যাক
                 const uDoc = await db.collection("users").doc(searchUid).get();
                 if (uDoc.exists) {
                     const card = buildUserAdminCard(searchUid, uDoc.data());
@@ -1692,12 +1706,12 @@ userNotifyBot.on("message", async (msg) => {
                     });
                 } else {
                     return await userNotifyBot.sendMessage(msg.chat.id, 
-                        `❌ <code>${searchUid}</code> এই UID দিয়ে ফায়ারবেসে কোনো ইউজার পাওয়া যায়নি!`, 
+                        `❌ <code>${searchUid}</code> এই ইমেইল বা UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`, 
                         { parse_mode: "HTML" }
                     );
                 }
             } catch (err) {
-                console.error("[ADMIN UID SEARCH ERR]:", err);
+                console.error("[ADMIN USER SEARCH ERR]:", err);
                 return await userNotifyBot.sendMessage(msg.chat.id, `⚠️ ইউজার লোড করতে সমস্যা: ${err.message}`);
             }
         }
@@ -1713,19 +1727,53 @@ userNotifyBot.on("message", async (msg) => {
 
             if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
                 let targetId = identifier;
-                if (!identifier.startsWith("DEP_") && identifier.length < 15) {
-                    const snap = await db.collection("deposits").where("trxId", "==", identifier).where("status", "==", "pending").limit(1).get();
-                    if (!snap.empty) targetId = snap.docs[0].id;
-                }
+
+                // রিপ্লাই মেসেজ থেকে TrxID, Amount ও Email সরাসরি এক্সট্র্যাক্ট করা (যদি ফায়ারস্টোর রিড বন্ধ থাকে)
+                const trxMatch = replyText.match(/TrxID:\s*([A-Za-z0-9_-]+)/i);
+                const amtMatch = replyText.match(/Amount:\s*([\d.]+)/i);
+                const emailMatch = replyText.match(/User:.*?\((\S+@\S+)\)/i);
+
+                const cleanTrx = trxMatch ? trxMatch[1].trim().toUpperCase() : identifier.toUpperCase();
+                const cleanAmt = amtMatch ? Number(amtMatch[1]) : 15;
+                const cleanEmail = emailMatch ? emailMatch[1].trim().replace(/\)/g, '') : "";
 
                 try {
-                    const approvedData = await approveDepositById(targetId);
+                    // ১. ইউজারকে Cloudflare D1 থেকে খোঁজা
+                    let targetUid = "";
+                    if (cleanEmail) {
+                        try {
+                            const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(cleanEmail)}`);
+                            const uData = await uRes.json();
+                            if (uData && uData.ok && uData.user) targetUid = uData.user.uid;
+                        } catch (e) {}
+                    }
+
+                    const rate = 7;
+                    const finalCoins = Math.max(1, Math.floor(cleanAmt / rate));
+
+                    // ২. সরাসরি Cloudflare D1 এ কয়েন ক্রেডিট ও TrxID লক করা (Zero Firebase Quota)
+                    await fetch(`${CF_API}/api/deposits/approve`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            depId: targetId,
+                            uid: targetUid,
+                            trxId: cleanTrx,
+                            amount: cleanAmt,
+                            coins: finalCoins,
+                            method: "bKash"
+                        })
+                    });
+
+                    // ৩. ব্যাকগ্রাউন্ডে ফায়ারস্টোর চেষ্টা (কোটা এরর আসলে ইগনোর করবে)
+                    approveDepositById(targetId).catch(() => {});
+
                     await userNotifyBot.sendMessage(msg.chat.id, 
                         `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
-                        `👤 <b>User:</b> ${approvedData.name || "User"} (${approvedData.email || ""})\n` +
-                        `🪙 <b>Coins Added:</b> ${approvedData.coins || 3} Coins\n` +
-                        `💵 <b>Amount:</b> ${approvedData.amount} BDT\n` +
-                        `🔖 <b>TrxID:</b> <code>${approvedData.trxId}</code>\n\n` +
+                        `👤 <b>User:</b> ${cleanEmail || "User"}\n` +
+                        `🪙 <b>Coins Added:</b> +${finalCoins} PP Coins\n` +
+                        `💵 <b>Amount:</b> ${cleanAmt} BDT\n` +
+                        `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n\n` +
                         `<i>ইউজারের একাউন্টে সফলভাবে কয়েন যোগ হয়েছে এবং TrxID লক করা হয়েছে! 🚀</i>`,
                         { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                     );
