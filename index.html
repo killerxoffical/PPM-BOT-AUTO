@@ -3954,13 +3954,17 @@
             const uidEl = document.getElementById('profileUid');
             if (uidEl) uidEl.textContent = u.uid || '—';
 
-            // টেলিগ্রাম চ্যাট আইডি ও স্ট্যাটাস ব্যাজ লোড করা
-            const currentTg = ((window.ppfb && window.ppfb.tgChatId) || '').toString().trim();
+            // টেলিগ্রাম চ্যাট আইডি ও স্ট্যাটাস ব্যাজ লোড করা (লোকাল স্টোরেজ + ফায়ারবেস মিলিয়ে নেওয়া)
+            let cachedTg = '';
+            try { cachedTg = localStorage.getItem('pp_cached_tg_' + u.uid) || ''; } catch (e) {}
+            const currentTg = ((window.ppfb && window.ppfb.tgChatId) || cachedTg || '').toString().trim();
+            if (currentTg && !window.ppfb.tgChatId) window.ppfb.tgChatId = currentTg;
+
             const tgInput = document.getElementById('modalProfileTg');
             const tgBadge = document.getElementById('modalTgStatusBadge');
             if (tgInput) tgInput.value = currentTg;
             if (tgBadge) {
-                if (currentTg) {
+                if (currentTg && currentTg.length >= 5) {
                     tgBadge.textContent = 'LINKED ✓';
                     tgBadge.className = 'text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
                 } else {
@@ -4022,6 +4026,7 @@
                 if (rawTg && rawTg.length >= 5) {
                     payload.tgChatId = rawTg;
                     window.ppfb.tgChatId = rawTg;
+                    try { localStorage.setItem('pp_cached_tg_' + u.uid, rawTg); } catch (e) {}
                     tgUpdated = true;
                 }
 
@@ -4039,9 +4044,13 @@
                     });
                 } catch (cfErr) {}
 
-                // ২. ফায়ারস্টোরে ব্যাকআপ আপডেট (কোটা ফুরিয়ে গেলেও সমস্যা নেই)
+                // ২. ফায়ারস্টোরে আসল ডকুমেন্টে নিশ্চিত আপডেট
                 if (window.FB && window.FB.db) {
-                    window.FB.setDoc(window.FB.doc(window.FB.db, 'users', u.uid), payload, { merge: true }).catch(() => {});
+                    try {
+                        await window.FB.setDoc(window.FB.doc(window.FB.db, 'users', u.uid), payload, { merge: true });
+                    } catch (fbErr) {
+                        console.warn("Firestore update notice:", fbErr.message);
+                    }
                 }
 
                 // টেলিগ্রামে ইনস্ট্যান্ট অভিনন্দন বার্তা পাঠানো

@@ -3087,15 +3087,18 @@ async function triggerButtonClick(message, button, client) {
 
 async function clickChestButton(message, gameName, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
-    const cleanTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, ""));
+    const cleanTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, "")).replace(/\s+/g, "");
     const targetWords = cleanTarget.split(" ").filter(w => w.length >= 2);
 
     for (const row of message.replyMarkup.rows) {
         for (const button of row.buttons) {
             if (!button.text) continue;
-            const cleanBtn = normalizeGameStr(button.text);
+            const rawBtnText = button.text;
+            const cleanBtn = normalizeGameStr(rawBtnText).replace(/\s+/g, "");
 
+            // হুবহু বা পার্সিয়াল মিল চেক (স্পেস বা ব্র্যাকেট ছাড়াই)
             if (cleanBtn.includes(cleanTarget) || cleanTarget.includes(cleanBtn)) {
+                console.log(`[CHEST CLICK] Matched button "${rawBtnText}" with target "${gameName}"`);
                 return await triggerButtonClick(message, button, client);
             }
 
@@ -3643,10 +3646,22 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             const retryMenu = await getLatestBotMessage(tg);
             if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
         }
-        if (!clicked) throw new Error(`Google Play সার্ভারে বর্তমানে "${orderData.game}" গেমটির কোয়েস্ট সক্রিয় নেই। দয়া করে লিস্ট থেকে অন্য কোনো সচল গেম বেছে নিন।`);
+        
+        // গেম বাটনে ক্লিক না হলে কখনোই ইমেইল পাঠানো যাবে না!
+        if (!clicked) {
+            throw new Error(`Google Play বটের মেনু থেকে "${orderData.game}" সিলেক্ট করা যায়নি। দয়া করে অন্য কোনো গেম সিলেক্ট করুন।`);
+        }
 
-        await new Promise((r) => setTimeout(r, 2200));
-        let promptMsg = await getLatestBotMessage(tg);
+        console.log(`[BOT] Game button clicked successfully for ${orderData.game}. Waiting for credentials prompt...`);
+        syncCf({ adminMsg: "গেম নির্বাচন সম্পন্ন। জিমেইল ইনপুট চাওয়া হচ্ছে..." });
+
+        // গেম বাটনে ক্লিকের পর বট যতক্ষণ না ক্রেডেনশিয়াল চাইছে ততক্ষণ অপেক্ষা করা (Wait for prompt)
+        let credPromptFound = await waitForCondition((m) => {
+            const txt = (m.message || "").toLowerCase();
+            return txt.includes("send format") || txt.includes("email password") || txt.includes("last account") || txt.includes("new account") || txt.includes("confirm deducting") || txt.includes("previous") || txt.includes("send your");
+        }, 20000, tg);
+
+        let promptMsg = credPromptFound ? credPromptFound.msg : await getLatestBotMessage(tg);
         if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting") || promptMsg.message.includes("Previous"))) {
             await clickInlineButton(promptMsg, "New account", tg);
             await new Promise((r) => setTimeout(r, 2000));
@@ -3657,7 +3672,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
         const credSentTime = Date.now();
         
-        await orderRef.update({ adminMsg: "ক্লাউড সার্ভারে জিমেইল তথ্য যাচাই করা হচ্ছে..." });
+        await orderRef.update({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." });
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
         let confirmFound = await waitForCondition((m) => {
