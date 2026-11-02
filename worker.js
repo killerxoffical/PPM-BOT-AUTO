@@ -944,8 +944,13 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
         }, { merge: true });
     });
 
-    // Cloudflare D1-এ ডিপোজিট সম্পন্ন ও TrxID লক সিঙ্ক
+    // Cloudflare D1 এজ-ওয়ালেটে কয়েন ক্রেডিট ও TrxID পার্মানেন্ট লক
     try {
+        await fetch(`${CF_API}/api/wallet/credit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid: depData.uid, coins: finalCoinsCalculated, type: "real" })
+        });
         await fetch(`${CF_API}/api/trx/check-lock`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -3324,8 +3329,13 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             });
         });
 
-        // Cloudflare D1 ও ট্রানজাকশন হিস্ট্রিতে তাৎক্ষণিক Refund সিঙ্ক করা
+        // Cloudflare D1 ওয়ালেট ও ট্রানজাকশন হিস্ট্রিতে তাৎক্ষণিক Refund সিঙ্ক করা
         try {
+            await fetch(`${CF_API}/api/wallet/credit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
+            });
             await fetch(`${CF_API}/api/orders/update`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

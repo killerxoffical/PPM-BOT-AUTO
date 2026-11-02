@@ -4025,9 +4025,23 @@
                     tgUpdated = true;
                 }
 
-                // ১. ফায়ারস্টোরে আপডেট
+                // ১. Cloudflare D1 ডাটাবেজে ইনস্ট্যান্ট সেভ (কোটা ফ্রি)
+                try {
+                    await fetch(`${CF_API}/api/user/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uid: u.uid,
+                            name: newName,
+                            avatar: url || window.ppfb.avatar || '',
+                            tgChatId: rawTg || window.ppfb.tgChatId || ''
+                        })
+                    });
+                } catch (cfErr) {}
+
+                // ২. ফায়ারস্টোরে ব্যাকআপ আপডেট (কোটা ফুরিয়ে গেলেও সমস্যা নেই)
                 if (window.FB && window.FB.db) {
-                    await window.FB.setDoc(window.FB.doc(window.FB.db, 'users', u.uid), payload, { merge: true });
+                    window.FB.setDoc(window.FB.doc(window.FB.db, 'users', u.uid), payload, { merge: true }).catch(() => {});
                 }
 
                 // টেলিগ্রামে ইনস্ট্যান্ট অভিনন্দন বার্তা পাঠানো
@@ -8017,6 +8031,48 @@
         // Cloudflare D1 + Worker API Gateway Endpoint
         const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
 
+        // Cloudflare D1 Edge Wallet & Auto-Migration Helper
+        async function syncD1Wallet(u, fbData = null) {
+            if (!u || !u.uid) return null;
+            try {
+                const payload = {
+                    uid: u.uid,
+                    name: ((window.ppfb && window.ppfb.customName) || u.displayName || (fbData && fbData.name) || 'User').slice(0, 30),
+                    email: u.email || (fbData && fbData.email) || '',
+                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || (fbData && fbData.avatar) || '').trim()
+                };
+                // যদি ফায়ারবেসে পুরনো ব্যালেন্স থাকে তবে তা Cloudflare D1-এ ট্রান্সফারের জন্য পাঠানো
+                if (fbData) {
+                    payload.fbBalance = Number(fbData.balance !== undefined ? fbData.balance : 0);
+                    payload.fbReal = Number(fbData.realBalance !== undefined ? fbData.realBalance : payload.fbBalance);
+                    payload.fbBonus = Number(fbData.bonusBalance || 0);
+                    payload.fbPlayPoints = Number(fbData.playPoints || 0);
+                    payload.fbPendingPoints = Number(fbData.pendingPoints || 0);
+                    payload.fbStars = Number(fbData.loyaltyStars || 0);
+                    payload.fbTgChatId = (fbData.tgChatId || '').toString().trim();
+                }
+
+                const res = await fetch(`${CF_API}/api/wallet/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data && data.ok && data.wallet) {
+                    const w = data.wallet;
+                    setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                    window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
+                    if (w.tgChatId && !window.ppfb.tgChatId) window.ppfb.tgChatId = w.tgChatId;
+                    if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                    return w;
+                }
+            } catch (err) {
+                console.warn("[D1 WALLET SYNC ERR]:", err);
+            }
+            return null;
+        }
+        window.syncD1Wallet = syncD1Wallet;
+
         const FB = {
             apiKey: "AIzaSyAQmiWD9fP0nFpl7ShPjE51udtyFWo6jpA",
             authDomain: "ppmod1.firebaseapp.com",
@@ -8521,46 +8577,34 @@
             if (window.lucide && on) lucide.createIcons();
         }
         async function ensureUser(u) {
+            let fbUserData = null;
             const ref = _doc(db, 'users', u.uid);
             try {
                 const snap = await _getDoc(ref);
-                if (!snap.exists()) {
-                    await _setDoc(ref, {
-                        uid: u.uid,
-                        name: u.displayName || 'User',
-                        email: u.email || '',
-                        photo: u.photoURL || '',
-                        avatar: u.photoURL || '',
-                        balance: 0,
-                        banned: null,
-                        createdAt: _ts()
-                    });
-                } else if (snap.data().banned === true) {
-                    window.ppfb.banned = true;
-                    setBannedUI(true);
-                    setProfileUI(u);
-                    return;
-                } else {
-                    const d = snap.data();
-                    if (d.name) {
-                        window.ppfb.customName = d.name.slice(0, 15);
+                if (snap && snap.exists()) {
+                    fbUserData = snap.data();
+                    if (fbUserData.banned === true) {
+                        window.ppfb.banned = true;
+                        setBannedUI(true);
+                        setProfileUI(u);
+                        return;
+                    }
+                    if (fbUserData.name) {
+                        window.ppfb.customName = fbUserData.name.slice(0, 15);
                         try { localStorage.setItem('pp_cached_name_' + u.uid, window.ppfb.customName); } catch (e) {}
                     }
-                    if (d.avatar) {
-                        window.ppfb.avatar = d.avatar;
-                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, d.avatar); } catch (e) {}
-                    }
-                    const updates = {};
-                    // শুধুমাত্র প্রথমবার যদি ফায়ারস্টোরে কোনো নাম না থাকে তবেই গুগলের নাম নেবে
-                    if (!d.name && u.displayName) updates.name = u.displayName.slice(0, 15);
-                    if (u.email && u.email !== d.email) updates.email = u.email;
-                    if (Object.keys(updates).length > 0) {
-                        await _setDoc(ref, updates, { merge: true }).catch(() => {});
+                    if (fbUserData.avatar) {
+                        window.ppfb.avatar = fbUserData.avatar;
+                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, fbUserData.avatar); } catch (e) {}
                     }
                 }
             } catch (err) {
-                console.warn('ensureUser error:', err);
+                console.warn('Firebase read quota protected, switching to Cloudflare D1:', err);
             }
+
+            // ফায়ারবেসের ব্যালেন্স ও প্রোফাইল সরাসরি Cloudflare D1-এ অটো-মাইগ্রেট ও সিঙ্ক
+            syncD1Wallet(u, fbUserData);
+
             window.ppfb.banned = false;
             setBannedUI(false);
             if (unsubBalance) unsubBalance();
@@ -8885,48 +8929,30 @@
             const trx = 'WLT-' + Date.now().toString(36).toUpperCase();
             const logo = window._payGameLogo || '';
             try {
-                // Step A: Deduct coin (First from Real Balance, then remaining from Bonus Balance)
-                let deductedReal = 0, deductedBonus = 0;
-                await _tx(db, async (t) => {
-                    const uref = _doc(db, 'users', u.uid);
-                    const us = await t.get(uref);
-                    if (!us.exists()) throw new Error('nouser');
-                    const ud = us.data() || {};
-                    const rawBal = Number(ud.balance || 0);
-                    let curReal = Number(ud.realBalance || 0);
-                    let curBonus = Number(ud.bonusBalance || 0);
-
-                    // যদি ফায়ারস্টোরে realBalance কম থাকে কিন্তু মূল balance থাকে, তা রিয়েলে সিঙ্ক করা
-                    if (curReal + curBonus < rawBal) {
-                        curReal = Math.max(0, rawBal - curBonus);
-                    }
-                    const totalBal = Math.max(rawBal, curReal + curBonus);
-
-                    if (!isFree && totalBal < feeCoins) throw new Error('insufficient');
-
-                    if (!isFree) {
-                        deductedReal = Math.min(curReal, feeCoins);
-                        deductedBonus = Math.max(0, feeCoins - deductedReal);
-                    }
-
-                    const newReal = Math.max(0, curReal - deductedReal);
-                    const newBonus = Math.max(0, curBonus - deductedBonus);
-                    const newTotal = newReal + newBonus;
-
-                    const updates = {
-                        realBalance: newReal,
-                        bonusBalance: newBonus,
-                        balance: newTotal
-                    };
-                    if (isFree) {
-                        updates.loyaltyStars = 0;
-                    }
-                    t.update(uref, updates);
+                // Step A: Cloudflare D1 Edge Wallet পেমেন্ট (ফায়ারবেস কোটা ছাড়া সরাসরি টাস্ক পেইড)
+                let newBalData = null;
+                const payRes = await fetch(`${CF_API}/api/wallet/pay-task`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, feeCoins: feeCoins, isFree: isFree })
                 });
-                if (isFree && window.ppfb) {
-                    window.ppfb.loyaltyStars = 0;
-                    if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                const payData = await payRes.json();
+                if (!payData.ok) {
+                    throw new Error(payData.error || 'insufficient');
                 }
+                newBalData = payData;
+
+                window.ppfb.loyaltyStars = Number(newBalData.loyaltyStars || 0);
+                setBalanceUI(newBalData.balance, window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0, newBalData.realBalance, newBalData.bonusBalance);
+                if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+
+                // ব্যাকগ্রাউন্ডে ফায়ারবেসে ব্যাকআপ রাইট (ফায়ারবেস কোটা ডাউন থাকলেও কোনো এরর দেবে না)
+                _doc && db && _setDoc(_doc(db, 'users', u.uid), {
+                    balance: newBalData.balance,
+                    realBalance: newBalData.realBalance,
+                    bonusBalance: newBalData.bonusBalance,
+                    loyaltyStars: newBalData.loyaltyStars
+                }, { merge: true }).catch(() => {});
 
                 // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost)
                 let ordId = 'ORD-' + Date.now();
