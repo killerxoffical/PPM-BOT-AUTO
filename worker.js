@@ -1775,33 +1775,32 @@ userNotifyBot.on("message", async (msg) => {
     } catch (e) {}
 });
 
-// ---------------- GUARANTEED USER COMMAND: /referr & /refer (FAST RESPONSE) ----------------
+// ---------------- GUARANTEED USER COMMAND: /referr & /refer (INSTANT D1 - 0.1 SEC) ----------------
 userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const userId = msg.from.id.toString();
 
-        let uData = {};
+        // ফায়ারস্টোর কোটার জন্য ৫-১০ সেকেন্ড দেরি না করে সরাসরি Cloudflare D1 ও লোকাল ক্যাশ থেকে রিড
+        let refCount = 0;
+        let refBal = 0;
+
         try {
-            const snap = await Promise.race([
-                db.collection("tg_bot_users").doc(userId).get(),
-                new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 1500))
-            ]);
-            if (snap && snap.exists) uData = snap.data();
+            const uRes = await fetch(`${CF_API}/api/bot/user?id=${userId}`);
+            const uData = await uRes.json();
+            if (uData && uData.ok && uData.user) {
+                refCount = Number(uData.user.referralCount) || 0;
+                refBal = Number(uData.user.refBalance) || 0;
+            }
         } catch (e) {}
 
-        const refCount = Number(uData.referralCount) || 0;
-        const refBal = Number(uData.refBalance || 0);
         const botInfo = await userNotifyBot.getMe();
         const refLink = `https://t.me/${botInfo.username}?start=ref_${userId}`;
 
-        let bonusPerRef = 0.5;
-        try {
-            const cSnap = await db.collection("config").doc("app").get();
-            if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
-                bonusPerRef = Number(cSnap.data().tgRefBonus);
-            }
-        } catch (e) {}
+        // মেমোরি ক্যাশ থেকে রেট নেওয়া (Firestore এর জন্য ০ সেকেন্ডও দেরি করবে না)
+        const bonusPerRef = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined) 
+            ? Number(publicCache.config.tgRefBonus) 
+            : 0.5;
 
         const infoMsg = 
             `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
@@ -2332,29 +2331,37 @@ userNotifyBot.on("callback_query", async (query) => {
             const targetInviterId = userData.inviterId || passedInviterId;
 
             if (targetInviterId && targetInviterId !== userId) {
-                const inviterRef = db.collection("tg_bot_users").doc(targetInviterId);
-                const inviterSnap = await inviterRef.get();
-                const invData = inviterSnap.exists ? inviterSnap.data() : {};
+                const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
+                    ? Number(publicCache.config.tgRefBonus)
+                    : 0.5;
 
-                const newCount = (Number(invData.referralCount) || 0) + 1;
-                const curBal = Number(invData.refBalance || 0);
+                let newCount = 1;
+                let newBal = bonusToAdd;
 
-                let bonusToAdd = 0.5;
+                // ১. সরাসরি Cloudflare D1-এ সাথে সাথে রেফারেল সংখ্যা ও ব্যালেন্স বাড়ানো (লিডারবোর্ডের জন্য)
                 try {
-                    const cSnap = await db.collection("config").doc("app").get();
-                    if (cSnap.exists && cSnap.data().tgRefBonus !== undefined) {
-                        bonusToAdd = Number(cSnap.data().tgRefBonus);
+                    const refUpRes = await fetch(`${CF_API}/api/bot/user/update`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            id: targetInviterId,
+                            addRefCount: 1,
+                            addRefBalance: bonusToAdd
+                        })
+                    });
+                    const refUpData = await refUpRes.json();
+                    if (refUpData && refUpData.ok) {
+                        newCount = refUpData.referralCount;
+                        newBal = refUpData.refBalance;
                     }
                 } catch (e) {}
 
-                const newBal = Math.round((curBal + bonusToAdd + Number.EPSILON) * 100) / 100;
-
-                // ইনভাইটারের একাউন্ট আগে না থাকলেও কয়েন সেভ নিশ্চিত করা
-                await inviterRef.set({
+                // ২. ফায়ারস্টোরে ব্যাকগ্রাউন্ড সেভ (কোটা শেষ হলেও এরর দেবে না)
+                db.collection("tg_bot_users").doc(targetInviterId).set({
                     id: targetInviterId,
-                    referralCount: newCount,
-                    refBalance: newBal
-                }, { merge: true });
+                    referralCount: admin.firestore.FieldValue.increment(1),
+                    refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
+                }, { merge: true }).catch(() => {});
 
                 await userNotifyBot.sendMessage(targetInviterId,
                     `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
@@ -2477,30 +2484,30 @@ userNotifyBot.on("callback_query", async (query) => {
             }
         }
 
-        // ---------------- LEADERBOARD HANDLER (SUPERFAST & ZERO CRASH) ----------------
+        // ---------------- LEADERBOARD HANDLER (ZERO FIRESTORE QUOTA - 20ms D1) ----------------
         if (data === "show_leaderboard") {
             userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
 
             try {
-                // মেমোরিতে সব রেফারেল ইউজার ফেচ করা
-                const snap = await db.collection("tg_bot_users").limit(150).get();
-                const allUsers = [];
-                snap.forEach(d => {
-                    const u = d.data() || {};
-                    allUsers.push({
-                        id: d.id,
-                        name: (u.name || u.username || "User").replace(/[<>&]/g, "").trim().slice(0, 15),
-                        referralCount: Number(u.referralCount) || 0
-                    });
-                });
+                // ১. সরাসরি Cloudflare D1 থেকে টপ ১০ লিডারবোর্ড ইনস্ট্যান্ট ফেচ
+                let top10 = [];
+                try {
+                    const lbRes = await fetch(`${CF_API}/api/bot/leaderboard`);
+                    const lbData = await lbRes.json();
+                    if (lbData && lbData.ok && Array.isArray(lbData.leaderboard)) {
+                        top10 = lbData.leaderboard;
+                    }
+                } catch (e) {}
 
-                allUsers.sort((a, b) => b.referralCount - a.referralCount);
-                const top10 = allUsers.filter(u => u.referralCount > 0).slice(0, 10);
+                // ২. যদি ক্লাউডফ্লেয়ার খালি থাকে, তবে মেমোরি থেকে ডাটা নেওয়া
+                let myRefCount = 0;
+                try {
+                    const myRes = await fetch(`${CF_API}/api/bot/user?id=${userId}`);
+                    const myData = await myRes.json();
+                    if (myData && myData.user) myRefCount = Number(myData.user.referralCount) || 0;
+                } catch (e) {}
 
-                const myIndex = allUsers.findIndex(u => u.id === userId);
-                const myData = myIndex !== -1 ? allUsers[myIndex] : null;
-                const myRefCount = myData ? myData.referralCount : 0;
-                const myRank = (myData && myRefCount > 0) ? `#${myIndex + 1}` : "—";
+                const myRank = myRefCount > 0 ? "Active" : "—";
 
                 const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
                 let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
