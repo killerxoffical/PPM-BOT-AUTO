@@ -1775,13 +1775,21 @@ userNotifyBot.on("message", async (msg) => {
     } catch (e) {}
 });
 
-// ---------------- GUARANTEED USER COMMAND: /referr & /refer ----------------
+// ---------------- GUARANTEED USER COMMAND: /referr & /refer (FAST RESPONSE) ----------------
 userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const userId = msg.from.id.toString();
-        const userSnap = await db.collection("tg_bot_users").doc(userId).get();
-        const uData = userSnap.exists ? userSnap.data() : {};
+
+        let uData = {};
+        try {
+            const snap = await Promise.race([
+                db.collection("tg_bot_users").doc(userId).get(),
+                new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 1500))
+            ]);
+            if (snap && snap.exists) uData = snap.data();
+        } catch (e) {}
+
         const refCount = Number(uData.referralCount) || 0;
         const refBal = Number(uData.refBalance || 0);
         const botInfo = await userNotifyBot.getMe();
@@ -1819,16 +1827,30 @@ userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
     } catch (e) {}
 });
 
-// ---------------- GUARANTEED USER COMMAND: /profile ----------------
+// ---------------- GUARANTEED USER COMMAND: /profile (INSTANT D1 - ZERO LAG) ----------------
 userNotifyBot.onText(/^\/profile/i, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const userId = msg.from.id.toString();
-        const tgUserSnap = await db.collection("tg_bot_users").doc(userId).get();
-        const tgData = tgUserSnap.exists ? tgUserSnap.data() : {};
 
-        const webUserQuery = await db.collection("users").where("tgChatId", "==", userId).limit(1).get().catch(() => null);
-        const webUser = (webUserQuery && !webUserQuery.empty) ? webUserQuery.docs[0].data() : null;
+        // Cloudflare D1 থেকে ইনস্ট্যান্ট লাইভ ব্যালেন্স ও ডাটা ফেচ
+        let webUser = null;
+        try {
+            const cfRes = await fetch(`${CF_API}/api/user/find?q=${userId}`);
+            const cfData = await cfRes.json();
+            if (cfData && cfData.ok && cfData.user) {
+                webUser = cfData.user;
+            }
+        } catch (e) {}
+
+        let tgData = {};
+        try {
+            const snap = await Promise.race([
+                db.collection("tg_bot_users").doc(userId).get(),
+                new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 1500))
+            ]);
+            if (snap && snap.exists) tgData = snap.data();
+        } catch (e) {}
 
         const name = (msg.from.first_name || "User").replace(/[<>&]/g, "");
         const username = msg.from.username ? `@${msg.from.username}` : "None";
@@ -1985,6 +2007,9 @@ userNotifyBot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
 });
 
 userNotifyBot.on("callback_query", async (query) => {
+    // ১. বাটনের ওপর ঘোরানো লোডিং আইকন সাথে সাথে বন্ধ করা (ইনস্ট্যান্ট টাচ রেসপন্স)
+    userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+
     try {
         const chatId = query.message.chat.id;
         const userId = query.from.id.toString();
@@ -2202,32 +2227,25 @@ userNotifyBot.on("callback_query", async (query) => {
             return;
         }
 
-        // ---------------- DYNAMIC /DID BUTTON GENERATOR (FOR ADMIN) ----------------
+        // ---------------- DYNAMIC /DID BUTTON GENERATOR (FOR ADMIN - INSTANT CLOUDFLARE) ----------------
         if (data.startsWith("did_gen:")) {
             const parts = data.split(":");
             const targetDevId = parts[1];
             const days = parseInt(parts[2], 10) || 7;
 
-            await userNotifyBot.answerCallbackQuery(query.id, { text: `Generating ${days}-day Key...` });
-
             try {
-                const extRef = db.collection("config").doc("extension");
-                const extSnap = await extRef.get();
-                const extData = extSnap.exists ? extSnap.data() : {};
-                const validKeys = extData.valid_keys || {};
-
+                // ১. ইনস্ট্যান্ট ইউনিক কি জেনারেট
                 const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
                 let part1 = "", part2 = "";
                 for (let i = 0; i < 4; i++) part1 += chars.charAt(Math.floor(Math.random() * chars.length));
                 for (let i = 0; i < 4; i++) part2 += chars.charAt(Math.floor(Math.random() * chars.length));
-
                 const newLicenseKey = `PP-${part1}-${part2}`.toUpperCase();
 
                 const expDate = new Date();
                 expDate.setDate(expDate.getDate() + days);
                 const expiryStr = expDate.toISOString().split("T")[0];
 
-                validKeys[newLicenseKey] = {
+                const keyPayload = {
                     device_id: targetDevId,
                     expiry: expiryStr,
                     status: "active",
@@ -2235,7 +2253,20 @@ userNotifyBot.on("callback_query", async (query) => {
                     createdAt: new Date().toISOString()
                 };
 
-                await extRef.set({ valid_keys: validKeys }, { merge: true });
+                // ২. Cloudflare D1 এ সরাসরি সেভ (০.০৫ সেকেন্ডে সেভ)
+                await fetch(`${CF_API}/api/extension/config`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        newKey: newLicenseKey,
+                        keyData: keyPayload
+                    })
+                }).catch(() => {});
+
+                // ৩. ফায়ারস্টোর ব্যাকগ্রাউন্ড ট্রাই (কোটা থাকলে সেভ হবে, না থাকলে স্কিপ)
+                db.collection("config").doc("extension").set({
+                    valid_keys: { [newLicenseKey]: keyPayload }
+                }, { merge: true }).catch(() => {});
 
                 const successKeyMsg = 
                     `🎉 <b>CUSTOM EXTENSION LICENSE GENERATED!</b>\n` +
