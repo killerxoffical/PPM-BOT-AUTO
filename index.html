@@ -5086,10 +5086,12 @@
                         .filter(Boolean);
 
                     const bodyHtml = lines.map(line => {
-                        if (line.includes('কয়েন') || line.includes('রিফান্ড')) {
-                            return `<div class="mt-2 text-emerald-800 font-black text-xs bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center gap-2"><span class="text-base">🪙</span><span>${line}</span></div>`;
+                        // অপ্রয়োজনীয় লিটারেল <b> ট্যাগ ক্লিন করা যাতে কোড হিসেবে না ভাসে
+                        const cleanLine = line.replace(/<\/?b>/gi, '').trim();
+                        if (cleanLine.includes('কয়েন') || cleanLine.includes('রিফান্ড')) {
+                            return `<div class="mt-2 text-emerald-800 font-black text-xs bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center gap-2"><span class="text-base">🪙</span><span>${cleanLine}</span></div>`;
                         }
-                        return `<p class="text-slate-800 font-bold leading-relaxed text-xs text-left">${line}</p>`;
+                        return `<p class="text-slate-800 font-bold leading-relaxed text-xs text-left">${cleanLine}</p>`;
                     }).join('');
 
                     const isPassErr = rawMsg.toLowerCase().includes('পাসওয়ার্ড') || rawMsg.toLowerCase().includes('password');
@@ -9787,7 +9789,7 @@
             }
         });
 
-        // ইউজার ক্লেইম চাপলে প্রথমে অ্যাড স্ক্রিন চালু হবে
+        // ইউজার ক্লেইম চাপলে কোনো অ্যাড ছাড়াই সরাসরি ইনস্ট্যান্ট কয়েন যোগ হবে
         window.claimBonus = async () => {
             const u = auth && auth.currentUser;
             if (!u || !db) { toast('Please login first'); return; }
@@ -9804,70 +9806,8 @@
                 return;
             }
 
-            // অ্যাড স্ক্রিন দৃশ্যমান ও টাইমার রিসেট
-            _adRemainingSec = 30;
-            _isAdRunning = true;
-            _isAdPaused = false;
-            _adVisitedExternal = false;
-            _adExternalStartTime = 0;
-
-            const modal = document.getElementById("claimAdModal");
-            const timerTxt = document.getElementById("adTimerCount");
-            const progBar = document.getElementById("adProgressBar");
-            const progPct = document.getElementById("adProgressPercent");
-            const finishArea = document.getElementById("adFinishActionArea");
-            const warn = document.getElementById("adTimerWarning");
-
-            if (finishArea) finishArea.classList.add("hidden");
-            if (warn) warn.classList.add("hidden");
-
-            if (modal) {
-                modal.classList.remove("hidden");
-                modal.classList.add("flex");
-                modal.style.display = "flex";
-                modal.scrollTop = 0;
-            }
-            if (timerTxt) timerTxt.textContent = "30s";
-            if (progBar) progBar.style.width = "0%";
-            if (progPct) progPct.textContent = "0%";
-
-            pushAntiBackLock();
-            loadAdsterraScriptsOnce();
-
-            if (_adIntervalId) {
-                clearInterval(_adIntervalId);
-                _adIntervalId = null;
-            }
-
-            _adIntervalId = setInterval(async () => {
-                if (_isAdPaused && !_adVisitedExternal) return;
-
-                _adRemainingSec--;
-                const passed = 30 - _adRemainingSec;
-                const percent = Math.min(100, Math.round((passed / 30) * 100));
-
-                if (timerTxt) timerTxt.textContent = `${_adRemainingSec}s`;
-                if (progBar) progBar.style.width = `${percent}%`;
-                if (progPct) progPct.textContent = `${percent}%`;
-
-                // ৩০ সেকেন্ড পূর্ণ হলে স্ক্রিন অটো ক্লোজ ও নিশ্চিত কয়েন ক্রেডিট
-                if (_adRemainingSec <= 0) {
-                    clearInterval(_adIntervalId);
-                    _adIntervalId = null;
-
-                    if (timerTxt) timerTxt.textContent = "✓ সম্পন্ন";
-                    if (progBar) progBar.style.width = "100%";
-                    if (progPct) progPct.textContent = "100%";
-
-                    if (finishArea) finishArea.classList.remove("hidden");
-
-                    // সম্পূর্ণ ক্লিনআপ ও টাচ আনলক
-                    fullyCleanupAndUnlockAdScreen();
-
-                    // কয়েন যোগ করার নিশ্চিত ফাংশন
-                    await executeRealDailyBonusClaim(u);
-                }
-            }, 1000);
+            // বিজ্ঞাপন ছাড়া সরাসরি ইনস্ট্যান্ট বোনাস ক্লেইম
+            await executeRealDailyBonusClaim(u);
         };
 
         // আসল ফায়ারবেস আপডেট মেথড (ঝামেলামুক্ত Direct Safe Update)
@@ -10078,12 +10018,40 @@
             return '';
         }
 
+        // গেম ও অফারগুলোর জন্য নির্ভরযোগ্য পার্মানেন্ট সিডিএন লোগো ডিকশনারি
+        const STATIC_OFFER_LOGOS = {
+            'gossipharbor': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/71/3d/bf/713dbfb4-0136-d748-0c67-6a58a74ecaa4/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'freefire': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/df/3f/82/df3f821d-93cb-7182-3e28-e493b8273617/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            'pokemontcgp': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/97/5d/9b/975d9ba8-47bc-00c3-0447-975ef7a0fc67/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            '8ballpool': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/19/af/80/19af80a7-eb95-39bc-f7a8-6147cf933c39/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'angrybirds2': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/04/ca/7804ca49-20cd-e1f6-77e0-2b24b0dadcb8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'bestfiends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/9a/7d/2d9a7da6-eb4b-3b25-a751-8258da75a0a8/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg',
+            'dicedreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f1/71/03/f171036e-5a26-9eb3-2d93-e9154db3e9b6/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg',
+            'dominodreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/97/4d/16/974d164e-52d6-61b2-8ece-8d509eb232ab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'farmheroes': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c2/a1/63/c2a1633a-82e8-f6ab-5e3a-b0ef5ac3629b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'fruitninja': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'heyday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'hayday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'lordsmobile': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4d/e8/f2/4de8f2eb-2d7d-7f28-ddc7-d6f62ca67b49/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
+            'mobilelegends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/d9/88/76/d9887647-00fd-09c8-8a61-c6c31a1bfe2a/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            'summonerswar': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f7/18/a7/f718a783-120f-0a08-30dc-be8e99c24f4a/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg',
+            'warmachines': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/5e/ba/cc/5ebacc73-5314-8783-7d09-49e15d803755/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'yallaludo': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/ad/c6/61adc661-dd73-03b1-0f3e-4743d237bb5e/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg',
+            'zenlesszone': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/4a/fb/2d4afb82-bdb9-cc80-b5b7-d1d7f515b2ae/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg'
+        };
+
         function findGameLogoByName(gameName) {
             if (!gameName) return '';
             const raw = gameName.toString().trim();
             const clean = raw.toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
             const cleanKey = clean.replace(/[^a-z0-9]/g, '');
             if (!cleanKey) return '';
+
+            // ১. স্ট্যাটিক পার্মানেন্ট ম্যাপ থেকে সবার আগে চেক
+            if (STATIC_OFFER_LOGOS[cleanKey]) return STATIC_OFFER_LOGOS[cleanKey];
+            for (const k in STATIC_OFFER_LOGOS) {
+                if (cleanKey.includes(k) || k.includes(cleanKey)) return STATIC_OFFER_LOGOS[k];
+            }
 
             // কয়েন বা পয়েন্ট টাস্ক হলে কয়েন লোগো
             if (cleanKey.includes('coin') || cleanKey.includes('point') || cleanKey.includes('exchange') || cleanKey.includes('redeem')) {
@@ -10154,7 +10122,7 @@
             if (it.kind === 'TASK') {
                 const gLogo = it.logo || findGameLogoByName(rawGame);
                 const finalGLogo = gLogo || PP;
-                return '<img src="' + escapeHtml(finalGLogo) + '" class="hist-thumb object-cover rounded-xl shadow-2xs" loading="lazy" alt="Game" onerror="this.src=\'' + PP + '\'">';
+                return '<img src="' + escapeHtml(finalGLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-cover rounded-xl shadow-2xs" loading="lazy" alt="Game" onerror="this.onerror=null;this.src=\'' + PP + '\'">';
             }
 
             // ৪. উইথড্রল

@@ -1397,7 +1397,7 @@ userNotifyBot.on("message", async (msg) => {
         const ADMIN_ID = "7504616242";
         const isFromAdmin = msg.chat.id.toString() === ADMIN_ID || (msg.from && msg.from.id.toString() === ADMIN_ID);
 
-        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা হ্যান্ডেল করা
+        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 দিয়ে সাথে সাথে হ্যান্ডেল করা
         if (replyTo && replyTo.text) {
             const repText = replyTo.text;
             const uidMatch = repText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
@@ -1413,39 +1413,40 @@ userNotifyBot.on("message", async (msg) => {
                     if (isAdd || isSub) {
                         const changeAmt = isAdd ? numVal : -numVal;
                         const isTargetReal = repText.includes("[REAL]") || repText.includes("REAL") || repText.includes("রিয়েল");
-                        const uRef = db.collection("users").doc(targetUid);
-                        let updatedReal = 0, updatedBonus = 0, updatedTotal = 0;
+                        const coinType = isTargetReal ? "real" : "bonus";
 
-                        await db.runTransaction(async (t) => {
-                            const uSnap = await t.get(uRef);
-                            let curReal = 0, curBonus = 0;
-                            if (uSnap.exists) {
-                                const ud = uSnap.data();
-                                curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                                curBonus = Number(ud.bonusBalance || 0);
+                        // ১. সরাসরি Cloudflare D1-এ ৫০ মিলিসেকেন্ডে ব্যালেন্স আপডেট
+                        let updatedTotal = 0, updatedReal = 0, updatedBonus = 0;
+                        try {
+                            const cfRes = await fetch(`${CF_API}/api/wallet/credit`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ uid: targetUid, coins: changeAmt, type: coinType })
+                            });
+                            const cfData = await cfRes.json();
+                            if (cfData && cfData.ok) {
+                                updatedTotal = cfData.balance;
+                                updatedReal = cfData.realBalance;
+                                updatedBonus = cfData.bonusBalance;
                             }
+                        } catch (e) {}
 
-                            if (isTargetReal) {
-                                updatedReal = Math.max(0, Math.round((curReal + changeAmt + Number.EPSILON) * 100) / 100);
-                                updatedBonus = curBonus;
-                            } else {
-                                updatedReal = curReal;
-                                updatedBonus = Math.max(0, Math.round((curBonus + changeAmt + Number.EPSILON) * 100) / 100);
-                            }
-                            updatedTotal = Math.round((updatedReal + updatedBonus + Number.EPSILON) * 100) / 100;
-                            t.set(uRef, {
-                                realBalance: updatedReal,
-                                bonusBalance: updatedBonus,
-                                balance: updatedTotal,
-                                uid: targetUid
-                            }, { merge: true });
-                        });
+                        // ২. ব্যাকগ্রাউন্ড ফায়ারস্টোর সিঙ্ক (কোটা থাকলে সেভ হবে, না থাকলে স্কিপ)
+                        db.collection("users").doc(targetUid).set({
+                            realBalance: updatedReal,
+                            bonusBalance: updatedBonus,
+                            balance: updatedTotal,
+                            uid: targetUid
+                        }, { merge: true }).catch(() => {});
 
-                        const uDoc = await uRef.get();
-                        const card = buildUserAdminCard(targetUid, uDoc.data());
+                        // ৩. সাথে সাথে ফ্রেশ ইউজার কার্ড তৈরি করে পাঠানো
+                        const userFreshRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                        const userFreshData = await userFreshRes.json();
+                        const uObj = (userFreshData && userFreshData.user) ? userFreshData.user : { uid: targetUid, balance: updatedTotal, realBalance: updatedReal, bonusBalance: updatedBonus };
+                        const card = buildUserAdminCard(targetUid, uObj);
 
                         await userNotifyBot.sendMessage(chatId,
-                            `✅ <b>সফল!</b> [${isTargetReal ? 'REAL' : 'BONUS'}] ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> আপডেট হয়েছে।\n💰 Real: <b>${updatedReal}</b> | 🎁 Bonus: <b>${updatedBonus}</b>\n🪙 বর্তমান মোট: <b>${updatedTotal} Coins</b>`,
+                            `✅ <b>ইনস্ট্যান্ট আপডেট সফল!</b> [${isTargetReal ? 'REAL' : 'BONUS'}] ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> যুক্ত হয়েছে।\n💰 Real: <b>${updatedReal}</b> | 🎁 Bonus: <b>${updatedBonus}</b>\n🪙 বর্তমান মোট: <b>${updatedTotal} Coins</b>`,
                             { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                         );
 
@@ -1989,28 +1990,42 @@ userNotifyBot.on("callback_query", async (query) => {
         const userId = query.from.id.toString();
         const data = query.data || "";
 
-        // Admin User Management Button Handlers
+        // Admin User Management Button Handlers (Superfast Cloudflare D1 Backend)
         if (data.startsWith("u_toggle_ban:")) {
             const targetUid = data.replace("u_toggle_ban:", "").trim();
-            const uRef = db.collection("users").doc(targetUid);
-            const uSnap = await uRef.get();
-            if (uSnap.exists) {
-                const newBannedState = !(uSnap.data().banned === true);
-                await uRef.update({ banned: newBannedState });
+            try {
+                // ১. Cloudflare D1 থেকে বর্তমান ব্যান স্ট্যাটাস চেক
+                const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                const uData = await uRes.json();
+                const curBanned = uData && uData.user && (uData.user.banned === 1 || uData.user.banned === true);
+                const nextBanned = !curBanned;
+
+                // ২. Cloudflare D1 এ সাথে সাথে ব্যান/আনব্যান
+                await fetch(`${CF_API}/api/user/ban`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: targetUid, banned: nextBanned })
+                });
+
+                // ফায়ারস্টোর ব্যাকগ্রাউন্ড সিঙ্ক
+                db.collection("users").doc(targetUid).update({ banned: nextBanned }).catch(() => {});
+
                 await userNotifyBot.answerCallbackQuery(query.id, {
-                    text: newBannedState ? "🚫 ইউজার ব্যান করা হয়েছে!" : "✅ ইউজার আনব্যান করা হয়েছে!",
+                    text: nextBanned ? "🚫 ইউজার ব্যান করা হয়েছে!" : "✅ ইউজার আনব্যান করা হয়েছে!",
                     show_alert: true
                 });
-                const updatedSnap = await uRef.get();
-                const card = buildUserAdminCard(targetUid, updatedSnap.data());
+
+                const freshObj = uData.user ? { ...uData.user, banned: nextBanned ? 1 : 0 } : { uid: targetUid, banned: nextBanned };
+                const card = buildUserAdminCard(targetUid, freshObj);
                 return userNotifyBot.editMessageText(card.text, {
                     chat_id: chatId,
                     message_id: query.message.message_id,
                     parse_mode: "HTML",
                     reply_markup: card.reply_markup
                 });
+            } catch (e) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + e.message });
             }
-            return userNotifyBot.answerCallbackQuery(query.id, { text: "User not found!" });
         }
 
         if (data.startsWith("u_ask_add_real:")) {
@@ -2053,26 +2068,36 @@ userNotifyBot.on("callback_query", async (query) => {
             const parts = data.split(":");
             const targetUid = parts[1];
             const change = Number(parts[2]) || 0;
-            const uRef = db.collection("users").doc(targetUid);
-            let newStars = 0;
 
-            await db.runTransaction(async (t) => {
-                const uSnap = await t.get(uRef);
-                if (!uSnap.exists) throw new Error("User not found");
-                const cur = Number(uSnap.data().loyaltyStars || 0);
-                newStars = Math.max(0, Math.min(10, cur + change));
-                t.update(uRef, { loyaltyStars: newStars });
-            });
+            try {
+                // ১. Cloudflare D1 থেকে বর্তমান স্টার আনা
+                const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                const uData = await uRes.json();
+                const cur = Number((uData && uData.user && uData.user.loyaltyStars) || 0);
+                const newStars = Math.max(0, Math.min(10, cur + change));
 
-            await userNotifyBot.answerCallbackQuery(query.id, { text: `⭐ Stars: ${newStars}/10 applied!` });
-            const updatedSnap = await uRef.get();
-            const card = buildUserAdminCard(targetUid, updatedSnap.data());
-            return userNotifyBot.editMessageText(card.text, {
-                chat_id: chatId,
-                message_id: query.message.message_id,
-                parse_mode: "HTML",
-                reply_markup: card.reply_markup
-            });
+                // ২. Cloudflare D1 এ সাথে সাথে স্টার আপডেট
+                await fetch(`${CF_API}/api/wallet/set-balance`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: targetUid, loyaltyStars: newStars })
+                });
+
+                // ফায়ারস্টোর ব্যাকগ্রাউন্ড সিঙ্ক
+                db.collection("users").doc(targetUid).update({ loyaltyStars: newStars }).catch(() => {});
+
+                await userNotifyBot.answerCallbackQuery(query.id, { text: `⭐ Stars: ${newStars}/10 applied!` });
+                const freshObj = uData.user ? { ...uData.user, loyaltyStars: newStars } : { uid: targetUid, loyaltyStars: newStars };
+                const card = buildUserAdminCard(targetUid, freshObj);
+                return userNotifyBot.editMessageText(card.text, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: "HTML",
+                    reply_markup: card.reply_markup
+                });
+            } catch (e) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + e.message });
+            }
         }
 
         if (data.startsWith("u_refresh:")) {
