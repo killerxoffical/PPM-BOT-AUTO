@@ -893,112 +893,91 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             body: JSON.stringify({
                 depId: depId,
                 uid: depData.uid,
+                email: depData.email || "",
                 trxId: cleanTrx,
                 amount: verifiedTaka,
                 coins: finalCoinsCalculated,
                 method: depData.method || "bKash"
             })
         });
-        console.log(`[CF D1 APPROVED] ${cleanTrx} credited +${finalCoinsCalculated} coins to ${depData.uid}`);
+        console.log(`[CF D1 APPROVED] ${cleanTrx} credited +${finalCoinsCalculated} coins to ${depData.uid || depData.email}`);
     } catch (cfErr) {
         console.warn("[CF APPROVE WARN]:", cfErr.message);
     }
 
-    // ২. ফায়ারস্টোরে আপডেট (কোটা এরর আসলে ক্র্যাশ করবে না)
+    // ২. ফায়ারস্টোরে আপডেট (কোটা ফুরিয়ে গেলেও ট্রাই-ক্যাচ থাকায় বটের সার্ভার ক্র্যাশ করবে না)
     try {
         await db.runTransaction(async (t) => {
             const usedRef = db.collection("used_trx").doc(cleanTrx);
             const usedSnap = await t.get(usedRef);
             if (usedSnap.exists) throw new Error("TRX_ALREADY_USED");
 
-        const depRef = db.collection("deposits").doc(depId);
-        const ds = await t.get(depRef);
-        if (!ds.exists || ds.data().status !== "pending") throw new Error("DEP_INVALID");
+            const depRef = db.collection("deposits").doc(depId);
+            const ds = await t.get(depRef);
+            if (!ds.exists || ds.data().status !== "pending") throw new Error("DEP_INVALID");
 
-        // সিকিউরিটি: ইউজার বা ক্লায়েন্ট সাইডের পাঠানো কয়েন কখনোই ট্রাস্ট করা হবে না
-        // আসল এসএমএস এর টাকা ও সার্ভারের রেট দিয়ে কয়েন নির্ধারণ
-        const rate = Number(coinRate || 7);
-        const verifiedTaka = Number(verifiedAmount);
-        finalCoinsCalculated = Math.max(1, Math.floor(verifiedTaka / rate));
+            const userRef = db.collection("users").doc(depData.uid);
+            const userSnap = await t.get(userRef);
 
-        const userRef = db.collection("users").doc(depData.uid);
-        const userSnap = await t.get(userRef);
+            if (!userSnap.exists) {
+                t.set(userRef, {
+                    uid: depData.uid,
+                    name: depData.name || "User",
+                    email: depData.email || "",
+                    photo: "",
+                    balance: finalCoinsCalculated,
+                    realBalance: finalCoinsCalculated,
+                    bonusBalance: 0,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            } else {
+                const uData = userSnap.data();
+                const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
+                const curBonus = Number(uData.bonusBalance || 0);
+                const newReal = curReal + finalCoinsCalculated;
+                t.update(userRef, {
+                    realBalance: newReal,
+                    balance: newReal + curBonus
+                });
+            }
 
-        if (!userSnap.exists) {
-            t.set(userRef, {
+            let durationSec = 2;
+            if (depData.createdAt && depData.createdAt.toMillis) {
+                durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
+            }
+
+            t.update(depRef, {
+                status: "approved",
+                autoApproved: true,
+                coins: finalCoinsCalculated,
+                amount: verifiedTaka,
+                submittedAt: depData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+                smsReceivedAt: depData.smsReceivedAt || admin.firestore.FieldValue.serverTimestamp(),
+                approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+                processDurationSec: durationSec
+            });
+
+            t.set(usedRef, {
+                trxId: cleanTrx,
                 uid: depData.uid,
-                name: depData.name || "User",
-                email: depData.email || "",
-                photo: "",
-                balance: finalCoinsCalculated,
-                realBalance: finalCoinsCalculated,
-                bonusBalance: 0,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                amount: verifiedTaka,
+                coins: finalCoinsCalculated,
+                depId: depId,
+                usedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-        } else {
-            const uData = userSnap.data();
-            const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
-            const curBonus = Number(uData.bonusBalance || 0);
-            const newReal = curReal + finalCoinsCalculated;
-            t.update(userRef, {
-                realBalance: newReal,
-                balance: newReal + curBonus
-            });
-        }
 
-        let durationSec = 2;
-        if (depData.createdAt && depData.createdAt.toMillis) {
-            durationSec = Math.max(1, Math.round((Date.now() - depData.createdAt.toMillis()) / 1000));
-        }
-
-        t.update(depRef, {
-            status: "approved",
-            autoApproved: true,
-            coins: finalCoinsCalculated,
-            amount: verifiedTaka,
-            submittedAt: depData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
-            smsReceivedAt: depData.smsReceivedAt || admin.firestore.FieldValue.serverTimestamp(),
-            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
-            processDurationSec: durationSec
+            const smsRef = db.collection("gateway_sms").doc(cleanTrx);
+            t.set(smsRef, {
+                claimed: true,
+                claimedBy: depData.uid,
+                claimedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
         });
+    } catch (fbErr) {
+        console.warn("[FIRESTORE QUOTA SAFE]: Approved on Cloudflare, skipped exhausted Firestore");
+    }
 
-        t.set(usedRef, {
-            trxId: cleanTrx,
-            uid: depData.uid,
-            amount: verifiedTaka,
-            coins: finalCoinsCalculated,
-            depId: depId,
-            usedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        const smsRef = db.collection("gateway_sms").doc(cleanTrx);
-        t.set(smsRef, {
-            claimed: true,
-            claimedBy: depData.uid,
-            claimedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-    });
-
-    // Cloudflare D1 এজ-ওয়ালেটে কয়েন ক্রেডিট ও TrxID পার্মানেন্ট লক
-    try {
-        await fetch(`${CF_API}/api/wallet/credit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uid: depData.uid, coins: finalCoinsCalculated, type: "real" })
-        });
-        await fetch(`${CF_API}/api/trx/check-lock`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ trxId: cleanTrx, uid: depData.uid, amount: verifiedAmount, lockNow: true })
-        });
-        await fetch(`${CF_API}/api/transactions/update`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: depId, status: "approved" })
-        });
-    } catch (cfErr) {}
-
-    // টেলিগ্রামে সম্পূর্ণ অ্যাপ্রুভ মেসেজ পাঠানো
+    // ৩. টেলিগ্রামে সম্পূর্ণ অ্যাপ্রুভ মেসেজ পাঠানো
     await sendDepositTelegramNotification(depData, "approved", "Auto Verified", verifiedAmount, finalCoinsCalculated);
 }
 
