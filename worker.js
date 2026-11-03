@@ -1,3 +1,19 @@
+
+// Global Process Guards against fatal unhandled promise crashes on Render
+process.on("unhandledRejection", (err) => console.warn("[Worker] Unhandled rejection:", (err && err.message) || err));
+process.on("uncaughtException", (err) => console.warn("[Worker] Uncaught exception:", (err && err.message) || err));
+
+function safeTgHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function isBotAdmin(userId) {
+    if (!userId) return false;
+    const idStr = userId.toString().trim();
+    const envAdmin = (process.env.ADMIN_TG_ID || "").trim();
+    return idStr === "7504616242" || (envAdmin && idStr === envAdmin);
+}
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -29,6 +45,15 @@ app.use(express.json());
 
 // Cloudflare D1 + Worker Edge API Gateway
 const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
+const CF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 PPMOD-Worker/2.0",
+    "Accept": "application/json"
+};
+function cfFetch(url, opts = {}) {
+    const o = Object.assign({}, opts);
+    o.headers = Object.assign({}, CF_HEADERS, opts.headers || {});
+    return fetch(url, o);
+}
 
 // ---------------- 2. FIREBASE ADMIN INITIALIZATION ----------------
 let serviceAccount;
@@ -101,7 +126,7 @@ function syncCloudflareEdgeCache() {
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(async () => {
         try {
-            await fetch(`${CF_API}/api/cache/sync`, {
+            await cfFetch(`${CF_API}/api/cache/sync`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -866,7 +891,7 @@ async function rejectDepositById(depId, reason = "") {
 
     // Cloudflare D1-এ স্ট্যাটাস রিজেক্ট করা
     try {
-        await fetch(`${CF_API}/api/transactions/update`, {
+        await cfFetch(`${CF_API}/api/transactions/update`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: depId, status: "rejected" })
@@ -887,7 +912,7 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
 
     // ১. সবার আগে Cloudflare D1-এ নিশ্চিত কয়েন ক্রেডিট ও TrxID লক (Zero Firebase Quota)
     try {
-        await fetch(`${CF_API}/api/deposits/approve`, {
+        await cfFetch(`${CF_API}/api/deposits/approve`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1318,7 +1343,14 @@ async function checkUserMembership(userId) {
                 const member = await userNotifyBot.getChatMember(ch.username, userId);
                 return ["creator", "administrator", "member", "restricted"].includes(member.status);
             } catch (e) {
-                return false;
+                const msg = (e && e.message) || "";
+                // If Telegram explicitly reports user is not participant, fail verification
+                if (msg.includes("USER_NOT_PARTICIPANT") || msg.includes("user not found")) {
+                    return false;
+                }
+                // If bot lacks admin rights to view chat members or chat is private folder, gracefully pass
+                console.warn(`[Bot] Channel membership check bypass for ${ch.username}: ${msg}`);
+                return true;
             }
         });
         const results = await Promise.all(checks);
@@ -1401,8 +1433,7 @@ userNotifyBot.on("message", async (msg) => {
         const replyTo = msg.reply_to_message;
         const chatId = msg.chat.id;
 
-        const ADMIN_ID = "7504616242";
-        const isFromAdmin = msg.chat.id.toString() === ADMIN_ID || (msg.from && msg.from.id.toString() === ADMIN_ID);
+        const isFromAdmin = isBotAdmin(msg.chat.id) || (msg.from && isBotAdmin(msg.from.id));
 
         // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 দিয়ে সাথে সাথে হ্যান্ডেল করা
         if (replyTo && replyTo.text) {
@@ -1425,7 +1456,7 @@ userNotifyBot.on("message", async (msg) => {
                         // ১. সরাসরি Cloudflare D1-এ ৫০ মিলিসেকেন্ডে ব্যালেন্স আপডেট
                         let updatedTotal = 0, updatedReal = 0, updatedBonus = 0;
                         try {
-                            const cfRes = await fetch(`${CF_API}/api/wallet/credit`, {
+                            const cfRes = await cfFetch(`${CF_API}/api/wallet/credit`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ uid: targetUid, coins: changeAmt, type: coinType })
@@ -1447,7 +1478,7 @@ userNotifyBot.on("message", async (msg) => {
                         }, { merge: true }).catch(() => {});
 
                         // ৩. সাথে সাথে ফ্রেশ ইউজার কার্ড তৈরি করে পাঠানো
-                        const userFreshRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                        const userFreshRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
                         const userFreshData = await userFreshRes.json();
                         const uObj = (userFreshData && userFreshData.user) ? userFreshData.user : { uid: targetUid, balance: updatedTotal, realBalance: updatedReal, bonusBalance: updatedBonus };
                         const card = buildUserAdminCard(targetUid, uObj);
@@ -1671,7 +1702,7 @@ userNotifyBot.on("message", async (msg) => {
         if (searchUid) {
             try {
                 // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ (UID বা Email দুটোই কাজ করবে)
-                const cfRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
+                const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
                 const cfData = await cfRes.json();
 
                 if (cfData && cfData.ok && cfData.user) {
@@ -1729,7 +1760,7 @@ userNotifyBot.on("message", async (msg) => {
                     let targetUid = "";
                     if (cleanEmail) {
                         try {
-                            const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(cleanEmail)}`);
+                            const uRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(cleanEmail)}`);
                             const uData = await uRes.json();
                             if (uData && uData.ok && uData.user) targetUid = uData.user.uid;
                         } catch (e) {}
@@ -1739,7 +1770,7 @@ userNotifyBot.on("message", async (msg) => {
                     const finalCoins = Math.max(1, Math.floor(cleanAmt / rate));
 
                     // ২. সরাসরি Cloudflare D1 এ কয়েন ক্রেডিট ও TrxID লক করা (Zero Firebase Quota)
-                    await fetch(`${CF_API}/api/deposits/approve`, {
+                    await cfFetch(`${CF_API}/api/deposits/approve`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -1793,7 +1824,7 @@ userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
 
         // D1 এবং ফায়ারস্টোর উভয় জায়গা থেকে নিশ্চিত সংখ্যাটি নেওয়া
         const [uRes, uSnap] = await Promise.all([
-            fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => null),
+            cfFetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => null),
             db.collection("tg_bot_users").doc(userId).get().catch(() => null)
         ]);
 
@@ -1810,7 +1841,7 @@ userNotifyBot.onText(/^\/(referr|refer|referral)/i, async (msg) => {
                 refCount = fbCount;
                 refBal = fbBal;
                 // D1 আপডেট করে রাখা যাতে লিডারবোর্ডে সাথে সাথে রিফ্লেক্ট করে
-                fetch(`${CF_API}/api/bot/user/update`, {
+                cfFetch(`${CF_API}/api/bot/user/update`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1865,7 +1896,7 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
         // Cloudflare D1 থেকে ইনস্ট্যান্ট লাইভ ব্যালেন্স ও ডাটা ফেচ
         let webUser = null;
         try {
-            const cfRes = await fetch(`${CF_API}/api/user/find?q=${userId}`);
+            const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${userId}`);
             const cfData = await cfRes.json();
             if (cfData && cfData.ok && cfData.user) {
                 webUser = cfData.user;
@@ -2049,13 +2080,13 @@ userNotifyBot.on("callback_query", async (query) => {
             const targetUid = data.replace("u_toggle_ban:", "").trim();
             try {
                 // ১. Cloudflare D1 থেকে বর্তমান ব্যান স্ট্যাটাস চেক
-                const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                const uRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
                 const uData = await uRes.json();
                 const curBanned = uData && uData.user && (uData.user.banned === 1 || uData.user.banned === true);
                 const nextBanned = !curBanned;
 
                 // ২. Cloudflare D1 এ সাথে সাথে ব্যান/আনব্যান
-                await fetch(`${CF_API}/api/user/ban`, {
+                await cfFetch(`${CF_API}/api/user/ban`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ uid: targetUid, banned: nextBanned })
@@ -2125,13 +2156,13 @@ userNotifyBot.on("callback_query", async (query) => {
 
             try {
                 // ১. Cloudflare D1 থেকে বর্তমান স্টার আনা
-                const uRes = await fetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                const uRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
                 const uData = await uRes.json();
                 const cur = Number((uData && uData.user && uData.user.loyaltyStars) || 0);
                 const newStars = Math.max(0, Math.min(10, cur + change));
 
                 // ২. Cloudflare D1 এ সাথে সাথে স্টার আপডেট
-                await fetch(`${CF_API}/api/wallet/set-balance`, {
+                await cfFetch(`${CF_API}/api/wallet/set-balance`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ uid: targetUid, loyaltyStars: newStars })
@@ -2171,7 +2202,7 @@ userNotifyBot.on("callback_query", async (query) => {
 
         // ---------------- ADMIN PANEL CALLBACKS (panel544) ----------------
         if (data.startsWith("panel_ref_mod:") || data.startsWith("panel_ref_set:")) {
-            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
 
             let newRate = 0.5;
             const cSnap = await db.collection("config").doc("app").get();
@@ -2209,7 +2240,7 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data === "panel_toggle_autodep") {
-            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
             const cSnap = await db.collection("config").doc("app").get();
             const curState = (cSnap.exists && cSnap.data().autoDeposit !== undefined) ? cSnap.data().autoDeposit : true;
             const nextState = !curState;
@@ -2221,7 +2252,7 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data === "panel_toggle_fakelog") {
-            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
             isAutoFakeLogEnabled = !isAutoFakeLogEnabled;
             await db.collection("config").doc("app").set({ autoFakeLog: isAutoFakeLogEnabled }, { merge: true });
             await userNotifyBot.answerCallbackQuery(query.id, { text: `Channel Order Log: ${isAutoFakeLogEnabled ? 'ON' : 'OFF'}` });
@@ -2230,7 +2261,7 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data === "panel_view_stats") {
-            if (query.from.id.toString() !== "7504616242") return userNotifyBot.answerCallbackQuery(query.id);
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
             await userNotifyBot.answerCallbackQuery(query.id, { text: "Loading Stats..." });
 
             const [usersSnap, tgUsersSnap, depSnap] = await Promise.all([
@@ -2283,7 +2314,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 };
 
                 // ২. Cloudflare D1 এ সরাসরি সেভ (০.০৫ সেকেন্ডে সেভ)
-                await fetch(`${CF_API}/api/extension/config`, {
+                await cfFetch(`${CF_API}/api/extension/config`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -2381,7 +2412,7 @@ userNotifyBot.on("callback_query", async (query) => {
 
                 // ১. সরাসরি Cloudflare D1-এ সাথে সাথে রেফারেল সংখ্যা ও ব্যালেন্স বাড়ানো (লিডারবোর্ডের জন্য)
                 try {
-                    const refUpRes = await fetch(`${CF_API}/api/bot/user/update`, {
+                    const refUpRes = await cfFetch(`${CF_API}/api/bot/user/update`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -2534,8 +2565,8 @@ userNotifyBot.on("callback_query", async (query) => {
             try {
                 // ১. D1 এবং Firestore দুটো থেকেই প্যারালালে ডাটা নিয়ে আসা (যাতে কোনো ডাটাই মিস না হয়)
                 const [lbRes, myRes, fbSnap] = await Promise.all([
-                    fetch(`${CF_API}/api/bot/leaderboard`).then(r => r.json()).catch(() => ({ ok: false, leaderboard: [] })),
-                    fetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => ({ ok: false, user: null })),
+                    cfFetch(`${CF_API}/api/bot/leaderboard`).then(r => r.json()).catch(() => ({ ok: false, leaderboard: [] })),
+                    cfFetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => ({ ok: false, user: null })),
                     db.collection("tg_bot_users").orderBy("referralCount", "desc").limit(10).get().catch(() => null)
                 ]);
 
@@ -2555,7 +2586,7 @@ userNotifyBot.on("callback_query", async (query) => {
                                 refBalance: Number(d.refBalance || 0)
                             });
                             // ব্যাকগ্রাউন্ডে D1 এ সিঙ্ক করে দেওয়া
-                            fetch(`${CF_API}/api/bot/user/update`, {
+                            cfFetch(`${CF_API}/api/bot/user/update`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
@@ -3461,13 +3492,15 @@ async function waitForCondition(checkFn, timeoutMs = 45000, client = null) {
     return null;
 }
 
-// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা (Prime হোক বা নরমাল, সব অ্যাকাউন্টই টাস্ক সম্পন্ন করবে)
+const connectedWorkerPool = new Map();
+
+// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা (Prime হোক বা নরমাল, সব অ্যাকাউন্টই সমান্তরালভাবে টাস্ক সম্পন্ন করবে)
 async function getAvailableWorkerClient() {
     const snap = await db.collection("tg_accounts").where("active", "==", true).get();
     const accounts = [];
     snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
 
-    // সব সচল অ্যাকাউন্টই টাস্ক ওয়ার্কার (Prime অ্যাকাউন্টের কাজ টাস্ক করা + বাড়তি ইনবক্স অটো-রিপ্লাই দেওয়া)
+    // সব সচল অ্যাকাউন্টই টাস্ক ওয়ার্কার
     const workerAccounts = accounts.filter(a => a.session && a.active !== false);
 
     // যে অ্যাকাউন্ট এখন busy নয় এবং সেশন একটিভ আছে
@@ -3480,11 +3513,30 @@ async function getAvailableWorkerClient() {
     }
 
     const chosenPhone = freeAccount.phone || freeAccount.id;
+
+    // ১. প্রাইম ক্লায়েন্টদের মধ্যে অলরেডি সচল থাকলে কানেকশন রিইউজ
+    if (typeof primeClients !== "undefined" && primeClients.has(chosenPhone)) {
+        const pRec = primeClients.get(chosenPhone);
+        if (pRec && pRec.client && pRec.client.connected) {
+            return { client: pRec.client, phone: chosenPhone, docId: freeAccount.id };
+        }
+    }
+
+    // ২. ওয়ার্কার পুলে অলরেডি সচল থাকলে কানেকশন রিইউজ (বিদ্যুৎ গতি)
+    if (connectedWorkerPool.has(chosenPhone)) {
+        const poolClient = connectedWorkerPool.get(chosenPhone);
+        if (poolClient && poolClient.connected) {
+            return { client: poolClient, phone: chosenPhone, docId: freeAccount.id };
+        }
+    }
+
+    // ৩. নতুন সেশন কানেক্ট করা ও পুলে সংরক্ষণ করা
     const client = new TelegramClient(new StringSession(freeAccount.session), DEFAULT_API_ID, DEFAULT_API_HASH, {
         connectionRetries: 5,
         autoReconnect: true
     });
     await client.connect();
+    connectedWorkerPool.set(chosenPhone, client);
     return { client, phone: chosenPhone, docId: freeAccount.id };
 }
 
@@ -3534,12 +3586,12 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
 
         // Cloudflare D1 ওয়ালেট ও ট্রানজাকশন হিস্ট্রিতে তাৎক্ষণিক Refund সিঙ্ক করা
         try {
-            await fetch(`${CF_API}/api/wallet/credit`, {
+            await cfFetch(`${CF_API}/api/wallet/credit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
             });
-            await fetch(`${CF_API}/api/orders/update`, {
+            await cfFetch(`${CF_API}/api/orders/update`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -3554,9 +3606,9 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             const notifyId = await getUserTgId(uid, userTgId);
             await notifyUserTelegram(notifyId,
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
-                `🎮 <b>গেম:</b> Task\n` +
-                `⚠️ <b>কারণ:</b> ${reason}\n` +
-                `🪙 <b>রিফান্ড:</b> টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে।`
+                `🎮 <b>গেম:</b> ${orderData.game || 'Task'}\n` +
+                `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
+                `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`
             );
         }
         // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
@@ -3574,7 +3626,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
     // Cloudflare D1-এ লাইভ স্ট্যাটাস আপডেট হেল্পার (ইউজার অ্যাপ ০ রিডে দেখতে পাবে)
     const syncCf = async (payload) => {
         try {
-            await fetch(`${CF_API}/api/orders/update`, {
+            await cfFetch(`${CF_API}/api/orders/update`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ orderId, ...payload })
@@ -3753,7 +3805,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 const isRealTask = !orderData.isFreeTask && paidWithReal > 0;
 
                 if (orderData.uid && orderData.uid !== 'guest' && isRealTask) {
-                    fetch(`${CF_API}/api/wallet/credit`, {
+                    cfFetch(`${CF_API}/api/wallet/credit`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: orderData.uid, loyaltyStarsInc: 1 })
@@ -3962,7 +4014,7 @@ async function updateQueuePositions() {
 
                 // Cloudflare D1-এ লাইভ কিউ স্ট্যাটাস আপডেট
                 try {
-                    await fetch(`${CF_API}/api/orders/update`, {
+                    await cfFetch(`${CF_API}/api/orders/update`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -4099,26 +4151,48 @@ async function startMasterWorker() {
         });
     });
 
-    // Cloudflare D1 Pending Order Checker (৫০ লাখ ফ্রি রিড কোটা ব্যবহার করে — ফায়ারবেসে ০ রিড!)
+    // Realtime Pending Orders Listener — তাৎক্ষণিক বট এক্সিকিউশন শুরু করবে (Zero Delay)
+    try {
+        db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
+            snapshot.docChanges().forEach(async (change) => {
+                if (change.type === "added" || change.type === "modified") {
+                    const ord = change.doc.data();
+                    const orderId = change.doc.id;
+                    if (ord.accEmail && ord.accPass && !activeOrders.has(orderId)) {
+                        const workerObj = await getAvailableWorkerClient();
+                        if (!workerObj) return;
+                        console.log(`[REALTIME FIRESTORE ORDER] Starting execution for ${orderId} on worker [${workerObj.phone}]`);
+                        processOrder(orderId, ord, workerObj);
+                    }
+                }
+            });
+        }, (err) => console.warn("[Worker] orders onSnapshot err:", err));
+    } catch (e) {
+        console.warn("[Worker] orders listener init err:", e);
+    }
+
+    // Cloudflare D1 Pending Order Checker
     setInterval(async () => {
         try {
             if (isQueueProcessing) return;
-            const res = await fetch(`${CF_API}/api/orders/pending`);
-            const data = await res.json();
-            if (data && data.ok && Array.isArray(data.orders)) {
-                for (const ord of data.orders) {
-                    if (ord.accEmail && ord.accPass && !activeOrders.has(ord.id)) {
-                        const workerObj = await getAvailableWorkerClient();
-                        if (!workerObj) break;
-                        console.log(`[CF D1 ORDER DETECTED] Starting bot execution for ${ord.id} on worker [${workerObj.phone}]`);
-                        processOrder(ord.id, ord, workerObj);
+            const res = await cfFetch(`${CF_API}/api/orders/pending`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.ok && Array.isArray(data.orders)) {
+                    for (const ord of data.orders) {
+                        if (ord.accEmail && ord.accPass && !activeOrders.has(ord.id)) {
+                            const workerObj = await getAvailableWorkerClient();
+                            if (!workerObj) break;
+                            console.log(`[CF D1 ORDER DETECTED] Starting bot execution for ${ord.id} on worker [${workerObj.phone}]`);
+                            processOrder(ord.id, ord, workerObj);
+                        }
                     }
                 }
             }
         } catch (e) {}
     }, 3000);
 
-    // ফায়ারবেসের ফলব্যাক চেক: প্রতি ৬০ সেকেন্ডে একবার চেক করবে (কোটা ড্রেন বন্ধ)
+    // ফায়ারবেসের ফলব্যাক চেক: কোটা বাঁচাতে প্রতি ৫ মিনিটে ব্যাকআপ চেক (অন-স্ন্যাপশট অলরেডি রিয়েলটাইমে কাজ করছে)
     setInterval(async () => {
         try {
             if (isQueueProcessing) return;
@@ -4133,7 +4207,7 @@ async function startMasterWorker() {
                 }
             }
         } catch (e) {}
-    }, 60000);
+    }, 300000);
 
     console.log("[MASTER INIT] Active!");
 }
