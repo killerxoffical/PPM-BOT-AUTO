@@ -12,659 +12,212 @@
     <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* ==========================================================================
-           PP MOD — VAREON STUDIO PREMIUM EXECUTIVE DESIGN SYSTEM
-           High-performance, ultra-smooth UI/UX with glassmorphism, responsive tactile
-           touch interactions, Apple/Fintech-grade depth, and zero code breakage.
-           ========================================================================== */
+        body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .hidden { display: none !important; }
 
-        :root {
-            --brand-primary: #f59e0b;
-            --brand-primary-dark: #d97706;
-            --brand-emerald: #10b981;
-            --brand-emerald-dark: #059669;
-            --brand-indigo: #6366f1;
-            --brand-sky: #0ea5e9;
-            --surface-bg: #f8fafc;
-            --surface-card: #ffffff;
-            --surface-glass: rgba(255, 255, 255, 0.88);
-            --border-glass: rgba(255, 255, 255, 0.95);
-            --border-subtle: rgba(226, 232, 240, 0.85);
-            --shadow-glass: 0 10px 30px -10px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-            --shadow-float: 0 20px 40px -15px rgba(15, 23, 42, 0.15);
-        }
+        /* Screen transitions */
+        .screen:not(.hidden) { animation: screenIn .38s cubic-bezier(.22,.9,.3,1) both; }
+        @keyframes screenIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-        /* --- Global Reset, Typography & Smoothing --- */
-        *, *::before, *::after {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+        /* Hero (home) */
+        .hero { position: relative; overflow: hidden; border-radius: 1.5rem; padding: 1.1rem 1.15rem; color: #fff;
+            background: radial-gradient(130% 170% at 85% -20%, #334155 0%, #0f172a 55%, #020617 100%);
+            border: 1px solid rgba(148,163,184,.25); box-shadow: 0 14px 30px -16px rgba(2,6,23,.6); }
+        .hero::before { content: ""; position: absolute; left: -44px; bottom: -64px; width: 160px; height: 160px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(56,189,248,.35), rgba(56,189,248,0) 70%); }
+        .hero::after { content: ""; position: absolute; right: -52px; top: -52px; width: 160px; height: 160px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(245,158,11,.4), rgba(245,158,11,0) 70%); }
+        .hero > * { position: relative; z-index: 1; }
+        .status-pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; font-weight: 700;
+            color: #6ee7b7; background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.35);
+            padding: 5px 12px; border-radius: 9999px; }
+        .hero-icon { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); width: 52px; height: 52px;
+            border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #fbbf24;
+            background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.4);
+            box-shadow: 0 0 26px rgba(245,158,11,.3); z-index: 1; }
 
-        body {
-            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            text-rendering: optimizeLegibility;
-            overflow-x: hidden;
-            margin: 0;
-            padding: 0;
-            background-color: #f8fafc;
-            color: #0f172a;
-        }
+        /* Selected pill */
+        .sel-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+            padding: 5px 12px; border-radius: 9999px; border: 1px solid; max-width: 62%;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: all .25s ease; }
+        .sel-empty { color: #64748b; background: #f8fafc; border-color: #e2e8f0; }
+        .sel-active { color: #92400e; background: #fef3c7; border-color: #fcd34d;
+            box-shadow: 0 4px 12px -6px rgba(245,158,11,.7); }
+        .sel-pill .dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; flex-shrink: 0; }
 
-        /* Thin, elegant, modern scrollbars */
-        ::-webkit-scrollbar {
-            width: 4px;
-            height: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(148, 163, 184, 0.45);
-            border-radius: 9999px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(100, 116, 139, 0.75);
-        }
-        .scrollbar-none::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-none {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* --- Screen Transitions (Fluid Apple-style Spring Slide) --- */
-        .screen:not(.hidden) {
-            animation: screenIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-            will-change: transform, opacity;
-        }
-        @keyframes screenIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px) scale(0.99);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-
-        /* --- Executive App Body & Responsive Viewport Framing (Pure Light Theme) --- */
-        .app-body {
-            min-height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            background-color: #f8fafc;
-            background-image:
-                radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.06) 0px, transparent 45%),
-                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 45%),
-                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.04) 0px, transparent 45%),
-                linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-            background-attachment: fixed;
-            position: relative;
-        }
-
-        /* Desktop Mockup Stage - Crisp Executive Light Card */
-        @media (min-width: 520px) {
-            .app-body {
-                align-items: center;
-                justify-content: center;
-                padding: 24px 0;
-                background-color: #eef2f6;
-                background-image:
-                    radial-gradient(at 15% 15%, rgba(245, 158, 11, 0.08) 0px, transparent 45%),
-                    radial-gradient(at 85% 20%, rgba(59, 130, 246, 0.08) 0px, transparent 45%),
-                    radial-gradient(at 50% 90%, rgba(16, 185, 129, 0.06) 0px, transparent 50%),
-                    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-            }
-            .app-shell {
-                height: min(900px, calc(100dvh - 36px)) !important;
-                border-radius: 36px !important;
-                border: 1px solid rgba(226, 232, 240, 0.9) !important;
-                background: #ffffff !important;
-                box-shadow:
-                    0 25px 70px -15px rgba(15, 23, 42, 0.09),
-                    0 8px 24px -6px rgba(15, 23, 42, 0.03),
-                    0 0 0 1px rgba(255, 255, 255, 0.95) !important;
-                padding: 0.85rem 0.85rem 0.75rem !important;
-                position: relative;
-            }
-            .app-shell::before {
-                display: none !important;
-            }
-        }
-
-        /* Mobile Viewport Immersion */
-        @media (max-width: 519px) {
-            .app-body {
-                background: #f8fafc !important;
-            }
-            .app-shell {
-                height: 100dvh !important;
-                background: #f8fafc !important;
-                padding: 0.75rem 0.75rem 0.65rem !important;
-            }
-        }
-
-        .app-shell {
-            width: 100%;
-            max-width: 28rem;
-            margin-inline: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 0.65rem;
-            overflow: hidden;
-        }
-
-        .fit-home {
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 0.65rem;
-        }
-        .fit-scroll {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding-bottom: 0.35rem;
-            -webkit-overflow-scrolling: touch;
-        }
-        #screenStore {
-            margin-top: -0.25rem;
-        }
-        .fit-grid {
-            flex: 1;
-            min-height: 0;
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            grid-auto-rows: minmax(54px, auto);
-            gap: 8px;
-            overflow-y: auto;
-            padding: 4px;
-            align-content: start;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* --- Brand Gradient & Header Polish --- */
-        .brand-text {
-            background: linear-gradient(135deg, #4285F4 0%, #EA4335 32%, #F59E0B 68%, #34A853 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            font-weight: 900;
-            letter-spacing: -0.02em;
-        }
-
-        .app-header {
-            position: sticky;
-            top: 0;
-            z-index: 25;
-            flex-shrink: 0;
-            border-radius: 1.5rem !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            backdrop-filter: blur(20px) saturate(190%) !important;
-            -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.95) !important;
-            box-shadow:
-                0 8px 24px -8px rgba(15, 23, 42, 0.08),
-                0 1px 2px rgba(15, 23, 42, 0.04),
-                inset 0 1px 0 rgba(255, 255, 255, 1) !important;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .logo-tile {
-            position: relative;
-            width: 42px;
-            height: 42px;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-            border: 1px solid rgba(245, 158, 11, 0.35);
-            box-shadow:
-                0 6px 14px -6px rgba(245, 158, 11, 0.5),
-                inset 0 1px 1px #fff;
-            flex-shrink: 0;
-            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .logo-tile:hover {
-            transform: scale(1.05);
-        }
-        .logo-tile .live-dot {
-            position: absolute;
-            right: -2px;
-            top: -2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 9999px;
-            background: #10b981;
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35), 0 0 8px rgba(16, 185, 129, 0.6);
-            animation: liveDotPulse 2s infinite ease-in-out;
-        }
-        @keyframes liveDotPulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.15); opacity: 0.85; }
-        }
-
-        .ver-badge {
-            font-size: 9px;
-            font-weight: 900;
-            letter-spacing: 0.08em;
-            color: #92400e;
-            background: linear-gradient(135deg, #fde68a, #fbbf24);
-            padding: 2px 7px;
-            border-radius: 9999px;
-            margin-left: 6px;
-            vertical-align: 2px;
-            box-shadow: 0 3px 8px -3px rgba(245, 158, 11, 0.7);
-        }
-
-        /* --- Header Balance Buttons (PP Coins & Play Points) --- */
-        .app-header button[title*="Wallet"],
-        .app-header button[title*="Store"] {
-            border-radius: 9999px !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid transparent !important;
-        }
-        .app-header button[title*="Wallet"] {
-            background: linear-gradient(90deg, #fffbeb, #fef3c7) !important;
-            border-color: rgba(245, 158, 11, 0.45) !important;
-            box-shadow: 0 2px 8px -2px rgba(245, 158, 11, 0.25), inset 0 1px 0 #fff !important;
-        }
-        .app-header button[title*="Wallet"]:hover {
-            transform: translateY(-1px);
-            border-color: rgba(245, 158, 11, 0.8) !important;
-            box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.35), inset 0 1px 0 #fff !important;
-        }
-        .app-header button[title*="Store"] {
-            background: linear-gradient(90deg, #ecfdf5, #d1fae5) !important;
-            border-color: rgba(16, 185, 129, 0.45) !important;
-            box-shadow: 0 2px 8px -2px rgba(16, 185, 129, 0.25), inset 0 1px 0 #fff !important;
-        }
-        .app-header button[title*="Store"]:hover {
-            transform: translateY(-1px);
-            border-color: rgba(16, 185, 129, 0.8) !important;
-            box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.35), inset 0 1px 0 #fff !important;
-        }
-
-        /* --- Floating Frosted Bottom Navigation Dock (Apple Light Theme - Zero Box Backgrounds) --- */
-        #bottomNav {
-            position: relative;
-            z-index: 25;
-            background: #ffffff !important;
-            border: 1.5px solid #e2e8f0 !important;
-            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.03) !important;
-            border-radius: 1.6rem !important;
-            padding: 0.35rem 0.4rem !important;
-            margin-top: auto;
-        }
-        #bottomNav button {
-            position: relative;
-            background: transparent !important;
-            box-shadow: none !important;
-            border: none !important;
-            border-radius: 0.85rem;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-            padding: 0.45rem 0.2rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            cursor: pointer;
-        }
-        #bottomNav button.text-amber-600 {
-            color: #d97706 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-        }
-        #bottomNav button.text-amber-600 i,
-        #bottomNav button.text-amber-600 svg {
-            transform: scale(1.15) translateY(-1px);
-            color: #d97706 !important;
-            filter: drop-shadow(0 2px 5px rgba(217, 119, 6, 0.3));
-            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        #bottomNav button.text-amber-600 span {
-            font-weight: 900 !important;
-            color: #d97706 !important;
-        }
-        #bottomNav button:not(.text-amber-600) {
-            color: #94a3b8 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-        }
-        #bottomNav button:not(.text-amber-600):hover {
-            color: #475569 !important;
-            background: transparent !important;
-        }
-
-        /* --- Selected Status Pill --- */
-        .sel-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 11px;
-            font-weight: 800;
-            padding: 5px 12px;
-            border-radius: 9999px;
-            border: 1px solid;
-            max-width: 62%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .sel-empty {
-            color: #64748b;
-            background: #f8fafc;
-            border-color: #e2e8f0;
-        }
-        .sel-active {
-            color: #92400e;
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border-color: #f59e0b;
-            box-shadow: 0 4px 14px -4px rgba(245, 158, 11, 0.7);
-            animation: selPulse 2s infinite ease-in-out;
-        }
-        @keyframes selPulse {
-            0%, 100% { box-shadow: 0 4px 14px -4px rgba(245, 158, 11, 0.7); }
-            50% { box-shadow: 0 4px 20px -2px rgba(245, 158, 11, 0.9); }
-        }
-        .sel-pill .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 9999px;
-            background: currentColor;
-            flex-shrink: 0;
-        }
-
-        /* --- Game Selection Grid & Tactile Cards --- */
-        #gameGrid .game-card {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 0.55rem;
-            min-width: 0;
-            padding: 0.65rem 0.65rem;
-            border-radius: 1.25rem;
-            background: #ffffff;
-            border: 1.5px solid #e2e8f0;
-            text-align: left;
-            cursor: pointer;
-            overflow: hidden;
-            box-shadow:
-                0 2px 6px -1px rgba(15, 23, 42, 0.04),
-                inset 0 1px 0 #ffffff;
-            transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-        }
-        #gameGrid .game-card::after {
-            content: "✓";
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            width: 18px;
-            height: 18px;
-            border-radius: 9999px;
-            background: var(--acc, #94a3b8);
-            color: #ffffff;
-            font-size: 11px;
-            font-weight: 900;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transform: scale(0.3) rotate(-30deg);
-            transition: all 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 2px 6px -1px var(--acc, #94a3b8);
-        }
-        #gameGrid .game-card:hover {
-            transform: translateY(-2px);
-            border-color: #cbd5e1;
-            box-shadow:
-                0 10px 22px -8px rgba(15, 23, 42, 0.12),
-                inset 0 1px 0 #ffffff;
-        }
-        #gameGrid .game-card:active {
-            transform: scale(0.96);
-        }
-        #gameGrid .game-card.is-selected {
-            border-color: var(--acc) !important;
-            background: var(--acc-bg) !important;
-            box-shadow:
-                0 12px 26px -8px var(--acc),
-                inset 0 0 0 1px var(--acc) !important;
-        }
-        #gameGrid .game-card.is-selected::after {
-            opacity: 1;
-            transform: scale(1) rotate(0deg);
-        }
-        #gameGrid .game-card.is-selected > span:last-child {
-            margin-right: 14px;
-        }
+        /* Game cards */
+        #gameGrid .game-card { position: relative; display: flex; align-items: center; gap: .55rem; min-width: 0;
+            padding: .7rem .65rem; border-radius: 1.25rem; background: #fff; border: 1.5px solid #e2e8f0;
+            text-align: left; cursor: pointer; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.05);
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
+        #gameGrid .game-card::after { content: "✓"; position: absolute; top: 6px; right: 6px; width: 18px; height: 18px;
+            border-radius: 9999px; background: var(--acc, #94a3b8); color: #fff; font-size: 11px; font-weight: 800;
+            display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(.4);
+            transition: all .22s cubic-bezier(.34,1.56,.64,1); }
+        #gameGrid .game-card:hover { transform: translateY(-2px); border-color: #cbd5e1;
+            box-shadow: 0 10px 20px -12px rgba(15,23,42,.35); }
+        #gameGrid .game-card:active { transform: scale(.96); }
+        #gameGrid .game-card.is-selected { border-color: var(--acc); background: var(--acc-bg);
+            box-shadow: 0 10px 22px -12px var(--acc); }
+        #gameGrid .game-card.is-selected::after { opacity: 1; transform: scale(1); }
+        #gameGrid .game-card.is-selected > span:last-child { margin-right: 14px; }
         #gameGrid .game-card[data-accent="red"] { --acc: #ef4444; --acc-bg: #fef2f2; }
         #gameGrid .game-card[data-accent="amber"] { --acc: #f59e0b; --acc-bg: #fffbeb; }
         #gameGrid .game-card[data-accent="emerald"] { --acc: #10b981; --acc-bg: #ecfdf5; }
         #gameGrid .game-card[data-accent="sky"] { --acc: #0ea5e9; --acc-bg: #f0f9ff; }
 
-        .g-logo {
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            object-fit: cover;
-            flex-shrink: 0;
-            background: #f1f5f9;
-            box-shadow: 0 3px 8px -2px rgba(15, 23, 42, 0.2);
-            transition: transform 0.2s ease;
-        }
-        #gameGrid .game-card:hover .g-logo {
-            transform: scale(1.06);
-        }
-        .g-name {
-            flex: 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 12px;
-            font-weight: 800;
-            color: #1e293b;
-            letter-spacing: -0.01em;
-        }
-        #gameGrid .game-card > span:last-child {
-            flex-shrink: 0;
-            white-space: nowrap;
-            font-size: 10px;
-            padding: 3px 7px;
-            border-radius: 8px;
-            font-weight: 800;
-        }
-        #gameGrid .game-card > span:last-child img {
-            width: 12px;
-            height: 12px;
-        }
-        .g-letter {
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 900;
-            color: #fff;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
-            box-shadow: 0 3px 8px -2px rgba(245, 158, 11, 0.4);
-        }
+        /* Sticky CTA */
+        .cta-bar { position: sticky; bottom: 0; z-index: 10; padding: 16px 2px 4px;
+            background: linear-gradient(180deg, rgba(241,245,249,0) 0%, #f1f5f9 45%); }
+        #startBtn { background: linear-gradient(135deg, #f59e0b, #f97316);
+            box-shadow: 0 12px 24px -10px rgba(249,115,22,.65); }
+        #startBtn:active:not(:disabled) { transform: scale(.97); }
+        #startBtn:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
 
-        /* --- Sticky CTA Bar & Primary Buttons --- */
-        .cta-bar {
-            position: sticky;
-            bottom: 0;
-            z-index: 10;
-            padding: 6px 2px 2px;
-            background: linear-gradient(180deg, rgba(241, 245, 249, 0) 0%, rgba(241, 245, 249, 0.92) 35%, #f1f5f9 100%);
-        }
-        #startBtn {
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%) !important;
-            box-shadow:
-                0 14px 28px -8px rgba(234, 88, 12, 0.6),
-                0 4px 8px -2px rgba(245, 158, 11, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-        }
-        #startBtn::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 50px;
-            background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-            animation: ctaShine 3.5s infinite ease-in-out;
-        }
-        @keyframes ctaShine {
-            0% { left: -70px; }
-            40%, 100% { left: 120%; }
-        }
-        #startBtn:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 18px 34px -8px rgba(234, 88, 12, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-        }
-        #startBtn:active:not(:disabled) {
-            transform: scale(0.97) !important;
-        }
-        #startBtn:disabled {
-            background: #e2e8f0 !important;
-            color: #94a3b8 !important;
-            box-shadow: none !important;
-            border-color: transparent !important;
-            cursor: not-allowed;
-        }
+        /* Steps */
+        .steps { display: flex; align-items: center; gap: 6px; }        .step { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+        .step .n { width: 18px; height: 18px; border-radius: 9999px; display: flex; align-items: center;
+            justify-content: center; font-size: 10px; background: #e2e8f0; color: #64748b; }
+        .step.done { color: #059669; }
+        .step.done .n { background: #059669; color: #fff; }
+        .step.active { color: #0f172a; }
+        .step.active .n { background: #f59e0b; color: #fff; box-shadow: 0 4px 10px -3px rgba(245,158,11,.7); }
+        .step-line { flex: 1; height: 2px; border-radius: 2px; background: #e2e8f0; }
 
-        /* --- Stepper Progress Tracker --- */
-        .steps {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 10px;
-            font-weight: 800;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            white-space: nowrap;
-            transition: color 0.2s ease;
-        }
-        .step .n {
-            width: 20px;
-            height: 20px;
-            border-radius: 9999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            font-weight: 900;
-            background: #e2e8f0;
-            color: #64748b;
-            transition: all 0.2s ease;
-        }
-        .step.done {
-            color: #059669;
-        }
-        .step.done .n {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #ffffff;
-            box-shadow: 0 2px 8px -1px rgba(16, 185, 129, 0.5);
-        }
-        .step.active {
-            color: #0f172a;
-        }
-        .step.active .n {
-            background: linear-gradient(135deg, #f59e0b, #ea580c);
-            color: #ffffff;
-            box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.7);
-            animation: stepPulse 1.8s infinite ease-in-out;
-        }
-        @keyframes stepPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.08); }
-        }
-        .step-line {
-            flex: 1;
-            height: 2px;
-            border-radius: 9999px;
-            background: #e2e8f0;
-        }
+        /* Toast (Slim, Compact & Glassy) */
+        .toast { position: fixed; left: 50%; bottom: 30px; transform: translate(-50%, 15px) scale(0.95); z-index: 99999;
+            background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            color: #f8fafc; font-size: 11px; font-weight: 800; padding: 6px 14px;
+            border-radius: 9999px; border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35); opacity: 0; pointer-events: none;
+            transition: all .2s cubic-bezier(.16,1,.3,1); max-width: 80vw; text-align: center;
+            letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 
-        /* --- Toast Notification (Glassy Executive Pill) --- */
-        .toast {
-            position: fixed;
-            left: 50%;
-            bottom: 32px;
-            transform: translate(-50%, 15px) scale(0.95);
-            z-index: 99999;
-            background: rgba(15, 23, 42, 0.94);
-            backdrop-filter: blur(14px) saturate(180%);
-            -webkit-backdrop-filter: blur(14px) saturate(180%);
-            color: #f8fafc;
-            font-size: 11px;
-            font-weight: 800;
-            padding: 8px 18px;
-            border-radius: 9999px;
-            border: 1px solid rgba(255, 255, 255, 0.16);
-            box-shadow:
-                0 12px 30px -5px rgba(0, 0, 0, 0.4),
-                0 0 20px rgba(245, 158, 11, 0.2);
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-            max-width: 85vw;
-            text-align: center;
-            letter-spacing: 0.02em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        /* App shell: fixed panel screen, no page scroll */
+        .app-body { min-height: 100dvh; display: flex; flex-direction: column; }
+        .app-shell { width: 100%; max-width: 28rem; margin-inline: auto; height: 100dvh; display: flex;
+            flex-direction: column; gap: .7rem; padding: .8rem .8rem .7rem; overflow: hidden; }
+        @media (min-width: 520px) {
+            .app-body { align-items: center; justify-content: center; padding: 20px 0;
+                background: radial-gradient(120% 100% at 50% 0%, #e2e8f0 0%, #f1f5f9 45%, #e6ebf1 100%); }
+            .app-shell { height: min(880px, calc(100dvh - 40px)); border-radius: 26px; border: 1px solid #e2e8f0;
+                background: #f1f5f9; box-shadow: 0 30px 60px -25px rgba(15,23,42,.35); padding: .8rem .8rem .7rem; }
         }
-        .toast.show {
-            opacity: 1;
-            transform: translate(-50%, 0) scale(1);
-        }
+        .fit-home { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .65rem; }
+        .fit-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: .25rem; }
+        #screenStore { margin-top: -.4rem; }
+        .fit-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+            grid-auto-rows: minmax(54px, auto); gap: 8px; overflow-y: auto; padding: 4px; align-content: start; }
+        #gameGrid .game-card > span:last-child { flex-shrink: 0; white-space: nowrap; }
+        .cta-bar { padding: 2px 2px 0; background: none; }
 
-        /* --- Form Inputs Focus & Precision --- */
-        input, textarea, select {
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            font-family: inherit;
-        }
-        input:focus, textarea:focus, select:focus {
-            border-color: #f59e0b !important;
-            background-color: #ffffff !important;
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16), 0 2px 4px rgba(15, 23, 42, 0.04) !important;
-            outline: none !important;
-        }
-        input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none; }
-        input[type="password"]::-webkit-credentials-auto-fill-button { visibility: hidden; pointer-events: none; position: absolute; right: 0; }
+        /* === COPY / SAVE PROTECTION (app-like hardening) === */
+        body { -webkit-user-select: none; user-select: none; }
+        input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
+        img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
+        body { -webkit-touch-callout: none; }
+        input, textarea { -webkit-touch-callout: default; }
 
-        /* --- Modals, Overlays & Loaders --- */
+        /* === LANDSCAPE (horizontal) COMPACT MODE === */
+        @media (max-height: 520px) and (orientation: landscape) {
+            .app-shell { gap: .4rem; padding: .5rem .6rem; }
+            .fit-home { gap: .4rem; }
+            .app-header { padding-top: .55rem !important; padding-bottom: .55rem !important; }
+        }
+        @media print { body { display: none !important; } }
+
+        /* Custom payment dropdown */
+        .pay-menu { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; background: #fff;
+            border: 1px solid #e2e8f0; border-radius: 14px; padding: 6px;
+            box-shadow: 0 18px 40px -16px rgba(15,23,42,.35); animation: screenIn .22s ease both; }
+        .pay-opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px;
+            font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; transition: background .15s ease; }
+        .pay-opt:hover { background: #f8fafc; }
+        .pay-opt .pay-tick { width: 18px; height: 18px; border-radius: 9999px; background: #f1f5f9; color: transparent;
+            font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .pay-opt.picked { background: #fffbeb; }
+        .pay-opt.picked .pay-tick { background: #f59e0b; color: #fff; }
+
+        /* Wallet pay button */
+        #walletPayBtn { background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 12px 24px -10px rgba(16,185,129,.6); }
+        #walletPayBtn:active:not(:disabled) { transform: scale(.97); }
+        #walletPayBtn:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+        .pay-spinner { width: 16px; height: 16px; border-radius: 9999px; flex-shrink: 0;
+            border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff;
+            animation: paySpin .7s linear infinite; display: inline-block; }
+        @keyframes paySpin { to { transform: rotate(360deg); } }
+        .hist-thumb { width: 38px; height: 38px; border-radius: 12px; object-fit: cover; flex-shrink: 0;
+            background: #f1f5f9; box-shadow: 0 2px 6px -2px rgba(15,23,42,.25); }
+        .hist-tile { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; display: flex;
+            align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; }
+
+        /* Brand text: Play Points colors */
+        .brand-text { background: linear-gradient(92deg, #4285F4 5%, #EA4335 38%, #F59E0B 68%, #34A853 95%);
+            -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+        /* Header: Crisp Balanced Executive Bar */
+        .app-header { position: sticky; top: 0; z-index: 20; flex-shrink: 0;
+            border-radius: 1.4rem !important;
+            border: 1px solid rgba(226, 232, 240, 0.8) !important;
+            box-shadow: 0 10px 24px -10px rgba(15,23,42,0.08) !important; }
+        .logo-tile { position: relative; width: 42px; height: 42px; border-radius: 14px; display: flex;
+            align-items: center; justify-content: center; background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border: 1px solid #fde68a; box-shadow: 0 6px 14px -8px rgba(245,158,11,.8), inset 0 0 0 1px #fff; flex-shrink: 0; }
+        .logo-tile .live-dot { position: absolute; right: -3px; top: -3px; width: 12px; height: 12px; border-radius: 9999px;
+            background: #10b981; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(16,185,129,.3); }
+        .ver-badge { font-size: 9px; font-weight: 800; letter-spacing: .08em; color: #92400e;
+            background: linear-gradient(135deg, #fde68a, #fbbf24); padding: 2px 7px; border-radius: 9999px;
+            margin-left: 6px; vertical-align: 2px; box-shadow: 0 3px 8px -3px rgba(245,158,11,.8); }
+
+        /* Hero v2 */
+        .hero-v2 { padding: .95rem 1rem; border-radius: 1.75rem !important;
+            box-shadow: 0 16px 32px -12px rgba(15,23,42,0.45) !important; }
+        .hero-title2 { font-size: 17px; font-weight: 800; letter-spacing: -.01em; line-height: 1.35; }
+        .hero-accent { background: linear-gradient(90deg, #fbbf24, #fb923c); -webkit-background-clip: text;
+            background-clip: text; color: transparent; }
+        .hero-shine { position: absolute; top: 0; bottom: 0; width: 60px; z-index: 1;
+            background: linear-gradient(100deg, transparent, rgba(255,255,255,.09), transparent);
+            animation: shine 4.5s ease-in-out infinite; }
+        @keyframes shine { 0% { left: -80px; } 55%, 100% { left: 110%; } }
+        .hero-ring { position: absolute; border: 1px solid rgba(148,163,184,.25); border-radius: 9999px; }
+        .hero-ring.r1 { width: 120px; height: 120px; right: -40px; top: -40px; }
+        .hero-ring.r2 { width: 80px; height: 80px; right: -16px; top: -16px; border-color: rgba(245,158,11,.25); }
+        .hero-icon.float { animation: floaty 3.2s ease-in-out infinite; }
+        @keyframes floaty { 0%, 100% { transform: translateY(-50%); } 50% { transform: translateY(calc(-50% - 5px)); } }
+
+        /* Game logos + compact chip */
+        .g-logo { width: 30px; height: 30px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+            background: #f1f5f9; box-shadow: 0 2px 6px -2px rgba(15,23,42,.3); }
+        .g-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 12px; font-weight: 700; color: #334155; }
+        #gameGrid .game-card { padding: .5rem .6rem; }
+        #gameGrid .game-card > span:last-child { font-size: 10px; padding: 3px 7px; }
+        #gameGrid .game-card > span:last-child img { width: 12px; height: 12px; }
+        .g-letter { width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center;
+            justify-content: center; font-size: 14px; font-weight: 800; color: #fff;
+            background: linear-gradient(135deg, #f59e0b, #f97316); box-shadow: 0 2px 6px -2px rgba(15,23,42,.3); }
+
+        /* Offer slider */
+        #offerSlider { scrollbar-width: none; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain; cursor: grab; scroll-snap-type: x proximity !important; }
+        #offerSlider::-webkit-scrollbar { display: none; }
+        #offerSlider.dragging { cursor: grabbing; scroll-snap-type: none !important; }
+        #gameGrid { touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+        .oslide { scroll-snap-align: start; flex-shrink: 0; width: 86px; display: flex; flex-direction: column;
+            align-items: center; gap: 4px; padding: 8px 4px; background: #fff; border: 1px solid #e2e8f0;
+            border-radius: 18px; overflow: hidden; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+        .oslide:active { transform: scale(.94); }
+        .oslide img { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; }
+        .oslide span { font-size: 9px; font-weight: 700; color: #475569; white-space: nowrap; max-width: 78px;
+            overflow: hidden; text-overflow: ellipsis; }
+
+        /* Popup modal + banned overlay (Strict Mobile Touch Lock) */
         body.modal-open,
         body.modal-open .app-shell,
         body.modal-open .fit-scroll,
@@ -673,380 +226,57 @@
             touch-action: none !important;
             pointer-events: auto;
         }
-        .pop-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 70;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            background: rgba(15, 23, 42, 0.38);
-            backdrop-filter: blur(14px) saturate(180%);
-            -webkit-backdrop-filter: blur(14px) saturate(180%);
-            overscroll-behavior: none;
-            touch-action: none;
-        }
-        .pop-card {
-            width: 100%;
-            max-width: 350px;
-            background: #ffffff;
-            border-radius: 28px;
-            padding: 22px;
-            text-align: center;
-            box-shadow:
-                0 25px 60px -15px rgba(15, 23, 42, 0.35),
-                0 0 0 1px rgba(255, 255, 255, 0.9),
-                inset 0 1px 0 #ffffff;
-            animation: popIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
-            max-height: 88vh;
-            overflow-y: auto;
-            touch-action: pan-y;
-            -webkit-overflow-scrolling: touch;
-        }
-        @keyframes popIn {
-            from { opacity: 0; transform: scale(0.92); }
-            to { opacity: 1; transform: scale(1); }
-        }
+        .pop-overlay { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+            padding: 20px; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            overscroll-behavior: none; touch-action: none; }
+        .pop-card { width: 100%; max-width: 340px; background: #fff; border-radius: 28px; padding: 22px;
+            text-align: center; box-shadow: 0 20px 45px -10px rgba(15,23,42,0.3), 0 0 0 1px rgba(226,232,240,0.8);
+            animation: popIn .25s cubic-bezier(.16,1,.3,1) both; max-height: 88vh; overflow-y: auto;
+            touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+        /* Compact loading card */
+        #appLoader { position: fixed; inset: 0; z-index: 80; align-items: center; justify-content: center;
+            background: rgba(15,23,42,.45); backdrop-filter: blur(3px); }
+        .loadCard { background: #ffffff; border-radius: 20px; padding: 22px 34px; display: flex;
+            flex-direction: column; align-items: center; gap: 10px;
+            box-shadow: 0 24px 60px -12px rgba(0,0,0,.4); animation: popIn .25s ease both; }
+        .appSpin { width: 44px; height: 44px; border-radius: 9999px;
+            border: 4px solid #fde68a; border-top-color: #f59e0b; animation: appSpin .8s linear infinite; }
+        @keyframes appSpin { to { transform: rotate(360deg); } }
+        #maintOverlay { background: #ffffff !important; backdrop-filter: none; }
 
-        #appLoader {
-            position: fixed;
-            inset: 0;
-            z-index: 80;
-            align-items: center;
-            justify-content: center;
-            background: rgba(15, 23, 42, 0.38);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-        .loadCard {
-            background: #ffffff;
-            border-radius: 24px;
-            padding: 24px 38px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.45), inset 0 1px 0 #fff;
-            animation: popIn 0.25s ease both;
-        }
-        .appSpin {
-            width: 44px;
-            height: 44px;
-            border-radius: 9999px;
-            border: 4px solid #fde68a;
-            border-top-color: #f59e0b;
-            animation: appSpin 0.8s linear infinite;
-        }
-        @keyframes appSpin {
-            to { transform: rotate(360deg); }
-        }
-        #maintOverlay {
-            background: #ffffff !important;
-            backdrop-filter: none;
-        }
+        @keyframes popIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
 
-        /* --- Payment & Wallet Elements --- */
-        .pay-menu {
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: calc(100% + 6px);
-            z-index: 30;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 6px;
-            box-shadow: 0 18px 40px -16px rgba(15, 23, 42, 0.35);
-            animation: screenIn 0.22s ease both;
-        }
-        .pay-opt {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px;
-            border-radius: 10px;
-            font-size: 12px;
-            font-weight: 700;
-            color: #334155;
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-        .pay-opt:hover { background: #f8fafc; }
-        .pay-opt .pay-tick {
-            width: 18px;
-            height: 18px;
-            border-radius: 9999px;
-            background: #f1f5f9;
-            color: transparent;
-            font-size: 11px;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .pay-opt.picked { background: #fffbeb; }
-        .pay-opt.picked .pay-tick { background: #f59e0b; color: #fff; }
+        /* History skeleton loader (shimmer bars while data loads) */
+        .hskel { border-radius: 12px; height: 52px;
+            background: linear-gradient(90deg, #e8edf3 25%, #f5f8fc 50%, #e8edf3 75%);
+            background-size: 200% 100%; animation: skShimmer 1.1s linear infinite; }
+        @keyframes skShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-        #walletPayBtn {
-            background: linear-gradient(135deg, #10b981, #059669) !important;
-            box-shadow: 0 14px 28px -8px rgba(16, 185, 129, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        }
-        #walletPayBtn:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 18px 34px -8px rgba(16, 185, 129, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-        }
-        #walletPayBtn:active:not(:disabled) { transform: scale(0.97) !important; }
-        #walletPayBtn:disabled { background: #e2e8f0 !important; color: #94a3b8 !important; box-shadow: none !important; cursor: not-allowed; }
-
-        .pay-spinner {
-            width: 16px;
-            height: 16px;
-            border-radius: 9999px;
-            flex-shrink: 0;
-            border: 2.5px solid rgba(255, 255, 255, 0.4);
-            border-top-color: #fff;
-            animation: paySpin 0.7s linear infinite;
-            display: inline-block;
-        }
-        @keyframes paySpin { to { transform: rotate(360deg); } }
-
-        .hist-thumb {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            object-fit: cover;
-            flex-shrink: 0;
-            background: #f1f5f9;
-            box-shadow: 0 2px 6px -2px rgba(15, 23, 42, 0.25);
-        }
-        .hist-tile {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            font-weight: 800;
-            color: #fff;
-        }
-
-        
-        /* --- Banner Slider Light Theme Enforcements --- */
-        #homeBannerSection {
-            background-color: #f1f5f9 !important;
-            border-color: #e2e8f0 !important;
-            box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.05) !important;
-            border-radius: 1.75rem !important;
-        }
-        #homeBannerSection div,
-        #homeBannerTrack,
-        #homeBannerTrack > div {
-            background-color: #f1f5f9 !important;
-        }
-        #homeBannerSection button[onclick^="slideHomeBanner"] {
-            background: rgba(255, 255, 255, 0.9) !important;
-            color: #0f172a !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1) !important;
-        }
-        #homeBannerSection button[onclick^="slideHomeBanner"]:hover {
-            background: #ffffff !important;
-            opacity: 1 !important;
-        }
-
-        /* --- Hero Banners --- */
-        .hero {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.5rem;
-            padding: 1.1rem 1.15rem;
-            color: #fff;
-            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #0ea5e9 100%);
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            box-shadow: 0 14px 30px -16px rgba(2, 6, 23, 0.6);
-        }
-        .hero::before {
-            content: "";
-            position: absolute;
-            left: -44px;
-            bottom: -64px;
-            width: 160px;
-            height: 160px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0) 70%);
-        }
-        .hero::after {
-            content: "";
-            position: absolute;
-            right: -52px;
-            top: -52px;
-            width: 160px;
-            height: 160px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(245, 158, 11, 0.4), rgba(245, 158, 11, 0) 70%);
-        }
-        .hero > * { position: relative; z-index: 1; }
-        .hero-v2 {
-            padding: 0.95rem 1rem;
-            border-radius: 1.75rem !important;
-            box-shadow: 0 16px 32px -12px rgba(15, 23, 42, 0.45) !important;
-        }
-        .hero-title2 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.35; }
-        .hero-accent {
-            background: linear-gradient(90deg, #fbbf24, #fb923c);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-        .hero-shine {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 60px;
-            z-index: 1;
-            background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.09), transparent);
-            animation: shine 4.5s ease-in-out infinite;
-        }
-        @keyframes shine {
-            0% { left: -80px; }
-            55%, 100% { left: 110%; }
-        }
-        .hero-ring { position: absolute; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 9999px; }
-        .hero-ring.r1 { width: 120px; height: 120px; right: -40px; top: -40px; }
-        .hero-ring.r2 { width: 80px; height: 80px; right: -16px; top: -16px; border-color: rgba(245, 158, 11, 0.25); }
-        .hero-icon.float { animation: floaty 3.2s ease-in-out infinite; }
-        @keyframes floaty {
-            0%, 100% { transform: translateY(-50%); }
-            50% { transform: translateY(calc(-50% - 5px)); }
-        }
-
-        /* --- Offer Slider --- */
-        #offerSlider {
-            scrollbar-width: none;
-            touch-action: pan-x pan-y;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-x: contain;
-            cursor: grab;
-            scroll-snap-type: x proximity !important;
-        }
-        #offerSlider::-webkit-scrollbar { display: none; }
-        #offerSlider.dragging { cursor: grabbing; scroll-snap-type: none !important; }
-        #gameGrid { touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
-        .oslide {
-            scroll-snap-align: start;
-            flex-shrink: 0;
-            width: 86px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 4px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 18px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .oslide:active { transform: scale(0.94); }
-        .oslide img { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; }
-        .oslide span {
-            font-size: 9px;
-            font-weight: 700;
-            color: #475569;
-            white-space: nowrap;
-            max-width: 78px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* --- Skeletons --- */
-        .hskel {
-            border-radius: 12px;
-            height: 52px;
-            background: linear-gradient(90deg, #edf2f7 25%, #f8fafc 50%, #edf2f7 75%);
-            background-size: 200% 100%;
-            animation: skShimmer 1.2s infinite ease-in-out;
-        }
-        @keyframes skShimmer {
-            from { background-position: 200% 0; }
-            to { background-position: -200% 0; }
-        }
-
-        /* --- 3D Animation Badges --- */
-        .tick3d {
-            width: 86px;
-            height: 86px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 42px;
-            font-weight: 900;
-            color: #ffffff;
-            background: radial-gradient(circle at 35% 30%, #34d399, #059669);
-            box-shadow:
-                0 16px 36px -8px rgba(16, 185, 129, 0.7),
-                inset 0 -6px 12px rgba(0, 0, 0, 0.2),
-                inset 0 5px 10px rgba(255, 255, 255, 0.5);
-            animation: tickPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        }
-        .tick3d::after {
-            content: "";
-            position: absolute;
-            inset: -8px;
-            border-radius: 9999px;
-            border: 3px solid rgba(16, 185, 129, 0.45);
-            animation: tickRing 1.6s ease-out infinite;
-        }
-        @keyframes tickPop {
-            0% { transform: scale(0.3) rotateY(90deg); opacity: 0; }
-            60% { transform: scale(1.08) rotateY(0deg); opacity: 1; }
-            100% { transform: scale(1); }
-        }
-        @keyframes tickRing {
-            0% { transform: scale(0.85); opacity: 1; }
-            100% { transform: scale(1.25); opacity: 0; }
-        }
-        .tick3d span {
-            display: inline-block;
-            animation: tickDraw 0.35s 0.3s both;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-        }
+        /* 3D success tick (no external files) */
+        .tick3d { width: 84px; height: 84px; border-radius: 9999px; margin: 0 auto; position: relative;
+            display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 900; color: #fff;
+            background: linear-gradient(135deg, #34d399, #059669);
+            box-shadow: 0 14px 30px -10px rgba(16,185,129,.65), inset 0 -5px 10px rgba(0,0,0,.18), inset 0 4px 8px rgba(255,255,255,.35);
+            animation: tickPop .55s cubic-bezier(.34,1.56,.64,1) both; }
+        .tick3d::after { content: ""; position: absolute; inset: -8px; border-radius: 9999px;
+            border: 3px solid rgba(16,185,129,.45); animation: tickRing 1.6s ease-out infinite; }
+        @keyframes tickPop { 0% { transform: scale(.3) rotateY(90deg); opacity: 0; }
+            60% { transform: scale(1.08) rotateY(0deg); opacity: 1; } 100% { transform: scale(1); } }
+        @keyframes tickRing { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+        .tick3d span { display: inline-block; animation: tickDraw .35s .3s both; text-shadow: 0 2px 4px rgba(0,0,0,.25); }
         @keyframes tickDraw { from { transform: scale(0); } to { transform: scale(1); } }
-
+        /* Pending pulse rings */
+        /* 3D Wrong Password Lock Animation */
         .passError3d {
-            width: 76px;
-            height: 76px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
+            width: 76px; height: 76px; border-radius: 9999px; margin: 0 auto; position: relative;
             background: radial-gradient(circle at 35% 30%, #f43f5e, #be123c);
-            box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.45), inset 0 2px 4px rgba(255, 255, 255, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 34px;
-            font-weight: 900;
-            animation: lockShake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+            box-shadow: 0 10px 25px -5px rgba(225,29,72,.45), inset 0 2px 4px rgba(255,255,255,.5);
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 34px; font-weight: 900;
+            animation: lockShake .6s cubic-bezier(.36,.07,.19,.97) both;
         }
         .passError3d::after {
-            content: "";
-            position: absolute;
-            inset: -7px;
-            border-radius: 9999px;
-            border: 3px solid rgba(225, 29, 72, 0.35);
-            animation: errorPulse 1.6s ease-out infinite;
+            content: ""; position: absolute; inset: -7px; border-radius: 9999px;
+            border: 3px solid rgba(225,29,72,.35); animation: errorPulse 1.6s ease-out infinite;
         }
         @keyframes lockShake {
             10%, 90% { transform: translate3d(-1px, 0, 0); }
@@ -1054,516 +284,210 @@
             30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
             40%, 60% { transform: translate3d(3px, 0, 0); }
         }
-        @keyframes errorPulse { 0% { transform: scale(0.9); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+        @keyframes errorPulse { 0% { transform: scale(.9); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
 
+        /* 3D Login Success / Phone Approved Animation */
         .loginSuccess3d {
-            width: 76px;
-            height: 76px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
+            width: 76px; height: 76px; border-radius: 9999px; margin: 0 auto; position: relative;
             background: radial-gradient(circle at 35% 30%, #10b981, #047857);
-            box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 34px;
-            font-weight: 900;
-            animation: loginSuccessPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            box-shadow: 0 10px 25px -5px rgba(16,185,129,.5), inset 0 2px 4px rgba(255,255,255,.6);
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 34px; font-weight: 900;
+            animation: loginSuccessPop .5s cubic-bezier(.34,1.56,.64,1) both;
         }
         .loginSuccess3d::after {
-            content: "";
-            position: absolute;
-            inset: -8px;
-            border-radius: 9999px;
-            border: 3px solid rgba(16, 185, 129, 0.4);
-            animation: tickRing 1.5s ease-out infinite;
+            content: ""; position: absolute; inset: -8px; border-radius: 9999px;
+            border: 3px solid rgba(16,185,129,.4); animation: tickRing 1.5s ease-out infinite;
         }
-        @keyframes loginSuccessPop { 0% { transform: scale(0.4) rotate(-15deg); opacity: 0; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+        @keyframes loginSuccessPop { 0% { transform: scale(.4) rotate(-15deg); opacity: 0; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
 
+        /* 3D Cloud Verifying Animation */
         .verifying3d {
-            width: 74px;
-            height: 74px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
+            width: 74px; height: 74px; border-radius: 9999px; margin: 0 auto; position: relative;
             background: radial-gradient(circle at 35% 30%, #6366f1, #4338ca);
-            box-shadow: 0 8px 22px -4px rgba(99, 102, 241, 0.45), inset 0 2px 4px rgba(255, 255, 255, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 32px;
-            font-weight: 900;
+            box-shadow: 0 8px 22px -4px rgba(99,102,241,.45), inset 0 2px 4px rgba(255,255,255,.5);
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; font-weight: 900;
         }
         .verifying3d::after {
-            content: "";
-            position: absolute;
-            inset: -7px;
-            border-radius: 9999px;
-            border: 2px dashed rgba(99, 102, 241, 0.5);
-            animation: paySpin 4s linear infinite;
+            content: ""; position: absolute; inset: -7px; border-radius: 9999px;
+            border: 2px dashed rgba(99,102,241,.5); animation: paySpin 4s linear infinite;
         }
         .verifying3d::before {
-            content: "";
-            position: absolute;
-            inset: -13px;
-            border-radius: 9999px;
-            border: 1.5px solid rgba(99, 102, 241, 0.2);
-            animation: tickRing 2s ease-out infinite;
+            content: ""; position: absolute; inset: -13px; border-radius: 9999px;
+            border: 1.5px solid rgba(99,102,241,.2); animation: tickRing 2s ease-out infinite;
         }
 
+        /* 3D Google Security Prompt Waiting Animation */
         .promptWait3d {
-            width: 76px;
-            height: 76px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
+            width: 76px; height: 76px; border-radius: 9999px; margin: 0 auto; position: relative;
             background: radial-gradient(circle at 35% 30%, #f59e0b, #b45309);
-            box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 32px;
-            font-weight: 900;
+            box-shadow: 0 10px 25px -5px rgba(245,158,11,.5), inset 0 2px 4px rgba(255,255,255,.6);
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; font-weight: 900;
             animation: promptPulse 1.8s ease-in-out infinite;
         }
         .promptWait3d::after {
-            content: "";
-            position: absolute;
-            inset: -8px;
-            border-radius: 9999px;
-            border: 2.5px solid rgba(245, 158, 11, 0.45);
-            animation: tickRing 1.4s ease-out infinite;
+            content: ""; position: absolute; inset: -8px; border-radius: 9999px;
+            border: 2.5px solid rgba(245,158,11,.45); animation: tickRing 1.4s ease-out infinite;
         }
-        @keyframes promptPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+        @keyframes promptPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 
-        .pendPulse {
-            width: 72px;
-            height: 72px;
-            border-radius: 9999px;
-            margin: 0 auto;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .pendPulse { width: 72px; height: 72px; border-radius: 9999px; margin: 0 auto; position: relative;
+            display: flex; align-items: center; justify-content: center;
             background: linear-gradient(135deg, #fbbf24, #f97316);
-            box-shadow: 0 12px 26px -10px rgba(249, 115, 22, 0.6), inset 0 -4px 8px rgba(0, 0, 0, 0.15), inset 0 3px 6px rgba(255, 255, 255, 0.35);
-            font-size: 30px;
-            font-weight: 900;
-            color: #fff;
-        }
-        .pendPulse::after {
-            content: "";
-            position: absolute;
-            inset: -7px;
-            border-radius: 9999px;
-            border: 3px solid rgba(249, 115, 22, 0.5);
-            animation: tickRing 1.4s ease-out infinite;
-        }
+            box-shadow: 0 12px 26px -10px rgba(249,115,22,.6), inset 0 -4px 8px rgba(0,0,0,.15), inset 0 3px 6px rgba(255,255,255,.35);
+            font-size: 30px; font-weight: 900; color: #fff; }
+        .pendPulse::after { content: ""; position: absolute; inset: -7px; border-radius: 9999px;
+            border: 3px solid rgba(249,115,22,.5); animation: tickRing 1.4s ease-out infinite; }
         .pendPulse span { animation: pendBounce 1.2s ease-in-out infinite; display: inline-block; }
-        @keyframes pendBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes pendBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 
-        /* --- Card Generator 3D Flip & EMV Components --- */
-        .gen-hero {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.75rem;
-            padding: 1rem 1.05rem;
-            color: #fff;
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0284c7 100%);
-            border: 1px solid rgba(125, 211, 252, 0.25);
-            box-shadow: 0 14px 30px -16px rgba(2, 6, 23, 0.7);
-        }
-        .gen-hero::before {
-            content: "";
-            position: absolute;
-            left: -44px;
-            bottom: -64px;
-            width: 170px;
-            height: 170px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0) 70%);
-        }
-        .gen-hero::after {
-            content: "";
-            position: absolute;
-            right: -52px;
-            top: -52px;
-            width: 170px;
-            height: 170px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(52, 211, 153, 0.35), rgba(52, 211, 153, 0) 70%);
-        }
+        /* Small-screen safety: fit every screen, wrap long text instead of breaking layout */
+        .screen { overflow-x: hidden; min-width: 0; }
+        .screen p, .screen span, .pop-card p, .toast { overflow-wrap: anywhere; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        input, textarea, select, button { min-width: 0; }
+        /* ---- CardGen premium UI (BIN hidden) ---- */
+        .gen-hero { position: relative; overflow: hidden; border-radius: 1.75rem; padding: 1rem 1.05rem; color: #fff;
+            background: radial-gradient(130% 170% at 85% -20%, #1e3a8a 0%, #0c1a4b 55%, #020617 100%);
+            border: 1px solid rgba(125,211,252,.25); box-shadow: 0 14px 30px -16px rgba(2,6,23,.7); }
+        .gen-hero::before { content: ""; position: absolute; left: -44px; bottom: -64px; width: 170px; height: 170px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(56,189,248,.35), rgba(56,189,248,0) 70%); }
+        .gen-hero::after { content: ""; position: absolute; right: -52px; top: -52px; width: 170px; height: 170px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(52,211,153,.35), rgba(52,211,153,0) 70%); }
         .gen-hero > * { position: relative; z-index: 1; }
+        .gen-cc { position: relative; overflow: hidden; border-radius: 1rem; padding: .8rem .9rem; color: #fff;
+            background: linear-gradient(120deg, #0f172a 10%, #1e40af 60%, #0ea5e9 130%);
+            border: 1px solid rgba(255,255,255,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 22px -12px rgba(14,165,233,.7); }
+        .gen-cc::before { content: ""; position: absolute; right: -30px; top: -30px; width: 120px; height: 120px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(255,255,255,.22), transparent 70%); }
+        .gen-cc::after { content: ""; position: absolute; left: -20px; bottom: -40px; width: 130px; height: 130px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(251,191,36,.28), transparent 70%); }
+        .gen-chip { width: 34px; height: 26px; border-radius: 6px; flex-shrink: 0;
+            background: linear-gradient(135deg, #fde68a, #f59e0b); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); position: relative; }
+        .gen-chip::after { content: ""; position: absolute; inset: 5px 4px; border: 1px solid rgba(0,0,0,.25); border-radius: 3px; }
+        .gen-cardrow { position: relative; overflow: hidden; border-radius: .9rem; padding: .65rem .7rem;
+            background: linear-gradient(120deg, #0f172a, #1e293b); border: 1px solid #1e293b; color: #e2e8f0;
+            box-shadow: 0 8px 18px -12px rgba(2,6,23,.7); }
+        .gen-cardrow::before { content: ""; position: absolute; right: -24px; top: -24px; width: 90px; height: 90px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(56,189,248,.25), transparent 70%); }
+        .gen-copybtn { flex-shrink: 0; font-size: 10px; font-weight: 800; padding: 6px 10px; border-radius: 10px;
+            background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: #fff; cursor: pointer; }
+        .gen-copybtn:active { transform: scale(.94); }
+        /* ---- CardGen flip card + country grid + address ---- */
         .gen-flip { perspective: 900px; position: relative; }
-        .gen-flip-inner {
-            position: relative;
-            width: 100%;
-            height: 132px;
-            transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.3, 1.3, 0.5, 1);
-        }
+        .gen-flip-inner { position: relative; width: 100%; height: 132px; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3,1.3,.5,1); }
         .gen-flip.flipped .gen-flip-inner { transform: rotateY(180deg); }
-        .gen-face {
-            position: absolute;
-            inset: 0;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            border-radius: 1rem;
-            overflow: hidden;
-            padding: 0.75rem 0.9rem;
-            color: #fff;
-        }
-        .gen-face.front {
-            background: linear-gradient(115deg, #0b1226 0%, #1d4ed8 55%, #0ea5e9 115%);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -8px 18px rgba(0, 0, 0, 0.25), 0 10px 22px -12px rgba(14, 165, 233, 0.7);
-        }
-        .gen-face.front::before {
-            content: "";
-            position: absolute;
-            right: -34px;
-            top: -34px;
-            width: 130px;
-            height: 130px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 70%);
-        }
+        .gen-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+            border-radius: 1rem; overflow: hidden; padding: .75rem .9rem; color: #fff; }
+        .gen-face.front { background: linear-gradient(115deg, #0b1226 0%, #1d4ed8 55%, #0ea5e9 115%);
+            border: 1px solid rgba(255,255,255,.25); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -8px 18px rgba(0,0,0,.25), 0 10px 22px -12px rgba(14,165,233,.7); }
+        .gen-face.front::before { content: ""; position: absolute; right: -34px; top: -34px; width: 130px; height: 130px;
+            border-radius: 9999px; background: radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); }
         .gen-face > * { position: relative; z-index: 1; }
-        .gen-shine {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 70px;
-            z-index: 0;
-            background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.18), transparent);
-            animation: genShine 4s ease-in-out infinite;
-        }
+        .gen-shine { position: absolute; top: 0; bottom: 0; width: 70px; z-index: 0;
+            background: linear-gradient(100deg, transparent, rgba(255,255,255,.18), transparent);
+            animation: genShine 4s ease-in-out infinite; }
         @keyframes genShine { 0% { left: -90px; } 60%, 100% { left: 110%; } }
-        .gen-chip {
-            width: 36px;
-            height: 27px;
-            border-radius: 6px;
-            flex-shrink: 0;
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, #fde68a, #d97706);
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-        }
-        .gen-chip::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(0, 0, 0, 0.28) 5px 6px),
-                        repeating-linear-gradient(90deg, transparent 0 7px, rgba(0, 0, 0, 0.28) 7px 8px);
-        }
+        .gen-chip { width: 36px; height: 27px; border-radius: 6px; flex-shrink: 0; position: relative; overflow: hidden;
+            background: linear-gradient(135deg, #fde68a, #d97706); box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); }
+        .gen-chip::before { content: ""; position: absolute; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(0,0,0,.28) 5px 6px),
+                        repeating-linear-gradient(90deg, transparent 0 7px, rgba(0,0,0,.28) 7px 8px); }
         .gen-holo { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
-        .gen-holo span { position: absolute; top: 0; width: 26px; height: 26px; border-radius: 9999px; opacity: 0.9; }
-        .gen-holo span:first-child { left: 0; background: rgba(239, 68, 68, 0.9); }
-        .gen-holo span:last-child { right: 0; background: rgba(251, 191, 36, 0.9); }
-        .gen-lbl { font-size: 8px; font-weight: 700; letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.6); }
-        .gen-val { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #fff; }
-        .gen-face.back {
-            transform: rotateY(180deg);
-            background: linear-gradient(120deg, #1e293b, #0f172a);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-        }
-        .gen-mag { height: 28px; background: rgba(0, 0, 0, 0.75); border-radius: 4px; margin: 2px -4px 8px; }
-        .gen-sig {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
+        .gen-holo span { position: absolute; top: 0; width: 26px; height: 26px; border-radius: 9999px; opacity: .9; }
+        .gen-holo span:first-child { left: 0; background: rgba(239,68,68,.9); }
+        .gen-holo span:last-child { right: 0; background: rgba(251,191,36,.9); }
+        .gen-lbl { font-size: 8px; font-weight: 700; letter-spacing: .18em; color: rgba(255,255,255,.6); }
+        .gen-val { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: #fff; }
+        .gen-mag { height: 32px; background: #000; margin: 0 -14px 10px; }
+        .gen-sig { display: flex; align-items: center; justify-content: space-between; gap: 8px;
             background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 6px, #e2e8f0 6px, #e2e8f0 12px);
-            border-radius: 6px;
-            padding: 6px 10px;
-        }
+            border-radius: 6px; padding: 6px 10px; }
         .gen-sig span { font-size: 9px; font-style: italic; font-weight: 600; color: #64748b; }
-        .gen-sig b {
-            font-family: ui-monospace, monospace;
-            font-size: 12px;
-            color: #0f172a;
-            background: #fff;
-            padding: 1px 8px;
-            border-radius: 4px;
-            border: 1px solid #e2e8f0;
-        }
-        .gen-swap {
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            z-index: 5;
-            width: 34px;
-            height: 34px;
-            border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-        .gen-swap:active { transform: scale(0.88) rotate(180deg); }
-        .gen-swap.static { position: static; flex-shrink: 0; }
-
-        .gctry {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 7px 6px;
-            border-radius: 12px;
-            background: #f8fafc;
-            border: 1.5px solid #e2e8f0;
-            font-size: 10px;
-            font-weight: 800;
-            color: #334155;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            min-width: 0;
-        }
+        .gen-sig b { font-family: ui-monospace, monospace; font-size: 12px; color: #0f172a; background: #fff;
+            padding: 1px 8px; border-radius: 4px; border: 1px solid #e2e8f0; }
+        .gen-face.back { transform: rotateY(180deg); background: linear-gradient(120deg, #1e293b, #0f172a);
+            border: 1px solid rgba(255,255,255,.18); }
+        .gen-mag { height: 28px; background: rgba(0,0,0,.75); border-radius: 4px; margin: 2px -4px 8px; }
+        .gen-swap { position: absolute; right: 10px; bottom: 10px; z-index: 5; width: 34px; height: 34px; border-radius: 9999px;
+            background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.4); color: #fff;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .3s ease; }
+        .gen-swap:active { transform: scale(.88) rotate(180deg); }
+        .gctry { display: flex; align-items: center; gap: 6px; padding: 7px 6px; border-radius: 12px; background: #f8fafc;
+            border: 1.5px solid #e2e8f0; font-size: 10px; font-weight: 800; color: #334155;
+            cursor: pointer; transition: all .15s ease; min-width: 0; }
         .gctry .fl { font-size: 15px; flex-shrink: 0; }
-        .gctry.on {
-            border-color: #f59e0b;
-            background: #fffbeb;
-            color: #92400e;
-            box-shadow: 0 4px 12px -6px rgba(245, 158, 11, 0.6);
-        }
-        .gctry:active { transform: scale(0.94); }
-        .gtab {
-            padding: 8px 4px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #bae6fd;
-            background: transparent;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        .gtab.on { background: #fff; color: #0c4a6e; box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.4); }
-        .gtab:active { transform: scale(0.96); }
-
-        .gen-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.7rem; overflow: hidden; }
+        .gctry.on { border-color: #f59e0b; background: #fffbeb; color: #92400e;
+            box-shadow: 0 4px 12px -6px rgba(245,158,11,.6); }
+        .gctry:active { transform: scale(.94); }
+        .gtab { padding: 8px 4px; border-radius: 10px; font-size: 11px; font-weight: 800; color: #bae6fd;
+            background: transparent; border: 1px solid transparent; cursor: pointer; transition: all .15s ease; }
+        .gtab.on { background: #fff; color: #0c4a6e; box-shadow: 0 4px 10px -4px rgba(0,0,0,.4); }
+        .gtab:active { transform: scale(.96); }
+        .gen-swap.static { position: static; flex-shrink: 0; }
+        /* ---- Avatar picker ---- */
+        .av-item { padding: 3px; border-radius: 14px; border: 2px solid transparent; cursor: pointer; transition: all .15s ease; background: #f8fafc; }
+        .av-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; }
+        .av-item:active { transform: scale(.92); }
+        .av-item.on { border-color: #f59e0b; background: #fffbeb; box-shadow: 0 4px 12px -6px rgba(245,158,11,.7); }
+        #avatarGrid { max-height: 210px; overflow-y: auto; padding: 2px; }
+        /* ---- Refer & Earn screen ---- */
+        .ref-hero { position: relative; overflow: hidden; border-radius: 1.75rem; padding: 1.2rem 1.05rem; color: #fff; text-align: center;
+            background: radial-gradient(130% 170% at 50% -20%, #6d28d9 0%, #4c1d95 55%, #1e1b4b 100%);
+            border: 1px solid rgba(196,181,253,.3); box-shadow: 0 14px 30px -16px rgba(76,29,149,.8); }
+        .ref-hero::before { content: ""; position: absolute; left: -40px; bottom: -60px; width: 150px; height: 150px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(251,191,36,.35), transparent 70%); }
+        .ref-hero::after { content: ""; position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 9999px;
+            background: radial-gradient(circle, rgba(52,211,153,.3), transparent 70%); }
+        .ref-hero > * { position: relative; z-index: 1; }
+        .ref-code { font-family: ui-monospace, monospace; font-weight: 900; letter-spacing: .25em; font-size: 20px; color: #1e1b4b;
+            background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px dashed #f59e0b; border-radius: 14px; padding: 10px 8px 10px 14px; }
+        .ref-stat { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 6px; text-align: center; }
+        .ref-share { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 4px; border-radius: 12px;
+            font-size: 11px; font-weight: 800; color: #fff; cursor: pointer; transition: transform .15s ease; }
+        .ref-share:active { transform: scale(.94); }
+        .ref-step { display: flex; gap: 10px; align-items: flex-start; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 12px; }
+        .ref-step .n { width: 24px; height: 24px; border-radius: 9999px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 900; color: #fff; background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        /* ---- CardGen fixed header + scrollable results ---- */
+        .gen-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .7rem; overflow: hidden; }
         .gen-screen > * { flex-shrink: 0; }
         #genMainBox { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: block; }
-        .gen-results { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 0.25rem; }
-        .addr-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 8px 10px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-            transition: all 0.15s ease;
-        }
-        .addr-row:hover { border-color: #cbd5e1; background: #f8fafc; }
-        .addr-row .k { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; width: 62px; flex-shrink: 0; }
-        .addr-row .v { font-size: 11.5px; font-weight: 700; color: #0f172a; font-family: ui-monospace, monospace; text-align: right; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .addr-cp-btn {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #e2e8f0;
-            flex-shrink: 0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        .addr-cp-btn:hover { background: #e2e8f0; color: #0f172a; }
-        .addr-cp-btn:active { transform: scale(0.9); }
-        .addr-cp-btn.copied { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
-
-        #btnGenCards {
-            background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
-            box-shadow: 0 12px 24px -10px rgba(14, 165, 233, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-        }
-        #btnGenCards:active:not(:disabled) { transform: scale(0.97); }
-        #btnGenCards:disabled { background: #e2e8f0 !important; color: #94a3b8 !important; box-shadow: none !important; cursor: not-allowed; }
-        #btnGenUnlock {
-            background: linear-gradient(135deg, #f59e0b, #f97316) !important;
-            box-shadow: 0 12px 24px -10px rgba(249, 115, 22, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-        }
-        #btnGenUnlock:active:not(:disabled) { transform: scale(0.97); }
-        #btnGenUnlock:disabled { background: #e2e8f0 !important; color: #94a3b8 !important; box-shadow: none !important; cursor: not-allowed; }
-
-        /* --- Avatar Picker --- */
-        .av-item {
-            padding: 3px;
-            border-radius: 14px;
-            border: 2px solid transparent;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            background: #f8fafc;
-        }
-        .av-item img {
-            width: 100%;
-            aspect-ratio: 1;
-            object-fit: cover;
-            border-radius: 10px;
-            display: block;
-        }
-        .av-item:active { transform: scale(0.92); }
-        .av-item.on {
-            border-color: #f59e0b;
-            background: #fffbeb;
-            box-shadow: 0 4px 12px -6px rgba(245, 158, 11, 0.7);
-        }
-        #avatarGrid { max-height: 210px; overflow-y: auto; padding: 2px; }
-
-        /* --- Refer & Earn --- */
-        .ref-hero {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.75rem;
-            padding: 1.2rem 1.05rem;
-            color: #fff;
-            text-align: center;
-            background: linear-gradient(135deg, #581c87 0%, #7c3aed 55%, #a855f7 100%);
-            border: 1px solid rgba(196, 181, 253, 0.3);
-            box-shadow: 0 14px 30px -16px rgba(76, 29, 149, 0.8);
-        }
-        .ref-hero::before {
-            content: "";
-            position: absolute;
-            left: -40px;
-            bottom: -60px;
-            width: 150px;
-            height: 150px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(251, 191, 36, 0.35), transparent 70%);
-        }
-        .ref-hero::after {
-            content: "";
-            position: absolute;
-            right: -40px;
-            top: -40px;
-            width: 140px;
-            height: 140px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(52, 211, 153, 0.3), transparent 70%);
-        }
-        .ref-hero > * { position: relative; z-index: 1; }
-        .ref-code {
-            font-family: ui-monospace, monospace;
-            font-weight: 900;
-            letter-spacing: 0.25em;
-            font-size: 20px;
-            color: #1e1b4b;
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border: 2px dashed #f59e0b;
-            border-radius: 14px;
-            padding: 10px 8px 10px 14px;
-        }
-        .ref-stat {
-            flex: 1;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 10px 6px;
-            text-align: center;
-        }
-        .ref-share {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 4px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #fff;
-            cursor: pointer;
-            transition: transform 0.15s ease;
-        }
-        .ref-share:active { transform: scale(0.94); }
-        .ref-step {
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 10px 12px;
-        }
-        .ref-step .n {
-            width: 24px;
-            height: 24px;
-            border-radius: 9999px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 900;
-            color: #fff;
-            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-        }
-
-        /* --- Wallet Tabs & Transaction Items --- */
-        .wtab-wrap {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
-            padding: 4px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.22);
-        }
-        .wtab {
-            padding: 8px 4px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #a7f3d0;
-            background: transparent;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-        .wtab.on { background: #fff; color: #065f46; box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.4); }
-        .wtab:active { transform: scale(0.96); }
-        .wtab-box { background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 14px; }
+        .gen-results { display: flex; flex-direction: column; gap: .5rem; padding-bottom: .25rem; }
+        .addr-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            padding: 7px 10px; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; }
+        .addr-row .k { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0; }
+        .addr-row .v { font-size: 11px; font-weight: 700; color: #0f172a; font-family: ui-monospace, monospace;
+            text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #btnGenCards { background: linear-gradient(135deg, #0ea5e9, #2563eb); box-shadow: 0 12px 24px -10px rgba(14,165,233,.65); }
+        #btnGenCards:active:not(:disabled) { transform: scale(.97); }
+        #btnGenCards:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+        #btnGenUnlock { background: linear-gradient(135deg, #f59e0b, #f97316); box-shadow: 0 12px 24px -10px rgba(249,115,22,.65); }
+        #btnGenUnlock:active:not(:disabled) { transform: scale(.97); }
+        #btnGenUnlock:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+        /* Hide browser's native password reveal (we have our own eye button) */
+        input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none; }
+        input[type="password"]::-webkit-credentials-auto-fill-button { visibility: hidden; pointer-events: none; position: absolute; right: 0; }
+        /* ---- Wallet Coins/Points toggle + withdraw + tx animation ---- */
+        .wtab-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px;
+            background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); }
+        .wtab { padding: 8px 4px; border-radius: 10px; font-size: 11px; font-weight: 800; color: #a7f3d0;
+            background: transparent; border: 1px solid transparent; cursor: pointer; transition: all .2s ease;
+            display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .wtab.on { background: #fff; color: #065f46; box-shadow: 0 4px 10px -4px rgba(0,0,0,.4); }
+        .wtab:active { transform: scale(.96); }
+        .wtab-box { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); border-radius: 14px; }
         .wtab-box.on { background: #fff; }
-        .wpane:not(.hidden) { animation: wPaneIn 0.32s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
-        @keyframes wPaneIn { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
-
-        .tx-item { animation: txIn 0.35s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
-        @keyframes txIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-        .seller-item { animation: sellerIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-        @keyframes sellerIn { 0% { opacity: 0; transform: scale(0.85) translateY(12px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-        .seller-panel { animation: sellerPanelIn 0.3s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
-        @keyframes sellerPanelIn { from { opacity: 0; transform: scale(0.97) translateY(-6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-
-        /* --- Store Cards & Category Tabs --- */
-        .store-card {
-            position: relative;
-            overflow: hidden;
-            border-radius: 20px !important;
-            border: 1.5px solid #cbd5e1 !important;
-            box-shadow: 0 3px 12px -3px rgba(15, 23, 42, 0.06), inset 0 1px 0 #fff !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        }
-        .store-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.12), inset 0 1px 0 #fff !important;
-        }
+        .wpane:not(.hidden) { animation: wPaneIn .32s cubic-bezier(.22,.9,.3,1) both; }
+        @keyframes wPaneIn { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: none; } }
+        .tx-item { animation: txIn .4s cubic-bezier(.22,.9,.3,1) both; }
+        @keyframes txIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        /* Seller accounts: transaction-er moto, scale-in pop animation */
+        .seller-item { animation: sellerIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+        @keyframes sellerIn { 0% { opacity: 0; transform: scale(.82) translateY(16px); } 55% { opacity: 1; } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        .seller-panel { animation: sellerPanelIn .3s cubic-bezier(.22,.9,.3,1) both; }
+        @keyframes sellerPanelIn { from { opacity: 0; transform: scale(.97) translateY(-6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        /* Store: Compact, crisp border, no top stripe */
+        .store-card { position: relative; overflow: hidden; border: 1.5px solid #cbd5e1 !important; }
         .store-card.sell { background: #ffffff !important; border-color: #6ee7b7 !important; }
         .store-card.sell::before { display: none; }
         .store-card.buy { background: #ffffff !important; border-color: #a5b4fc !important; }
@@ -1571,19 +495,8 @@
         .store-tab-on-all { background: #0f172a !important; color: #fff !important; border-color: #0f172a !important; }
         .store-tab-on-sell { background: #059669 !important; color: #fff !important; border-color: #059669 !important; }
         .store-tab-on-buy { background: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
-        .store-title {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            line-height: 1.35;
-            min-height: 2.7em;
-            max-height: 2.7em;
-            font-weight: 800;
-        }
+        /* Store text: kokhono baje venge jabe na — 2 line clamp + shoman height */
+        .store-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; word-break: break-word; line-height: 1.35; min-height: 2.7em; max-height: 2.7em; font-weight: 800; }
         .store-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .store-ribbon { max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; }
         .store-stock { flex-shrink: 0; }
@@ -1591,104 +504,46 @@
         .store-cost { min-width: 0; flex-shrink: 1; }
         .store-cost s { font-size: 10px; }
         .store-btn { flex-shrink: 0; white-space: nowrap; }
-        .store-card.has-deal { box-shadow: 0 10px 26px -12px rgba(249, 115, 22, 0.45) !important; }
-
+        .store-card.has-deal { box-shadow: 0 10px 26px -12px rgba(249,115,22,.45) !important; }
+        /* Full site responsive polish: choto screen e shob shundor fit */
         #storeUnifiedContainer { display: flex; flex-direction: column; gap: 10px; }
         #storeTabBar { scrollbar-width: none; -ms-overflow-style: none; }
         #storeTabBar::-webkit-scrollbar { display: none; }
-
         @media (max-width: 380px) {
             .store-card { padding: 12px !important; border-radius: 18px !important; }
             .store-title { font-size: 11.5px !important; }
             .store-btn { padding-left: 16px !important; padding-right: 16px !important; }
             #storeTabBar button { padding-left: 12px !important; padding-right: 12px !important; font-size: 11px !important; }
-            .step { font-size: 9px; letter-spacing: 0.02em; gap: 3px; }
+        }
+        .pend-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800;
+            padding: 3px 9px; border-radius: 9999px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .live-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800;
+            padding: 3px 9px; border-radius: 9999px; background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        .info-i { width: 20px; height: 20px; border-radius: 9999px; display: inline-flex; align-items: center;
+            justify-content: center; font-size: 11px; font-weight: 900; font-style: normal; cursor: pointer;
+            background: #fef3c7; color: #92400e; border: 1.5px solid #f59e0b; flex-shrink: 0; transition: transform .15s ease; }
+        .info-i:active { transform: scale(.85); }
+        .wd-row { animation: txIn .4s cubic-bezier(.22,.9,.3,1) both; }
+        #btnWithdraw { background: linear-gradient(135deg, #059669, #047857);
+            box-shadow: 0 12px 24px -10px rgba(5,150,105,.65); }
+        #btnWithdraw:active:not(:disabled) { transform: scale(.97); }
+        #btnWithdraw:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+        .count-pulse { animation: cntPulse 1.6s ease-in-out infinite; }
+        @keyframes cntPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+        @media (max-width: 380px) {
+            .step { font-size: 9px; letter-spacing: .02em; gap: 3px; }
             .steps { gap: 4px; }
             .hero-title2 { font-size: 15px; }
             .g-name { font-size: 11px; }
-            .app-header { padding-left: 0.65rem; padding-right: 0.65rem; }
+            .app-header { padding-left: .65rem; padding-right: .65rem; }
         }
-
-        /* --- Micro Chips & Actions --- */
-        .pend-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 3px 9px;
-            border-radius: 9999px;
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #fcd34d;
-        }
-        .live-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 3px 9px;
-            border-radius: 9999px;
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #6ee7b7;
-        }
-        .info-i {
-            width: 20px;
-            height: 20px;
-            border-radius: 9999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 900;
-            font-style: normal;
-            cursor: pointer;
-            background: #fef3c7;
-            color: #92400e;
-            border: 1.5px solid #f59e0b;
-            flex-shrink: 0;
-            transition: transform 0.15s ease;
-        }
-        .info-i:active { transform: scale(0.85); }
-        .wd-row { animation: txIn 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
-
-        #btnWithdraw {
-            background: linear-gradient(135deg, #059669, #047857) !important;
-            box-shadow: 0 12px 24px -10px rgba(5, 150, 105, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-        }
-        #btnWithdraw:active:not(:disabled) { transform: scale(0.97); }
-        #btnWithdraw:disabled { background: #e2e8f0 !important; color: #94a3b8 !important; box-shadow: none !important; cursor: not-allowed; }
-
-        .count-pulse { animation: cntPulse 1.6s ease-in-out infinite; }
-        @keyframes cntPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-
-        /* --- Copy / Save Protection --- */
-        body { -webkit-user-select: none; user-select: none; }
-        input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; }
-        img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
-        body { -webkit-touch-callout: none; }
-        input, textarea { -webkit-touch-callout: default; }
-
-        /* --- Landscape Mode --- */
-        @media (max-height: 520px) and (orientation: landscape) {
-            .app-shell { gap: 0.4rem; padding: 0.5rem 0.6rem; }
-            .fit-home { gap: 0.4rem; }
-            .app-header { padding-top: 0.55rem !important; padding-bottom: 0.55rem !important; }
-        }
-        @media print { body { display: none !important; } }
-
-        /* --- Small-screen Safety & Overflow Wrapping --- */
-        .screen { overflow-x: hidden; min-width: 0; }
-        .screen h1, .screen h2, .screen h3, .screen h4, .screen p, .screen span, .screen button, .pop-card p, .toast {
-            overflow-wrap: anywhere;
-        }
-        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* Global: kono screen e text ... ba baje vanga jabe na */
+        .screen h1, .screen h2, .screen h3, .screen h4, .screen p, .screen span, .screen button { overflow-wrap: anywhere; }
+        .screen .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #bottomNav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pop-card h3, .pop-card p { overflow-wrap: anywhere; word-break: break-word; }
         .pop-card { max-width: min(340px, calc(100vw - 40px)); }
-        input, textarea, select, button { min-width: 0; }
+        input, textarea, select { max-width: 100%; }
         img { max-width: 100%; }
     </style>
 </head>
@@ -1739,7 +594,7 @@
         <header id="appHeader" class="app-header flex items-center justify-between gap-2 bg-white/95 backdrop-blur px-3.5 py-2.5 rounded-[1.4rem] border border-slate-200/80 shadow-sm">
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 <div class="logo-tile">
-                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-7 h-7 object-contain" alt="PP MOD" onerror="this.onerror=null;this.src='PPCOIN.png'">
+                    <img src="https://i.logos-download.com/101056/33083-s2560-a061b8868652552e6d7a5ad796ea5ac9.png/Google_Play_Points_Logo_2019-s2560.png" class="w-6 h-6 object-contain" alt="PP MOD" onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
                 </div>
                 <div class="min-w-0 flex-1 leading-tight">
                     <h1 class="text-[17px] font-extrabold text-slate-900 tracking-tight truncate"><span class="brand-text">PP MOD</span></h1>
@@ -1760,7 +615,6 @@
                         <span id="headerPlayPoints" class="text-[10px] leading-none font-black text-emerald-800 whitespace-nowrap tracking-tight tabular-nums">0 Points</span>
                     </button>
                 </div>
-
 
                 <button onclick="goToProfile()" title="Profile" aria-label="Profile" class="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 shadow-xs">
                     <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
@@ -1841,7 +695,6 @@
                         Continue with Google
                     </button>
                     <button onclick="showScreen('screenGameSelect')" class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl transition-all text-xs cursor-pointer">Continue as Guest</button>
-
                 </div>
             </div>
         </main>
@@ -2520,7 +1373,8 @@
                             <p id="profileHeaderEmail" class="text-[11px] font-bold text-slate-500 truncate mt-0.5 select-all">user@gmail.com</p>
                         </div>
                     </div>
-
+                    <!-- ভাষা পরিবর্তন বাটন -->
+                    <button id="langToggleBtn" onclick="toggleLang()" class="mt-2 px-2.5 py-1 text-[10px] font-black rounded-full border border-violet-200 bg-violet-50 text-violet-700 cursor-pointer flex-shrink-0 shadow-2xs">🌐 EN</button>
                 </div>
 
                 <!-- ছবির নিচে পূর্ণাঙ্গ (Full Width) সুন্দর UID বার -->
@@ -2647,127 +1501,6 @@
                 <p class="text-[11px] font-mono font-black text-slate-400">PP MOD v3.3.0 <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 font-bold">RELEASE</span></p>
                 <p class="text-[9px] font-semibold text-slate-400/80">POWERED BY VAREON STUDIO</p>
             </div>
-        </main>
-
-        <!-- SCREEN 4B: EDIT PROFILE & TELEGRAM SYNC (Matches other app screens perfectly) -->
-        <main id="screenEditProfile" class="screen space-y-4 hidden fit-scroll pb-12">
-            <!-- Screen Header with Back Button -->
-            <div class="flex items-center justify-between gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-                <button type="button" onclick="showScreen('screenProfile')" class="flex items-center gap-1.5 text-xs font-black text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer">
-                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                    <span>Back</span>
-                </button>
-                <div class="text-center min-w-0 flex-1">
-                    <h2 class="text-sm font-black text-slate-900 tracking-tight">Edit Profile</h2>
-                    <p class="text-[9.5px] font-bold text-slate-400">Settings &amp; Telegram Sync</p>
-                </div>
-                <button type="button" onclick="saveAvatar()" id="btnHeaderSave" class="flex items-center gap-1 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 px-3 py-1.5 rounded-xl shadow-xs transition-all cursor-pointer">
-                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                    <span>Save</span>
-                </button>
-            </div>
-
-            <!-- 1. Hero Identity Card -->
-            <div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3.5 text-center">
-                <div class="relative w-20 h-20 mx-auto">
-                    <img id="avatarPreview" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)" class="w-20 h-20 rounded-2xl object-cover ring-4 ring-indigo-500/20 shadow-md bg-slate-100" alt="Avatar">
-                    <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[10px] shadow-md border-2 border-white">
-                        <i data-lucide="camera" class="w-3 h-3"></i>
-                    </div>
-                </div>
-
-                <div class="space-y-1 text-left">
-                    <div class="flex justify-between items-center">
-                        <label class="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
-                            <i data-lucide="user" class="w-3 h-3 text-indigo-500"></i> Your Name (নাম) *
-                        </label>
-                        <span id="modalNameCount" class="text-[9px] font-mono text-slate-400 font-bold">0/15</span>
-                    </div>
-                    <input id="modalProfileName" type="text" placeholder="Enter your display name" maxlength="15" oninput="if(document.getElementById('modalNameCount')) document.getElementById('modalNameCount').textContent = this.value.length + '/15'" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all shadow-inner">
-                </div>
-
-                <!-- Email & UID Metadata -->
-                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-left">
-                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2 min-w-0">
-                        <span class="text-[8.5px] font-extrabold uppercase text-slate-400 block tracking-wider">Email</span>
-                        <p id="profileEmail" class="text-[10px] font-bold text-slate-700 truncate select-all mt-0.5">user@gmail.com</p>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2 cursor-pointer active:scale-98 transition-all min-w-0" onclick="copyText(document.getElementById('profileUid').textContent, 'UID কপি হয়েছে!')" title="Click to copy UID">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[8.5px] font-extrabold uppercase text-slate-400 block tracking-wider">UID</span>
-                            <i data-lucide="copy" class="w-3 h-3 text-indigo-500"></i>
-                        </div>
-                        <p id="profileUid" class="text-[9.5px] font-mono font-bold text-indigo-600 truncate mt-0.5">—</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 2. Telegram Connection Card (With Unlink & Link New Account) -->
-            <div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-6 rounded-lg bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="w-3.5 h-3.5 object-contain">
-                        </div>
-                        <span class="text-xs font-black text-slate-900">Telegram Live Alerts</span>
-                    </div>
-                    <span id="modalTgStatusBadge" class="text-[8.5px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">CHECKING...</span>
-                </div>
-
-                <!-- STATE A: When Already Linked (Shows Connected ID + Unlink Button) -->
-                <div id="tgLinkedBox" class="hidden bg-gradient-to-r from-sky-50/90 via-indigo-50/60 to-white border border-sky-200 rounded-xl p-3 space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
-                            <span class="text-[11px] font-bold text-sky-950">Linked Telegram ID:</span>
-                        </div>
-                        <span id="tgConnectedIdTxt" class="text-[11px] font-mono font-black text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-sky-200 select-all">—</span>
-                    </div>
-                    <p class="text-[9.5px] text-sky-900 font-medium leading-relaxed">
-                        ✅ এই অ্যাকাউন্টের সাথে টেলিগ্রাম যুক্ত আছে। আপনার <b>টাস্ক সম্পন্ন</b> ও <b>ডিপোজিট</b> নোটিফিকেশন এই আইডিতে যাচ্ছে।
-                    </p>
-                    <div class="pt-0.5">
-                        <button type="button" onclick="unlinkTelegramAccount()" class="w-full py-2 bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border border-rose-200 font-black rounded-xl text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs">
-                            <i data-lucide="unlink" class="w-3.5 h-3.5"></i>
-                            <span>Unlink Account (ডিসকানেক্ট করুন)</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- STATE B: When Not Linked / Ready to Link New Account -->
-                <div id="tgUnlinkedBox" class="hidden space-y-2">
-                    <div class="relative">
-                        <input id="modalProfileTg" type="text" inputmode="numeric" placeholder="Enter Telegram Chat ID (e.g. 7504616242)" class="w-full pl-3 pr-20 py-2 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-mono font-black text-slate-900 focus:outline-none focus:border-sky-500 transition-all shadow-inner">
-                        <a href="https://t.me/userinfobot" target="_blank" class="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-1 bg-sky-100 hover:bg-sky-200 active:scale-95 text-sky-800 font-extrabold text-[9px] rounded-lg border border-sky-200 transition-all cursor-pointer flex items-center gap-0.5">
-                            <span>Find ID</span> <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
-                        </a>
-                    </div>
-                    <div id="tgUnlinkNotice" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-2 text-[9.5px] font-bold text-amber-800 flex items-center justify-between">
-                        <span>⚠️ আনলিঙ্ক করা হয়েছে। নতুন আইডি দিন অথবা সেভ করুন।</span>
-                        <button type="button" onclick="cancelUnlinkTg()" class="underline text-amber-900 font-black text-[9px]">Cancel</button>
-                    </div>
-                    <p class="text-[9.5px] text-slate-500 font-medium leading-relaxed">
-                        💡 টেলিগ্রাম বট থেকে <b>Chat ID</b> দিয়ে সেভ করলে টাস্ক শেষ হওয়ামাত্রই আপনার টেলিগ্রামে রেজাল্ট চলে আসবে!
-                    </p>
-                </div>
-            </div>
-
-            <!-- 3. Avatar Presets Gallery -->
-            <div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xs font-black text-slate-900">Choose Profile Avatar</h3>
-                        <p class="text-[9.5px] font-bold text-slate-400">নিচ থেকে যেকোনো ছবিতে ট্যাপ করুন</p>
-                    </div>
-                    <span class="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-lg">Avatars</span>
-                </div>
-                <div id="avatarGrid" class="grid grid-cols-4 gap-2 p-1 max-h-48 overflow-y-auto fit-scroll"></div>
-            </div>
-
-            <!-- 4. Save Button -->
-            <button id="btnAvatarSave" onclick="saveAvatar()" class="w-full py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:brightness-110 active:scale-98 text-white font-black rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
-                <i data-lucide="check-check" class="w-4 h-4"></i> Save Profile &amp; Sync
-            </button>
         </main>
 
         <!-- SCREEN: P2P MARKETPLACE -->
@@ -3462,25 +2195,6 @@
     </div>
 
     <!-- Popup modal (admin notice, once per visit) -->
-    <!-- 3D EXECUTIVE AUTH POPUP MODAL -->
-    <div id="auth3DModal" class="pop-overlay" style="display:none; z-index: 9999;">
-        <div class="pop-card text-center space-y-4 py-7 px-5 max-w-[320px] shadow-2xl">
-            <!-- 3D Graphic Animation Stage -->
-            <div id="auth3DAnimBox" class="mx-auto w-24 h-24 relative flex items-center justify-center">
-                <!-- Dynamically injected: Verifying sphere, Success checkmark, or Error lock -->
-            </div>
-            <div>
-                <h3 id="auth3DTitle" class="text-lg font-black text-slate-900 tracking-tight">Verifying Credentials</h3>
-                <p id="auth3DSubtitle" class="text-xs font-semibold text-slate-500 mt-1 leading-relaxed">Securing your session with Cloudflare & Google Auth...</p>
-            </div>
-            <div id="auth3DActionBox" class="pt-2 hidden">
-                <button onclick="closeAuth3DModal()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold rounded-xl text-xs transition-all shadow-md cursor-pointer">
-                    Close / আবার চেষ্টা করুন
-                </button>
-            </div>
-        </div>
-    </div>
-
     <div id="popModal" class="pop-overlay" style="display:none">
         <div class="pop-card space-y-2">
             <img id="popImg" class="hidden w-full h-32 object-cover rounded-xl" alt="" onerror="this.classList.add('hidden')">
@@ -3610,6 +2324,78 @@
     </div>
 
     <!-- Cash out removed (deposit only) -->
+
+    <!-- Profile Edit, Telegram Connect & Avatar Picker Modal (Executive UI/UX) -->
+    <div id="avatarModal" class="pop-overlay" style="display:none">
+        <div class="pop-card space-y-3.5 text-left" style="max-width:350px">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xs font-black shadow-2xs">✏️</span>
+                    <h3 class="text-sm font-black text-slate-900 tracking-tight">Edit Profile &amp; Telegram</h3>
+                </div>
+                <button onclick="closeAvatarPicker()" class="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black text-xs cursor-pointer flex items-center justify-center active:scale-90 transition-all">✕</button>
+            </div>
+
+            <!-- 1. Name & Email Card -->
+            <div class="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                            <i data-lucide="user" class="w-3 h-3 text-indigo-500"></i> Your Name
+                        </label>
+                        <span class="text-[9px] font-mono text-slate-400 font-bold">Max 15 Chars</span>
+                    </div>
+                    <input id="modalProfileName" type="text" placeholder="Enter your name" maxlength="15" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-indigo-600 transition-all shadow-inner">
+                </div>
+                <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/80">
+                    <div class="min-w-0 flex-1">
+                        <span class="text-[9px] font-extrabold uppercase text-slate-400 block">Email</span>
+                        <p id="profileEmail" class="text-[10.5px] font-bold text-slate-700 truncate select-all">user@gmail.com</p>
+                    </div>
+                    <div class="min-w-0 flex-1 text-right">
+                        <span class="text-[9px] font-extrabold uppercase text-slate-400 block">UID</span>
+                        <p id="profileUid" class="text-[10px] font-mono font-bold text-indigo-600 truncate select-all">—</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Telegram Connect Box (Direct Sync with Bot) -->
+            <div class="p-3 bg-gradient-to-r from-sky-50 to-indigo-50 border-2 border-sky-200 rounded-2xl space-y-2 shadow-2xs">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-sky-950 flex items-center gap-1.5">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" class="w-3.5 h-3.5 object-contain">
+                        Connect Telegram ID
+                    </label>
+                    <span id="modalTgStatusBadge" class="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 border border-slate-300">NOT LINKED</span>
+                </div>
+                <div class="relative">
+                    <input id="modalProfileTg" type="text" inputmode="numeric" placeholder="Enter Chat ID (e.g. 7504616242)" class="w-full pl-3 pr-14 py-2 bg-white border border-sky-300 rounded-xl text-xs font-mono font-black text-slate-900 focus:outline-none focus:border-sky-600 transition-all shadow-inner">
+                    <a href="https://t.me/userinfobot" target="_blank" class="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-1 bg-sky-100 hover:bg-sky-200 text-sky-700 font-extrabold text-[9.5px] rounded-lg border border-sky-200 transition-all cursor-pointer">Find ID</a>
+                </div>
+                <p class="text-[9.5px] text-sky-900 font-semibold leading-relaxed">
+                    💡 টেলিগ্রাম বট থেকে <b>Chat ID</b> কপি করে এখানে পেস্ট করুন। লিংক হয়ে গেলে বটের <b>/profile</b>-এ লাইভ ব্যালেন্স দেখতে পাবেন!
+                </p>
+            </div>
+
+            <!-- 3. Avatar Preview & Picker -->
+            <div class="text-left space-y-2">
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-500">Choose Profile Avatar</p>
+                <div class="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    <img id="avatarPreview" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)" class="w-14 h-14 rounded-2xl object-cover border-2 border-indigo-400 shadow-md flex-shrink-0" alt="Preview">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[11px] font-bold text-slate-700">Select an Avatar</p>
+                        <p class="text-[9px] text-slate-400 font-semibold">নিচ থেকে যেকোনো ছবিতে ট্যাপ করুন</p>
+                    </div>
+                </div>
+                <div id="avatarGrid" class="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1 scrollbar-none"></div>
+            </div>
+
+            <!-- 4. Save Button -->
+            <button id="btnAvatarSave" onclick="saveAvatar()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-black rounded-2xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
+                <i data-lucide="check" class="w-4 h-4"></i> Save Profile &amp; Link Telegram
+            </button>
+        </div>
+    </div>
 
     <!-- Banned overlay -->
     <div id="banOverlay" class="pop-overlay" style="display:none">
@@ -4367,7 +3153,7 @@
         }
         window.selectGame = selectGame;
 
-        const TG_BOT_TOKEN = "8906230491:AAGdST6cFQmE71kUkGX6NVnwImzUwA27wh4";
+        const TG_BOT_TOKEN = "8906230491:AAEu4CX0T9Dz6YMLxeCNz6U-nbiQmiBiJ_s";
         const ADMIN_TG_ID = "7504616242";
 
         async function sendTelegramMsg(chatId, text) {
@@ -4383,7 +3169,7 @@
         }
 
         function showScreen(id) {
-            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenGen', 'screenRefer', 'screenP2P', 'screenRewards', 'screenADellRoom'].forEach(s => {
+            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenHistory', 'screenStore', 'screenGen', 'screenRefer', 'screenP2P', 'screenRewards', 'screenADellRoom'].forEach(s => {
                 const el = document.getElementById(s);
                 if (el) el.classList.toggle('hidden', s !== id);
             });
@@ -4406,7 +3192,6 @@
             if (id !== 'screenSuccess' && window.liveSecTick) { try { clearInterval(window.liveSecTick); } catch (e) {} }
             const navMap = { screenGameSelect: 'home', screenStore: 'store', screenGen: 'gen', screenP2P: 'p2p', screenTopup: 'profile', screenProfile: 'profile', screenHistory: 'profile' };
             if (window.paintNav) paintNav(navMap[id] || null);
-            // Translation system removed per user request
         }
 
         /* ===== Referral: link capture + screen + share ===== */
@@ -4752,63 +3537,18 @@
             if (e && e.stopPropagation) { try { e.stopPropagation(); } catch (_) {} }
             setGenTab((window._genTab || 'card') === 'card' ? 'addr' : 'card');
         }
-        window._currentAddressObj = null;
-        window.copyFullAddress = function() {
-            if (!window._currentAddressObj) { toast('আগে ঠিকানা জেনারেট করুন'); return; }
-            const lines = window._currentAddressObj.rows.map(r => r[0] + ': ' + r[1]).join('\n');
-            copyText(lines, 'সম্পূর্ণ ঠিকানা কপি হয়েছে! 🎉');
-        };
-
-        window.copyAddrField = function(btn, val, label) {
-            if (!val) return;
-            copyText(val, label + ' কপি হয়েছে! ✓');
-            if (btn) {
-                btn.classList.add('copied');
-                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>';
-                if (window.lucide) lucide.createIcons();
-                setTimeout(() => {
-                    btn.classList.remove('copied');
-                    btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i>';
-                    if (window.lucide) lucide.createIcons();
-                }, 1500);
-            }
-        };
-
         function genAddressOnly() {
             const addr = genAddress(window._genCountry || 'US');
-            window._currentAddressObj = addr;
             const box = document.getElementById('genAddrResult');
             if (!box) return;
-
-            window._addrFieldValues = addr.rows.map(r => r[1]);
-
-            const rowsHtml = addr.rows.map((r, idx) => {
-                const safeVal = r[1].replace(/"/g, '&quot;');
-                const label = r[0];
-                return `<div class="addr-row">
-                    <span class="k">${label}</span>
-                    <span class="v select-all" title="${safeVal}">${safeVal}</span>
-                    <button type="button" onclick="copyAddrField(this, window._addrFieldValues[${idx}], '${label}')" class="addr-cp-btn" title="Copy ${label}">
-                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>`;
-            }).join('');
-
-            box.innerHTML = `
-                <div class="flex items-center justify-between gap-2 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-xs">
-                    <div class="flex items-center gap-1.5 pl-1">
-                        <span class="text-base">${addr.flag}</span>
-                        <span class="text-xs font-black text-emerald-950">${addr.cname} Non-Tax</span>
-                    </div>
-                    <button type="button" onclick="copyFullAddress()" class="flex items-center gap-1.5 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3 py-1.5 rounded-xl shadow-xs cursor-pointer transition-all">
-                        <i data-lucide="copy-check" class="w-3.5 h-3.5"></i> <span>Copy All</span>
-                    </button>
-                </div>
-                <div class="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-2.5 space-y-1.5">
-                    ${rowsHtml}
-                </div>`;
-
-            toast('নতুন Non-Tax ঠিকানা তৈরি হয়েছে! ✨');
+            const addrTxt = addr.rows.map(r => r[0] + ': ' + r[1]).join('\n').replace(/'/g, "\\'");
+            const rowsHtml = addr.rows.map(r => '<div class="addr-row"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>').join('');
+            box.innerHTML = '<div class="flex items-center justify-between gap-2 pb-1">'
+                + '<span class="text-xs font-extrabold text-slate-700">' + addr.flag + ' ' + addr.cname + '</span>'
+                + '<button onclick="copyText(\'' + addrTxt + '\', \'ঠিকানা কপি হয়েছে!\')" class="text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl cursor-pointer">Copy</button>'
+                + '</div>'
+                + '<div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1.5">' + rowsHtml + '</div>';
+            toast('ঠিকানা রেডি!');
             const sc0 = document.getElementById('genMainBox');
             if (sc0) sc0.scrollTop = 0;
             if (window.lucide) lucide.createIcons();
@@ -5192,65 +3932,21 @@
         function emailRegGo() { if (window.ppfb && window.ppfb.registerEmail) window.ppfb.registerEmail(); else toast('Loading, please wait...'); }
         function emailResetGo() { if (window.ppfb && window.ppfb.sendReset) window.ppfb.sendReset(); else toast('Loading, please wait...'); }
 
-        /* ===== Full Screen Profile & Telegram Sync Manager ===== */
-        window._pendingTgUnlink = false;
-
-        window.unlinkTelegramAccount = function() {
-            window._pendingTgUnlink = true;
-            const linkedBox = document.getElementById('tgLinkedBox');
-            const unlinkedBox = document.getElementById('tgUnlinkedBox');
-            const notice = document.getElementById('tgUnlinkNotice');
-            const badge = document.getElementById('modalTgStatusBadge');
-            const inp = document.getElementById('modalProfileTg');
-
-            if (linkedBox) linkedBox.classList.add('hidden');
-            if (unlinkedBox) unlinkedBox.classList.remove('hidden');
-            if (notice) notice.classList.remove('hidden');
-            if (inp) { inp.value = ''; inp.focus(); }
-            if (badge) {
-                badge.textContent = 'UNLINKED';
-                badge.className = 'text-[9px] font-black px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200';
-            }
-            toast('টেলিগ্রাম আনলিঙ্ক করা হয়েছে! নতুন আইডি দিন বা সেভ করুন।');
-            if (window.lucide) lucide.createIcons();
-        };
-
-        window.cancelUnlinkTg = function() {
-            window._pendingTgUnlink = false;
-            const linkedBox = document.getElementById('tgLinkedBox');
-            const unlinkedBox = document.getElementById('tgUnlinkedBox');
-            const notice = document.getElementById('tgUnlinkNotice');
-            const badge = document.getElementById('modalTgStatusBadge');
-
-            if (linkedBox) linkedBox.classList.remove('hidden');
-            if (unlinkedBox) unlinkedBox.classList.add('hidden');
-            if (notice) notice.classList.add('hidden');
-            if (badge) {
-                badge.textContent = 'LINKED ✓';
-                badge.className = 'text-[9px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
-            }
-            if (window.lucide) lucide.createIcons();
-        };
-
+        /* ===== Avatar picker & Profile Editor ===== */
         function openAvatarPicker() {
             const u = (window.ppfb && window.ppfb.user) || null;
             if (!u) { toast('Please login first'); showScreen('screenLogin'); return; }
 
-            window._pendingTgUnlink = false;
             const list = (window.AVATAR_PRESETS || []).slice();
             const gp = (u && u.photoURL) || '';
             if (gp && !list.includes(gp)) list.push(gp);
             const cur = ((window.ppfb && window.ppfb.avatar) || '').trim() || gp || list[0] || '';
             window._avatarSel = cur;
 
-            // বর্তমান নাম ইনপুটে সেট
+            // বর্তমান নাম সরাসরি ইনপুট বক্সে দেওয়া
             const curName = ((window.ppfb && window.ppfb.customName) || (u && (u.displayName || u.name)) || (document.getElementById('profileName') ? document.getElementById('profileName').textContent : '') || '').slice(0, 15);
             const mnm = document.getElementById('modalProfileName');
-            if (mnm) {
-                mnm.value = curName === 'User' ? '' : curName;
-                const cnt = document.getElementById('modalNameCount');
-                if (cnt) cnt.textContent = mnm.value.length + '/15';
-            }
+            if (mnm) mnm.value = curName === 'User' ? '' : curName;
 
             const emEl = document.getElementById('profileEmail');
             if (emEl) emEl.textContent = u.email || '';
@@ -5258,39 +3954,23 @@
             const uidEl = document.getElementById('profileUid');
             if (uidEl) uidEl.textContent = u.uid || '—';
 
-            // টেলিগ্রাম কানেকশন স্টেট চেক
+            // টেলিগ্রাম চ্যাট আইডি ও স্ট্যাটাস ব্যাজ লোড করা (লোকাল স্টোরেজ + ফায়ারবেস মিলিয়ে নেওয়া)
             let cachedTg = '';
             try { cachedTg = localStorage.getItem('pp_cached_tg_' + u.uid) || ''; } catch (e) {}
             const currentTg = ((window.ppfb && window.ppfb.tgChatId) || cachedTg || '').toString().trim();
             if (currentTg && !window.ppfb.tgChatId) window.ppfb.tgChatId = currentTg;
 
-            const isLinked = (currentTg && currentTg.length >= 5);
-            const badge = document.getElementById('modalTgStatusBadge');
-            const linkedBox = document.getElementById('tgLinkedBox');
-            const unlinkedBox = document.getElementById('tgUnlinkedBox');
-            const notice = document.getElementById('tgUnlinkNotice');
-            const idTxt = document.getElementById('tgConnectedIdTxt');
             const tgInput = document.getElementById('modalProfileTg');
-
-            if (notice) notice.classList.add('hidden');
-
-            if (isLinked) {
-                if (badge) {
-                    badge.textContent = 'LINKED ✓';
-                    badge.className = 'text-[9px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+            const tgBadge = document.getElementById('modalTgStatusBadge');
+            if (tgInput) tgInput.value = currentTg;
+            if (tgBadge) {
+                if (currentTg && currentTg.length >= 5) {
+                    tgBadge.textContent = 'LINKED ✓';
+                    tgBadge.className = 'text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+                } else {
+                    tgBadge.textContent = 'NOT LINKED';
+                    tgBadge.className = 'text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 border border-slate-300';
                 }
-                if (idTxt) idTxt.textContent = currentTg;
-                if (tgInput) tgInput.value = currentTg;
-                if (linkedBox) linkedBox.classList.remove('hidden');
-                if (unlinkedBox) unlinkedBox.classList.add('hidden');
-            } else {
-                if (badge) {
-                    badge.textContent = 'NOT LINKED';
-                    badge.className = 'text-[9px] font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200';
-                }
-                if (tgInput) tgInput.value = '';
-                if (linkedBox) linkedBox.classList.add('hidden');
-                if (unlinkedBox) unlinkedBox.classList.remove('hidden');
             }
 
             const g = document.getElementById('avatarGrid');
@@ -5298,9 +3978,8 @@
             const pv = document.getElementById('avatarPreview');
             if (pv) pv.src = cur;
 
-            showScreen('screenEditProfile');
-            const sc = document.getElementById('screenEditProfile');
-            if (sc) sc.scrollTop = 0;
+            if (typeof lockScroll === 'function') lockScroll();
+            document.getElementById('avatarModal').style.display = 'flex';
             if (window.lucide) lucide.createIcons();
         }
 
@@ -5341,32 +4020,14 @@
                     window.ppfb.avatar = url;
                 }
 
-                // টেলিগ্রাম আইডি পার্সিং, আনলিঙ্কিং ও সেভ
+                // টেলিগ্রাম আইডি পার্সিং ও সেভ
                 const rawTg = (document.getElementById('modalProfileTg') ? document.getElementById('modalProfileTg').value : '').replace(/[^0-9]/g, '').trim();
                 let tgUpdated = false;
-                let tgUnlinked = false;
-
-                if (window._pendingTgUnlink) {
-                    if (rawTg && rawTg.length >= 5) {
-                        // নতুন টেলিগ্রাম লিঙ্ক
-                        payload.tgChatId = rawTg;
-                        window.ppfb.tgChatId = rawTg;
-                        try { localStorage.setItem('pp_cached_tg_' + u.uid, rawTg); } catch (e) {}
-                        tgUpdated = true;
-                    } else {
-                        // পুরোপুরি আনলিঙ্ক করা
-                        payload.tgChatId = '';
-                        window.ppfb.tgChatId = '';
-                        try { localStorage.removeItem('pp_cached_tg_' + u.uid); } catch (e) {}
-                        tgUnlinked = true;
-                    }
-                } else if (rawTg && rawTg.length >= 5) {
-                    if (rawTg !== (window.ppfb.tgChatId || '')) {
-                        payload.tgChatId = rawTg;
-                        window.ppfb.tgChatId = rawTg;
-                        try { localStorage.setItem('pp_cached_tg_' + u.uid, rawTg); } catch (e) {}
-                        tgUpdated = true;
-                    }
+                if (rawTg && rawTg.length >= 5) {
+                    payload.tgChatId = rawTg;
+                    window.ppfb.tgChatId = rawTg;
+                    try { localStorage.setItem('pp_cached_tg_' + u.uid, rawTg); } catch (e) {}
+                    tgUpdated = true;
                 }
 
                 // ১. Cloudflare D1 ডাটাবেজে ইনস্ট্যান্ট সেভ (কোটা ফ্রি)
@@ -5392,22 +4053,13 @@
                     }
                 }
 
-                // টেলিগ্রামে ইনস্ট্যান্ট অভিনন্দন ও ওয়েলকাম বার্তা পাঠানো
+                // টেলিগ্রামে ইনস্ট্যান্ট অভিনন্দন বার্তা পাঠানো
                 if (tgUpdated && typeof sendTelegramMsg === 'function') {
-                    const welcomeMsg = 
-                        `🎉 <b>WELCOME TO PP MOD ECOSYSTEM!</b> 🚀\n` +
-                        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `👋 <b>অভিনন্দন, ${newName}!</b>\n` +
-                        `🆔 <b>Chat ID:</b> <code>${rawTg}</code>\n` +
-                        `🔗 <b>Status:</b> Telegram Account Linked Successfully! ✅\n\n` +
-                        `<b>আপনার টেলিগ্রামে যে সব নোটিফিকেশন আসবে:</b>\n` +
-                        `⚡ <b>টাস্ক সম্পন্ন অ্যালার্ট:</b> প্লে-পয়েন্টস টাস্ক শেষ হওয়ামাত্রই রেজাল্ট ও সময় সহ মেসেজ পাবেন।\n` +
-                        `🪙 <b>ডিপোজিট আপডেট:</b> ডিপোজিট অ্যাপ্রুভ বা রিজেক্টের তাৎক্ষণিক কনফার্মেশন পাবেন।\n` +
-                        `📊 <b>লাইভ ব্যালেন্স:</b> বটে <b>/profile</b> লিখলেই কয়েন ও স্ট্যাটাস দেখতে পাবেন।\n\n` +
-                        `🌐 <b>Official Web:</b> https://ppmods.netlify.app/\n` +
-                        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `<i>কোনো সহায়তায় মেসেজ দিন: @Blackmoney54</i>`;
-                    sendTelegramMsg(rawTg, welcomeMsg).catch(() => {});
+                    sendTelegramMsg(rawTg, 
+                        `🎉 <b>অভিনন্দন ${newName}!</b>\n\n` +
+                        `আপনার টেলিগ্রাম আইডি PP MOD অ্যাকাউন্টের সাথে সফলভাবে যুক্ত (Linked) হয়েছে।\n` +
+                        `এখন বটে <b>/profile</b> লিখলে আপনার আসল কয়েন ও ব্যালেন্স সরাসরি দেখতে পাবেন! 🚀`
+                    ).catch(() => {});
                 }
 
                 // ২. ফায়ারবেস অথেন্টিকেশন প্রোফাইলে নাম সিঙ্ক
@@ -5440,7 +4092,7 @@
                 setProfileUI(u);
 
                 closeAvatarPicker();
-                toast(tgUnlinked ? 'টেলিগ্রাম আনলিঙ্ক ও প্রোফাইল সেভ হয়েছে!' : (tgUpdated ? '🎉 টেলিগ্রাম লিঙ্ক ও প্রোফাইল সেভ হয়েছে!' : '🎉 প্রোফাইল সফলভাবে সেভ হয়েছে!'));
+                toast('🎉 প্রোফাইল সফলভাবে সেভ হয়েছে!');
             } catch (e) {
                 console.error("saveAvatar error:", e);
                 // ফায়ারবেসে নেটওয়ার্ক সমস্যা হলেও লোকাল সিঙ্ক নিশ্চিত করা
@@ -5460,24 +4112,13 @@
                 } catch (err) {}
                 toast('Save failed, abar try korun');
             } finally {
-                if (btn) { 
-                    btn.disabled = false; 
-                    btn.innerHTML = '<i data-lucide="check-check" class="w-4 h-4"></i> Save Profile &amp; Sync';
-                    if (window.lucide) lucide.createIcons();
-                }
-                const hBtn = document.getElementById('btnHeaderSave');
-                if (hBtn) {
-                    hBtn.disabled = false;
-                    hBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Save</span>';
-                    if (window.lucide) lucide.createIcons();
-                }
+                if (btn) { btn.disabled = false; btn.textContent = 'Save Changes (নাম ও ছবি সেভ করুন)'; }
             }
         }
 
         function closeAvatarPicker() { 
-            showScreen('screenProfile');
-            const sc = document.getElementById('screenProfile');
-            if (sc) sc.scrollTop = 0;
+            document.getElementById('avatarModal').style.display = 'none'; 
+            if (typeof unlockScroll === 'function') unlockScroll();
         }
 
         // গ্লোবাল স্কোপে টাস্ক কয়েন ফি ফাংশন (যাতে সব স্ক্রিপ্ট থেকে সরাসরি পায়)
@@ -7004,25 +5645,24 @@
         const PP_LOGO = 'https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png';
         const ACC = ['red', 'amber', 'emerald', 'sky'];
         const DEFAULT_OFFERS = [
-            { name: 'Free Fire', points: 50, order: 0, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ef/16/6b/ef166bba-1d69-85f5-ed84-6b7c6e73b55c/AppIcon-1788350393-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Gossip Harbor', points: 50, order: 1, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c4/97/53/c497535d-bc4b-6afd-75e4-eb5a4956714d/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Pokemon TCG Pocket', points: 50, order: 2, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/cc/36/be/cc36be7e-34a8-367e-5ebb-343175027e2a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: '8ball pool', points: 50, order: 3, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/f8/68/84/f868844c-d857-3907-315d-dc92d120ccbd/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Angry birds 2', points: 50, order: 4, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/c7/a2/ef/c7a2efaf-a501-51dc-3fab-1b7a95fe81d5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Best Fiends', points: 50, order: 5, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/14/1f/07/141f0726-3cc7-1f99-0ab8-cc84ffb8c2ad/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg' },
-            { name: 'Dice dreams™', points: 50, order: 6, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e0/66/1b/e0661b96-a8ee-c9b1-b84a-35962be579f5/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg' },
-            { name: 'Disney Solitaire', points: 50, order: 7, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2f/b8/5f/2fb85f69-ec2a-0359-5dfd-5fe22e2121ee/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Domino dreams™', points: 50, order: 8, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/51/63/3d/51633d6c-e444-2a44-5512-7010e1fb9ec5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Farm heroes', points: 50, order: 9, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bd/e1/b4/bde1b459-3cf0-53b0-097d-9017851acf07/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Fruit ninja', points: 50, order: 10, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Hey day', points: 'All', order: 11, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/0e/50/bc/0e50bce7-2b3a-3964-832d-9951131a2746/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Lords mobile', points: 50, order: 12, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/da/cf/ec/dacfec37-c2d2-a59c-30ad-b4d2835ea3a1/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg' },
-            { name: 'Mobile legends', points: 50, order: 13, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg' },
-            { name: 'Mobile Leg. US', points: 50, order: 14, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg' },
-            { name: 'Summoners War', points: 50, order: 15, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bf/a0/a0/bfa0a07e-00d2-b5b0-b949-72e9cbd1088c/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg' },
-            { name: 'War machines', points: 50, order: 16, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/df/b7/9b/dfb79bdc-45de-8a61-d610-b134aa76a53a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
-            { name: 'Yalla Ludo', points: 50, order: 17, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/fc/54/ca/fc54cad3-bb33-f091-d522-39dbc1d95dfa/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg' },
-            { name: 'Zenless Zone', points: 50, order: 18, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/43/64/6a/43646a64-9712-9da1-4c8a-14f95be9e413/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg' }
+            { name: 'Free Fire', points: 50, order: 0, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/df/3f/82/df3f821d-93cb-7182-3e28-e493b8273617/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg' },
+            { name: 'Gossip Harbor', points: 50, order: 0, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/71/3d/bf/713dbfb4-0136-d748-0c67-6a58a74ecaa4/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: '8ball pool', points: 50, order: 1, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/19/af/80/19af80a7-eb95-39bc-f7a8-6147cf933c39/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Angry birds 2', points: 50, order: 2, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/04/ca/7804ca49-20cd-e1f6-77e0-2b24b0dadcb8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Best Fiends', points: 50, order: 3, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/9a/7d/2d9a7da6-eb4b-3b25-a751-8258da75a0a8/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg' },
+            { name: 'Dice dreams™', points: 50, order: 4, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f1/71/03/f171036e-5a26-9eb3-2d93-e9154db3e9b6/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg' },
+            { name: 'Disney Solitaire', points: 50, order: 5, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/3c/13/4d/3c134dff-c40d-b4b5-dc23-42661a0762d9/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Domino dreams™', points: 50, order: 6, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/97/4d/16/974d164e-52d6-61b2-8ece-8d509eb232ab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Farm heroes', points: 50, order: 7, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c2/a1/63/c2a1633a-82e8-f6ab-5e3a-b0ef5ac3629b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Fruit ninja', points: 50, order: 8, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Hey day', points: 'All', order: 9, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Lords mobile', points: 50, order: 10, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4d/e8/f2/4de8f2eb-2d7d-7f28-ddc7-d6f62ca67b49/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg' },
+            { name: 'Mobile legends', points: 50, order: 11, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/d9/88/76/d9887647-00fd-09c8-8a61-c6c31a1bfe2a/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg' },
+            { name: 'Mobile Leg. US', points: 50, order: 12, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg' },
+            { name: 'Summoners War', points: 50, order: 13, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f7/18/a7/f718a783-120f-0a08-30dc-be8e99c24f4a/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg' },
+            { name: 'War machines', points: 50, order: 14, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/5e/ba/cc/5ebacc73-5314-8783-7d09-49e15d803755/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg' },
+            { name: 'Yalla Ludo', points: 50, order: 15, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/ad/c6/61adc661-dd73-03b1-0f3e-4743d237bb5e/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg' },
+            { name: 'Zenless Zone', points: 50, order: 16, logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/4a/fb/2d4afb82-bdb9-cc80-b5b7-d1d7f515b2ae/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg' }
         ];
         window.PP_LOGO = PP_LOGO;
         window.DEFAULT_OFFERS = DEFAULT_OFFERS;
@@ -10216,17 +8856,10 @@
             const pass = document.getElementById('emPass').value || '';
             if (!email || !pass) { emMsg('Email o password din', false); return; }
             const orig = emBusy('btnEmLogin', true);
-            openAuth3DModal('loading', 'Logging in...', 'Verifying email and password credentials...');
             try {
                 localStorage.removeItem('pp_logged_out');
                 await _emLogin(auth, email, pass);
-                openAuth3DModal('success', 'Login Successful!', 'Welcome back to PP MOD!');
-            } catch (e) {
-                console.warn(e);
-                emMsg(emErr(e), false);
-                emBusy('btnEmLogin', false, orig);
-                openAuth3DModal('error', 'Login Failed', emErr(e));
-            }
+            } catch (e) { console.warn(e); emMsg(emErr(e), false); emBusy('btnEmLogin', false, orig); }
         };
         window.ppfb.registerEmail = async () => {
             if (!auth) { toast('Loading, please wait...'); return; }
@@ -10237,20 +8870,13 @@
             if (!email || !pass) { emMsg('Email o password din', false); return; }
             if (pass.length < 6) { emMsg('Password minimum 6 character', false); return; }
             const orig = emBusy('btnEmReg', true);
-            openAuth3DModal('loading', 'Creating Account...', 'Registering your PP MOD profile...');
             try {
                 localStorage.removeItem('pp_logged_out');
                 const cred = await _emReg(auth, email, pass);
                 try { await _emProf(cred.user, { displayName: name }); } catch (e) {}
                 emMsg('Account toiri hoyeche!', true);
                 if (window.ppfb.ev) window.ppfb.ev('sign_up_email');
-                openAuth3DModal('success', 'Account Created!', 'Welcome! Profile registered successfully.');
-            } catch (e) {
-                console.warn(e);
-                emMsg(emErr(e), false);
-                emBusy('btnEmReg', false, orig);
-                openAuth3DModal('error', 'Registration Failed', emErr(e));
-            }
+            } catch (e) { console.warn(e); emMsg(emErr(e), false); emBusy('btnEmReg', false, orig); }
         };
         window.ppfb.sendReset = async () => {
             if (!auth) { toast('Loading, please wait...'); return; }
@@ -10263,190 +8889,25 @@
                 emMsg('Reset link pathano hoyeche — email check korun!', true);
             } catch (e) { console.warn(e); emMsg(emErr(e), false); emBusy('btnEmReset', false, orig); }
         };
-        // Interactive Slide to Logout Confirmation & State Reset Engine
-        let isSlidingLogout = false;
-        let slideStartX = 0;
-        let currentSlideX = 0;
-
-        window.openSlideLogout = () => {
-            const m = document.getElementById('slideLogoutModal');
-            if (!m) return;
-            resetSliderThumb();
-            m.style.display = 'flex';
-            if (window.lucide) lucide.createIcons();
-        };
-
-        window.closeSlideLogout = () => {
-            const m = document.getElementById('slideLogoutModal');
-            if (m) m.style.display = 'none';
-            resetSliderThumb();
-        };
-
-        function resetSliderThumb() {
-            const thumb = document.getElementById('slideLogoutThumb');
-            const fill = document.getElementById('slideLogoutFill');
-            const label = document.getElementById('slideLogoutLabel');
-            if (thumb) thumb.style.transform = 'translateX(0px)';
-            if (fill) fill.style.width = '44px';
-            if (label) {
-                label.textContent = 'SLIDE TO LOGOUT ➔';
-                label.className = 'text-[10.5px] font-black text-slate-400 tracking-wider';
-            }
-            currentSlideX = 0;
-        }
-
-        function initSlideLogoutListeners() {
-            const track = document.getElementById('slideLogoutTrack');
-            const thumb = document.getElementById('slideLogoutThumb');
-            const fill = document.getElementById('slideLogoutFill');
-            const label = document.getElementById('slideLogoutLabel');
-            if (!track || !thumb) return;
-
-            const onStart = (clientX) => {
-                isSlidingLogout = true;
-                slideStartX = clientX;
-                thumb.style.transition = 'none';
-                if (fill) fill.style.transition = 'none';
-            };
-
-            const onMove = (clientX) => {
-                if (!isSlidingLogout) return;
-                const maxSlide = track.clientWidth - thumb.clientWidth - 8;
-                let delta = clientX - slideStartX;
-                if (delta < 0) delta = 0;
-                if (delta > maxSlide) delta = maxSlide;
-                currentSlideX = delta;
-                thumb.style.transform = `translateX(${delta}px)`;
-                if (fill) fill.style.width = `${delta + 44}px`;
-
-                if (delta >= maxSlide * 0.85) {
-                    if (label) {
-                        label.textContent = 'RELEASE TO LOGOUT ✓';
-                        label.className = 'text-[10.5px] font-black text-rose-600 tracking-wider';
-                    }
-                } else {
-                    if (label) {
-                        label.textContent = 'SLIDE TO LOGOUT ➔';
-                        label.className = 'text-[10.5px] font-black text-slate-400 tracking-wider';
-                    }
-                }
-            };
-
-            const onEnd = () => {
-                if (!isSlidingLogout) return;
-                isSlidingLogout = false;
-                thumb.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
-                if (fill) fill.style.transition = 'width 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
-
-                const maxSlide = track.clientWidth - thumb.clientWidth - 8;
-                if (currentSlideX >= maxSlide * 0.85) {
-                    thumb.style.transform = `translateX(${maxSlide}px)`;
-                    if (fill) fill.style.width = '100%';
-                    if (label) label.textContent = 'Logging out...';
-                    setTimeout(() => {
-                        closeSlideLogout();
-                        executeLogout();
-                    }, 200);
-                } else {
-                    resetSliderThumb();
-                }
-            };
-
-            track.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX), { passive: true });
-            window.addEventListener('touchmove', (e) => {
-                if (isSlidingLogout) onMove(e.touches[0].clientX);
-            }, { passive: true });
-            window.addEventListener('touchend', onEnd);
-
-            track.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                onStart(e.clientX);
-            });
-            window.addEventListener('mousemove', (e) => {
-                if (isSlidingLogout) onMove(e.clientX);
-            });
-            window.addEventListener('mouseup', onEnd);
-        }
-
-        window.executeLogout = async () => {
+        window.ppfb.logout = async () => {
             try {
                 localStorage.setItem('pp_logged_out', '1');
                 if (auth) await _signOut(auth);
             } catch (e) {}
-
-            // 1. Reset all local session data & selection
             window.ppfb.user = null;
-            window._selectedGame = null;
-            window._payGame = null;
-            window._payGameLogo = null;
-            window._currentOrderId = null;
-            window._histItems = {};
-            window._histItemsArr = [];
-
             if (unsubBalance) { unsubBalance(); unsubBalance = null; }
             setBalanceUI(0);
-
-            // 2. Clear Game Cards UI selection (Ensure completely fresh state for next login)
-            document.querySelectorAll('.game-card').forEach(c => {
-                c.classList.remove('sel-active');
-                c.style.borderColor = '';
-                c.style.background = '';
-            });
-            const sp = document.getElementById('selectedGamePill');
-            if (sp) {
-                sp.className = 'sel-pill sel-empty';
-                sp.innerHTML = '<span class="dot"></span><span>No game selected</span>';
-            }
-            const selTag = document.getElementById('selectedGameTag');
-            if (selTag) selTag.textContent = 'None';
-
-            // 3. Clear profile headers and balance UI
             const av = document.getElementById('avatarImg');
             const fb = document.getElementById('avatarFallback');
             if (av) av.classList.add('hidden');
             if (fb) { fb.textContent = '?'; fb.classList.remove('hidden'); }
-            const pb = document.getElementById('profileHeaderBalance');
-            if (pb) pb.textContent = '0 Coins';
-            const pp = document.getElementById('profilePlayPoints');
-            if (pp) pp.textContent = '0 Points';
-            const hp = document.getElementById('headerPlayPoints');
-            if (hp) hp.textContent = '0 Points';
-            const pn = document.getElementById('profileName');
-            if (pn) pn.textContent = 'User';
-            const pe = document.getElementById('profileHeaderEmail');
-            if (pe) pe.textContent = '';
-            const pu = document.getElementById('profileScreenUid');
-            if (pu) pu.textContent = '—';
             const hnL = document.getElementById('headerUserName');
             if (hnL) hnL.textContent = 'Guest';
             const gb = document.getElementById('ghostBanner');
             if (gb) gb.classList.remove('hidden');
-
-            // 4. Clear history DOM
-            const full = document.getElementById('historyFullList');
-            if (full) full.innerHTML = '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
-            const moc = document.getElementById('myOrdersCount');
-            if (moc) moc.textContent = 'No records yet';
-
-            // 5. Clear credential and auth inputs
-            ['accEmail', 'accPass', 'accTgId', 'emEmail', 'emPass', 'emRegEmail', 'emRegPass', 'emRegName'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-
             showScreen('screenLogin');
             toast('Logged out successfully');
         };
-
-        window.ppfb.logout = () => {
-            openSlideLogout();
-        };
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initSlideLogoutListeners);
-        } else {
-            initSlideLogoutListeners();
-        }
 
         window.ppfb.payWallet = async () => {
             if (window._paying) return;
@@ -10963,49 +9424,23 @@
         };
 
         // Bangla/English switch (data-bn attributes)
-        
-        /* ===== 3D AUTH MODAL ANIMATION SYSTEM ===== */
-        function openAuth3DModal(mode, title, subtitle) {
-            const m = document.getElementById('auth3DModal');
-            const box = document.getElementById('auth3DAnimBox');
-            const t = document.getElementById('auth3DTitle');
-            const s = document.getElementById('auth3DSubtitle');
-            const act = document.getElementById('auth3DActionBox');
-            if (!m || !box) return;
-            
-            act.classList.add('hidden');
-            m.style.display = 'flex';
-            
-            if (mode === 'loading') {
-                box.innerHTML = '<div class="verifying3d"><span>⚡</span></div>';
-                t.textContent = title || (window._lang === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Verifying Account...');
-                s.textContent = subtitle || (window._lang === 'bn' ? 'সার্ভারের সাথে নিরাপদ সংযোগ স্থাপন করা হচ্ছে...' : 'Securing your session with Cloudflare & Google Auth...');
-            } else if (mode === 'success') {
-                box.innerHTML = '<div class="loginSuccess3d"><span>✓</span></div>';
-                t.textContent = title || (window._lang === 'bn' ? '🎉 সফলভাবে সম্পন্ন!' : '🎉 Login Successful!');
-                s.textContent = subtitle || (window._lang === 'bn' ? 'স্বাগতম! আপনার ড্যাশবোর্ড লোড হচ্ছে...' : 'Welcome back! Loading your dashboard...');
-                setTimeout(() => {
-                    closeAuth3DModal();
-                    if (window.showScreen) showScreen('screenGameSelect');
-                }, 1300);
-            } else if (mode === 'error') {
-                box.innerHTML = '<div class="passError3d"><span>✕</span></div>';
-                t.textContent = title || (window._lang === 'bn' ? '❌ ব্যর্থ হয়েছে' : '❌ Authentication Failed');
-                s.textContent = subtitle || (window._lang === 'bn' ? 'ইমেইল বা পাসওয়ার্ড সঠিক নয়।' : 'Invalid credentials, please try again.');
-                act.classList.remove('hidden');
-            }
-        }
-        function closeAuth3DModal() {
-            const m = document.getElementById('auth3DModal');
-            if (m) m.style.display = 'none';
-        }
-        window.openAuth3DModal = openAuth3DModal;
-        window.closeAuth3DModal = closeAuth3DModal;
-
-
-        /* ===== Translation System Removed ===== */
-        window.setLang = () => {};
-        window.toggleLang = () => {};
+        window.setLang = (l) => {
+            try {
+                const lang = (l === 'bn') ? 'bn' : 'en';
+                try { localStorage.setItem('pp_lang', lang); } catch (e) {}
+                document.querySelectorAll('[data-bn]').forEach(el => {
+                    try {
+                        if (el.dataset.en === undefined) el.dataset.en = el.textContent;
+                        el.textContent = (lang === 'bn') ? el.dataset.bn : el.dataset.en;
+                    } catch (e) {}
+                });
+                const tb = document.getElementById('langToggleBtn');
+                if (tb) tb.textContent = (lang === 'bn') ? '🌐 বাং' : '🌐 EN';
+                window._lang = lang;
+            } catch (e) {}
+        };
+        window.toggleLang = () => { try { window.setLang((window._lang === 'bn') ? 'en' : 'bn'); } catch (e) {} };
+        try { window.setLang(localStorage.getItem('pp_lang') || 'en'); } catch (e) {}
 
         // Withdraw PIN: prothom bar 4-digit set, tarpor proti withdraw e verify
         async function sha256hex(str) {
@@ -11144,34 +9579,7 @@
                           };
                         <\/script>
                         <script type="text/javascript" src="https://bauval.org/22/6d99d54dfb68c3c5667bfd5cd062df57"><\/script>
-                    
-    <!-- SLIDE TO LOGOUT CONFIRMATION MODAL -->
-    <div id="slideLogoutModal" class="pop-overlay" style="display:none; z-index:99999;">
-        <div class="pop-card text-center space-y-4 py-6 px-5 max-w-[320px] shadow-2xl rounded-3xl bg-white border border-slate-200">
-            <div class="mx-auto w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 shadow-sm">
-                <i data-lucide="log-out" class="w-7 h-7"></i>
-            </div>
-            <div>
-                <h3 class="text-base font-black text-slate-900">Confirm Logout</h3>
-                <p class="text-xs text-slate-500 font-semibold mt-1">লগআউট করতে স্লাইডারটি ডানে টেনে নিন</p>
-            </div>
-            
-            <!-- Interactive Slide Confirmation Track -->
-            <div id="slideLogoutTrack" class="relative w-full h-12 bg-slate-100 border border-slate-200 rounded-full flex items-center p-1 select-none overflow-hidden cursor-grab active:cursor-grabbing">
-                <div id="slideLogoutFill" class="absolute left-0 top-0 bottom-0 bg-rose-100 rounded-full transition-all" style="width: 44px;"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-[10.5px] font-black text-slate-400 pointer-events-none tracking-wider">
-                    <span id="slideLogoutLabel">SLIDE TO LOGOUT ➔</span>
-                </div>
-                <div id="slideLogoutThumb" class="relative z-10 w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing">
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                </div>
-            </div>
-
-            <button onclick="closeSlideLogout()" class="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-all cursor-pointer">Cancel</button>
-        </div>
-    </div>
-
-</body></html>`);
+                    </body></html>`);
                     doc300.close();
                 } catch (e) {}
             }
@@ -11193,34 +9601,7 @@
                           };
                         <\/script>
                         <script type="text/javascript" src="https://bauval.org/22/f2953336cd808c067daf54b0e8ff89cc"><\/script>
-                    
-    <!-- SLIDE TO LOGOUT CONFIRMATION MODAL -->
-    <div id="slideLogoutModal" class="pop-overlay" style="display:none; z-index:99999;">
-        <div class="pop-card text-center space-y-4 py-6 px-5 max-w-[320px] shadow-2xl rounded-3xl bg-white border border-slate-200">
-            <div class="mx-auto w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 shadow-sm">
-                <i data-lucide="log-out" class="w-7 h-7"></i>
-            </div>
-            <div>
-                <h3 class="text-base font-black text-slate-900">Confirm Logout</h3>
-                <p class="text-xs text-slate-500 font-semibold mt-1">লগআউট করতে স্লাইডারটি ডানে টেনে নিন</p>
-            </div>
-            
-            <!-- Interactive Slide Confirmation Track -->
-            <div id="slideLogoutTrack" class="relative w-full h-12 bg-slate-100 border border-slate-200 rounded-full flex items-center p-1 select-none overflow-hidden cursor-grab active:cursor-grabbing">
-                <div id="slideLogoutFill" class="absolute left-0 top-0 bottom-0 bg-rose-100 rounded-full transition-all" style="width: 44px;"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-[10.5px] font-black text-slate-400 pointer-events-none tracking-wider">
-                    <span id="slideLogoutLabel">SLIDE TO LOGOUT ➔</span>
-                </div>
-                <div id="slideLogoutThumb" class="relative z-10 w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing">
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                </div>
-            </div>
-
-            <button onclick="closeSlideLogout()" class="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-all cursor-pointer">Cancel</button>
-        </div>
-    </div>
-
-</body></html>`);
+                    </body></html>`);
                     doc600.close();
                 } catch (e) {}
             }
@@ -11237,34 +9618,7 @@
                         <script type="text/javascript" src="https://abscloud.org/1/250ba48a73113101427a66337aefa9dc"><\/script>
                         <script type="text/javascript" src="https://bauval.org/21/8e6443cdad3bf27f27a2d3243b829266"><\/script>
                         <script type="text/javascript" src="https://bauval.org/14/caeae237bf8567c9bd8fbd8c073c1646"><\/script>
-                    
-    <!-- SLIDE TO LOGOUT CONFIRMATION MODAL -->
-    <div id="slideLogoutModal" class="pop-overlay" style="display:none; z-index:99999;">
-        <div class="pop-card text-center space-y-4 py-6 px-5 max-w-[320px] shadow-2xl rounded-3xl bg-white border border-slate-200">
-            <div class="mx-auto w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 shadow-sm">
-                <i data-lucide="log-out" class="w-7 h-7"></i>
-            </div>
-            <div>
-                <h3 class="text-base font-black text-slate-900">Confirm Logout</h3>
-                <p class="text-xs text-slate-500 font-semibold mt-1">লগআউট করতে স্লাইডারটি ডানে টেনে নিন</p>
-            </div>
-            
-            <!-- Interactive Slide Confirmation Track -->
-            <div id="slideLogoutTrack" class="relative w-full h-12 bg-slate-100 border border-slate-200 rounded-full flex items-center p-1 select-none overflow-hidden cursor-grab active:cursor-grabbing">
-                <div id="slideLogoutFill" class="absolute left-0 top-0 bottom-0 bg-rose-100 rounded-full transition-all" style="width: 44px;"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-[10.5px] font-black text-slate-400 pointer-events-none tracking-wider">
-                    <span id="slideLogoutLabel">SLIDE TO LOGOUT ➔</span>
-                </div>
-                <div id="slideLogoutThumb" class="relative z-10 w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing">
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                </div>
-            </div>
-
-            <button onclick="closeSlideLogout()" class="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-all cursor-pointer">Cancel</button>
-        </div>
-    </div>
-
-</body></html>`);
+                    </body></html>`);
                     docIso.close();
                 } catch (e) {}
             }
@@ -11673,89 +10027,83 @@
             return '';
         }
 
-        // গেম ও অফারগুলোর জন্য নির্ভরযোগ্য পার্মানেন্ট সিডিএন লোগো ডিকশনারি (Verified 200 OK CDN)
+        // গেম ও অফারগুলোর জন্য নির্ভরযোগ্য পার্মানেন্ট সিডিএন লোগো ডিকশনারি
         const STATIC_OFFER_LOGOS = {
-            'freefire': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ef/16/6b/ef166bba-1d69-85f5-ed84-6b7c6e73b55c/AppIcon-1788350393-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'ff': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ef/16/6b/ef166bba-1d69-85f5-ed84-6b7c6e73b55c/AppIcon-1788350393-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'gossipharbor': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c4/97/53/c497535d-bc4b-6afd-75e4-eb5a4956714d/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'gossip': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c4/97/53/c497535d-bc4b-6afd-75e4-eb5a4956714d/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'pokemontcg': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/cc/36/be/cc36be7e-34a8-367e-5ebb-343175027e2a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'pokemontcgp': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/cc/36/be/cc36be7e-34a8-367e-5ebb-343175027e2a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'pokemon': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/cc/36/be/cc36be7e-34a8-367e-5ebb-343175027e2a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'tcg': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/cc/36/be/cc36be7e-34a8-367e-5ebb-343175027e2a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            '8ballpool': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/f8/68/84/f868844c-d857-3907-315d-dc92d120ccbd/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            '8ball': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/f8/68/84/f868844c-d857-3907-315d-dc92d120ccbd/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'pool': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/f8/68/84/f868844c-d857-3907-315d-dc92d120ccbd/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'angrybirds2': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/c7/a2/ef/c7a2efaf-a501-51dc-3fab-1b7a95fe81d5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'angrybirds': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/c7/a2/ef/c7a2efaf-a501-51dc-3fab-1b7a95fe81d5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'bestfiends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/14/1f/07/141f0726-3cc7-1f99-0ab8-cc84ffb8c2ad/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg',
-            'dicedreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e0/66/1b/e0661b96-a8ee-c9b1-b84a-35962be579f5/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg',
-            'dice': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e0/66/1b/e0661b96-a8ee-c9b1-b84a-35962be579f5/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg',
-            'dominodreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/51/63/3d/51633d6c-e444-2a44-5512-7010e1fb9ec5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'domino': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/51/63/3d/51633d6c-e444-2a44-5512-7010e1fb9ec5/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'disneysolitaire': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2f/b8/5f/2fb85f69-ec2a-0359-5dfd-5fe22e2121ee/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'disney': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2f/b8/5f/2fb85f69-ec2a-0359-5dfd-5fe22e2121ee/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'farmheroes': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bd/e1/b4/bde1b459-3cf0-53b0-097d-9017851acf07/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'farmheroessaga': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bd/e1/b4/bde1b459-3cf0-53b0-097d-9017851acf07/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'gossipharbor': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/71/3d/bf/713dbfb4-0136-d748-0c67-6a58a74ecaa4/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'freefire': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/df/3f/82/df3f821d-93cb-7182-3e28-e493b8273617/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            'pokemontcgp': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/97/5d/9b/975d9ba8-47bc-00c3-0447-975ef7a0fc67/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            '8ballpool': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/19/af/80/19af80a7-eb95-39bc-f7a8-6147cf933c39/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'angrybirds2': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/04/ca/7804ca49-20cd-e1f6-77e0-2b24b0dadcb8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'bestfiends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/9a/7d/2d9a7da6-eb4b-3b25-a751-8258da75a0a8/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg',
+            'dicedreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f1/71/03/f171036e-5a26-9eb3-2d93-e9154db3e9b6/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg',
+            'dominodreams': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/97/4d/16/974d164e-52d6-61b2-8ece-8d509eb232ab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'farmheroes': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c2/a1/63/c2a1633a-82e8-f6ab-5e3a-b0ef5ac3629b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
             'fruitninja': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'hayday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/0e/50/bc/0e50bce7-2b3a-3964-832d-9951131a2746/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'heyday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/0e/50/bc/0e50bce7-2b3a-3964-832d-9951131a2746/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'lordsmobile': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/da/cf/ec/dacfec37-c2d2-a59c-30ad-b4d2835ea3a1/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
-            'lords': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/da/cf/ec/dacfec37-c2d2-a59c-30ad-b4d2835ea3a1/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
-            'mobilelegends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
-            'mobileleg': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
-            'mlbb': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
-            'summonerswar': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bf/a0/a0/bfa0a07e-00d2-b5b0-b949-72e9cbd1088c/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg',
-            'summoners': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bf/a0/a0/bfa0a07e-00d2-b5b0-b949-72e9cbd1088c/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg',
-            'warmachines': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/df/b7/9b/dfb79bdc-45de-8a61-d610-b134aa76a53a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'warmachine': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/df/b7/9b/dfb79bdc-45de-8a61-d610-b134aa76a53a/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
-            'yallaludo': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/fc/54/ca/fc54cad3-bb33-f091-d522-39dbc1d95dfa/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg',
-            'yalla': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/fc/54/ca/fc54cad3-bb33-f091-d522-39dbc1d95dfa/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg',
-            'ludo': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/fc/54/ca/fc54cad3-bb33-f091-d522-39dbc1d95dfa/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg',
-            'zenlesszonezero': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/43/64/6a/43646a64-9712-9da1-4c8a-14f95be9e413/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
-            'zenlesszone': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/43/64/6a/43646a64-9712-9da1-4c8a-14f95be9e413/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
-            'zenless': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/43/64/6a/43646a64-9712-9da1-4c8a-14f95be9e413/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
-            'zzz': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/43/64/6a/43646a64-9712-9da1-4c8a-14f95be9e413/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg'
+            'heyday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'hayday': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'lordsmobile': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4d/e8/f2/4de8f2eb-2d7d-7f28-ddc7-d6f62ca67b49/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg',
+            'mobilelegends': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/d9/88/76/d9887647-00fd-09c8-8a61-c6c31a1bfe2a/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg',
+            'summonerswar': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f7/18/a7/f718a783-120f-0a08-30dc-be8e99c24f4a/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg',
+            'warmachines': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/5e/ba/cc/5ebacc73-5314-8783-7d09-49e15d803755/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg',
+            'yallaludo': 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/ad/c6/61adc661-dd73-03b1-0f3e-4743d237bb5e/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg',
+            'zenlesszone': 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/4a/fb/2d4afb82-bdb9-cc80-b5b7-d1d7f515b2ae/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg'
         };
 
         function findGameLogoByName(gameName) {
             if (!gameName) return '';
             const raw = gameName.toString().trim();
-            // Normalize unicode accents (e.g. Pokémon -> Pokemon)
-            const norm = (raw.normalize ? raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : raw);
-            const clean = norm.toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)|\s*\(pts\)/gi, '').trim();
+            const clean = raw.toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
             const cleanKey = clean.replace(/[^a-z0-9]/g, '');
             if (!cleanKey) return '';
 
-            // ১. স্ট্যাটিক পার্মানেন্ট ম্যাপ থেকে সরাসরি চেক
+            // ১. স্ট্যাটিক পার্মানেন্ট ম্যাপ থেকে সবার আগে চেক
             if (STATIC_OFFER_LOGOS[cleanKey]) return STATIC_OFFER_LOGOS[cleanKey];
             for (const k in STATIC_OFFER_LOGOS) {
                 if (cleanKey.includes(k) || k.includes(cleanKey)) return STATIC_OFFER_LOGOS[k];
             }
 
-            // ২. সক্রিয় অফার তালিকা ও DEFAULT_OFFERS থেকে খোঁজা
-            const list = [
-                ...(window._allOffers || []),
-                ...(window.DEFAULT_OFFERS || [])
-            ];
-            for (const o of list) {
-                if (!o || !o.name) continue;
-                const oNorm = (o.name.normalize ? o.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : o.name);
-                const oClean = oNorm.toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)|\s*\(pts\)/gi, '').trim();
-                const oKey = oClean.replace(/[^a-z0-9]/g, '');
-                if (oKey && (oKey === cleanKey || oKey.includes(cleanKey) || cleanKey.includes(oKey))) {
-                    if (o.logo) return o.logo;
-                }
+            // কয়েন বা পয়েন্ট টাস্ক হলে কয়েন লোগো
+            if (cleanKey.includes('coin') || cleanKey.includes('point') || cleanKey.includes('exchange') || cleanKey.includes('redeem')) {
+                return window.PP_LOGO || 'PPCOIN.png';
             }
 
-            // ৩. লোকাল ক্যাশ থেকে খোঁজা
+            // ১. লোকাল ক্যাশ থেকে খোঁজা (পূর্বে লোড হওয়া যেকোনো গেম, এমনকি disabled করা হলেও)
             try {
                 const cache = JSON.parse(localStorage.getItem('pp_game_logo_cache') || '{}');
                 if (cache[clean]) return cache[clean];
                 if (cache[raw.toLowerCase()]) return cache[raw.toLowerCase()];
                 for (const k in cache) {
                     const kk = k.replace(/[^a-z0-9]/g, '');
-                    if (kk && (cleanKey.includes(kk) || kk.includes(cleanKey))) return cache[k];
+                    if (kk === cleanKey || kk.includes(cleanKey) || cleanKey.includes(kk)) {
+                        return cache[k];
+                    }
+                }
+            } catch (e) {}
+
+            // ২. সক্রিয় ও নিষ্ক্রিয় (Disabled) উভয় অফার্স তালিকা থেকে মিল খোঁজা
+            const list = [
+                ...(window._allOffers || []),
+                ...(window.DEFAULT_OFFERS || [])
+            ];
+            for (const o of list) {
+                if (!o || !o.name) continue;
+                const oClean = o.name.toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+                const oKey = oClean.replace(/[^a-z0-9]/g, '');
+                if (oKey === cleanKey || oKey.includes(cleanKey) || cleanKey.includes(oKey)) {
+                    if (o.logo) return o.logo;
+                }
+            }
+
+            // ৩. স্ক্রিনের গেম কার্ডগুলো থেকে লাইভ লোগো খোঁজা
+            try {
+                const cards = document.querySelectorAll('.game-card');
+                for (const c of cards) {
+                    const gEl = c.querySelector('.g-name');
+                    const gn = (gEl ? gEl.textContent : '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (gn && (gn === cleanKey || gn.includes(cleanKey) || cleanKey.includes(gn))) {
+                        const img = c.querySelector('img.g-logo');
+                        if (img && img.src) return img.src;
+                    }
                 }
             } catch (e) {}
 
@@ -11764,47 +10112,45 @@
 
         function histThumb(it) {
             const PP = window.PP_LOGO || 'https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png';
-            const rawGame = (it.game || it.title || it.packageTitle || it.name || '').toString();
+            const rawGame = (it.game || it.title || '').toString();
             const rawLower = rawGame.toLowerCase();
 
-            // ১. গেমের টাস্ক বা নির্দিষ্ট গেমের অর্ডার সবার আগে চেক (যাতে 'points' শব্দ থাকলে কয়েন লোগো না হয়ে আসল গেম লোগো আসে)
-            const directLogo = it.logo || it.gameLogo || it.icon || it.img;
-            const matchedGameLogo = directLogo || findGameLogoByName(rawGame);
-
-            if (it.kind === 'TASK' || (matchedGameLogo && it.kind !== 'TOP-UP' && it.kind !== 'WITHDRAW' && it.kind !== 'REDEEM' && it.kind !== 'BUYACC')) {
-                const finalLogo = matchedGameLogo || PP;
-                return '<img src="' + escapeHtml(finalLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-cover rounded-xl shadow-2xs" loading="lazy" alt="Game" onerror="this.onerror=null;this.src=\'' + PP + '\'">';
+            // ১. কয়েন সংক্রান্ত লেনদেন (REDEEM, SELL, PENDLIVE, ইত্যাদি)
+            if (it.kind === 'REDEEM' || it.kind === 'SELL' || it.kind === 'PENDLIVE' || rawLower.includes('coin') || rawLower.includes('point')) {
+                return '<img src="' + PP + '" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="PP Coin">';
             }
 
-            // ২. ডিপোজিট / টপ-আপ (bKash, Nagad, Rocket, Stars ইত্যাদি মেথড লোগো দেখাবে)
+            // ২. ডিপোজিট / টপ-আপ (সব সময় bKash, Nagad, Rocket, Stars ইত্যাদি মেথড লোগো দেখাবে)
             if (it.kind === 'TOP-UP') {
                 const mLogo = getMethodLogo(it.method) || getMethodLogo(it.info) || getMethodLogo(it.title) || getMethodLogo(it.game);
                 const finalMLogo = mLogo || PP;
-                return '<img src="' + escapeHtml(finalMLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Method" onerror="this.src=\'' + PP + '\'">';
+                return '<img src="' + escapeHtml(finalMLogo) + '" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Method" onerror="this.src=\'' + PP + '\'">';
             }
 
-            // ৩. উইথড্রল
+            // ৩. গেম টাস্ক (সংশ্লিষ্ট গেমের সুন্দর লোগো, কয়েন হলে কয়েন লোগো)
+            if (it.kind === 'TASK') {
+                const gLogo = it.logo || findGameLogoByName(rawGame);
+                const finalGLogo = gLogo || PP;
+                return '<img src="' + escapeHtml(finalGLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-cover rounded-xl shadow-2xs" loading="lazy" alt="Game" onerror="this.onerror=null;this.src=\'' + PP + '\'">';
+            }
+
+            // ৪. উইথড্রল
             if (it.kind === 'WITHDRAW') {
                 const wLogo = getMethodLogo(it.method) || getMethodLogo(it.account);
                 if (wLogo) {
-                    return '<img src="' + escapeHtml(wLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Withdraw">';
+                    return '<img src="' + escapeHtml(wLogo) + '" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Withdraw">';
                 }
                 return '<span class="hist-tile" style="background:linear-gradient(135deg,#059669,#047857)">৳</span>';
             }
 
-            // ৪. কয়েন রিডিম বা এক্সচেঞ্জ
-            if (it.kind === 'REDEEM' || it.kind === 'SELL' || it.kind === 'PENDLIVE' || rawLower.includes('coin')) {
-                return '<img src="' + PP + '" referrerpolicy="no-referrer" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="PP Coin">';
-            }
-
             // ৫. অ্যাকাউন্ট ক্রয়
             if (it.kind === 'BUYACC') {
-                return '<img src="' + PP + '" referrerpolicy="no-referrer" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Account">';
+                return '<img src="' + PP + '" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" alt="Account">';
             }
 
             // ৬. ডিফল্ট নিরাপদ লোগো ফলব্যাক
-            const fallbackLogo = matchedGameLogo || PP;
-            return '<img src="' + escapeHtml(fallbackLogo) + '" referrerpolicy="no-referrer" class="hist-thumb object-cover rounded-xl shadow-2xs" loading="lazy" onerror="this.onerror=null;this.src=\'' + PP + '\'">';
+            const fallbackLogo = findGameLogoByName(rawGame) || PP;
+            return '<img src="' + escapeHtml(fallbackLogo) + '" class="hist-thumb object-contain bg-white p-1 rounded-xl shadow-2xs" loading="lazy" onerror="this.src=\'' + PP + '\'">';
         }
         window.histRowHtml = (it) => {
             let title = 'Wallet Top-up';
@@ -12120,22 +10466,6 @@
                 if (u && !wasLoggedOut) {
                     window.ppfb.user = u;
                     window._loginAt = Date.now();
-                    // Fresh state on login: clear previously selected game & active card states
-                    window._selectedGame = null;
-                    window._payGame = null;
-                    window._payGameLogo = null;
-                    document.querySelectorAll('.game-card').forEach(c => {
-                        c.classList.remove('sel-active');
-                        c.style.borderColor = '';
-                        c.style.background = '';
-                    });
-                    const spInit = document.getElementById('selectedGamePill');
-                    if (spInit) {
-                        spInit.className = 'sel-pill sel-empty';
-                        spInit.innerHTML = '<span class="dot"></span><span>No game selected</span>';
-                    }
-                    const selTagInit = document.getElementById('selectedGameTag');
-                    if (selTagInit) selTagInit.textContent = 'None';
                     try {
                         const localAv = localStorage.getItem('pp_cached_avatar_' + u.uid);
                         if (localAv) window.ppfb.avatar = localAv;
@@ -12239,32 +10569,5 @@
             })();
         })();
     </script>
-
-    <!-- SLIDE TO LOGOUT CONFIRMATION MODAL -->
-    <div id="slideLogoutModal" class="pop-overlay" style="display:none; z-index:99999;">
-        <div class="pop-card text-center space-y-4 py-6 px-5 max-w-[320px] shadow-2xl rounded-3xl bg-white border border-slate-200">
-            <div class="mx-auto w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-500 shadow-sm">
-                <i data-lucide="log-out" class="w-7 h-7"></i>
-            </div>
-            <div>
-                <h3 class="text-base font-black text-slate-900">Confirm Logout</h3>
-                <p class="text-xs text-slate-500 font-semibold mt-1">লগআউট করতে স্লাইডারটি ডানে টেনে নিন</p>
-            </div>
-            
-            <!-- Interactive Slide Confirmation Track -->
-            <div id="slideLogoutTrack" class="relative w-full h-12 bg-slate-100 border border-slate-200 rounded-full flex items-center p-1 select-none overflow-hidden cursor-grab active:cursor-grabbing">
-                <div id="slideLogoutFill" class="absolute left-0 top-0 bottom-0 bg-rose-100 rounded-full transition-all" style="width: 44px;"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-[10.5px] font-black text-slate-400 pointer-events-none tracking-wider">
-                    <span id="slideLogoutLabel">SLIDE TO LOGOUT ➔</span>
-                </div>
-                <div id="slideLogoutThumb" class="relative z-10 w-10 h-10 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing">
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                </div>
-            </div>
-
-            <button onclick="closeSlideLogout()" class="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-all cursor-pointer">Cancel</button>
-        </div>
-    </div>
-
 </body>
 </html>
