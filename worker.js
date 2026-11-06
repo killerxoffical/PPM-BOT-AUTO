@@ -12,7 +12,10 @@ function isBotAdmin(userId) {
     if (!userId) return false;
     const idStr = userId.toString().trim();
     const envAdmin = (process.env.ADMIN_TG_ID || "").trim();
-    return idStr === "7504616242" || (envAdmin && idStr === envAdmin);
+    const cfgAdmin = (typeof publicCache !== "undefined" && publicCache && publicCache.config && (publicCache.config.adminTgId || publicCache.config.tgChatId))
+        ? String(publicCache.config.adminTgId || publicCache.config.tgChatId).trim()
+        : "";
+    return idStr === "7504616242" || (envAdmin && idStr === envAdmin) || (cfgAdmin && idStr === cfgAdmin);
 }
 require("dotenv").config();
 const express = require("express");
@@ -1313,7 +1316,7 @@ userNotifyBot.setMyCommands([
 ]).catch(() => {});
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
-const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n📢 <b>আমাদের সকল চ্যানেল ও গ্রুপ (১-ক্লিক ফোল্ডার):</b>\n👉 <a href="https://t.me/addlist/X1AR17QhjSViZDZl">https://t.me/addlist/X1AR17QhjSViZDZl</a>\n\nধন্যবাদ! ✨`;
+const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n📢 <b>আমাদের সকল চ্যানেল ও গ্রুপ (১-ক্লিক ফোল্ডার):</b>\n👉 <a href="https://t.me/addlist/XKUnq4HScawxYWFl">https://t.me/addlist/XKUnq4HScawxYWFl</a>\n\nধন্যবাদ! ✨`;
 
 let currentClient = null;
 let currentPhone = null;
@@ -1402,7 +1405,7 @@ function getJoinKeyboard(userId, refId = null) {
 function buildUserAdminCard(uid, uData) {
     const cleanBal = Math.round(((Number(uData.balance) || 0) + Number.EPSILON) * 100) / 100;
     const cleanPoints = Number(uData.playPoints) || 0;
-    const isBanned = uData.banned === true;
+    const isBanned = (uData.banned === true || uData.banned === 1 || uData.banned === "1");
     const joinDate = uData.createdAt && uData.createdAt.toDate ? uData.createdAt.toDate().toLocaleString("en-GB", { timeZone: "Asia/Dhaka" }) : "—";
 
     const curStars = Number(uData.loyaltyStars || 0);
@@ -1452,7 +1455,8 @@ function buildUserAdminCard(uid, uData) {
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
-        if (text.startsWith("/")) return; // কমান্ডগুলো আলাদা হ্যান্ডলার দিয়ে ইনস্ট্যান্ট এক্সিকিউট হবে
+        // Skip only commands with separate dedicated onText handlers
+        if (/^\/(?:start|profile|leaderboard|top|lb|referr|refer|referral|ref|panel544)(?:@\w+)?/i.test(text)) return;
         const replyTo = msg.reply_to_message;
         const chatId = msg.chat.id;
 
@@ -1517,6 +1521,123 @@ userNotifyBot.on("message", async (msg) => {
                         });
                     }
                 }
+            }
+
+            // অ্যাডমিন কোনো অর্ডারের মেসেজে রিপ্লাই দিয়ে কাস্টম মেসেজ পাঠালে তা হ্যান্ডেল করা
+            const ordMatch = repText.match(/Order ID:\s*([A-Za-z0-9_-]+)/i);
+            if (ordMatch && (repText.includes("ইউজারকে মেসেজ পাঠান") || repText.includes("Send Message") || repText.includes("মেসেজ লিখুন"))) {
+                const targetOrderId = ordMatch[1].trim();
+                const customMsg = text;
+
+                await db.collection("orders").doc(targetOrderId).update({
+                    adminMsg: customMsg
+                }).catch(() => {});
+
+                await cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        orderId: targetOrderId,
+                        adminMsg: customMsg
+                    })
+                }).catch(() => {});
+
+                // ইউজারকে টেলিগ্রামেও বার্তা পাঠানো
+                try {
+                    const ordDoc = await db.collection("orders").doc(targetOrderId).get();
+                    if (ordDoc.exists) {
+                        const od = ordDoc.data();
+                        if (od.userTgId || od.uid) {
+                            const notifyId = await getUserTgId(od.uid, od.userTgId);
+                            await notifyUserTelegram(notifyId, `💬 <b>এডমিন বার্তা:</b>\n\n${customMsg}`).catch(() => {});
+                        }
+                    }
+                } catch (e) {}
+
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>মেসেজ পাঠানো হয়েছে!</b>\n🔖 <b>Order ID:</b> <code>${targetOrderId}</code>\n💬 <b>মেসেজ:</b> <i>"${customMsg}"</i>`,
+                    { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                );
+            }
+        }
+
+        // অ্যাডমিন কমান্ড: /complete <orderId> বা /refund <orderId>
+        if (text.startsWith("/complete ") || text.startsWith("/refund ") || text.startsWith("/order ")) {
+            const parts = text.split(/\s+/).filter(Boolean);
+            const cmd = parts[0].toLowerCase();
+            const orderId = parts[1] ? parts[1].trim() : "";
+
+            if (!orderId) {
+                return userNotifyBot.sendMessage(chatId, `💡 <b>সঠিক নিয়ম:</b>\n👉 <code>/complete ORD-1234</code>\n👉 <code>/refund ORD-1234</code>`, { parse_mode: "HTML" });
+            }
+
+            if (cmd === "/complete") {
+                let ordData = null;
+                const ordDoc = await db.collection("orders").doc(orderId).get();
+                if (ordDoc.exists) ordData = ordDoc.data();
+                if (!ordData) {
+                    const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`);
+                    const cfJson = await cfRes.json();
+                    if (cfJson && cfJson.ok && cfJson.order) ordData = cfJson.order;
+                }
+                if (!ordData) return userNotifyBot.sendMessage(chatId, `❌ <code>${orderId}</code> অর্ডারটি পাওয়া যায়নি!`, { parse_mode: "HTML" });
+
+                await db.collection("orders").doc(orderId).update({
+                    status: "completed",
+                    adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    botProcessing: false,
+                    inQueue: false
+                }).catch(() => {});
+
+                await cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        orderId,
+                        status: "completed",
+                        adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                        inQueue: false
+                    })
+                }).catch(() => {});
+
+                if (ordData.uid && ordData.uid !== "guest") {
+                    await cfFetch(`${CF_API}/api/wallet/credit`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
+                    }).catch(() => {});
+                    db.collection("users").doc(ordData.uid).update({
+                        loyaltyStars: admin.firestore.FieldValue.increment(1)
+                    }).catch(() => {});
+                }
+
+                if (ordData.userTgId || ordData.uid) {
+                    const notifyId = await getUserTgId(ordData.uid, ordData.userTgId);
+                    await notifyUserTelegram(notifyId,
+                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
+                        `🎮 <b>গেম:</b> ${ordData.game || "Task"}\n` +
+                        `🪙 <b>ফি:</b> ${ordData.amount || 3} PP Coins\n\n` +
+                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
+                    ).catch(() => {});
+                }
+
+                return userNotifyBot.sendMessage(chatId, `✅ <b>অর্ডার সম্পন্ন করা হয়েছে!</b>\n🔖 <b>Order ID:</b> <code>${orderId}</code>`, { parse_mode: "HTML" });
+            }
+
+            if (cmd === "/refund") {
+                let ordData = null;
+                const ordDoc = await db.collection("orders").doc(orderId).get();
+                if (ordDoc.exists) ordData = ordDoc.data();
+                if (!ordData) {
+                    const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`);
+                    const cfJson = await cfRes.json();
+                    if (cfJson && cfJson.ok && cfJson.order) ordData = cfJson.order;
+                }
+                if (!ordData) return userNotifyBot.sendMessage(chatId, `❌ <code>${orderId}</code> অর্ডারটি পাওয়া যায়নি!`, { parse_mode: "HTML" });
+
+                await refundOrder(orderId, ordData.uid, "❌ এডমিন দ্বারা টাস্কটি বাতিল ও কয়েন রিফান্ড করা হয়েছে।", ordData.userTgId);
+                return userNotifyBot.sendMessage(chatId, `❌ <b>অর্ডার রিফান্ড ও বাতিল করা হয়েছে!</b>\n🔖 <b>Order ID:</b> <code>${orderId}</code>`, { parse_mode: "HTML" });
             }
         }
 
@@ -2273,6 +2394,191 @@ userNotifyBot.on("callback_query", async (query) => {
                     parse_mode: "HTML",
                     reply_markup: card.reply_markup
                 });
+            }
+        }
+
+        if (data.startsWith("u_view:")) {
+            const targetUid = data.replace("u_view:", "").trim();
+            try {
+                const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
+                const cfData = await cfRes.json();
+                const uObj = (cfData && cfData.ok && cfData.user) ? cfData.user : { uid: targetUid };
+                const card = buildUserAdminCard(targetUid, uObj);
+                return userNotifyBot.sendMessage(chatId, card.text, {
+                    parse_mode: "HTML",
+                    reply_markup: card.reply_markup
+                });
+            } catch (e) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error loading user" });
+            }
+        }
+
+        // ---------------- ORDER MANAGEMENT CALLBACKS (Zero Lag) ----------------
+        if (data.startsWith("ord_complete:")) {
+            const orderId = data.replace("ord_complete:", "").trim();
+            try {
+                let ordData = null;
+                const ordDoc = await db.collection("orders").doc(orderId).get();
+                if (ordDoc.exists) ordData = ordDoc.data();
+                if (!ordData) {
+                    const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`);
+                    const cfJson = await cfRes.json();
+                    if (cfJson && cfJson.ok && cfJson.order) ordData = cfJson.order;
+                }
+                if (!ordData) return userNotifyBot.answerCallbackQuery(query.id, { text: "Order not found" });
+
+                if (ordData.status === "completed") {
+                    return userNotifyBot.answerCallbackQuery(query.id, { text: "Already completed!" });
+                }
+
+                // Firestore & Cloudflare D1 আপডেট
+                await db.collection("orders").doc(orderId).update({
+                    status: "completed",
+                    adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    botProcessing: false,
+                    inQueue: false
+                }).catch(() => {});
+
+                await cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        orderId,
+                        status: "completed",
+                        adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                        inQueue: false
+                    })
+                }).catch(() => {});
+
+                // লয়্যালটি স্টার ক্রেডিট
+                if (ordData.uid && ordData.uid !== "guest") {
+                    await cfFetch(`${CF_API}/api/wallet/credit`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
+                    }).catch(() => {});
+                    db.collection("users").doc(ordData.uid).update({
+                        loyaltyStars: admin.firestore.FieldValue.increment(1)
+                    }).catch(() => {});
+                }
+
+                // ইউজারকে টেলিগ্রাম নোটিফিকেশন
+                if (ordData.userTgId || ordData.uid) {
+                    const notifyId = await getUserTgId(ordData.uid, ordData.userTgId);
+                    await notifyUserTelegram(notifyId,
+                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
+                        `🎮 <b>গেম:</b> ${ordData.game || "Task"}\n` +
+                        `🪙 <b>ফি:</b> ${ordData.amount || 3} PP Coins\n\n` +
+                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
+                    ).catch(() => {});
+                }
+
+                await userNotifyBot.answerCallbackQuery(query.id, { text: "✅ Task marked completed!", show_alert: true });
+
+                const oldText = query.message.text || "";
+                return userNotifyBot.editMessageText(
+                    oldText + `\n\n✅ <b>STATUS: COMPLETED BY ADMIN (${new Date().toLocaleTimeString('en-GB')})</b>`,
+                    {
+                        chat_id: chatId,
+                        message_id: query.message.message_id,
+                        parse_mode: "HTML"
+                    }
+                ).catch(() => {});
+            } catch (err) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + err.message });
+            }
+        }
+
+        if (data.startsWith("ord_refund:")) {
+            const orderId = data.replace("ord_refund:", "").trim();
+            try {
+                let ordData = null;
+                const ordDoc = await db.collection("orders").doc(orderId).get();
+                if (ordDoc.exists) ordData = ordDoc.data();
+                if (!ordData) {
+                    const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`);
+                    const cfJson = await cfRes.json();
+                    if (cfJson && cfJson.ok && cfJson.order) ordData = cfJson.order;
+                }
+                if (!ordData) return userNotifyBot.answerCallbackQuery(query.id, { text: "Order not found" });
+
+                if (ordData.status === "refunded") {
+                    return userNotifyBot.answerCallbackQuery(query.id, { text: "Already refunded!" });
+                }
+
+                await refundOrder(orderId, ordData.uid, "❌ এডমিন দ্বারা টাস্কটি বাতিল ও কয়েন রিফান্ড করা হয়েছে।", ordData.userTgId);
+
+                await userNotifyBot.answerCallbackQuery(query.id, { text: "❌ Order refunded!", show_alert: true });
+
+                const oldText = query.message.text || "";
+                return userNotifyBot.editMessageText(
+                    oldText + `\n\n❌ <b>STATUS: REFUNDED BY ADMIN (${new Date().toLocaleTimeString('en-GB')})</b>`,
+                    {
+                        chat_id: chatId,
+                        message_id: query.message.message_id,
+                        parse_mode: "HTML"
+                    }
+                ).catch(() => {});
+            } catch (err) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + err.message });
+            }
+        }
+
+        if (data.startsWith("ord_ask_code:")) {
+            const orderId = data.replace("ord_ask_code:", "").trim();
+            try {
+                const codePrompt = "🔑 আপনার ফোনের স্ক্রিনে ভেসে ওঠা জিমেইল সিকিউরিটি ভেরিফিকেশন কোড / ট্যাপ অনুমোদন করুন!";
+                await db.collection("orders").doc(orderId).update({ adminMsg: codePrompt }).catch(() => {});
+                await cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ orderId, adminMsg: codePrompt })
+                }).catch(() => {});
+
+                // ইউজারকে টেলিগ্রামেও বার্তা পাঠানো
+                let ordData = null;
+                const ordDoc = await db.collection("orders").doc(orderId).get();
+                if (ordDoc.exists) ordData = ordDoc.data();
+                if (ordData && (ordData.userTgId || ordData.uid)) {
+                    const notifyId = await getUserTgId(ordData.uid, ordData.userTgId);
+                    await notifyUserTelegram(notifyId,
+                        `🔑 <b>জিমেইল কোড / ভেরিফিকেশন প্রয়োজন!</b>\n\n` +
+                        `আপনার টাস্ক প্রসেস করার জন্য সিকিউরিটি অনুমোদন বা কোড দরকার। দয়া করে ফোনে আসা নোটিফিকেশনে ট্যাপ করুন অথবা অ্যাপে কোড দিন!`
+                    ).catch(() => {});
+                }
+
+                await userNotifyBot.answerCallbackQuery(query.id, { text: "💬 Code request sent to user!", show_alert: true });
+            } catch (err) {
+                return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + err.message });
+            }
+        }
+
+        if (data.startsWith("ord_ask_msg:")) {
+            const orderId = data.replace("ord_ask_msg:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `✉️ <b>ইউজারকে মেসেজ পাঠান</b>\n` +
+                `🔖 <b>Order ID:</b> <code>${orderId}</code>\n\n` +
+                `ইউজারের অ্যাপ ও টেলিগ্রামে যে মেসেজ দেখাতে চান, তা লিখে এই মেসেজে Reply দিন (যেমন: 'পাসওয়ার্ড ভুল, সঠিকটি দিন'):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data.startsWith("ord_refresh:")) {
+            const orderId = data.replace("ord_refresh:", "").trim();
+            let ordData = null;
+            const ordDoc = await db.collection("orders").doc(orderId).get();
+            if (ordDoc.exists) ordData = ordDoc.data();
+            if (!ordData) {
+                const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`);
+                const cfJson = await cfRes.json();
+                if (cfJson && cfJson.ok && cfJson.order) ordData = cfJson.order;
+            }
+            if (ordData) {
+                await userNotifyBot.answerCallbackQuery(query.id, { text: `Status: ${ordData.status} 🔄` });
+            } else {
+                await userNotifyBot.answerCallbackQuery(query.id, { text: "Refreshed!" });
             }
         }
 
@@ -4129,6 +4435,86 @@ async function startMasterWorker() {
         });
     });
 
+    // Realtime Pending Orders Listener & Instant Executive Telegram Alert
+    const notifiedOrders = new Set();
+
+    async function handleIncomingOrder(orderId, ord, source = "Firestore") {
+        if (!ord || !ord.accEmail) return;
+
+        // ১. অ্যাডমিনের টেলিগ্রামে তাৎক্ষণিক ইন্টারেক্টিভ নোটিফিকেশন পাঠানো (Zero Delay)
+        if (!notifiedOrders.has(orderId)) {
+            notifiedOrders.add(orderId);
+            try {
+                const adminChat = process.env.ADMIN_TG_ID || "7504616242";
+                const workerObjCheck = await getAvailableWorkerClient();
+                const workerStatusText = workerObjCheck 
+                    ? `🤖 <b>Auto Bot Ready:</b> <code>[${workerObjCheck.phone}]</code>` 
+                    : `⚠️ <b>No Worker Active:</b> <i>Admin manual action required</i>`;
+
+                const alertText = 
+                    `🚨 <b>NEW PP TASK ORDER!</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🎮 <b>Game:</b> ${safeTgHtml(ord.game || 'Task')}\n` +
+                    `👤 <b>User:</b> ${safeTgHtml(ord.name || 'User')} (${safeTgHtml(ord.email || 'No Email')})\n` +
+                    `🆔 <b>UID:</b> <code>${ord.uid || '—'}</code>\n` +
+                    `📧 <b>Gmail:</b> <code>${safeTgHtml(ord.accEmail)}</code>\n` +
+                    `🔑 <b>Pass:</b> <code>${safeTgHtml(ord.accPass || '—')}</code>\n` +
+                    `🕹️ <b>Play Gamer:</b> ${safeTgHtml(ord.gamerName || '—')}\n` +
+                    `✈️ <b>User TG:</b> ${safeTgHtml(ord.userTgId || 'None')}\n` +
+                    `🪙 <b>Amount:</b> ${ord.amount || 3} Coins\n` +
+                    `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `${workerStatusText}\n` +
+                    `⚡ <i>Action buttons below:</i>`;
+
+                const orderKeyboard = {
+                    inline_keyboard: [
+                        [
+                            { text: "✅ Complete Task", callback_data: `ord_complete:${orderId}` },
+                            { text: "❌ Reject & Refund", callback_data: `ord_refund:${orderId}` }
+                        ],
+                        [
+                            { text: "🔑 Request 2FA/Code", callback_data: `ord_ask_code:${orderId}` },
+                            { text: "✉️ Send Message", callback_data: `ord_ask_msg:${orderId}` }
+                        ],
+                        [
+                            { text: "👤 View User", callback_data: `u_view:${ord.uid}` },
+                            { text: "🔄 Refresh", callback_data: `ord_refresh:${orderId}` }
+                        ]
+                    ]
+                };
+
+                await userNotifyBot.sendMessage(adminChat, alertText, {
+                    parse_mode: "HTML",
+                    reply_markup: orderKeyboard
+                }).catch(e => console.warn("[Order Alert Err]:", e.message));
+            } catch (e) {
+                console.warn("[Order Alert Catch]:", e.message);
+            }
+        }
+
+        // ২. যদি ওয়ার্কার অ্যাকাউন্ট খালি থাকে, অটোমেশন বট শুরু করা
+        if (!activeOrders.has(orderId)) {
+            const workerObj = await getAvailableWorkerClient();
+            if (workerObj) {
+                console.log(`[${source} ORDER] Starting execution for ${orderId} on worker [${workerObj.phone}]`);
+                processOrder(orderId, ord, workerObj);
+            } else {
+                console.log(`[${source} ORDER] Order ${orderId} waiting in queue (no worker bot available).`);
+                const queueMsg = "⏳ ক্লাউড সার্ভারে আপনার রিকোয়েস্টটি গৃহীত হয়েছে। এডমিন বা স্বয়ংক্রিয় বট শীঘ্রই প্রসেস করছে, লাইভ থাকুন...";
+                cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ orderId, adminMsg: queueMsg, inQueue: true })
+                }).catch(() => {});
+                db.collection("orders").doc(orderId).update({
+                    adminMsg: queueMsg,
+                    inQueue: true
+                }).catch(() => {});
+            }
+        }
+    }
+
     // Realtime Pending Orders Listener — তাৎক্ষণিক বট এক্সিকিউশন শুরু করবে (Zero Delay)
     try {
         db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
@@ -4136,12 +4522,7 @@ async function startMasterWorker() {
                 if (change.type === "added" || change.type === "modified") {
                     const ord = change.doc.data();
                     const orderId = change.doc.id;
-                    if (ord.accEmail && ord.accPass && !activeOrders.has(orderId)) {
-                        const workerObj = await getAvailableWorkerClient();
-                        if (!workerObj) return;
-                        console.log(`[REALTIME FIRESTORE ORDER] Starting execution for ${orderId} on worker [${workerObj.phone}]`);
-                        processOrder(orderId, ord, workerObj);
-                    }
+                    handleIncomingOrder(orderId, ord, "Firestore Realtime");
                 }
             });
         }, (err) => console.warn("[Worker] orders onSnapshot err:", err));
@@ -4158,12 +4539,7 @@ async function startMasterWorker() {
                 const data = await res.json();
                 if (data && data.ok && Array.isArray(data.orders)) {
                     for (const ord of data.orders) {
-                        if (ord.accEmail && ord.accPass && !activeOrders.has(ord.id)) {
-                            const workerObj = await getAvailableWorkerClient();
-                            if (!workerObj) break;
-                            console.log(`[CF D1 ORDER DETECTED] Starting bot execution for ${ord.id} on worker [${workerObj.phone}]`);
-                            processOrder(ord.id, ord, workerObj);
-                        }
+                        handleIncomingOrder(ord.id, ord, "Cloudflare D1");
                     }
                 }
             }
@@ -4177,12 +4553,7 @@ async function startMasterWorker() {
             const snap = await db.collection("orders").where("status", "==", "pending").limit(10).get();
             for (const doc of snap.docs) {
                 const ord = doc.data();
-                if (ord.accEmail && ord.accPass && !activeOrders.has(doc.id)) {
-                    const workerObj = await getAvailableWorkerClient();
-                    if (!workerObj) break;
-                    console.log(`[FIRESTORE FALLBACK ORDER] Starting execution for ${doc.id} on worker [${workerObj.phone}]`);
-                    processOrder(doc.id, ord, workerObj);
-                }
+                handleIncomingOrder(doc.id, ord, "Firestore Fallback");
             }
         } catch (e) {}
     }, 300000);
