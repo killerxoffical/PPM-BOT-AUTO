@@ -457,6 +457,7 @@ app.post("/api/adell/confirm", async (req, res) => {
 
     try {
         const roomRef = db.collection("adell_rooms").doc(roomId);
+        let completedPayout = null;
 
         await db.runTransaction(async (t) => {
             const rSnap = await t.get(roomRef);
@@ -479,14 +480,26 @@ app.post("/api/adell/confirm", async (req, res) => {
                 // 7 days auto-deletion retention
                 updates.expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
 
-                // Transfer PP Coins to Seller
+                // Fetch dynamic Coin Rate from config (default 7 BDT/Coin)
+                let coinRate = 7;
+                try {
+                    const cfgRef = db.collection("config").doc("app");
+                    const cfgSnap = await t.get(cfgRef);
+                    if (cfgSnap.exists && cfgSnap.data().coinRate) {
+                        coinRate = Number(cfgSnap.data().coinRate) || 7;
+                    }
+                } catch (cfgErr) {
+                    coinRate = 7;
+                }
+
+                // Transfer Taka (playPoints) to Seller according to Coins * coinRate
+                const sellerTaka = Math.round(Number(r.coins || 0) * coinRate);
                 const sRef = db.collection("users").doc(r.sellerUid);
                 const sSnap = await t.get(sRef);
-                const curCoins = sSnap.exists ? Number(sSnap.data().balance || 0) : 0;
-                const newCoins = Math.round((curCoins + Number(r.coins) + Number.EPSILON) * 100) / 100;
+                const curPoints = sSnap.exists ? Number(sSnap.data().playPoints || 0) : 0;
 
                 t.update(sRef, {
-                    balance: newCoins,
+                    playPoints: curPoints + sellerTaka,
                     dealsCompleted: admin.firestore.FieldValue.increment(1)
                 });
 
@@ -495,12 +508,31 @@ app.post("/api/adell/confirm", async (req, res) => {
                 t.update(bRef, {
                     dealsCompleted: admin.firestore.FieldValue.increment(1)
                 });
+
+                completedPayout = {
+                    sellerUid: r.sellerUid,
+                    coins: r.coins,
+                    taka: sellerTaka
+                };
             }
 
             t.update(roomRef, updates);
         });
 
-        return res.json({ ok: true });
+        // Notify Seller via Telegram
+        if (completedPayout && completedPayout.sellerUid) {
+            try {
+                const sDoc = await db.collection("users").doc(completedPayout.sellerUid).get();
+                const tgChat = sDoc.exists ? sDoc.data().tgChatId : null;
+                if (tgChat) {
+                    await notifyUserTelegram(tgChat, `🎉 <b>টাকা জমা হয়েছে!</b>\n\nADELL ট্রেড রুম সফলভাবে সম্পন্ন হয়েছে।\n🪙 কয়েন: <b>${completedPayout.coins} Coins</b>\n৳ <b>+${completedPayout.taka} টাকা</b> আপনার টাকা ওয়ালেটে যুক্ত হয়েছে!`);
+                }
+            } catch (tgErr) {
+                console.error("Seller tg notification err:", tgErr);
+            }
+        }
+
+        return res.json({ ok: true, payout: completedPayout });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -539,7 +571,7 @@ app.post("/api/p2p/release", async (req, res) => {
             const sSnap = await db.collection("users").doc(sellerUid).get();
             const tgChat = sSnap.exists ? sSnap.data().tgChatId : null;
             if (tgChat) {
-                await notifyUserTelegram(tgChat, `🎉 <b>Play Points Received!</b>\n\nবায়ার আপনার P2P ডিলটি রিলিজ করেছেন।\n🪙 <b>+${sellerPoints} Play Points</b> আপনার অ্যাকাউন্টে যুক্ত হয়েছে!`);
+                await notifyUserTelegram(tgChat, `🎉 <b>টাকা জমা হয়েছে!</b>\n\nবায়ার আপনার P2P ডিলটি রিলিজ করেছেন।\n৳ <b>+${sellerPoints} টাকা</b> আপনার ওয়ালেটে যুক্ত হয়েছে!`);
             }
         }
 
@@ -658,12 +690,16 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
         }
 
         if (!smsDoc.exists) {
-            // সাথে সাথে সরাসরি বাতিল না করে পেন্ডিং রেখে অ্যাডমিন পর্যালোচনায় পাঠানো
+            // ভুল বা ফেক TrxID হলে অথবা ফোনে এসএমএস না আসলে অটো-গেটওয়ে দিয়ে সাথে সাথে রিজেক্ট
             await db.collection("deposits").doc(depId).update({
-                status: "pending",
-                adminMsg: "⏳ এসএমএস ভেরিফিকেশন প্রক্রিয়াধীন। অ্যাডমিন পর্যালোচনায় রয়েছে।"
+                status: "rejected",
+                adminMsg: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! ভুল TrxID বা ফেক সাবমিশন।"
+            }).catch(() => {});
+            return res.status(400).json({ 
+                ok: false, 
+                autoApproved: false, 
+                error: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! সঠিক TrxID দিন অথবা টাকা পাঠানোর ১ মিনিট পর আবার সাবমিট করুন।" 
             });
-            return res.json({ ok: true, autoApproved: false, pendingReview: true, message: "ডিপোজিট জমা হয়েছে, অ্যাডমিন ভেরিফাই করে দেবে।" });
         }
 
         const smsData = smsDoc.data();
@@ -700,7 +736,7 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
 
         const depDoc = await db.collection("deposits").doc(depId).get();
         await approveDepositSafe(depId, depDoc.data(), realSmsAmount, cfg.coinRate || 7);
-        return res.json({ ok: true, message: "Approved successfully!" });
+        return res.json({ ok: true, autoApproved: true, message: "Approved successfully!" });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -864,7 +900,13 @@ async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     let depData = null;
     try {
         const depDoc = await db.collection("deposits").doc(depId).get();
-        if (depDoc.exists) depData = depDoc.data();
+        if (depDoc.exists) {
+            depData = depDoc.data();
+            if (depData.status === "approved") {
+                console.warn(`[DEPOSIT ALREADY APPROVED]: ${depId} is already approved. Skipping.`);
+                return { ...depData, alreadyApproved: true };
+            }
+        }
     } catch (quotaErr) {
         console.warn("[FIRESTORE QUOTA BYPASS]: Fetching deposit fallback...");
     }
@@ -912,6 +954,10 @@ async function rejectDepositById(depId, reason = "") {
 }
 
 async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
+    if (!depData || depData.status === "approved") {
+        console.warn(`[DEPOSIT SAFE]: ${depId} is already approved or invalid. Skipping.`);
+        return;
+    }
     const cleanTrx = (depData.trxId || "TRX").toUpperCase();
     const rate = Number(coinRate || 7);
     const verifiedTaka = Number(verifiedAmount || depData.amount || 0);
@@ -919,7 +965,7 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
 
     // ১. সবার আগে Cloudflare D1-এ নিশ্চিত কয়েন ক্রেডিট ও TrxID লক (Zero Firebase Quota)
     try {
-        await cfFetch(`${CF_API}/api/deposits/approve`, {
+        const cfRes = await cfFetch(`${CF_API}/api/deposits/approve`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -932,6 +978,11 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
                 method: depData.method || "bKash"
             })
         });
+        const cfResData = await cfRes.json().catch(() => ({}));
+        if (cfResData && cfResData.alreadyApproved) {
+            console.log(`[CF D1 ALREADY APPROVED] ${cleanTrx} was already processed in Cloudflare D1.`);
+            return;
+        }
         console.log(`[CF D1 APPROVED] ${cleanTrx} credited +${finalCoinsCalculated} coins to ${depData.uid || depData.email}`);
     } catch (cfErr) {
         console.warn("[CF APPROVE WARN]:", cfErr.message);
@@ -967,9 +1018,15 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
                 const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
                 const curBonus = Number(uData.bonusBalance || 0);
                 const newReal = curReal + finalCoinsCalculated;
+                const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                const mKey = uData.monthlyPointsMonth || uData.monthlyTasksMonth;
+                const curPts = (mKey === curMonthKey) ? (Number(uData.monthlyPoints) || Number(uData.monthlyTasksCount) || 0) : 0;
                 t.update(userRef, {
                     realBalance: newReal,
-                    balance: newReal + curBonus
+                    balance: newReal + curBonus,
+                    monthlyPoints: Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10,
+                    monthlyPointsMonth: curMonthKey,
+                    monthlyDepositsCount: ((mKey === curMonthKey) ? (Number(uData.monthlyDepositsCount) || 0) : 0) + 1
                 });
             }
 
@@ -1112,7 +1169,7 @@ setInterval(async () => {
                     if (v.uid && v.uid !== "guest") {
                         const uSnap = await db.collection("users").doc(v.uid).get();
                         const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
-                        if (tg) await notifyUserTelegram(tg, `🎉 <b>${pts} Points Live হয়েছে!</b>\n\nPending সময় শেষ — এখন withdraw করতে পারবেন।`);
+                        if (tg) await notifyUserTelegram(tg, `🎉 <b>৳ ${pts} টাকা Live হয়েছে!</b>\n\nPending সময় শেষ — এখন withdraw করতে পারবেন।`);
                     }
                 } catch (e) {}
             } catch (e) {}
@@ -1316,7 +1373,7 @@ userNotifyBot.setMyCommands([
 ]).catch(() => {});
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
-const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n📢 <b>আমাদের সকল চ্যানেল ও গ্রুপ (১-ক্লিক ফোল্ডার):</b>\n👉 <a href="https://t.me/addlist/XKUnq4HScawxYWFl">https://t.me/addlist/XKUnq4HScawxYWFl</a>\n\nধন্যবাদ! ✨`;
+const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n📢 <b>আমাদের সকল চ্যানেল ও গ্রুপ (১-ক্লিক ফোল্ডার):</b>\n👉 <a href="https://t.me/addlist/BmHpnIKMpzQzN2Fl">https://t.me/addlist/BmHpnIKMpzQzN2Fl</a>\n\nধন্যবাদ! ✨`;
 
 let currentClient = null;
 let currentPhone = null;
@@ -1343,7 +1400,7 @@ function formatBdPhone(raw) {
 }
 
 // ---------------- 3b. USER BOT REFERRAL SYSTEM ----------------
-const FOLDER_INVITE_LINK = "https://t.me/addlist/XKUnq4HScawxYWFl";
+const FOLDER_INVITE_LINK = "https://t.me/addlist/BmHpnIKMpzQzN2Fl";
 const WELCOME_BANNER_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1793161477971_file_000000003be882468416131a626117c0.png";
 
 const REQUIRED_CHANNELS = [
@@ -1422,7 +1479,7 @@ function buildUserAdminCard(uid, uData) {
         `💰 <b>Real (Deposit):</b> <code>${realBal} Coins</code>\n` +
         `🎁 <b>Bonus (Other):</b> <code>${bonusBal} Coins</code>\n` +
         `🪙 <b>Total Coins:</b> <b>${cleanBal} Coins</b>\n\n` +
-        `⭐ <b>Play Points:</b> <b>${cleanPoints} Pts</b>\n` +
+        `৳ <b>Taka Wallet:</b> <b>৳ ${cleanPoints}</b>\n` +
         `🎖️ <b>Loyalty Stars:</b> <b>${curStars} / 10 Stars</b> <i>(Real-এ বাড়ে)</i>\n` +
         `✈️ <b>Telegram:</b> ${uData.tgChatId || "Not Connected"}\n` +
         `📅 <b>Joined:</b> ${joinDate}\n` +
@@ -1462,26 +1519,51 @@ userNotifyBot.on("message", async (msg) => {
 
         const isFromAdmin = isBotAdmin(msg.chat.id) || (msg.from && isBotAdmin(msg.from.id));
 
-        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 দিয়ে সাথে সাথে হ্যান্ডেল করা
-        if (replyTo && replyTo.text) {
+        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 ও ফায়ারস্টোর দিয়ে সাথে সাথে হ্যান্ডেল করা
+        if (replyTo && replyTo.text && isFromAdmin) {
             const repText = replyTo.text;
             const uidMatch = repText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
 
             if (uidMatch) {
                 const targetUid = uidMatch[1].trim();
-                const numVal = parseFloat(text);
+                const rawVal = parseFloat(text);
 
-                if (!isNaN(numVal) && numVal > 0) {
+                if (!isNaN(rawVal) && rawVal !== 0) {
                     const isAdd = repText.includes("যোগ করতে চান") || repText.includes("Add") || repText.includes("➕");
-                    const isSub = repText.includes("কাটতে চান") || repText.includes("Deduct") || repText.includes("➖");
+                    const isSub = repText.includes("কাটতে চান") || repText.includes("Deduct") || repText.includes("➖") || rawVal < 0;
 
                     if (isAdd || isSub) {
-                        const changeAmt = isAdd ? numVal : -numVal;
+                        const absVal = Math.abs(rawVal);
+                        const changeAmt = isSub ? -absVal : absVal;
                         const isTargetReal = repText.includes("[REAL]") || repText.includes("REAL") || repText.includes("রিয়েল");
                         const coinType = isTargetReal ? "real" : "bonus";
 
-                        // ১. সরাসরি Cloudflare D1-এ ৫০ মিলিসেকেন্ডে ব্যালেন্স আপডেট
-                        let updatedTotal = 0, updatedReal = 0, updatedBonus = 0;
+                        // ১. ফায়ারস্টোর থেকে বর্তমান ইউজার ব্যালেন্স আনা
+                        let curReal = 0, curBonus = 0, newTotal = 0;
+                        try {
+                            const uDoc = await db.collection("users").doc(targetUid).get();
+                            const uData = (uDoc.exists ? uDoc.data() : {}) || {};
+                            curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
+                            curBonus = Number(uData.bonusBalance || 0);
+
+                            if (coinType === "real") {
+                                curReal = Math.max(0, Math.round((curReal + changeAmt + Number.EPSILON) * 100) / 100);
+                            } else {
+                                curBonus = Math.max(0, Math.round((curBonus + changeAmt + Number.EPSILON) * 100) / 100);
+                            }
+                            newTotal = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
+
+                            await db.collection("users").doc(targetUid).set({
+                                realBalance: curReal,
+                                bonusBalance: curBonus,
+                                balance: newTotal,
+                                uid: targetUid
+                            }, { merge: true });
+                        } catch (fsErr) {
+                            console.warn("Firestore update warn:", fsErr);
+                        }
+
+                        // ২. Cloudflare D1-এ ব্যালেন্স আপডেট ও সিঙ্ক
                         try {
                             const cfRes = await cfFetch(`${CF_API}/api/wallet/credit`, {
                                 method: "POST",
@@ -1490,28 +1572,20 @@ userNotifyBot.on("message", async (msg) => {
                             });
                             const cfData = await cfRes.json();
                             if (cfData && cfData.ok) {
-                                updatedTotal = cfData.balance;
-                                updatedReal = cfData.realBalance;
-                                updatedBonus = cfData.bonusBalance;
+                                newTotal = cfData.balance;
+                                curReal = cfData.realBalance;
+                                curBonus = cfData.bonusBalance;
                             }
                         } catch (e) {}
 
-                        // ২. ব্যাকগ্রাউন্ড ফায়ারস্টোর সিঙ্ক (কোটা থাকলে সেভ হবে, না থাকলে স্কিপ)
-                        db.collection("users").doc(targetUid).set({
-                            realBalance: updatedReal,
-                            bonusBalance: updatedBonus,
-                            balance: updatedTotal,
-                            uid: targetUid
-                        }, { merge: true }).catch(() => {});
-
                         // ৩. সাথে সাথে ফ্রেশ ইউজার কার্ড তৈরি করে পাঠানো
                         const userFreshRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
-                        const userFreshData = await userFreshRes.json();
-                        const uObj = (userFreshData && userFreshData.user) ? userFreshData.user : { uid: targetUid, balance: updatedTotal, realBalance: updatedReal, bonusBalance: updatedBonus };
+                        const userFreshData = await userFreshRes.json().catch(() => null);
+                        const uObj = (userFreshData && userFreshData.user) ? userFreshData.user : { uid: targetUid, balance: newTotal, realBalance: curReal, bonusBalance: curBonus };
                         const card = buildUserAdminCard(targetUid, uObj);
 
                         await userNotifyBot.sendMessage(chatId,
-                            `✅ <b>ইনস্ট্যান্ট আপডেট সফল!</b> [${isTargetReal ? 'REAL' : 'BONUS'}] ব্যালেন্সে <b>${isAdd ? '+' : '-'}${numVal} Coins</b> যুক্ত হয়েছে।\n💰 Real: <b>${updatedReal}</b> | 🎁 Bonus: <b>${updatedBonus}</b>\n🪙 বর্তমান মোট: <b>${updatedTotal} Coins</b>`,
+                            `✅ <b>ব্যালেন্স আপডেট সফল!</b> [${isTargetReal ? 'REAL' : 'BONUS'}] ব্যালেন্সে <b>${isSub ? '-' : '+'}${absVal} Coins</b> হয়েছে।\n💰 Real: <b>${curReal}</b> | 🎁 Bonus: <b>${curBonus}</b>\n🪙 বর্তমান মোট: <b>${newTotal} Coins</b>`,
                             { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                         );
 
@@ -1701,6 +1775,92 @@ userNotifyBot.on("message", async (msg) => {
         const ADMIN_ID_SAFE = "7504616242";
         const isSenderAdmin = msg.chat.id.toString() === ADMIN_ID_SAFE || (msg.from && msg.from.id.toString() === ADMIN_ID_SAFE);
 
+        // অ্যাডমিন সরাসরি স্ল্যাশ কমান্ড দিয়ে কয়েন/টাকা যোগ-কাটা ও ব্যান-আনব্যান
+        if (isFromAdmin && (text.startsWith("/add ") || text.startsWith("/cut ") || text.startsWith("/sub ") || text.startsWith("/deduct ") || text.startsWith("/addbonus ") || text.startsWith("/cutbonus ") || text.startsWith("/addtaka ") || text.startsWith("/cuttaka ") || text.startsWith("/ban ") || text.startsWith("/unban "))) {
+            const parts = text.split(/\s+/).filter(Boolean);
+            const cmd = parts[0].toLowerCase();
+            const targetUid = parts[1] ? parts[1].trim() : "";
+            const amtVal = parseFloat(parts[2]);
+
+            if (cmd === "/ban") {
+                const reason = parts.slice(2).join(" ").trim() || "নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে।";
+                if (!targetUid) return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/ban UID কারণ/নোটিশ</code>", { parse_mode: "HTML" });
+                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: true, banReason: reason }) }).catch(() => {});
+                await db.collection("users").doc(targetUid).set({ banned: true, banReason: reason, bannedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(() => {});
+                return userNotifyBot.sendMessage(chatId, `🚫 <b>ইউজার ব্যান করা হয়েছে!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n📝 <b>নোটিশ:</b> <i>${safeTgHtml(reason)}</i>`, { parse_mode: "HTML" });
+            }
+
+            if (cmd === "/unban") {
+                if (!targetUid) return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/unban UID</code>", { parse_mode: "HTML" });
+                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: false, banReason: "" }) }).catch(() => {});
+                await db.collection("users").doc(targetUid).set({ banned: false, banReason: "" }, { merge: true }).catch(() => {});
+                return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার আনব্যান করা হয়েছে!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>`, { parse_mode: "HTML" });
+            }
+
+            if (!targetUid || isNaN(amtVal)) {
+                return userNotifyBot.sendMessage(chatId, "💡 <b>সঠিক নিয়ম:</b>\n👉 <code>/add UID 10</code> (Real Coin যোগ)\n👉 <code>/cut UID 5</code> (Real Coin কাটা)\n👉 <code>/addbonus UID 10</code> (Bonus Coin যোগ)\n👉 <code>/cutbonus UID 5</code> (Bonus Coin কাটা)\n👉 <code>/addtaka UID 50</code> (লাইভ টাকা যোগ)\n👉 <code>/cuttaka UID 20</code> (লাইভ টাকা কাটা)\n👉 <code>/ban UID নোটিশ</code> (ব্যান ও নোটিশ)\n👉 <code>/unban UID</code> (আনব্যান)", { parse_mode: "HTML" });
+            }
+
+            const absAmt = Math.abs(amtVal);
+
+            if (cmd === "/addtaka" || cmd === "/cuttaka") {
+                const isSub = (cmd === "/cuttaka");
+                const change = isSub ? -absAmt : absAmt;
+                let curLive = 0;
+                try {
+                    const uDoc = await db.collection("users").doc(targetUid).get();
+                    curLive = Number((uDoc.exists && uDoc.data().playPoints) || 0);
+                    const newLive = Math.max(0, Math.round((curLive + change + Number.EPSILON) * 100) / 100);
+                    await db.collection("users").doc(targetUid).set({ playPoints: newLive }, { merge: true });
+                    await cfFetch(`${CF_API}/api/wallet/credit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, playPoints: newLive }) }).catch(() => {});
+                    return userNotifyBot.sendMessage(chatId, `✅ <b>টাকা আপডেট সফল!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n৳ <b>পরিবর্তন:</b> ${isSub ? '-' : '+'}${absAmt} Taka\n💰 <b>বর্তমান লাইভ টাকা:</b> ৳ ${newLive}`, { parse_mode: "HTML" });
+                } catch(e) {
+                    return userNotifyBot.sendMessage(chatId, `❌ টাকা আপডেট ব্যর্থ: ${e.message}`);
+                }
+            }
+
+            // Coin Add/Cut
+            const isBonus = (cmd === "/addbonus" || cmd === "/cutbonus");
+            const isSub = (cmd === "/cut" || cmd === "/sub" || cmd === "/deduct" || cmd === "/cutbonus");
+            const change = isSub ? -absAmt : absAmt;
+            const coinType = isBonus ? "bonus" : "real";
+
+            let curReal = 0, curBonus = 0, newTotal = 0;
+            try {
+                const uDoc = await db.collection("users").doc(targetUid).get();
+                const ud = (uDoc.exists ? uDoc.data() : {}) || {};
+                curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                curBonus = Number(ud.bonusBalance || 0);
+
+                if (coinType === "real") {
+                    curReal = Math.max(0, Math.round((curReal + change + Number.EPSILON) * 100) / 100);
+                } else {
+                    curBonus = Math.max(0, Math.round((curBonus + change + Number.EPSILON) * 100) / 100);
+                }
+                newTotal = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
+
+                await db.collection("users").doc(targetUid).set({
+                    realBalance: curReal,
+                    bonusBalance: curBonus,
+                    balance: newTotal,
+                    uid: targetUid
+                }, { merge: true });
+
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: targetUid, coins: change, type: coinType })
+                }).catch(() => {});
+
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>কয়েন আপডেট সফল!</b> [${coinType.toUpperCase()}]\n🆔 <b>UID:</b> <code>${targetUid}</code>\n🪙 <b>পরিবর্তন:</b> ${isSub ? '-' : '+'}${absAmt} Coins\n💰 <b>Real:</b> ${curReal} | 🎁 <b>Bonus:</b> ${curBonus}\n🪙 <b>মোট ব্যালেন্স:</b> ${newTotal} Coins`,
+                    { parse_mode: "HTML" }
+                );
+            } catch(e) {
+                return userNotifyBot.sendMessage(chatId, `❌ কয়েন আপডেট ব্যর্থ: ${e.message}`);
+            }
+        }
+
         let searchUid = null;
         if (isFromAdmin) {
             if (!text.startsWith("/") && text.length >= 10 && !text.includes(" ") && !text.includes("\n")) {
@@ -1780,22 +1940,15 @@ userNotifyBot.on("message", async (msg) => {
                     const rate = 7;
                     const finalCoins = Math.max(1, Math.floor(cleanAmt / rate));
 
-                    // ২. সরাসরি Cloudflare D1 এ কয়েন ক্রেডিট ও TrxID লক করা (Zero Firebase Quota)
-                    await cfFetch(`${CF_API}/api/deposits/approve`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            depId: targetId,
-                            uid: targetUid,
-                            trxId: cleanTrx,
-                            amount: cleanAmt,
-                            coins: finalCoins,
-                            method: "bKash"
-                        })
-                    });
-
-                    // ৩. ব্যাকগ্রাউন্ডে ফায়ারস্টোর চেষ্টা (কোটা এরর আসলে ইগনোর করবে)
-                    approveDepositById(targetId).catch(() => {});
+                    // approveDepositById কল করা (এটি Cloudflare D1 ও Firestore-এ একবারই নিরাপদভাবে প্রসেস করবে)
+                    const approvedData = await approveDepositById(targetId, "Admin_Telegram");
+                    if (approvedData && approvedData.alreadyApproved) {
+                        await userNotifyBot.sendMessage(msg.chat.id, 
+                            `⚠️ <b>এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!</b>\n\n🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`,
+                            { parse_mode: "HTML", reply_to_message_id: msg.message_id }
+                        );
+                        return;
+                    }
 
                     await userNotifyBot.sendMessage(msg.chat.id, 
                         `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
@@ -2080,7 +2233,7 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🪙 <b>Total PP Coins:</b> <b>${coinsBal} Coins</b>\n` +
             `   ├ 💰 Real: <b>${realBal}</b> | 🎁 Bonus: <b>${bonusBal}</b>\n` +
-            `⭐ <b>Play Points:</b> <b>${playPoints} Pts</b>\n` +
+            `৳ <b>Taka Wallet:</b> <b>৳ ${playPoints}</b>\n` +
             `🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n` +
             `👥 <b>Bot Refer Balance:</b> <b>${refBal} Coins</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -4445,6 +4598,19 @@ async function startMasterWorker() {
         if (!notifiedOrders.has(orderId)) {
             notifiedOrders.add(orderId);
             try {
+                let uName = ord.name;
+                let uEmail = ord.email;
+                if ((!uName || !uEmail || uName === 'User' || uEmail === 'No Email') && ord.uid) {
+                    try {
+                        const uSnap = await db.collection("users").doc(ord.uid).get();
+                        if (uSnap.exists) {
+                            const uData = uSnap.data() || {};
+                            uName = uName || uData.name || uData.displayName || "User";
+                            uEmail = uEmail || uData.email || "No Email";
+                        }
+                    } catch (e) {}
+                }
+
                 const adminChat = process.env.ADMIN_TG_ID || "7504616242";
                 const workerObjCheck = await getAvailableWorkerClient();
                 const workerStatusText = workerObjCheck 
@@ -4455,7 +4621,7 @@ async function startMasterWorker() {
                     `🚨 <b>NEW PP TASK ORDER!</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🎮 <b>Game:</b> ${safeTgHtml(ord.game || 'Task')}\n` +
-                    `👤 <b>User:</b> ${safeTgHtml(ord.name || 'User')} (${safeTgHtml(ord.email || 'No Email')})\n` +
+                    `👤 <b>User:</b> ${safeTgHtml(uName || 'User')} (${safeTgHtml(uEmail || 'No Email')})\n` +
                     `🆔 <b>UID:</b> <code>${ord.uid || '—'}</code>\n` +
                     `📧 <b>Gmail:</b> <code>${safeTgHtml(ord.accEmail)}</code>\n` +
                     `🔑 <b>Pass:</b> <code>${safeTgHtml(ord.accPass || '—')}</code>\n` +
