@@ -1563,18 +1563,32 @@ userNotifyBot.on("message", async (msg) => {
                             console.warn("Firestore update warn:", fsErr);
                         }
 
-                        // ২. Cloudflare D1-এ ব্যালেন্স আপডেট ও সিঙ্ক
+                        // ২. Cloudflare D1-এ ব্যালেন্স আপডেট ও সিঙ্ক (মাইনাস ব্যালেন্স কাটার জন্য set-balance নিশ্চিত করা)
                         try {
-                            const cfRes = await cfFetch(`${CF_API}/api/wallet/credit`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ uid: targetUid, coins: changeAmt, type: coinType })
-                            });
-                            const cfData = await cfRes.json();
-                            if (cfData && cfData.ok) {
-                                newTotal = cfData.balance;
-                                curReal = cfData.realBalance;
-                                curBonus = cfData.bonusBalance;
+                            if (changeAmt < 0) {
+                                const cfRes = await cfFetch(`${CF_API}/api/wallet/set-balance`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ uid: targetUid, balance: newTotal, realBalance: curReal, bonusBalance: curBonus })
+                                });
+                                const cfData = await cfRes.json();
+                                if (cfData && cfData.ok) {
+                                    newTotal = cfData.balance;
+                                    curReal = cfData.realBalance;
+                                    curBonus = cfData.bonusBalance;
+                                }
+                            } else {
+                                const cfRes = await cfFetch(`${CF_API}/api/wallet/credit`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ uid: targetUid, coins: changeAmt, type: coinType })
+                                });
+                                const cfData = await cfRes.json();
+                                if (cfData && cfData.ok) {
+                                    newTotal = cfData.balance;
+                                    curReal = cfData.realBalance;
+                                    curBonus = cfData.bonusBalance;
+                                }
                             }
                         } catch (e) {}
 
@@ -1846,11 +1860,19 @@ userNotifyBot.on("message", async (msg) => {
                     uid: targetUid
                 }, { merge: true });
 
-                await cfFetch(`${CF_API}/api/wallet/credit`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ uid: targetUid, coins: change, type: coinType })
-                }).catch(() => {});
+                if (change < 0) {
+                    await cfFetch(`${CF_API}/api/wallet/set-balance`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uid: targetUid, balance: newTotal, realBalance: curReal, bonusBalance: curBonus })
+                    }).catch(() => {});
+                } else {
+                    await cfFetch(`${CF_API}/api/wallet/credit`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uid: targetUid, coins: change, type: coinType })
+                    }).catch(() => {});
+                }
 
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>কয়েন আপডেট সফল!</b> [${coinType.toUpperCase()}]\n🆔 <b>UID:</b> <code>${targetUid}</code>\n🪙 <b>পরিবর্তন:</b> ${isSub ? '-' : '+'}${absAmt} Coins\n💰 <b>Real:</b> ${curReal} | 🎁 <b>Bonus:</b> ${curBonus}\n🪙 <b>মোট ব্যালেন্স:</b> ${newTotal} Coins`,
