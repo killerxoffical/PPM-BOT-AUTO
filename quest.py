@@ -25,7 +25,7 @@ def show_header():
   print(f"{C}┌──────────────────────────────────────────────┐{NC}")
   print(f"{C}│{W}          PP MOD DEVELOPER PORTAL             {C}│{NC}")
   print(f"{C}│{M}        Powered by VAREON STUDIO              {C}│{NC}")
-  print(f"{C}│{Y}   🌐 Web : {G}https://ppmod.gamer.free/          {C}│{NC}")
+  print(f"{C}│{Y}   🌐 Web : {G}https://ppmods.netlify.app          {C}│{NC}")
   print(f"{C}└──────────────────────────────────────────────┘{NC}")
 
 
