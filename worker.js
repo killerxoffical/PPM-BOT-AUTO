@@ -959,6 +959,11 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
         return;
     }
     const cleanTrx = (depData.trxId || "TRX").toUpperCase();
+    if (processedTrxSet.has(cleanTrx)) {
+        console.warn(`[DEPOSIT SAFE]: ${cleanTrx} is already in-memory processed. Skipping.`);
+        return;
+    }
+    processedTrxSet.add(cleanTrx);
     const rate = Number(coinRate || 7);
     const verifiedTaka = Number(verifiedAmount || depData.amount || 0);
     const finalCoinsCalculated = Math.max(1, Math.floor(verifiedTaka / rate));
@@ -1383,8 +1388,33 @@ let primeClient = null; // compat: first connected prime
 let primePhone = null;
 
 const activeOrders = new Set();
+const completedOrdersTracker = new Set();
+const processedTrxSet = new Set();
 const autoReplyCooldown = new Map();
 const pendingAuthClients = new Map();
+
+function isBotTaskCompleted(rawText) {
+    if (!rawText) return false;
+    const t = rawText.toLowerCase();
+    if (t.includes("error") || t.includes("failed") || t.includes("rejected") || 
+        t.includes("cancel") || t.includes("tap") || t.includes("notification to your phone") ||
+        t.includes("send format") || t.includes("confirm credentials")) {
+        return false;
+    }
+    return (
+        t.includes("all quests") ||
+        t.includes("completed") ||
+        t.includes("complete") ||
+        t.includes("claim your points") ||
+        t.includes("claim points") ||
+        t.includes("quest finished") ||
+        t.includes("task finished") ||
+        t.includes("quests finished") ||
+        t.includes("successfully") ||
+        t.includes("done!") ||
+        /\b(?:done|finished)\b/i.test(t)
+    );
+}
 
 // --- SMART WORKER LOAD BALANCER & QUEUE ENGINE ---
 const busyWorkers = new Set(); // কোন কোন টেলিগ্রাম অ্যাকাউন্ট এখন কাজে ব্যস্ত
@@ -4531,14 +4561,13 @@ async function getLatestBotMessage(client = null, minTimestamp = 0) {
         const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 4 });
         if (msgs && msgs.length > 0) {
             const incoming = msgs.filter(m => !m.out);
-            // বর্তমান অর্ডার শুরুর আগের পুরনো মেসেজ পুরোপুরি বাদ দেওয়া
+            // সার্ভার ও টেলিগ্রাম ক্লকের সামান্য পার্থক্য যাতে মেসেজ বাদ না ফেলে (-15s tolerance)
             const fresh = minTimestamp > 0 
-                ? incoming.filter(m => (m.date * 1000) >= (minTimestamp - 3000))
+                ? incoming.filter(m => (m.date * 1000) >= (minTimestamp - 15000))
                 : incoming;
 
             if (fresh.length > 0) {
                 const newest = fresh[0];
-                // শুধুমাত্র বর্তমান নতুন মেসেজের টেক্সট নেওয়া (আগের অর্ডার জোড়া লাগানো বন্ধ)
                 newest._combinedText = newest.message || "";
                 return newest;
             }
@@ -4616,7 +4645,12 @@ async function getUsableTelegramClient() {
 }
 
 async function refundOrder(orderId, uid, reason, userTgId = null) {
-    let refundAmt = 3; // ডিফল্ট — ট্রানজাকশনের ভিতরে আপডেট হবে
+    if (completedOrdersTracker.has(orderId)) {
+        console.warn(`[REFUND BLOCKED]: Order ${orderId} is completed. Refund strictly prohibited.`);
+        return;
+    }
+    let refundAmt = 3;
+    let refundHappened = false;
     try {
         await db.runTransaction(async (t) => {
             const ordRef = db.collection("orders").doc(orderId);
@@ -4650,25 +4684,28 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 refundedAt: admin.firestore.FieldValue.serverTimestamp(),
                 botProcessing: false
             });
+            refundHappened = true;
         });
 
-        // Cloudflare D1 ওয়ালেট ও ট্রানজাকশন হিস্ট্রিতে তাৎক্ষণিক Refund সিঙ্ক করা
-        try {
-            await cfFetch(`${CF_API}/api/wallet/credit`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
-            });
-            await cfFetch(`${CF_API}/api/orders/update`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    orderId: orderId,
-                    status: "refunded",
-                    adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
-                })
-            });
-        } catch (cfErr) {}
+        // শুধুমাত্র ফায়ারস্টোর যদি আসলেই রিফান্ড করে, কেবল তখনই D1-এ ক্রেডিট করা
+        if (refundHappened) {
+            try {
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
+                });
+                await cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        orderId: orderId,
+                        status: "refunded",
+                        adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
+                    })
+                });
+            } catch (cfErr) {}
+        }
 
         if (userTgId) {
             const notifyId = await getUserTgId(uid, userTgId);
@@ -4836,7 +4873,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             }
 
             // ১. সবার আগে চেক: কাজ কি সম্পন্ন হয়েছে? (সবার আগে সাফল্য নিশ্চিত করা)
-            if (text.includes("all quests") || text.includes("completed!") || text.includes("claim your points") || text.includes("quest completed")) {
+            if (isBotTaskCompleted(rawText)) {
+                completed = true;
+                completedOrdersTracker.add(orderId);
                 const botReportedTime = extractBotElapsedTime(rawText);
                 const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
 
@@ -4977,64 +5016,32 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 await refundOrder(orderId, orderData.uid, "Google অ্যাকাউন্ট লগইন রিজেক্ট করেছে (No চাপা হয়েছে বা ভেরিফিকেশন ফেইল)।", orderData.userTgId);
                 return;
             }
-
-            if (false) {
-                const botReportedTime = extractBotElapsedTime(rawText);
-                const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
-
+        }
+        if (!completed) {
+            // রিফান্ড করার আগে শেষবারের মতো ফ্রেশ মেসেজে কমপ্লিট হয়েছে কিনা নিশ্চিত যাচাই
+            const lastCheckMsg = await getLatestBotMessage(tg, 0);
+            if (lastCheckMsg && isBotTaskCompleted(lastCheckMsg._combinedText || lastCheckMsg.message || "")) {
+                completed = true;
+                completedOrdersTracker.add(orderId);
                 syncCf({
                     status: "completed",
                     adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
                     promptNumber: null,
-                    timeElapsed: elapsedSec
+                    timeElapsed: Math.round((Date.now() - startTime) / 1000)
                 });
-
                 await orderRef.update({
                     status: "completed",
-                    adminMsg: `অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉`,
+                    adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
                     promptNumber: admin.firestore.FieldValue.delete(),
-                    timeElapsed: elapsedSec,
+                    timeElapsed: Math.round((Date.now() - startTime) / 1000),
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
                 }).catch(() => {});
-
-                if (orderData.userTgId || orderData.uid) {
-                    const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
-                    await notifyUserTelegram(notifyId,
-                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
-                        `🎮 <b>গেম:</b> ${orderData.game}\n` +
-                        `⏱️ <b>সময় লেগেছে:</b> ~${elapsedSec} সেকেন্ড\n` +
-                        `🪙 <b>ফি:</b> ৩টি PP Coins\n\n` +
-                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
-                    );
-                }
-                try {
-                    // শর্ত: শুধুমাত্র রিয়েল ব্যালেন্স দিয়ে করা টাস্কে স্টার বাড়বে (বোনাসে বাড়বে না)
-                    const paidWithReal = Number(orderData.paidWithReal || 0);
-                    if (orderData.uid && orderData.uid !== 'guest' && paidWithReal > 0) {
-                        await db.collection("users").doc(orderData.uid).update({
-                            loyaltyStars: admin.firestore.FieldValue.increment(1)
-                        });
-                    }
-                } catch (sErr) {}
-                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
-                sendOrderLog(
-                    `✅ <b>TASK COMPLETED</b>\n\n` +
-                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-                    `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
-                    `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
-                    `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
-                    `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
-                    `💳 <b>Method:</b> PP Coins\n` +
-                    `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-                    `📌 <b>Status:</b> Completed`
-                );
-                completed = true;
                 return;
             }
+            throw new Error("সার্ভার রেসপন্স সময়সীমা অতিক্রম করেছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
         }
-        if (!completed) throw new Error("সার্ভার রেসপন্স সময়সীমা অতিক্রম করেছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
     } catch (err) {
         let cleanErr = err.message || "সার্ভার সংযোগে সমস্যা হয়েছে।";
         if (cleanErr.includes("bot") || cleanErr.includes("timeout")) {
@@ -5224,6 +5231,8 @@ async function startMasterWorker() {
 
     async function handleIncomingOrder(orderId, ord, source = "Firestore") {
         if (!ord || !ord.accEmail) return;
+        if (ord.status !== "pending") return;
+        if (completedOrdersTracker.has(orderId)) return;
 
         // ১. অ্যাডমিনের টেলিগ্রামে তাৎক্ষণিক ইন্টারেক্টিভ নোটিফিকেশন পাঠানো (Zero Delay)
         if (!notifiedOrders.has(orderId)) {
