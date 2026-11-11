@@ -1448,85 +1448,62 @@ function generateReferralCode() {
     return `PPM-REF-${randomPart}`;
 }
 
-// ---------------- ANTI-FAKE REFERRAL COUNTRY FILTER ----------------
-// অনুমোদিত দেশসমূহ: বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), সৌদি আরব (+966), দুবাই / UAE (+971)
-const ALLOWED_COUNTRY_PREFIXES = [
-    { name: "বাংলাদেশ (+880)", prefix: "880" },
-    { name: "ভারত (+91)", prefix: "91" },
-    { name: "পাকিস্তান (+92)", prefix: "92" },
-    { name: "সৌদি আরব (+966)", prefix: "966" },
-    { name: "দুবাই / UAE (+971)", prefix: "971" }
-];
+// ---------------- ANTI-FAKE REFERRAL COUNTRY FILTER & WHITELIST ----------------
+const adminWhitelistedPhones = new Set();
 
-function checkAllowedCountry(rawPhone) {
+async function checkAllowedCountry(rawPhone) {
     if (!rawPhone) return { allowed: false, phone: "" };
     const clean = rawPhone.toString().replace(/[^0-9]/g, "");
-    for (const c of ALLOWED_COUNTRY_PREFIXES) {
-        if (clean.startsWith(c.prefix)) {
-            return { allowed: true, country: c.name, prefix: c.prefix, phone: clean };
-        }
+
+    // ১. শুধুমাত্র বাংলাদেশ (+880) স্বয়ংক্রিয়ভাবে অনুমোদিত
+    if (clean.startsWith("880")) {
+        return { allowed: true, country: "বাংলাদেশ (+880)", phone: clean, isProbashi: false };
     }
-    return { allowed: false, phone: clean };
+
+    // ২. অ্যাডমিন অনুমোদিত প্রবাসী নম্বর চেক (Memory & Firestore)
+    if (adminWhitelistedPhones.has(clean)) {
+        return { allowed: true, country: "অনুমোদিত প্রবাসী (Whitelisted)", phone: clean, isProbashi: true };
+    }
+
+    try {
+        const snap = await db.collection("allowed_phones").doc(clean).get();
+        if (snap.exists) {
+            adminWhitelistedPhones.add(clean);
+            return { allowed: true, country: "অনুমোদিত প্রবাসী (Whitelisted)", phone: clean, isProbashi: true };
+        }
+    } catch (e) {}
+
+    return { allowed: false, phone: clean, isProbashi: false };
 }
 
-// ---------------- ANTI-BOT RANDOMIZED VISUAL CAPTCHA POOL ----------------
-const CAPTCHA_POOL = [
-    { target: "🍎 আপেল (Apple)", emoji: "🍎", options: ["🚗", "🍎", "🐱", "⚽"] },
-    { target: "🚗 লাল গাড়ি (Car)", emoji: "🚗", options: ["✈️", "🍕", "🚗", "🎸"] },
-    { target: "🐱 বিড়াল (Cat)", emoji: "🐱", options: ["🐶", "🐱", "🐘", "🐼"] },
-    { target: "⚽ ফুটবল (Football)", emoji: "⚽", options: ["🏀", "⚽", "🍎", "🚀"] },
-    { target: "🍕 পিৎজা (Pizza)", emoji: "🍕", options: ["🍕", "🍔", "☕", "🍉"] },
-    { target: "🚀 মহাকাশ রকেট (Rocket)", emoji: "🚀", options: ["🚗", "✈️", "🚀", "🚢"] },
-    { target: "🦁 বনের সিংহ (Lion)", emoji: "🦁", options: ["🦁", "🐶", "🐵", "🚲"] },
-    { target: "☕ গরম কফি/চা (Coffee)", emoji: "☕", options: ["🍵", "☕", "🍧", "🍺"] },
-    { target: "🎁 উপহার বক্স (Gift)", emoji: "🎁", options: ["🎈", "🎁", "🎉", "🎀"] },
-    { target: "👑 রাজকীয় মুকুট (Crown)", emoji: "👑", options: ["🎩", "👑", "🧢", "💍"] },
-    { target: "💎 চকচকে হীরা (Diamond)", emoji: "💎", options: ["🪙", "💎", "🔮", "🧿"] },
-    { target: "🍔 বার্গার (Burger)", emoji: "🍔", options: ["🥪", "🍔", "🍎", "🍩"] },
-    { target: "🎸 গিটার (Guitar)", emoji: "🎸", options: ["🎹", "🥁", "🎸", "🎺"] },
-    { target: "🚲 বাইসাইকেল (Bicycle)", emoji: "🚲", options: ["🛵", "🚲", "🚗", "⛵"] },
-    { target: "🍦 আইসক্রিম (Ice cream)", emoji: "🍦", options: ["🍩", "🍦", "🍫", "🍇"] }
-];
+// ---------------- 5-CHARACTER ALPHANUMERIC ANTI-BOT CAPTCHA ----------------
+const pendingCaptchas = new Map(); // userId -> { code, expires }
 
-const pendingCaptchas = new Map(); // userId -> { token, correctEmoji, expires }
-
-function shuffleCaptchaArray(arr) {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
+function generateAlphanumericCaptcha() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 5; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    return a;
+    return code;
 }
 
 async function sendRandomCaptcha(chatId, userId, editMessageId = null) {
-    const item = CAPTCHA_POOL[Math.floor(Math.random() * CAPTCHA_POOL.length)];
-    const shuffled = shuffleCaptchaArray(item.options);
-    const token = Math.random().toString(36).substring(2, 8);
-
+    const code = generateAlphanumericCaptcha();
     pendingCaptchas.set(userId, {
-        token,
-        correctEmoji: item.emoji,
-        expires: Date.now() + 180000 // 3 minutes validity
+        code: code,
+        expires: Date.now() + 300000 // 5 minutes validity
     });
 
-    const buttons = shuffled.map((opt) => ({
-        text: opt,
-        callback_data: `cpt_ans:${token}:${opt}`
-    }));
-
-    const keyboard = {
-        inline_keyboard: [
-            buttons.slice(0, 2),
-            buttons.slice(2, 4)
-        ]
-    };
-
+    const spacedArt = code.split("").join("  •  ");
     const text = 
-        `🤖 <b>হিউম্যান ভেরিফিকেশন (CAPTCHA)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `আপনি কোনো রোবট বা স্বয়ংক্রিয় স্ক্রিপ্ট নন তা যাচাই করতে নিচের সঠিক ইমোজিতে চাপ দিন:\n\n` +
-        `👉 নিচের কোনটি <b>${item.target}</b>?\n\n` +
-        `⚠️ <b>সতর্কতা:</b> ভুল ইমোজিতে চাপ দিলে আপনার অ্যাকাউন্ট সাথে সাথে <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
+        `🤖 <b>হিউম্যান সিকিউরিটি ভেরিফিকেশন (CAPTCHA)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `রোবট ও ফেক স্ক্রিপ্ট প্রতিরোধে নিচের বক্সের <b>৫ অক্ষরের কোডটি</b> দেখে চ্যাটে লিখে পাঠান:\n\n` +
+        `<code>╔══════════════════════╗</code>\n` +
+        `<code>║   🎯   ${spacedArt}   ║</code>\n` +
+        `<code>╚══════════════════════╝</code>\n\n` +
+        `👉 <b>আপনার করণীয়:</b> উপরের কোডটি দেখে হুবহু লিখে এই মেসেজের রিপ্লাই দিন বা চ্যাটে পাঠিয়ে দিন।\n\n` +
+        `⚠️ <b>সতর্কতা:</b> ভুল কোড লিখলে অ্যাকাউন্ট সাথে সাথে <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
 
     if (editMessageId) {
         try {
@@ -1534,14 +1511,18 @@ async function sendRandomCaptcha(chatId, userId, editMessageId = null) {
                 chat_id: chatId,
                 message_id: editMessageId,
                 parse_mode: "HTML",
-                reply_markup: keyboard
+                reply_markup: {
+                    inline_keyboard: [[{ text: "🔄 নতুন কোড দিন (New Code)", callback_data: "start_captcha" }]]
+                }
             });
         } catch (e) {}
     }
 
     return await userNotifyBot.sendMessage(chatId, text, {
         parse_mode: "HTML",
-        reply_markup: keyboard
+        reply_markup: {
+            inline_keyboard: [[{ text: "🔄 নতুন কোড দিন (New Code)", callback_data: "start_captcha" }]]
+        }
     });
 }
 
@@ -1807,20 +1788,17 @@ userNotifyBot.on("message", async (msg) => {
                 return enforceChannelMembership(chatId, fromId);
             }
 
-            // Country Whitelist Check: BD (+880), IN (+91), PK (+92), SA (+966), AE (+971)
-            const countryCheck = checkAllowedCountry(contact.phone_number);
+            // Country Whitelist Check: Only Bangladesh (+880) or Admin Whitelisted Probashi
+            const countryCheck = await checkAllowedCountry(contact.phone_number);
             if (!countryCheck.allowed) {
                 return userNotifyBot.sendMessage(chatId,
                     `❌ <b>অননুমোদিত দেশ / Unsupported Country!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🇧🇩 <b>বাংলা:</b>\n` +
                     `আপনার ফোন নম্বরটি (<code>+${countryCheck.phone}</code>) অনুমোদিত দেশের তালিকায় নেই।\n` +
-                    `আপনার দেশ থেকে সরাসরি ভেরিফিকেশন প্রযোজ্য নয়। ভেরিফাইয়ের জন্য অনুগ্রহ করে সরাসরি <b>এডমিনের সাথে যোগাযোগ করুন</b>।\n\n` +
+                    `শুধুমাত্র <b>বাংলাদেশি নম্বর (+880)</b> সরাসরি অনুমোদিত। আপনি যদি <b>প্রবাসী বাংলাদেশি</b> হয়ে থাকেন, তবে আপনার নম্বরটি অনুমোদন করতে সরাসরি অ্যাডমিনের সাথে যোগাযোগ করুন।\n\n` +
                     `🇬🇧 <b>English:</b>\n` +
                     `Your phone number (<code>+${countryCheck.phone}</code>) is from an unsupported country.\n` +
-                    `Direct automated verification is not available for your region. For verification, please <b>contact Admin support</b>.\n\n` +
-                    `✅ <b>অনুমোদিত দেশসমূহ / Allowed Countries:</b>\n` +
-                    `🇧🇩 Bangladesh (+880) | 🇮🇳 India (+91) | 🇵🇰 Pakistan (+92)\n` +
-                    `🇸🇦 Saudi Arabia (+966) | 🇦🇪 Dubai / UAE (+971)\n━━━━━━━━━━━━━━━━━━━━━━`,
+                    `Only Bangladeshi numbers (+880) are automated. If you are an expatriate Bangladeshi, please contact Admin to whitelist your number.\n━━━━━━━━━━━━━━━━━━━━━━`,
                     {
                         parse_mode: "HTML",
                         reply_markup: {
@@ -1874,9 +1852,200 @@ userNotifyBot.on("message", async (msg) => {
             );
         }
 
-        // ---------------- 3. RESET ALL REFERRALS (ADMIN COMMAND) ----------------
+        // ---------------- 2. USER TEXT CAPTCHA SUBMISSION ----------------
+        if (pendingCaptchas.has(fromId) && !text.startsWith("/")) {
+            const pending = pendingCaptchas.get(fromId);
+            const userRef = db.collection("tg_bot_users").doc(fromId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+
+            if (Date.now() > pending.expires) {
+                pendingCaptchas.delete(fromId);
+                return userNotifyBot.sendMessage(chatId, "⌛ <b>ক্যাপচার ৫ মিনিট সময় শেষ!</b>\nনিচের বাটনে চাপ দিয়ে নতুন কোড নিন:", {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [[{ text: "🔄 নতুন ক্যাপচা নিন", callback_data: "start_captcha" }]]
+                    }
+                });
+            }
+
+            const cleanInput = text.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+            const correctCode = pending.code.toUpperCase().trim();
+
+            // ৫ অক্ষরের কম বা বেশি দিলে ওয়ার্নিং দেবে, সাথে সাথে লক করবে না
+            if (cleanInput.length !== 5) {
+                return userNotifyBot.sendMessage(chatId,
+                    `⚠️ <b>কোডটি ঠিক ৫ অক্ষরের হতে হবে!</b>\n` +
+                    `বক্সে দেখানো ৫ অক্ষরের কোডটি দেখে সঠিকভাবে লিখে পাঠান।`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
+            if (cleanInput === correctCode) {
+                // ✅ ক্যাপচা সফল! সম্পূর্ণ ভেরিফাইড
+                pendingCaptchas.delete(fromId);
+
+                await userRef.set({
+                    id: fromId,
+                    isVerified: true,
+                    verificationStage: "completed",
+                    captchaLockedUntil: null,
+                    verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                const uName = `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim() || "User";
+                const uUsername = msg.from.username ? `@${msg.from.username}` : "";
+
+                cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: fromId,
+                        name: uName,
+                        username: uUsername,
+                        phone: userData.phone || "",
+                        isVerified: 1
+                    })
+                }).catch(() => {});
+
+                // রেফারারকে বোনাস প্রদান (+০.৫ Coins ও +১ রেফারেল)
+                const targetInviterId = userData.inviterId;
+                if (targetInviterId && targetInviterId !== fromId) {
+                    const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
+                        ? Number(publicCache.config.tgRefBonus)
+                        : 0.5;
+
+                    cfFetch(`${CF_API}/api/bot/user/update`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            id: targetInviterId,
+                            addRefCount: 1,
+                            addRefBalance: bonusToAdd
+                        })
+                    }).catch(() => {});
+
+                    db.collection("tg_bot_users").doc(targetInviterId).set({
+                        id: targetInviterId,
+                        referralCount: admin.firestore.FieldValue.increment(1),
+                        refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
+                    }, { merge: true }).catch(() => {});
+
+                    userNotifyBot.sendMessage(targetInviterId,
+                        `🎉 <b>নতুন সম্পূর্ণ ভেরিফাইড রেফার!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `👤 ইউজার: <b>${safeTgHtml(uName)}</b>\n` +
+                        `🪙 <b>+${bonusToAdd} PP Coins</b> রেফার ব্যালেন্সে যুক্ত হয়েছে!`,
+                        { parse_mode: "HTML" }
+                    ).catch(() => {});
+                }
+
+                userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>", {
+                    parse_mode: "HTML",
+                    reply_markup: getMainMenuReplyKeyboard(true)
+                }).catch(() => {});
+
+                return userNotifyBot.sendMessage(chatId,
+                    `🎉 <b>অভিনন্দন! ক্যাপচা সফল হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📱 ফোন নম্বর: <b>+${userData.phone || "Verified"}</b>\n` +
+                    `🧩 ক্যাপচা: <b>উত্তীর্ণ (রিয়েল হিউম্যান)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `এখন থেকে আপনি সম্পূর্ণ নিরাপদভাবে বন্ধুদের রেফার করে কয়েন ইনকাম করতে পারবেন।`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "👥 আমার রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }],
+                                [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }]
+                            ]
+                        }
+                    }
+                );
+            } else {
+                // ❌ ভুল কোড ইনপুট -> ১২ ঘণ্টার লকআউট
+                pendingCaptchas.delete(fromId);
+                const lockedUntil = Date.now() + (12 * 60 * 60 * 1000);
+
+                await userRef.set({ captchaLockedUntil: lockedUntil }, { merge: true }).catch(() => {});
+
+                return userNotifyBot.sendMessage(chatId,
+                    `❌ <b>ভুল কোড! ভেরিফিকেশন ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `আপনি সঠিক কোড দেননি। স্ক্রিপ্ট ও ফেক রেফারেল রোধে আপনার ভেরিফিকেশন <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
+                    `⏳ ১২ ঘণ্টা পর আপনি পুনরায় সুযোগ পাবেন।`,
+                    { parse_mode: "HTML" }
+                );
+            }
+        }
+
+        // ---------------- 3. ADMIN WHITELIST PROBASHI PHONES ----------------
+        if (text.startsWith("/allowphone ") && isFromAdmin) {
+            const raw = text.replace("/allowphone ", "").trim();
+            const clean = raw.replace(/[^0-9]/g, "");
+            if (!clean || clean.length < 7) {
+                return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/allowphone 966501234567</code> (দেশীয় কোডসহ নম্বর)", { parse_mode: "HTML" });
+            }
+            adminWhitelistedPhones.add(clean);
+            await db.collection("allowed_phones").doc(clean).set({
+                phone: clean,
+                addedBy: fromId,
+                addedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            return userNotifyBot.sendMessage(chatId, `✅ <b>প্রবাসী নম্বর অনুমোদন সফল!</b>\n📱 <code>+${clean}</code> নম্বরটি সফলভাবে অ্যালাউ করা হয়েছে। এখন এই নম্বর দিয়ে ভেরিফাই করা যাবে।`, { parse_mode: "HTML" });
+        }
+
+        if (text.startsWith("/delphone ") && isFromAdmin) {
+            const raw = text.replace("/delphone ", "").trim();
+            const clean = raw.replace(/[^0-9]/g, "");
+            adminWhitelistedPhones.delete(clean);
+            await db.collection("allowed_phones").doc(clean).delete().catch(() => {});
+            return userNotifyBot.sendMessage(chatId, `🗑️ <code>+${clean}</code> নম্বরটি অনুমোদন তালিকা থেকে মুছে দেওয়া হয়েছে।`, { parse_mode: "HTML" });
+        }
+
+        // ---------------- 4. ADMIN SINGLE USER REFERRAL RESET & SET ----------------
+        if (text.startsWith("/resetref ") && isFromAdmin) {
+            const targetId = text.replace("/resetref ", "").trim();
+            if (!targetId) return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/resetref Telegram_User_ID</code>", { parse_mode: "HTML" });
+
+            await cfFetch(`${CF_API}/api/bot/user/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: targetId, resetRefBalance: 1 })
+            }).catch(() => {});
+
+            await db.collection("tg_bot_users").doc(targetId).set({
+                referralCount: 0,
+                refBalance: 0
+            }, { merge: true }).catch(() => {});
+
+            cachedLeaderboardData = { list: [], updatedAt: 0 };
+            return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] এর রেফারেল রিসেট সম্পন্ন!</b>\nরেফার: <b>০ জন</b> | ব্যালেন্স: <b>০ Coins</b>`, { parse_mode: "HTML" });
+        }
+
+        if (text.startsWith("/setref ") && isFromAdmin) {
+            const parts = text.split(/\s+/).filter(Boolean);
+            const targetId = parts[1];
+            const newCount = parseInt(parts[2], 10);
+            const newBal = parseFloat(parts[3]);
+            if (!targetId || isNaN(newCount) || isNaN(newBal)) {
+                return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/setref User_ID 5 2.5</code> (ID, Count, Balance)", { parse_mode: "HTML" });
+            }
+
+            await cfFetch(`${CF_API}/api/bot/user/update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: targetId, referralCount: newCount, refBalance: newBal, resetRefBalance: 1 })
+            }).catch(() => {});
+
+            await db.collection("tg_bot_users").doc(targetId).set({
+                referralCount: newCount,
+                refBalance: newBal
+            }, { merge: true }).catch(() => {});
+
+            cachedLeaderboardData = { list: [], updatedAt: 0 };
+            return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] এর রেফার আপডেট সম্পন্ন!</b>\nরেফার: <b>${newCount} জন</b> | ব্যালেন্স: <b>${newBal} Coins</b>`, { parse_mode: "HTML" });
+        }
+
+        // ---------------- 5. RESET ALL REFERRALS (CHUNKED SAFE BATCHES) ----------------
         if (text === "/resetallref" && isFromAdmin) {
-            await userNotifyBot.sendMessage(chatId, "⏳ <b>সকল রেফারেল রিসেট করা হচ্ছে...</b>", { parse_mode: "HTML" });
+            await userNotifyBot.sendMessage(chatId, "⏳ <b>সকল রেফারেল রিসেট করা হচ্ছে (D1 + Firestore)...</b>", { parse_mode: "HTML" });
 
             try {
                 await cfFetch(`${CF_API}/api/bot/reset-all-referrals`, { method: "POST" });
@@ -1887,30 +2056,36 @@ userNotifyBot.on("message", async (msg) => {
             let count = 0;
             try {
                 const snap = await db.collection("tg_bot_users").get();
-                const batch = db.batch();
-                snap.docs.forEach(docSnap => {
-                    count++;
-                    batch.update(docSnap.ref, {
-                        referralCount: 0,
-                        refBalance: 0,
-                        isVerified: false,
-                        verificationStage: "not_verified",
-                        websiteUid: null
+                const docs = snap.docs;
+                const CHUNK_SIZE = 400;
+
+                for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+                    const chunk = docs.slice(i, i + CHUNK_SIZE);
+                    const batch = db.batch();
+                    chunk.forEach(docSnap => {
+                        count++;
+                        batch.update(docSnap.ref, {
+                            referralCount: 0,
+                            refBalance: 0,
+                            isVerified: false,
+                            verificationStage: "not_verified",
+                            captchaLockedUntil: null
+                        });
                     });
-                });
-                await batch.commit();
+                    await batch.commit();
+                }
             } catch (e) {
-                console.warn("Firestore batch reset err:", e);
+                console.warn("Firestore chunked reset err:", e);
             }
 
             cachedLeaderboardData = { list: [], updatedAt: 0 };
 
             return userNotifyBot.sendMessage(chatId,
-                `✅ <b>সফলভাবে সকল রেফারেল রিসেট করা হয়েছে!</b>\n\n` +
-                `📊 মোট ইউজার রিসেট: <b>${count}</b> জন\n` +
+                `✅ <b>সফলভাবে সকল রেফারেল শূন্য (০) করা হয়েছে!</b>\n\n` +
+                `📊 মোট রিসেট: <b>${count}</b> জন\n` +
                 `🪙 সবার রেফার ব্যালেন্স: <b>০ Coins</b>\n` +
                 `👥 সবার রেফার কাউন্ট: <b>০</b>\n\n` +
-                `এখন থেকে সবাই নতুনভাবে ফোন ও ওয়েবসাইট UID ভেরিফাই করে রেফার শুরু করবে।`,
+                `পূর্বের ফেক রেফার মুছে দেওয়া হয়েছে। এখন থেকে নতুন ও আসল রেফারেল গণনা হবে।`,
                 { parse_mode: "HTML" }
             );
         }
@@ -2423,7 +2598,7 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
                 if (fbCount > refCount) {
                     refCount = fbCount;
                     refBal = fbBal;
-                    // D1 ব্যাকগ্রাউন্ড আপডেট
+                    // D1 ব্যাকগ্রাউন্ড আপডেট (SET, যাতে বারবার যোগ হয়ে সংখ্যা না বাড়ে)
                     cfFetch(`${CF_API}/api/bot/user/update`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -2431,8 +2606,8 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
                             id: userId,
                             name: userName || "User",
                             username: userUsername || "",
-                            addRefCount: fbCount,
-                            addRefBalance: fbBal
+                            referralCount: fbCount,
+                            refBalance: fbBal
                         })
                     }).catch(() => {});
                 }
