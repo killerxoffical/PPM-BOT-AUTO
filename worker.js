@@ -1418,37 +1418,178 @@ function generateReferralCode() {
     return `PPM-REF-${randomPart}`;
 }
 
+// ---------------- ANTI-FAKE REFERRAL COUNTRY FILTER ----------------
+// অনুমোদিত দেশসমূহ: বাংলাদেশ, ভারত, পাকিস্তান, মিশর, সৌদি আরব, দুবাই/UAE, ইরান
+const ALLOWED_COUNTRY_PREFIXES = [
+    { name: "বাংলাদেশ (+880)", prefix: "880" },
+    { name: "ভারত (+91)", prefix: "91" },
+    { name: "পাকিস্তান (+92)", prefix: "92" },
+    { name: "মিশর (+20)", prefix: "20" },
+    { name: "সৌদি আরব (+966)", prefix: "966" },
+    { name: "দুবাই / UAE (+971)", prefix: "971" },
+    { name: "ইরান (+98)", prefix: "98" }
+];
+
+function checkAllowedCountry(rawPhone) {
+    if (!rawPhone) return { allowed: false, phone: "" };
+    const clean = rawPhone.toString().replace(/[^0-9]/g, "");
+    for (const c of ALLOWED_COUNTRY_PREFIXES) {
+        if (clean.startsWith(c.prefix)) {
+            return { allowed: true, country: c.name, prefix: c.prefix, phone: clean };
+        }
+    }
+    return { allowed: false, phone: clean };
+}
+
+// ---------------- ANTI-BOT RANDOMIZED VISUAL CAPTCHA POOL ----------------
+const CAPTCHA_POOL = [
+    { target: "🍎 আপেল (Apple)", emoji: "🍎", options: ["🚗", "🍎", "🐱", "⚽"] },
+    { target: "🚗 লাল গাড়ি (Car)", emoji: "🚗", options: ["✈️", "🍕", "🚗", "🎸"] },
+    { target: "🐱 বিড়াল (Cat)", emoji: "🐱", options: ["🐶", "🐱", "🐘", "🐼"] },
+    { target: "⚽ ফুটবল (Football)", emoji: "⚽", options: ["🏀", "⚽", "🍎", "🚀"] },
+    { target: "🍕 পিৎজা (Pizza)", emoji: "🍕", options: ["🍕", "🍔", "☕", "🍉"] },
+    { target: "🚀 মহাকাশ রকেট (Rocket)", emoji: "🚀", options: ["🚗", "✈️", "🚀", "🚢"] },
+    { target: "🦁 বনের সিংহ (Lion)", emoji: "🦁", options: ["🦁", "🐶", "🐵", "🚲"] },
+    { target: "☕ গরম কফি/চা (Coffee)", emoji: "☕", options: ["🍵", "☕", "🍧", "🍺"] },
+    { target: "🎁 উপহার বক্স (Gift)", emoji: "🎁", options: ["🎈", "🎁", "🎉", "🎀"] },
+    { target: "👑 রাজকীয় মুকুট (Crown)", emoji: "👑", options: ["🎩", "👑", "🧢", "💍"] },
+    { target: "💎 চকচকে হীরা (Diamond)", emoji: "💎", options: ["🪙", "💎", "🔮", "🧿"] },
+    { target: "🍔 বার্গার (Burger)", emoji: "🍔", options: ["🥪", "🍔", "🍎", "🍩"] },
+    { target: "🎸 গিটার (Guitar)", emoji: "🎸", options: ["🎹", "🥁", "🎸", "🎺"] },
+    { target: "🚲 বাইসাইকেল (Bicycle)", emoji: "🚲", options: ["🛵", "🚲", "🚗", "⛵"] },
+    { target: "🍦 আইসক্রিম (Ice cream)", emoji: "🍦", options: ["🍩", "🍦", "🍫", "🍇"] }
+];
+
+const pendingCaptchas = new Map(); // userId -> { token, correctEmoji, expires }
+
+function shuffleCaptchaArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+async function sendRandomCaptcha(chatId, userId, editMessageId = null) {
+    const item = CAPTCHA_POOL[Math.floor(Math.random() * CAPTCHA_POOL.length)];
+    const shuffled = shuffleCaptchaArray(item.options);
+    const token = Math.random().toString(36).substring(2, 8);
+
+    pendingCaptchas.set(userId, {
+        token,
+        correctEmoji: item.emoji,
+        expires: Date.now() + 180000 // 3 minutes validity
+    });
+
+    const buttons = shuffled.map((opt) => ({
+        text: opt,
+        callback_data: `cpt_ans:${token}:${opt}`
+    }));
+
+    const keyboard = {
+        inline_keyboard: [
+            buttons.slice(0, 2),
+            buttons.slice(2, 4)
+        ]
+    };
+
+    const text = 
+        `🤖 <b>হিউম্যান ভেরিফিকেশন (CAPTCHA)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `আপনি কোনো রোবট বা স্বয়ংক্রিয় স্ক্রিপ্ট নন তা যাচাই করতে নিচের সঠিক ইমোজিতে চাপ দিন:\n\n` +
+        `👉 নিচের কোনটি <b>${item.target}</b>?\n\n` +
+        `⚠️ <b>সতর্কতা:</b> ভুল ইমোজিতে চাপ দিলে আপনার অ্যাকাউন্ট সাথে সাথে <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
+
+    if (editMessageId) {
+        try {
+            return await userNotifyBot.editMessageText(text, {
+                chat_id: chatId,
+                message_id: editMessageId,
+                parse_mode: "HTML",
+                reply_markup: keyboard
+            });
+        } catch (e) {}
+    }
+
+    return await userNotifyBot.sendMessage(chatId, text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard
+    });
+}
+
 async function checkUserMembership(userId) {
     try {
         const checks = REQUIRED_CHANNELS.map(async (ch) => {
             if (!ch.username) return true;
             try {
                 const member = await userNotifyBot.getChatMember(ch.username, userId);
-                return ["creator", "administrator", "member", "restricted"].includes(member.status);
+                if (member && ["creator", "administrator", "member", "restricted"].includes(member.status)) {
+                    return true;
+                }
+                if (member && (member.status === "left" || member.status === "kicked")) {
+                    return false;
+                }
+                return false;
             } catch (e) {
                 const msg = (e && e.message) || "";
-                // If Telegram explicitly reports user is not participant, fail verification
                 if (msg.includes("USER_NOT_PARTICIPANT") || msg.includes("user not found")) {
                     return false;
                 }
-                // If bot lacks admin rights to view chat members or chat is private folder, gracefully pass
-                console.warn(`[Bot] Channel membership check bypass for ${ch.username}: ${msg}`);
-                return true;
+                if (msg.includes("bot is not a member") || msg.includes("chat not found") || msg.includes("admin")) {
+                    console.warn(`[Bot Warning] Check rights for ${ch.username}: ${msg}`);
+                    return true;
+                }
+                return false;
             }
         });
         const results = await Promise.all(checks);
         return results.every(Boolean);
     } catch (e) {
-        return true;
+        return false;
     }
 }
 
-function getJoinKeyboard(userId, refId = null) {
+async function enforceChannelMembership(chatId, userId) {
+    const isMember = await checkUserMembership(userId);
+    if (!isMember) {
+        await userNotifyBot.sendMessage(chatId,
+            `❌ <b>আপনি আমাদের চ্যানেল বা গ্রুপে জয়েন নেই!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `বট ব্যবহার করতে এবং রেফারেল বা অফার অ্যাক্সেস করতে আপনাকে অবশ্যই নিচের সব চ্যানেল ও গ্রুপে জয়েন থাকতে হবে:\n\n` +
+            `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
+            `├ 📋 <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
+            `└ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n\n` +
+            `👉 ১-ক্লিকে সব জয়েন করতে নিচের বাটনে চাপ দিন:`,
+            {
+                parse_mode: "HTML",
+                disable_web_page_preview: true,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🚀 Join All Channels (1-Click Folder)", url: FOLDER_INVITE_LINK }],
+                        [{ text: "🔄 জয়েন করেছি, চেক করুন", callback_data: "recheck_channels" }]
+                    ]
+                }
+            }
+        ).catch(() => {});
+        return false;
+    }
+    return true;
+}
+
+function getJoinKeyboard(userId, refId = null, isVerified = false) {
     const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
+    if (isVerified) {
+        return {
+            inline_keyboard: [
+                [{ text: "👥 Referral Stats & Link", callback_data: "my_ref_info" }],
+                [{ text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" }],
+                [{ text: "📢 Main Community", url: "https://t.me/googleplaypointhack" }]
+            ]
+        };
+    }
     return {
         inline_keyboard: [
             [{ text: "🚀 Join All Channels (1-Click Folder)", url: FOLDER_INVITE_LINK }],
-            [{ text: "✅ Verify / চেক করুন", callback_data: verifyData }],
+            [{ text: "🔐 Verify Account / একাউন্ট ভেরিফাই", callback_data: verifyData }],
             [
                 { text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" },
                 { text: "👥 Referral Stats", callback_data: "my_ref_info" }
@@ -1518,6 +1659,135 @@ userNotifyBot.on("message", async (msg) => {
         const chatId = msg.chat.id;
 
         const isFromAdmin = isBotAdmin(msg.chat.id) || (msg.from && isBotAdmin(msg.from.id));
+
+        // ---------------- 1. PHONE CONTACT VERIFICATION (STEP 1) ----------------
+        if (msg.contact) {
+            const contact = msg.contact;
+            const fromId = msg.from ? msg.from.id.toString() : "";
+            const contactUserId = contact.user_id ? contact.user_id.toString() : "";
+
+            // Anti-Spoofing: Must be user's own contact card
+            if (contactUserId && contactUserId !== fromId) {
+                return userNotifyBot.sendMessage(chatId,
+                    `❌ <b>ভেরিফিকেশন ব্যর্থ!</b>\n\nঅন্য কারো বা ফরোয়ার্ড করা কন্টাক্ট গ্রহণযোগ্য নয়। নিচে দেওয়া বাটনে চাপ দিয়ে আপনার নিজস্ব টেলিগ্রাম অ্যাকাউন্টের ফোন নম্বর শেয়ার করুন।`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            keyboard: [[{ text: "📱 Share Contact / ফোন নম্বর ভেরিফাই", request_contact: true }]],
+                            resize_keyboard: true,
+                            one_time_keyboard: true
+                        }
+                    }
+                );
+            }
+
+            // Channel Membership Check
+            const isJoined = await checkUserMembership(fromId);
+            if (!isJoined) {
+                return enforceChannelMembership(chatId, fromId);
+            }
+
+            // Country Whitelist Check: BD (+880), IN (+91), PK (+92), EG (+20), SA (+966), AE (+971), IR (+98)
+            const countryCheck = checkAllowedCountry(contact.phone_number);
+            if (!countryCheck.allowed) {
+                return userNotifyBot.sendMessage(chatId,
+                    `❌ <b>অননুমোদিত দেশ!</b>\n\n` +
+                    `আপনার ফোন নম্বরটি (<code>+${countryCheck.phone}</code>) অনুমোদিত দেশের তালিকায় নেই।\n` +
+                    `🚫 ভার্চুয়াল ও অননুমোদিত দেশের নম্বর দিয়ে বট ব্যবহার সম্পূর্ণ নিষিদ্ধ।\n\n` +
+                    `✅ <b>অনুমোদিত দেশসমূহ:</b>\n` +
+                    `🇧🇩 বাংলাদেশ (+880)\n` +
+                    `🇮🇳 ভারত (+91)\n` +
+                    `🇵🇰 পাকিস্তান (+92)\n` +
+                    `🇪🇬 মিশর (+20)\n` +
+                    `🇸🇦 সৌদি আরব (+966)\n` +
+                    `🇦🇪 দুবাই / UAE (+971)\n` +
+                    `🇮🇷 ইরান (+98)`,
+                    { parse_mode: "HTML", reply_markup: { remove_keyboard: true } }
+                );
+            }
+
+            // Duplicate phone check: 1 phone = 1 Telegram account
+            const cleanPhone = countryCheck.phone;
+            try {
+                const phoneSnap = await db.collection("tg_bot_users").where("phone", "==", cleanPhone).get();
+                if (!phoneSnap.empty) {
+                    const existing = phoneSnap.docs.find(d => d.id !== fromId);
+                    if (existing) {
+                        return userNotifyBot.sendMessage(chatId,
+                            `❌ <b>এই নম্বরটি ইতিমধ্যে ব্যবহৃত!</b>\n\n` +
+                            `ফোন নম্বর <code>+${cleanPhone}</code> দিয়ে ইতিমধ্যে অন্য একটি টেলিগ্রাম অ্যাকাউন্ট ভেরিফাই করা হয়েছে।\n` +
+                            `১টি ফোন নম্বর দিয়ে কেবল ১টি টেলিগ্রাম অ্যাকাউন্টই ভেরিফাই করা সম্ভব।`,
+                            { parse_mode: "HTML", reply_markup: { remove_keyboard: true } }
+                        );
+                    }
+                }
+            } catch (e) {}
+
+            // Save phone and advance stage to awaiting_captcha
+            await db.collection("tg_bot_users").doc(fromId).set({
+                id: fromId,
+                phone: cleanPhone,
+                phoneCountry: countryCheck.country,
+                verificationStage: "awaiting_captcha",
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return userNotifyBot.sendMessage(chatId,
+                `✅ <b>ধাপ ১ সম্পন্ন! ফোন নম্বর যাচাইকৃত (${countryCheck.country})</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🧩 <b>ধাপ ২: রোবট/ক্যাপচা যাচাই (Verify Step 2):</b>\n\n` +
+                `আপনি কোনো অটোমেটেড বট বা স্ক্রিপ্ট নন তা নিশ্চিত করতে নিচের <b>"Verify Step 2 (ক্যাপচা)"</b> বাটনে চাপ দিন।\n\n` +
+                `⚠️ <b>সতর্কতা:</b> ক্যাপচায় ভুল উত্তর দিলে আপনার ভেরিফিকেশন <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🧩 Verify Step 2 (ক্যাপচা শুরু করুন)", callback_data: "start_captcha" }]
+                        ]
+                    }
+                }
+            );
+        }
+
+        // ---------------- 3. RESET ALL REFERRALS (ADMIN COMMAND) ----------------
+        if (text === "/resetallref" && isFromAdmin) {
+            await userNotifyBot.sendMessage(chatId, "⏳ <b>সকল রেফারেল রিসেট করা হচ্ছে...</b>", { parse_mode: "HTML" });
+
+            try {
+                await cfFetch(`${CF_API}/api/bot/reset-all-referrals`, { method: "POST" });
+            } catch (e) {
+                console.warn("CF reset err:", e);
+            }
+
+            let count = 0;
+            try {
+                const snap = await db.collection("tg_bot_users").get();
+                const batch = db.batch();
+                snap.docs.forEach(docSnap => {
+                    count++;
+                    batch.update(docSnap.ref, {
+                        referralCount: 0,
+                        refBalance: 0,
+                        isVerified: false,
+                        verificationStage: "not_verified",
+                        websiteUid: null
+                    });
+                });
+                await batch.commit();
+            } catch (e) {
+                console.warn("Firestore batch reset err:", e);
+            }
+
+            cachedLeaderboardData = { list: [], updatedAt: 0 };
+
+            return userNotifyBot.sendMessage(chatId,
+                `✅ <b>সফলভাবে সকল রেফারেল রিসেট করা হয়েছে!</b>\n\n` +
+                `📊 মোট ইউজার রিসেট: <b>${count}</b> জন\n` +
+                `🪙 সবার রেফার ব্যালেন্স: <b>০ Coins</b>\n` +
+                `👥 সবার রেফার কাউন্ট: <b>০</b>\n\n` +
+                `এখন থেকে সবাই নতুনভাবে ফোন ও ওয়েবসাইট UID ভেরিফাই করে রেফার শুরু করবে।`,
+                { parse_mode: "HTML" }
+            );
+        }
 
         // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 ও ফায়ারস্টোর দিয়ে সাথে সাথে হ্যান্ডেল করা
         if (replyTo && replyTo.text && isFromAdmin) {
@@ -2043,6 +2313,42 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
             }
         } catch (e) {}
 
+        // ভেরিফিকেশন গার্ড: আনভেরিফাইড ইউজারদের রেফারেল ড্যাশবোর্ড ব্লক থাকবে
+        let isVerified = false;
+        try {
+            const uCheckDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
+            if (uCheckDoc && uCheckDoc.exists && uCheckDoc.data().isVerified) isVerified = true;
+        } catch (e) {}
+
+        if (!isVerified) {
+            const unverifiedMsg = 
+                `⚠️ <b>আপনার অ্যাকাউন্ট এখনও ভেরিফাইড নয়!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `রেফারেল লিংক তৈরি করতে ও বোনাস পেতে প্রথমে আপনার <b>ফোন নম্বর ও ওয়েবসাইট UID</b> দিয়ে ভেরিফিকেশন সম্পন্ন করুন।\n\n` +
+                `👉 এখনই ভেরিফাই করতে নিচের <b>"🔐 একাউন্ট ভেরিফাই"</b> বাটনে চাপ দিন:`;
+            
+            const unverifiedKb = {
+                inline_keyboard: [
+                    [{ text: "🔐 একাউন্ট ভেরিফাই / Verify", callback_data: `verify_ref:none` }],
+                    [{ text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" }]
+                ]
+            };
+
+            if (editMessageId) {
+                try {
+                    return await userNotifyBot.editMessageText(unverifiedMsg, {
+                        chat_id: chatId,
+                        message_id: editMessageId,
+                        parse_mode: "HTML",
+                        reply_markup: unverifiedKb
+                    });
+                } catch (e) {}
+            }
+            return await userNotifyBot.sendMessage(chatId, unverifiedMsg, {
+                parse_mode: "HTML",
+                reply_markup: unverifiedKb
+            });
+        }
+
         const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${userId}`;
         const bonusPerRef = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
             ? Number(publicCache.config.tgRefBonus)
@@ -2147,6 +2453,7 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
             }
         } catch (e) {}
 
+        const isAdminViewer = isBotAdmin(userId);
         const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
         let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
                         `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
@@ -2158,8 +2465,15 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
                 const medal = medals[idx] || `[${idx + 1}]`;
                 const isMe = u.id === userId ? " 👈 (আপনি)" : "";
                 const cleanName = (u.name || "User").replace(/[<>&]/g, "").slice(0, 25);
+                const uEarnings = Number(u.refBalance || 0);
                 boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
-                boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount}</b> জন\n\n`;
+                if (isAdminViewer) {
+                    boardText += `   ├ 🆔 <b>UID:</b> <code>${u.id}</code> ${u.username ? '(' + u.username + ')' : ''}\n`;
+                    boardText += `   ├ 👥 <b>রেফারেল:</b> <b>${u.referralCount}</b> জন\n`;
+                    boardText += `   └ 💰 <b>মোট রেফার আয়:</b> <b>${uEarnings} PP Coins</b>\n\n`;
+                } else {
+                    boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount}</b> জন\n\n`;
+                }
             });
         }
 
@@ -2199,6 +2513,8 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
 userNotifyBot.onText(/^\/(?:referr|refer|referral|ref)(?:@\w+)?(?:\s+(.+))?$/i, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id.toString();
+    const isJoined = await enforceChannelMembership(chatId, userId);
+    if (!isJoined) return;
     const userName = `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim();
     const userUsername = msg.from.username ? `@${msg.from.username}` : "";
     await sendReferralDashboard(chatId, userId, userName, userUsername, null);
@@ -2208,6 +2524,8 @@ userNotifyBot.onText(/^\/(?:referr|refer|referral|ref)(?:@\w+)?(?:\s+(.+))?$/i, 
 userNotifyBot.onText(/^\/(?:leaderboard|top|lb)(?:@\w+)?(?:\s+(.+))?$/i, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id.toString();
+    const isJoined = await enforceChannelMembership(chatId, userId);
+    if (!isJoined) return;
     await sendLeaderboard(chatId, userId, null);
 });
 
@@ -2216,6 +2534,8 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const userId = msg.from.id.toString();
+        const isJoined = await enforceChannelMembership(chatId, userId);
+        if (!isJoined) return;
 
         // Cloudflare D1 থেকে ইনস্ট্যান্ট লাইভ ব্যালেন্স ও ডাটা ফেচ
         let webUser = null;
@@ -2357,23 +2677,44 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
             if (inviterId === userId) inviterId = null;
         }
 
+        // ১. চ্যানেল ও গ্রুপ মেম্বারশিপ চেক (না থাকলে জয়েন বাটন দিয়ে আটকে দেবে)
+        const isJoined = await enforceChannelMembership(chatId, userId);
+        if (!isJoined) {
+            // ইনভাইটার আইডি ব্যাকগ্রাউন্ডে সেভ করে রাখা যাতে জয়েন শেষে ভেরিফাই করলে রেফারার বোনাস পায়
+            if (inviterId) {
+                db.collection("tg_bot_users").doc(userId).set({
+                    id: userId,
+                    inviterId: inviterId
+                }, { merge: true }).catch(() => {});
+            }
+            return;
+        }
+
+        // ২. ইউজার ভেরিফাইড কি না চেক করা
+        let isVerified = false;
+        try {
+            const uDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
+            if (uDoc && uDoc.exists && uDoc.data().isVerified) isVerified = true;
+        } catch (e) {}
+
         const cleanFirstName = (msg.from.first_name || "ইউজার").replace(/[<>&]/g, "");
         const welcomeText = 
             `👑 <b>WELCOME TO PP MOD OFFICIAL</b> 🚀\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `👋 <b>হ্যালো, ${cleanFirstName}!</b>\n\n` +
             `🎁 <b>রেফারেল বোনাস অফার:</b>\n` +
-            `প্রতি সফল রেফারে পাবেন <b>০.৫ PP Coins</b>! মাত্র <b>৩ কয়েন</b> ব্যালেন্স জমলেই সাথে সাথে রিডিম কোড তুলে নিতে পারবেন।\n\n` +
+            `প্রতি সফল রেফারে পাবেন <b>০.৫ PP Coins</b>! মাত্র <b>৩ কয়েন</b> জমলেই সরাসরি ফ্রি রিডিম কোড তুলে নিতে পারবেন।\n\n` +
             `⚡ <b>আমাদের অফিসিয়াল কমিউনিটি:</b>\n` +
             `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
             `├ 📋 <a href="https://t.me/ppmododderlog">All Order Logs</a>\n` +
             `├ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
             `└ 🔒 <a href="https://t.me/+s09ahNjWHZM4YWM9">VIP Private Access</a>\n\n` +
-            `📌 <b>করণীয়:</b>\n` +
-            `নিচের <b>"🚀 Join All Channels"</b> বাটনে চাপ দিলে ১-ক্লিকে সব চ্যানেল অ্যাড হয়ে যাবে। এরপর <b>"✅ Verify"</b> বাটনে চাপ দিয়ে একাউন্ট অ্যাক্টিভ করুন।\n` +
+            (isVerified
+                ? `✅ <b>আপনার অ্যাকাউন্ট সম্পূর্ণ ভেরিফাইড!</b>\nনিচের "👥 Referral Stats" বাটনে চাপ দিয়ে আপনার ইনভাইট লিংক দেখতে পারবেন।\n`
+                : `📌 <b>ভেরিফিকেশন আবশ্যক:</b>\nফেক রেফারেল প্রতিরোধে বট ব্যবহার ও রেফারেল লিংক পেতে নিচের <b>"🔐 একাউন্ট ভেরিফাই"</b> বাটনে চাপ দিয়ে ফোন নম্বর ও ওয়েবসাইট UID ভেরিফাই করুন।\n`) +
             `━━━━━━━━━━━━━━━━━━━━━━`;
 
-        const keyboard = getJoinKeyboard(userId, inviterId);
+        const keyboard = getJoinKeyboard(userId, inviterId, isVerified);
 
         // ১. ইনস্ট্যান্ট ডেলিভারি (Zero Delay): cached file_id বা ব্যানার ইমেজ পাঠানো
         const sendPhotoTarget = cachedWelcomeBannerFileId || WELCOME_BANNER_IMG;
@@ -2892,8 +3233,8 @@ userNotifyBot.on("callback_query", async (query) => {
             }
 
             const userRef = db.collection("tg_bot_users").doc(userId);
-            const userSnap = await userRef.get();
-            const userData = userSnap.exists ? userSnap.data() : {};
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
 
             if (userData.isVerified) {
                 return userNotifyBot.answerCallbackQuery(query.id, {
@@ -2902,90 +3243,358 @@ userNotifyBot.on("callback_query", async (query) => {
                 });
             }
 
-            await userRef.set({
-                isVerified: true,
-                verifiedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            await userNotifyBot.answerCallbackQuery(query.id, {
-                text: "🎉 সফলভাবে ভেরিফিকেশন সম্পন্ন হয়েছে!",
-                show_alert: true
-            });
-
-            await userNotifyBot.sendMessage(chatId, 
-                `✅ <b>ভেরিফিকেশন সফল হয়েছে!</b>\n\nএখন থেকে আপনি রেফার করে রিডিম কোড জিততে পারবেন এবং সমস্ত আপডেট সরাসরি পাবেন।`,
-                {
-                    parse_mode: "HTML",
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "👥 আমার রেফারেল লিংক দেখুন", callback_data: "my_ref_info" }]
-                        ]
-                    }
+            // ১২ ঘণ্টার লকআউট চেক
+            if (userData.captchaLockedUntil) {
+                const lockMs = Number(userData.captchaLockedUntil) - Date.now();
+                if (lockMs > 0) {
+                    const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
+                    return userNotifyBot.answerCallbackQuery(query.id, {
+                        text: `🚫 আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক করা আছে! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`,
+                        show_alert: true
+                    });
                 }
-            );
+            }
 
-            // বাটন ডেটা এবং ইউজার ডেটা উভয় স্থান থেকেই ইনভাইটার আইডি নেওয়া
             const dataParts = data.split(":");
             const passedInviterId = (dataParts[1] && dataParts[1] !== "none") ? dataParts[1].trim() : null;
             const targetInviterId = userData.inviterId || passedInviterId;
 
+            // ইনভাইটার আইডি সেভ করা
             if (targetInviterId && targetInviterId !== userId) {
-                const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
-                    ? Number(publicCache.config.tgRefBonus)
-                    : 0.5;
+                await userRef.set({
+                    id: userId,
+                    inviterId: targetInviterId
+                }, { merge: true });
+            }
 
-                let newCount = 1;
-                let newBal = bonusToAdd;
+            await userNotifyBot.answerCallbackQuery(query.id);
 
-                // ইনভাইটারের নাম নিয়ে Cloudflare D1 এ সেভ করা যাতে লিডারবোর্ডে লাইভ শো করে
-                let inviterName = "User";
-                let inviterUsername = "";
-                try {
-                    const invChat = await userNotifyBot.getChat(targetInviterId).catch(() => null);
-                    if (invChat) {
-                        inviterName = `${invChat.first_name || ""} ${invChat.last_name || ""}`.trim() || invChat.username || "User";
-                        inviterUsername = invChat.username ? `@${invChat.username}` : "";
+            // যদি ফোন নম্বর আগেই শেয়ার করা থাকে, সরাসরি ক্যাপচা শুরু করবে
+            if (userData.phone) {
+                return sendRandomCaptcha(chatId, userId, query.message ? query.message.message_id : null);
+            }
+
+            // অন্যথায় ফোন কন্টাক্ট শেয়ারের প্রম্পট পাঠাবে
+            return userNotifyBot.sendMessage(chatId,
+                `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `বট ব্যবহার ও রেফারেল সুবিধা পেতে নিচের ২টি সহজ ধাপ সম্পন্ন করুন:\n\n` +
+                `📱 <b>ধাপ ১:</b> নিচের <b>"📱 Share Contact / ফোন নম্বর ভেরিফাই"</b> বাটনে চাপ দিন (শুধুমাত্র রিয়েল অ্যাকাউন্ট নিশ্চিত করতে)।\n` +
+                `🧩 <b>ধাপ ২:</b> রোবট প্রতিরোধ ক্যাপচা পূরণ করুন।\n\n` +
+                `⚠️ <b>অনুমোদিত দেশসমূহ:</b>\n` +
+                `🇧🇩 বাংলাদেশ (+880) | 🇮🇳 ভারত (+91) | 🇵🇰 পাকিস্তান (+92)\n` +
+                `🇪🇬 মিশর (+20) | 🇸🇦 সৌদি আরব (+966) | 🇦🇪 দুবাই (+971) | 🇮🇷 ইরান (+98)\n` +
+                `<i>(অন্যান্য দেশের কোনো ভার্চুয়াল নম্বর গ্রহণযোগ্য নয়)</i>\n━━━━━━━━━━━━━━━━━━━━━━`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        keyboard: [
+                            [{ text: "📱 Share Contact / ফোন নম্বর ভেরিফাই", request_contact: true }]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
                     }
-                } catch (e) {}
+                }
+            );
+        }
 
-                // ১. সরাসরি Cloudflare D1-এ সাথে সাথে রেফারেল সংখ্যা ও ব্যালেন্স বাড়ানো (লিডারবোর্ডের জন্য)
-                try {
-                    const refUpRes = await cfFetch(`${CF_API}/api/bot/user/update`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            id: targetInviterId,
-                            name: inviterName,
-                            username: inviterUsername,
-                            addRefCount: 1,
-                            addRefBalance: bonusToAdd
-                        })
+        // ---------------- STEP 2: CAPTCHA START CALLBACK ----------------
+        if (data === "start_captcha") {
+            const isAllJoined = await checkUserMembership(userId);
+            if (!isAllJoined) {
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "❌ আপনি সবগুলো চ্যানেলে জয়েন করেননি! সবগুলোতে জয়েন করে আবার চাপুন।",
+                    show_alert: true
+                });
+                return enforceChannelMembership(chatId, userId);
+            }
+
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+
+            if (userData.isVerified) {
+                return userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "✅ আপনি ইতিমধ্যে ভেরিফাইড!",
+                    show_alert: true
+                });
+            }
+
+            // ১২ ঘণ্টার লকআউট চেক
+            if (userData.captchaLockedUntil) {
+                const lockMs = Number(userData.captchaLockedUntil) - Date.now();
+                if (lockMs > 0) {
+                    const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
+                    return userNotifyBot.answerCallbackQuery(query.id, {
+                        text: `🚫 আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক করা আছে! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`,
+                        show_alert: true
                     });
-                    const refUpData = await refUpRes.json();
-                    if (refUpData && refUpData.ok) {
-                        newCount = refUpData.referralCount;
-                        newBal = refUpData.refBalance;
-                    }
-                } catch (e) {}
+                }
+            }
 
-                // ২. ফায়ারস্টোরে ব্যাকগ্রাউন্ড সেভ (কোটা শেষ হলেও এরর দেবে না)
-                db.collection("tg_bot_users").doc(targetInviterId).set({
-                    id: targetInviterId,
-                    referralCount: admin.firestore.FieldValue.increment(1),
-                    refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
+            // আগে ফোন শেয়ার করা আছে কি না যাচাই
+            if (!userData.phone) {
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "📱 প্রথমে ধাপ ১ (ফোন নম্বর শেয়ার) সম্পন্ন করুন!",
+                    show_alert: true
+                });
+                return userNotifyBot.sendMessage(chatId,
+                    `📱 <b>ধাপ ১: ফোন নম্বর শেয়ার করুন</b>\n\nনিচের বাটনে চাপ দিয়ে আপনার নিজস্ব টেলিগ্রাম অ্যাকাউন্টের কন্টাক্ট শেয়ার করুন:`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            keyboard: [[{ text: "📱 Share Contact / ফোন নম্বর ভেরিফাই", request_contact: true }]],
+                            resize_keyboard: true,
+                            one_time_keyboard: true
+                        }
+                    }
+                );
+            }
+
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return sendRandomCaptcha(chatId, userId, query.message ? query.message.message_id : null);
+        }
+
+        // ---------------- CAPTCHA ANSWER HANDLER (WITH 12-HOUR LOCKOUT) ----------------
+        if (data.startsWith("cpt_ans:")) {
+            const parts = data.split(":");
+            const tok = parts[1];
+            const chosen = parts[2];
+
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+
+            // ১. ১২ ঘণ্টার লকআউট চেক
+            if (userData.captchaLockedUntil) {
+                const lockMs = Number(userData.captchaLockedUntil) - Date.now();
+                if (lockMs > 0) {
+                    const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
+                    return userNotifyBot.answerCallbackQuery(query.id, {
+                        text: `🚫 আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`,
+                        show_alert: true
+                    });
+                }
+            }
+
+            const pending = pendingCaptchas.get(userId);
+            if (!pending || pending.token !== tok || Date.now() > pending.expires) {
+                pendingCaptchas.delete(userId);
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "⌛ ক্যাপচার সময় শেষ হয়ে গেছে! নতুন ক্যাপচা পাঠানো হচ্ছে।",
+                    show_alert: true
+                });
+                return sendRandomCaptcha(chatId, userId, query.message ? query.message.message_id : null);
+            }
+
+            // ২. ক্যাপচা উত্তর চেক করা
+            if (chosen === pending.correctEmoji) {
+                // ✅ সঠিক উত্তর — সম্পূর্ণ ভেরিফাইড!
+                pendingCaptchas.delete(userId);
+
+                await userRef.set({
+                    id: userId,
+                    isVerified: true,
+                    verificationStage: "completed",
+                    captchaLockedUntil: null,
+                    verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                const uName = `${query.from.first_name || ""} ${query.from.last_name || ""}`.trim() || "User";
+                const uUsername = query.from.username ? `@${query.from.username}` : "";
+
+                // Cloudflare D1 সিঙ্ক
+                cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: userId,
+                        name: uName,
+                        username: uUsername,
+                        phone: userData.phone || "",
+                        isVerified: 1
+                    })
+                }).catch(() => {});
+
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "🎉 ক্যাপচা সফল হয়েছে! আপনি সম্পূর্ণ ভেরিফাইড।",
+                    show_alert: true
+                });
+
+                const successMsg = 
+                    `🎉 <b>অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📱 ফোন নম্বর: <b>+${userData.phone || "Verified"}</b>\n` +
+                    `🧩 ক্যাপচা স্ট্যাটাস: <b>উত্তীর্ণ (মানব ব্যবহারকারী)</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `এখন থেকে আপনি সম্পূর্ণ সুরক্ষিতভাবে বট ব্যবহার করতে পারবেন এবং বন্ধুদের রেফার করে কয়েন জিততে পারবেন!`;
+
+                const successKb = {
+                    inline_keyboard: [
+                        [{ text: "👥 আমার রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }],
+                        [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }]
+                    ]
+                };
+
+                if (query.message) {
+                    try {
+                        await userNotifyBot.editMessageText(successMsg, {
+                            chat_id: chatId,
+                            message_id: query.message.message_id,
+                            parse_mode: "HTML",
+                            reply_markup: successKb
+                        });
+                    } catch (e) {
+                        await userNotifyBot.sendMessage(chatId, successMsg, { parse_mode: "HTML", reply_markup: successKb });
+                    }
+                } else {
+                    await userNotifyBot.sendMessage(chatId, successMsg, { parse_mode: "HTML", reply_markup: successKb });
+                }
+
+                // ৩. রেফারারকে বোনাস প্রদান (+০.৫ Coins ও +১ রেফারেল)
+                const targetInviterId = userData.inviterId;
+                if (targetInviterId && targetInviterId !== userId) {
+                    const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
+                        ? Number(publicCache.config.tgRefBonus)
+                        : 0.5;
+
+                    let newCount = 1;
+                    let newBal = bonusToAdd;
+
+                    let inviterName = "User";
+                    let inviterUsername = "";
+                    try {
+                        const invChat = await userNotifyBot.getChat(targetInviterId).catch(() => null);
+                        if (invChat) {
+                            inviterName = `${invChat.first_name || ""} ${invChat.last_name || ""}`.trim() || invChat.username || "User";
+                            inviterUsername = invChat.username ? `@${invChat.username}` : "";
+                        }
+                    } catch (e) {}
+
+                    try {
+                        const refUpRes = await cfFetch(`${CF_API}/api/bot/user/update`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                id: targetInviterId,
+                                name: inviterName,
+                                username: inviterUsername,
+                                addRefCount: 1,
+                                addRefBalance: bonusToAdd
+                            })
+                        });
+                        const refUpData = await refUpRes.json().catch(() => null);
+                        if (refUpData && refUpData.ok) {
+                            newCount = refUpData.referralCount;
+                            newBal = refUpData.refBalance;
+                        }
+                    } catch (e) {}
+
+                    db.collection("tg_bot_users").doc(targetInviterId).set({
+                        id: targetInviterId,
+                        referralCount: admin.firestore.FieldValue.increment(1),
+                        refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
+                    }, { merge: true }).catch(() => {});
+
+                    await userNotifyBot.sendMessage(targetInviterId,
+                        `🎉 <b>নতুন সম্পূর্ণ ভেরিফাইড রেফার!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `👤 ইউজার: <b>${safeTgHtml(query.from.first_name || "User")}</b>\n` +
+                        `📱 ফোন ও ক্যাপচা ভেরিফিকেশন সফলভাবে সম্পন্ন হয়েছে।\n` +
+                        `🪙 <b>+${bonusToAdd} PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
+                        `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
+                        `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━`,
+                        { parse_mode: "HTML" }
+                    ).catch(() => {});
+                }
+
+                return;
+            } else {
+                // ❌ ভুল উত্তর -> সরাসরি ১২ ঘণ্টার জন্য ভেরিফিকেশন লক!
+                pendingCaptchas.delete(userId);
+                const lockDuration = 12 * 60 * 60 * 1000; // ১২ ঘণ্টা
+                const lockedUntil = Date.now() + lockDuration;
+
+                await userRef.set({
+                    captchaLockedUntil: lockedUntil
                 }, { merge: true }).catch(() => {});
 
-                await userNotifyBot.sendMessage(targetInviterId,
-                    `🎉 <b>নতুন ভেরিফাইড রেফার!</b>\n\n` +
-                    `👤 <a href="tg://user?id=${userId}">${query.from.first_name || "User"}</a> সফলভাবে ভেরিফাই সম্পন্ন করেছেন।\n` +
-                    `🪙 <b>+${bonusToAdd} PP Coins</b> আপনার রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
-                    `💰 বর্তমান ব্যালেন্স: <b>${newBal} PP Coins</b>\n` +
-                    `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
-                    `📌 <i>(ব্যালেন্স ৩ কয়েন বা তার বেশি হলে রিডিম কোড তুলে নিতে পারবেন)</i>`,
-                    { parse_mode: "HTML" }
-                ).catch(() => {});
+                await userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "❌ ভুল উত্তর! আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক করা হয়েছে।",
+                    show_alert: true
+                });
+
+                const lockMsg = 
+                    `❌ <b>ভুল উত্তর! ভেরিফিকেশন ১২ ঘণ্টা লক</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `আপনি সঠিক ইমোজিতে চাপ দেননি। রোবট ও ফেক রেফারেল প্রতিরোধের জন্য আপনার অ্যাকাউন্ট ভেরিফিকেশন <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
+                    `⏳ <b>লক খোলার সময়:</b> ১২ ঘণ্টা পর আপনি পুনরায় ভেরিফাই করার সুযোগ পাবেন।\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━`;
+
+                if (query.message) {
+                    try {
+                        return await userNotifyBot.editMessageText(lockMsg, {
+                            chat_id: chatId,
+                            message_id: query.message.message_id,
+                            parse_mode: "HTML"
+                        });
+                    } catch (e) {}
+                }
+                return await userNotifyBot.sendMessage(chatId, lockMsg, { parse_mode: "HTML" });
             }
-            return;
+        }
+
+        if (data === "recheck_channels") {
+            const isAllJoined = await checkUserMembership(userId);
+            if (!isAllJoined) {
+                return userNotifyBot.answerCallbackQuery(query.id, {
+                    text: "❌ এখনও সবগুলো চ্যানেল/গ্রুপে জয়েন পাওয়া যায়নি! দয়া করে নিশ্চিত করুন আপনি ৩টি চ্যানেল/গ্রুপেই জয়েন করেছেন।",
+                    show_alert: true
+                });
+            }
+
+            await userNotifyBot.answerCallbackQuery(query.id, {
+                text: "✅ চ্যানেল জয়েন নিশ্চিত হয়েছে!",
+                show_alert: false
+            });
+
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+
+            if (userData.isVerified) {
+                return userNotifyBot.sendMessage(chatId, "✅ আপনি ইতিমধ্যে ভেরিফাইড! বট ব্যবহার করতে পারেন।");
+            }
+
+            // ১২ ঘণ্টা লকআউট চেক
+            if (userData.captchaLockedUntil) {
+                const lockMs = Number(userData.captchaLockedUntil) - Date.now();
+                if (lockMs > 0) {
+                    const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
+                    return userNotifyBot.sendMessage(chatId, `🚫 আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`);
+                }
+            }
+
+            if (userData.phone) {
+                return sendRandomCaptcha(chatId, userId, null);
+            }
+
+            return userNotifyBot.sendMessage(chatId,
+                `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `বট ব্যবহার ও রেফারেল সুবিধা পেতে নিচের বাটনে চাপ দিয়ে ফোন নম্বর শেয়ার করুন:\n\n` +
+                `⚠️ <b>অনুমোদিত দেশ:</b> বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), মিশর (+20), সৌদি আরব (+966), দুবাই (+971), ইরান (+98)।`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        keyboard: [
+                            [{ text: "📱 Share Contact / ফোন নম্বর ভেরিফাই", request_contact: true }]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
         }
 
         if (data === "my_ref_info") {
