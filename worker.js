@@ -1449,15 +1449,13 @@ function generateReferralCode() {
 }
 
 // ---------------- ANTI-FAKE REFERRAL COUNTRY FILTER ----------------
-// অনুমোদিত দেশসমূহ: বাংলাদেশ, ভারত, পাকিস্তান, মিশর, সৌদি আরব, দুবাই/UAE, ইরান
+// অনুমোদিত দেশসমূহ: বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), সৌদি আরব (+966), দুবাই / UAE (+971)
 const ALLOWED_COUNTRY_PREFIXES = [
     { name: "বাংলাদেশ (+880)", prefix: "880" },
     { name: "ভারত (+91)", prefix: "91" },
     { name: "পাকিস্তান (+92)", prefix: "92" },
-    { name: "মিশর (+20)", prefix: "20" },
     { name: "সৌদি আরব (+966)", prefix: "966" },
-    { name: "দুবাই / UAE (+971)", prefix: "971" },
-    { name: "ইরান (+98)", prefix: "98" }
+    { name: "দুবাই / UAE (+971)", prefix: "971" }
 ];
 
 function checkAllowedCountry(rawPhone) {
@@ -1549,33 +1547,34 @@ async function sendRandomCaptcha(chatId, userId, editMessageId = null) {
 
 async function checkUserMembership(userId) {
     try {
+        const uid = parseInt(userId, 10);
+        if (!uid || isNaN(uid)) return true;
+
         const checks = REQUIRED_CHANNELS.map(async (ch) => {
-            if (!ch.username) return true;
+            const uname = (ch.username || "").trim();
+            if (!uname) return true;
             try {
-                const member = await userNotifyBot.getChatMember(ch.username, userId);
+                const member = await userNotifyBot.getChatMember(uname, uid);
                 if (member && ["creator", "administrator", "member", "restricted"].includes(member.status)) {
                     return true;
                 }
                 if (member && (member.status === "left" || member.status === "kicked")) {
                     return false;
                 }
-                return false;
+                return true;
             } catch (e) {
-                const msg = (e && e.message) || "";
-                if (msg.includes("USER_NOT_PARTICIPANT") || msg.includes("user not found")) {
+                const msg = ((e && e.message) || "").toLowerCase();
+                if (msg.includes("user_not_participant") || msg.includes("not a member") || msg.includes("user not found")) {
                     return false;
                 }
-                if (msg.includes("bot is not a member") || msg.includes("chat not found") || msg.includes("admin")) {
-                    console.warn(`[Bot Warning] Check rights for ${ch.username}: ${msg}`);
-                    return true;
-                }
-                return false;
+                // বটের নিজস্ব পারমিশন বা চ্যানেল রেস্ট্রিকশনে ইউজারকে মিথ্যাভাবে ব্লক না করা
+                return true;
             }
         });
         const results = await Promise.all(checks);
         return results.every(Boolean);
     } catch (e) {
-        return false;
+        return true;
     }
 }
 
@@ -1605,13 +1604,28 @@ async function enforceChannelMembership(chatId, userId) {
     return true;
 }
 
+function getMainMenuReplyKeyboard(isVerified = false) {
+    return {
+        keyboard: [
+            [{ text: "🚀 Auto Quest (3s)" }, { text: "👤 Profile" }],
+            [{ text: "👥 Referral" }, { text: "🏆 Leaderboard" }],
+            [
+                { text: isVerified ? "🌐 Visit Website" : "🔐 Verify Account" },
+                { text: "💬 Support" }
+            ]
+        ],
+        resize_keyboard: true,
+        persistent: true
+    };
+}
+
 function getJoinKeyboard(userId, refId = null, isVerified = false) {
     const verifyData = refId ? `verify_ref:${refId}` : "verify_ref:none";
     if (isVerified) {
         return {
             inline_keyboard: [
-                [{ text: "👥 Referral Stats & Link", callback_data: "my_ref_info" }],
-                [{ text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" }],
+                [{ text: "🚀 Auto Quest (Website)", url: "https://ppmods.netlify.app/" }],
+                [{ text: "👥 Referral Dashboard", callback_data: "my_ref_info" }, { text: "🏆 Leaderboard", callback_data: "show_leaderboard" }],
                 [{ text: "📢 Main Community", url: "https://t.me/googleplaypointhack" }]
             ]
         };
@@ -1683,10 +1697,86 @@ function buildUserAdminCard(uid, uData) {
 userNotifyBot.on("message", async (msg) => {
     try {
         const text = (msg.text || "").trim();
+        const chatId = msg.chat.id;
+        const fromId = msg.from ? msg.from.id.toString() : chatId.toString();
+
+        // স্থায়ী মেনু বাটন হ্যান্ডলার (Quest Bot এর মতো)
+        if (text === "🚀 Auto Quest (3s)" || text === "🌐 Visit Website") {
+            return userNotifyBot.sendMessage(chatId,
+                `⚡ <b>PP MOD AUTO QUEST ENGINE</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `মাত্র ৩ সেকেন্ডে গুগল প্লে পয়েন্ট কোয়েস্ট টাস্ক সম্পন্ন করতে নিচের লিংকে যান:\n\n` +
+                `👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n` +
+                `📢 <b>অফিশিয়াল চ্যানেল:</b> @googleplaypointhack`,
+                { parse_mode: "HTML", disable_web_page_preview: false }
+            );
+        }
+        if (text === "👤 Profile") {
+            const isJoined = await enforceChannelMembership(chatId, fromId);
+            if (!isJoined) return;
+            return userNotifyBot.sendMessage(chatId,
+                `👤 <b>আপনার একাউন্ট প্রোফাইল</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🆔 <b>Telegram ID:</b> <code>${fromId}</code>\n` +
+                `📛 <b>Name:</b> ${safeTgHtml(msg.from.first_name || "User")}\n` +
+                `✈️ <b>Username:</b> ${msg.from.username ? '@' + msg.from.username : 'None'}\n\n` +
+                `🚀 <b>Web App:</b> <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>`,
+                { parse_mode: "HTML" }
+            );
+        }
+        if (text === "👥 Referral") {
+            const isJoined = await enforceChannelMembership(chatId, fromId);
+            if (!isJoined) return;
+            const userName = `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim();
+            const userUsername = msg.from.username ? `@${msg.from.username}` : "";
+            return sendReferralDashboard(chatId, fromId, userName, userUsername, null);
+        }
+        if (text === "🏆 Leaderboard") {
+            const isJoined = await enforceChannelMembership(chatId, fromId);
+            if (!isJoined) return;
+            return sendLeaderboard(chatId, fromId, null);
+        }
+        if (text === "🔐 Verify Account") {
+            const isJoined = await checkUserMembership(fromId);
+            if (!isJoined) {
+                return enforceChannelMembership(chatId, fromId);
+            }
+            const userRef = db.collection("tg_bot_users").doc(fromId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+            if (userData.isVerified) {
+                return userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট ইতিমধ্যে সম্পূর্ণ ভেরিফাইড!</b>", {
+                    parse_mode: "HTML",
+                    reply_markup: getMainMenuReplyKeyboard(true)
+                });
+            }
+            if (userData.phone) {
+                return sendRandomCaptcha(chatId, fromId, null);
+            }
+            return userNotifyBot.sendMessage(chatId,
+                `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `নিচের <b>"📱 Share Contact / ফোন নম্বর ভেরিফাই"</b> বাটনে চাপ দিন:\n\n` +
+                `✅ <b>অনুমোদিত দেশ:</b> বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), সৌদি আরব (+966), দুবাই (+971)।`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        keyboard: [[{ text: "📱 Share Contact / ফোন নম্বর ভেরিফাই", request_contact: true }]],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+        }
+        if (text === "💬 Support") {
+            return userNotifyBot.sendMessage(chatId,
+                `💬 <b>PP MOD এডমিন সাপোর্ট</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `যেকোনো সমস্যা, ডিপোজিট বা ভেরিফিকেশনে সরাসরি যোগাযোগ করুন:\n` +
+                `👉 <a href="https://t.me/Blackmoney54">@Blackmoney54</a>`,
+                { parse_mode: "HTML" }
+            );
+        }
+
         // Skip only commands with separate dedicated onText handlers
         if (/^\/(?:start|profile|leaderboard|top|lb|referr|refer|referral|ref|panel544)(?:@\w+)?/i.test(text)) return;
         const replyTo = msg.reply_to_message;
-        const chatId = msg.chat.id;
 
         const isFromAdmin = isBotAdmin(msg.chat.id) || (msg.from && isBotAdmin(msg.from.id));
 
@@ -1717,22 +1807,28 @@ userNotifyBot.on("message", async (msg) => {
                 return enforceChannelMembership(chatId, fromId);
             }
 
-            // Country Whitelist Check: BD (+880), IN (+91), PK (+92), EG (+20), SA (+966), AE (+971), IR (+98)
+            // Country Whitelist Check: BD (+880), IN (+91), PK (+92), SA (+966), AE (+971)
             const countryCheck = checkAllowedCountry(contact.phone_number);
             if (!countryCheck.allowed) {
                 return userNotifyBot.sendMessage(chatId,
-                    `❌ <b>অননুমোদিত দেশ!</b>\n\n` +
+                    `❌ <b>অননুমোদিত দেশ / Unsupported Country!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🇧🇩 <b>বাংলা:</b>\n` +
                     `আপনার ফোন নম্বরটি (<code>+${countryCheck.phone}</code>) অনুমোদিত দেশের তালিকায় নেই।\n` +
-                    `🚫 ভার্চুয়াল ও অননুমোদিত দেশের নম্বর দিয়ে বট ব্যবহার সম্পূর্ণ নিষিদ্ধ।\n\n` +
-                    `✅ <b>অনুমোদিত দেশসমূহ:</b>\n` +
-                    `🇧🇩 বাংলাদেশ (+880)\n` +
-                    `🇮🇳 ভারত (+91)\n` +
-                    `🇵🇰 পাকিস্তান (+92)\n` +
-                    `🇪🇬 মিশর (+20)\n` +
-                    `🇸🇦 সৌদি আরব (+966)\n` +
-                    `🇦🇪 দুবাই / UAE (+971)\n` +
-                    `🇮🇷 ইরান (+98)`,
-                    { parse_mode: "HTML", reply_markup: { remove_keyboard: true } }
+                    `আপনার দেশ থেকে সরাসরি ভেরিফিকেশন প্রযোজ্য নয়। ভেরিফাইয়ের জন্য অনুগ্রহ করে সরাসরি <b>এডমিনের সাথে যোগাযোগ করুন</b>।\n\n` +
+                    `🇬🇧 <b>English:</b>\n` +
+                    `Your phone number (<code>+${countryCheck.phone}</code>) is from an unsupported country.\n` +
+                    `Direct automated verification is not available for your region. For verification, please <b>contact Admin support</b>.\n\n` +
+                    `✅ <b>অনুমোদিত দেশসমূহ / Allowed Countries:</b>\n` +
+                    `🇧🇩 Bangladesh (+880) | 🇮🇳 India (+91) | 🇵🇰 Pakistan (+92)\n` +
+                    `🇸🇦 Saudi Arabia (+966) | 🇦🇪 Dubai / UAE (+971)\n━━━━━━━━━━━━━━━━━━━━━━`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "💬 Contact Admin / এডমিন সাপোর্ট", url: "https://t.me/Blackmoney54" }]
+                            ]
+                        }
+                    }
                 );
             }
 
@@ -2746,6 +2842,12 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
 
         const keyboard = getJoinKeyboard(userId, inviterId, isVerified);
 
+        // স্থায়ী বাটন মেনু কীবোর্ড নিচে সেট করা
+        userNotifyBot.sendMessage(chatId, "👇 <b>নিচের মেনু বাটন ব্যবহার করুন:</b>", {
+            parse_mode: "HTML",
+            reply_markup: getMainMenuReplyKeyboard(isVerified)
+        }).catch(() => {});
+
         // ১. ইনস্ট্যান্ট ডেলিভারি (Zero Delay): cached file_id বা ব্যানার ইমেজ পাঠানো
         const sendPhotoTarget = cachedWelcomeBannerFileId || WELCOME_BANNER_IMG;
         userNotifyBot.sendPhoto(chatId, sendPhotoTarget, {
@@ -2810,9 +2912,6 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
 });
 
 userNotifyBot.on("callback_query", async (query) => {
-    // ১. বাটনের ওপর ঘোরানো লোডিং আইকন সাথে সাথে বন্ধ করা (ইনস্ট্যান্ট টাচ রেসপন্স)
-    userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
-
     try {
         const chatId = query.message.chat.id;
         const userId = query.from.id.toString();
@@ -3254,12 +3353,24 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data.startsWith("verify_ref:")) {
+            userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+
             const isAllJoined = await checkUserMembership(userId);
             if (!isAllJoined) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "❌ আপনি সবগুলো চ্যানেলে জয়েন করেননি! সবগুলোতে জয়েন করে আবার চাপুন।",
-                    show_alert: true
-                });
+                return userNotifyBot.sendMessage(chatId,
+                    `❌ <b>আপনি এখনও সব চ্যানেলে জয়েন করেননি!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `দয়া করে নিচের চ্যানেলে জয়েন করে পুনরায় চেষ্টা করুন:\n` +
+                    `👉 <a href="${FOLDER_INVITE_LINK}">1-Click All Channels Folder</a>`,
+                    {
+                        parse_mode: "HTML",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "🚀 Join Channels (1-Click)", url: FOLDER_INVITE_LINK }],
+                                [{ text: "🔄 জয়েন করেছি, চেক করুন", callback_data: "recheck_channels" }]
+                            ]
+                        }
+                    }
+                );
             }
 
             const userRef = db.collection("tg_bot_users").doc(userId);
@@ -3267,9 +3378,9 @@ userNotifyBot.on("callback_query", async (query) => {
             const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
 
             if (userData.isVerified) {
-                return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "✅ আপনি ইতিমধ্যে ভেরিফাইড!",
-                    show_alert: true
+                return userNotifyBot.sendMessage(chatId, "✅ <b>আপনি ইতিমধ্যে সম্পূর্ণ ভেরিফাইড!</b>", {
+                    parse_mode: "HTML",
+                    reply_markup: getMainMenuReplyKeyboard(true)
                 });
             }
 
@@ -3452,6 +3563,12 @@ userNotifyBot.on("callback_query", async (query) => {
                     text: "🎉 ক্যাপচা সফল হয়েছে! আপনি সম্পূর্ণ ভেরিফাইড।",
                     show_alert: true
                 });
+
+                // ভেরিফাইড ইউজার মেনু কীবোর্ড সক্রিয় করা
+                userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট সফলভাবে ভেরিফাইড হয়েছে!</b>", {
+                    parse_mode: "HTML",
+                    reply_markup: getMainMenuReplyKeyboard(true)
+                }).catch(() => {});
 
                 const successMsg = 
                     `🎉 <b>অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
