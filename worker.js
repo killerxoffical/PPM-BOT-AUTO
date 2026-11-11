@@ -1448,6 +1448,40 @@ function generateReferralCode() {
     return `PPM-REF-${randomPart}`;
 }
 
+// টেলিগ্রাম আইডি অথবা @username দিয়ে ইউজার খোঁজার স্মার্ট ফাংশন
+async function findBotUserByIdOrUsername(queryStr) {
+    if (!queryStr) return null;
+    const clean = queryStr.trim();
+    const cleanUser = clean.replace(/^@/, "").toLowerCase();
+
+    // ১. সরাসরি টেলিগ্রাম আইডি দিয়ে খোঁজা
+    try {
+        const docById = await db.collection("tg_bot_users").doc(clean).get();
+        if (docById.exists) return { id: docById.id, ...docById.data() };
+    } catch (e) {}
+
+    // ২. @username দিয়ে ফায়ারস্টোরে খোঁজা
+    try {
+        const snap = await db.collection("tg_bot_users")
+            .where("username", "in", [`@${cleanUser}`, cleanUser, clean])
+            .limit(1)
+            .get();
+        if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    } catch (e) {}
+
+    // ৩. রিয়েলটাইম স্ক্যান ফলব্যাক
+    try {
+        const allSnap = await db.collection("tg_bot_users").limit(350).get();
+        const found = allSnap.docs.find(d => {
+            const un = (d.data().username || "").replace(/^@/, "").toLowerCase();
+            return un === cleanUser || d.id === clean;
+        });
+        if (found) return { id: found.id, ...found.data() };
+    } catch (e) {}
+
+    return null;
+}
+
 // ---------------- ANTI-FAKE REFERRAL COUNTRY FILTER & WHITELIST ----------------
 const adminWhitelistedPhones = new Set();
 
@@ -1585,19 +1619,54 @@ async function enforceChannelMembership(chatId, userId) {
     return true;
 }
 
-function getMainMenuReplyKeyboard(isVerified = false) {
+function getMainMenuReplyKeyboard(isVerified = false, isAdminUser = false) {
+    const row3 = isAdminUser
+        ? [{ text: isVerified ? "🌐 Visit Website" : "🔐 Verify Account" }, { text: "⚡ Admin Controls" }]
+        : [{ text: isVerified ? "🌐 Visit Website" : "🔐 Verify Account" }, { text: "💬 Support" }];
+
     return {
         keyboard: [
             [{ text: "🚀 Auto Quest (3s)" }, { text: "👤 Profile" }],
             [{ text: "👥 Referral" }, { text: "🏆 Leaderboard" }],
-            [
-                { text: isVerified ? "🌐 Visit Website" : "🔐 Verify Account" },
-                { text: "💬 Support" }
-            ]
+            row3
         ],
         resize_keyboard: true,
         persistent: true
     };
+}
+
+function buildAdminControlDashboard() {
+    const text = 
+        `⚡ <b>PP MOD EXECUTIVE ADMIN CONTROLS</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👑 <b>ম্যানেজমেন্ট প্যানেল:</b>\n` +
+        `নিচের বাটনগুলো দিয়ে যেকোনো ইউজারের রেফারেল রিসেট, ব্যালেন্স এডিট এবং প্রবাসী নম্বর অনুমোদন করুন:\n\n` +
+        `├ 🔄 <b>Reset All:</b> সবার ফেক রেফার সম্পূর্ণ মুছে ০ করা\n` +
+        `├ 👤 <b>Reset User:</b> নির্দিষ্ট আইডি বা @username রিসেট করা\n` +
+        `├ 💰 <b>Reset Balance:</b> নির্দিষ্ট ইউজারের রেফার আয় ০ করা\n` +
+        `└ 📱 <b>Allow Phone:</b> প্রবাসী বাংলাদেশিদের নম্বর চালু করা\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: "🔄 Reset All Referrals", callback_data: "adm_ask_reset_all" },
+                { text: "👤 Reset User (ID/@User)", callback_data: "adm_ask_reset_user" }
+            ],
+            [
+                { text: "💰 Reset User Ref Balance", callback_data: "adm_ask_reset_bal" },
+                { text: "📱 Allow Probashi Number", callback_data: "adm_ask_allow_phone" }
+            ],
+            [
+                { text: "🏆 Admin Leaderboard", callback_data: "show_leaderboard" },
+                { text: "📊 Server Live Stats", callback_data: "panel_view_stats" }
+            ],
+            [
+                { text: "⚙️ System Configuration (panel544)", callback_data: "panel_refresh" }
+            ]
+        ]
+    };
+    return { text, reply_markup: keyboard };
 }
 
 function getJoinKeyboard(userId, refId = null, isVerified = false) {
@@ -1753,6 +1822,13 @@ userNotifyBot.on("message", async (msg) => {
                 `👉 <a href="https://t.me/Blackmoney54">@Blackmoney54</a>`,
                 { parse_mode: "HTML" }
             );
+        }
+        if (text === "⚡ Admin Controls" && isFromAdmin) {
+            const panel = buildAdminControlDashboard();
+            return userNotifyBot.sendMessage(chatId, panel.text, {
+                parse_mode: "HTML",
+                reply_markup: panel.reply_markup
+            });
         }
 
         // Skip only commands with separate dedicated onText handlers
@@ -2090,9 +2166,72 @@ userNotifyBot.on("message", async (msg) => {
             );
         }
 
-        // অ্যাডমিন কাস্টম কয়েন যোগ/কাটার রিপ্লাই দিলে তা Cloudflare D1 ও ফায়ারস্টোর দিয়ে সাথে সাথে হ্যান্ডেল করা
+        // অ্যাডমিন প্যানেল রিপ্লাই হ্যান্ডলার (আইডি বা ইউজারনেম দিয়ে সাথে সাথে রিসেট / প্রবাসী নম্বর অনুমোদন)
         if (replyTo && replyTo.text && isFromAdmin) {
             const repText = replyTo.text;
+
+            // ১. নির্দিষ্ট ইউজারের রেফারেল সম্পূর্ণ মুছে ০ করা (ID বা @Username)
+            if (repText.includes("রেফারেল মুছে ০ করতে চান") || repText.includes("Reset User Referrals")) {
+                const targetUser = await findBotUserByIdOrUsername(text);
+                if (!targetUser) {
+                    return userNotifyBot.sendMessage(chatId, `❌ <code>${safeTgHtml(text)}</code> আইডি বা ইউজারনেম দিয়ে কোনো ইউজার পাওয়া যায়নি!`, { parse_mode: "HTML" });
+                }
+                const tid = targetUser.id;
+                await cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: tid, referralCount: 0, refBalance: 0, resetRefBalance: 1 })
+                }).catch(() => {});
+                await db.collection("tg_bot_users").doc(tid).set({ referralCount: 0, refBalance: 0 }, { merge: true }).catch(() => {});
+                cachedLeaderboardData = { list: [], updatedAt: 0 };
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>ইউজার রেফারেল সফলভাবে মুছে ০ করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 <b>User:</b> ${safeTgHtml(targetUser.name || 'User')}\n` +
+                    `🆔 <b>ID:</b> <code>${tid}</code>\n` +
+                    `✈️ <b>Username:</b> ${targetUser.username ? '@' + targetUser.username.replace(/^@/, '') : 'None'}\n` +
+                    `👥 <b>রেফারেল:</b> <b>০ জন</b>\n` +
+                    `🪙 <b>রেফার ব্যালেন্স:</b> <b>০ Coins</b>\n━━━━━━━━━━━━━━━━━━━━━━`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
+            // ২. ইউজারের রেফার ব্যালেন্স ০ করা
+            if (repText.includes("শুধু রেফার ব্যালেন্স ০ করতে চান") || repText.includes("Reset User Ref Balance")) {
+                const targetUser = await findBotUserByIdOrUsername(text);
+                if (!targetUser) {
+                    return userNotifyBot.sendMessage(chatId, `❌ <code>${safeTgHtml(text)}</code> আইডি বা ইউজারনেম পাওয়া যায়নি!`, { parse_mode: "HTML" });
+                }
+                const tid = targetUser.id;
+                await cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: tid, refBalance: 0, resetRefBalance: 1 })
+                }).catch(() => {});
+                await db.collection("tg_bot_users").doc(tid).set({ refBalance: 0 }, { merge: true }).catch(() => {});
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>রেফার ব্যালেন্স ০ করা হয়েছে!</b>\n🆔 <b>ID:</b> <code>${tid}</code> | 🪙 <b>ব্যালেন্স:</b> <b>০ Coins</b>`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
+            // ৩. প্রবাসী নম্বর অনুমোদন করা
+            if (repText.includes("প্রবাসী বাংলাদেশির নম্বর অনুমোদন করতে চান") || repText.includes("Allow Probashi Phone")) {
+                const cleanPhone = text.replace(/[^0-9]/g, "").trim();
+                if (!cleanPhone || cleanPhone.length < 7) {
+                    return userNotifyBot.sendMessage(chatId, "❌ সঠিক আন্তর্জাতিক ফোন নম্বর দিন (যেমন: 966501234567)", { parse_mode: "HTML" });
+                }
+                adminWhitelistedPhones.add(cleanPhone);
+                await db.collection("allowed_phones").doc(cleanPhone).set({
+                    phone: cleanPhone,
+                    addedBy: fromId,
+                    addedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>প্রবাসী নম্বর সফলভাবে অনুমোদন করা হয়েছে!</b>\n📱 <b>নম্বর:</b> <code>+${cleanPhone}</code>\nএখন এই নম্বর দিয়ে সরাসরি ভেরিফিকেশন করা যাবে।`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
             const uidMatch = repText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
 
             if (uidMatch) {
@@ -2756,38 +2895,63 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
 
         const isAdminViewer = isBotAdmin(userId);
         const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
-        let boardText = `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
-                        `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        const rankLabels = ["1st Champion", "2nd Runner-up", "3rd Podium", "4th Rank", "5th Rank", "6th Rank", "7th Rank", "8th Rank", "9th Rank", "10th Rank"];
+
+        let boardText = "";
+        if (isAdminViewer) {
+            boardText = 
+                `👑 <b>EXECUTIVE ADMIN LEADERBOARD INTEL</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `⚡ <i>রিয়েলটাইম ড্যাশবোর্ড ও কুইক অ্যাকশন কন্ট্রোল</i>\n\n`;
+        } else {
+            boardText = 
+                `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `✨ <i>সেরা টপ ১০ রেফারেল পারফর্মার তালিকা</i>\n\n`;
+        }
 
         if (top10.length === 0) {
-            boardText += `<i>এখনো কোনো সফল রেফারেল ডাটা নেই। রেফার করে টপে চলে আসুন!</i>\n\n`;
+            boardText += `<i>এখনো কোনো সক্রিয় রেফারেল রেকর্ড নেই। রেফার করে টপে চলে আসুন!</i>\n\n`;
         } else {
             top10.forEach((u, idx) => {
                 const medal = medals[idx] || `[${idx + 1}]`;
                 const isMe = u.id === userId ? " 👈 (আপনি)" : "";
-                const cleanName = (u.name || "User").replace(/[<>&]/g, "").slice(0, 25);
+                const cleanName = (u.name || "User").replace(/[<>&]/g, "").slice(0, 22);
                 const uEarnings = Number(u.refBalance || 0);
-                boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
+
                 if (isAdminViewer) {
-                    boardText += `   ├ 🆔 <b>UID:</b> <code>${u.id}</code> ${u.username ? '(' + u.username + ')' : ''}\n`;
+                    const uHandle = u.username ? `@${u.username.replace(/^@/, '')}` : 'No Handle';
+                    boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
+                    boardText += `   ├ 🆔 <b>ID:</b> <code>${u.id}</code> (${uHandle})\n`;
                     boardText += `   ├ 👥 <b>রেফারেল:</b> <b>${u.referralCount}</b> জন\n`;
-                    boardText += `   └ 💰 <b>মোট রেফার আয়:</b> <b>${uEarnings} PP Coins</b>\n\n`;
+                    boardText += `   └ 💰 <b>ব্যালেন্স:</b> <b>${uEarnings} PP Coins</b>\n\n`;
                 } else {
-                    boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount}</b> জন\n\n`;
+                    boardText += `${medal} <b>${cleanName}</b>${isMe}\n`;
+                    boardText += `   ├ 🏅 স্থান: <i>${rankLabels[idx] || (idx + 1) + 'th Place'}</i>\n`;
+                    boardText += `   └ 👥 সফল রেফার: <b>${u.referralCount} জন</b>\n\n`;
                 }
             });
         }
 
         boardText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        boardText += `📍 <b>আপনার বর্তমান পজিশন:</b> <b>${myRefCount > 0 ? "Active" : "—"}</b>\n`;
-        boardText += `👥 <b>আপনার মোট সফল রেফার:</b> <b>${myRefCount}</b> জন\n`;
+        boardText += `📍 <b>আপনার বর্তমান স্ট্যাটাস:</b> <b>${myRefCount > 0 ? "সক্রিয় পারফর্মার" : "নতুন পারফর্মার"}</b>\n`;
+        boardText += `👥 <b>আপনার মোট সফল রেফার:</b> <b>${myRefCount} জন</b>\n`;
         boardText += `🎯 <i>বন্ধুদের ইনভাইট করুন এবং টপ লিডারবোর্ডে জায়গা করে নিন!</i>`;
 
+        const keyboardRows = [
+            [{ text: "🔄 Refresh Leaderboard", callback_data: "show_leaderboard" }],
+            [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
+        ];
+
+        // অ্যাডমিন হলে লিডারবোর্ডের ঠিক নিচেই কুইক ম্যানেজমেন্ট বাটন থাকবে
+        if (isAdminViewer) {
+            keyboardRows.unshift([
+                { text: "⚡ Open Admin Controls", callback_data: "adm_open_panel" }
+            ]);
+        }
+
         const keyboard = {
-            inline_keyboard: [
-                [{ text: "🔄 Refresh Leaderboard", callback_data: "show_leaderboard" }],
-                [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
-            ]
+            inline_keyboard: keyboardRows
         };
 
         if (editMessageId) {
@@ -3017,10 +3181,11 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
 
         const keyboard = getJoinKeyboard(userId, inviterId, isVerified);
 
-        // স্থায়ী বাটন মেনু কীবোর্ড নিচে সেট করা
+        // স্থায়ী বাটন মেনু কীবোর্ড নিচে সেট করা (অ্যাডমিন হলে অ্যাডমিন কন্ট্রোলস বাটন পাবে)
+        const isAdminUser = isBotAdmin(userId);
         userNotifyBot.sendMessage(chatId, "👇 <b>নিচের মেনু বাটন ব্যবহার করুন:</b>", {
             parse_mode: "HTML",
-            reply_markup: getMainMenuReplyKeyboard(isVerified)
+            reply_markup: getMainMenuReplyKeyboard(isVerified, isAdminUser)
         }).catch(() => {});
 
         // ১. ইনস্ট্যান্ট ডেলিভারি (Zero Delay): cached file_id বা ব্যানার ইমেজ পাঠানো
@@ -3091,6 +3256,97 @@ userNotifyBot.on("callback_query", async (query) => {
         const chatId = query.message.chat.id;
         const userId = query.from.id.toString();
         const data = query.data || "";
+
+        // ---------------- ADMIN INTERACTIVE CONTROL PANEL CALLBACKS ----------------
+        if (data === "adm_open_panel") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            const panel = buildAdminControlDashboard();
+            return userNotifyBot.editMessageText(panel.text, {
+                chat_id: chatId,
+                message_id: query.message.message_id,
+                parse_mode: "HTML",
+                reply_markup: panel.reply_markup
+            }).catch(() => {});
+        }
+
+        if (data === "adm_ask_reset_all") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `⚠️ <b>নিশ্চিতকরণ: সকল রেফারেল রিসেট</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `আপনি কি নিশ্চিত যে ডাটাবেজের <b>সকল ইউজারের রেফারেল ও রেফার ব্যালেন্স শূন্য (০)</b> করতে চান?\n` +
+                `এর ফলে পূর্বের সকল ফেক রেফারেল সম্পূর্ণ মুছে যাবে।`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "⚠️ হ্যাঁ, সম্পূর্ণ রিসেট করুন (Reset All)", callback_data: "adm_do_reset_all" }],
+                            [{ text: "✕ ফিরে যান (Cancel)", callback_data: "adm_open_panel" }]
+                        ]
+                    }
+                }
+            );
+        }
+
+        if (data === "adm_do_reset_all") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "রিসেট শুরু হয়েছে..." });
+
+            await cfFetch(`${CF_API}/api/bot/reset-all-referrals`, { method: "POST" }).catch(() => {});
+            let count = 0;
+            try {
+                const snap = await db.collection("tg_bot_users").get();
+                const docs = snap.docs;
+                const CHUNK_SIZE = 400;
+                for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+                    const chunk = docs.slice(i, i + CHUNK_SIZE);
+                    const batch = db.batch();
+                    chunk.forEach(docSnap => {
+                        count++;
+                        batch.update(docSnap.ref, {
+                            referralCount: 0,
+                            refBalance: 0,
+                            isVerified: false,
+                            verificationStage: "not_verified",
+                            captchaLockedUntil: null
+                        });
+                    });
+                    await batch.commit();
+                }
+            } catch (e) {}
+            cachedLeaderboardData = { list: [], updatedAt: 0 };
+            return userNotifyBot.sendMessage(chatId,
+                `✅ <b>সফলভাবে সকল ইউজারের রেফারেল ও ব্যালেন্স ০ করা হয়েছে!</b>\nমোট রিসেট: <b>${count} জন</b>।`,
+                { parse_mode: "HTML" }
+            );
+        }
+
+        if (data === "adm_ask_reset_user") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `👤 <b>Reset User Referrals</b>\n\nযে ইউজারের রেফারেল মুছে ০ করতে চান, তার <b>Telegram ID</b> অথবা <b>@username</b> লিখে এই মেসেজে Reply দিন:`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data === "adm_ask_reset_bal") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `💰 <b>Reset User Ref Balance</b>\n\nযে ইউজারের শুধু রেফার ব্যালেন্স ০ করতে চান, তার <b>Telegram ID</b> অথবা <b>@username</b> লিখে এই মেসেজে Reply দিন:`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data === "adm_ask_allow_phone") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `📱 <b>Allow Probashi Phone Number</b>\n\nযে প্রবাসী বাংলাদেশির নম্বর অনুমোদন করতে চান, সেই ফোন নম্বরটি লিখে এই মেসেজে Reply দিন (যেমন: 966501234567 বা +971501234567):`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
 
         // Admin User Management Button Handlers (Superfast Cloudflare D1 Backend)
         if (data.startsWith("u_toggle_ban:")) {
