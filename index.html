@@ -13079,30 +13079,25 @@
         // Cloudflare D1 + Worker API Gateway Endpoint (Zero Firestore dependency)
         const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
 
-        // Cloudflare D1 Edge Wallet & Auto-Migration Helper
-        async function syncD1Wallet(u, fbData = null) {
+        // Cloudflare D1 Edge Wallet & Instant Profile Sync
+        async function syncD1Wallet(u) {
             if (!u || !u.uid) return null;
             try {
+                let tok = '';
+                try { tok = await u.getIdToken(); } catch(e){}
                 const payload = {
                     uid: u.uid,
-                    name: ((window.ppfb && window.ppfb.customName) || u.displayName || (fbData && fbData.name) || 'User').slice(0, 30),
-                    email: u.email || (fbData && fbData.email) || '',
-                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || (fbData && fbData.avatar) || '').trim()
+                    name: ((window.ppfb && window.ppfb.customName) || u.displayName || 'User').slice(0, 30),
+                    email: u.email || '',
+                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || '').trim()
                 };
-                // যদি ফায়ারবেসে পুরনো ব্যালেন্স থাকে তবে তা Cloudflare D1-এ ট্রান্সফারের জন্য পাঠানো
-                if (fbData) {
-                    payload.fbBalance = Number(fbData.balance !== undefined ? fbData.balance : 0);
-                    payload.fbReal = Number(fbData.realBalance !== undefined ? fbData.realBalance : payload.fbBalance);
-                    payload.fbBonus = Number(fbData.bonusBalance || 0);
-                    payload.fbPlayPoints = Number(fbData.playPoints || 0);
-                    payload.fbPendingPoints = Number(fbData.pendingPoints || 0);
-                    payload.fbStars = Number(fbData.loyaltyStars || 0);
-                    payload.fbTgChatId = (fbData.tgChatId || '').toString().trim();
-                }
 
                 const res = await fetch(`${CF_API}/api/wallet/sync`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...(tok ? { 'Authorization': 'Bearer ' + tok } : {})
+                    },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
@@ -13112,10 +13107,16 @@
                     window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
                     if (w.banned === 1 || w.banned === true) {
                         window.ppfb.banned = true;
-                        setBannedUI(true);
+                        setBannedUI(true, w.banReason || 'Account suspended');
+                    } else {
+                        window.ppfb.banned = false;
+                        setBannedUI(false);
                     }
-                    if (w.tgChatId && !window.ppfb.tgChatId) window.ppfb.tgChatId = w.tgChatId;
+                    if (w.tgChatId) window.ppfb.tgChatId = w.tgChatId;
+                    if (w.avatar) window.ppfb.avatar = w.avatar;
+                    if (w.name) window.ppfb.customName = w.name;
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                    setProfileUI(u);
                     return w;
                 }
             } catch (err) {
@@ -13651,92 +13652,35 @@
             if (window.lucide && on) lucide.createIcons();
         }
         async function ensureUser(u) {
-            let fbUserData = null;
-            const ref = _doc(db, 'users', u.uid);
-            try {
-                const snap = await _getDoc(ref);
-                if (snap && snap.exists()) {
-                    fbUserData = snap.data();
-                    if (fbUserData.banned === true || fbUserData.banned === 1 || fbUserData.banned === "1") {
-                        window.ppfb.banned = true;
-                        setBannedUI(true, fbUserData.banReason || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।');
-                        setProfileUI(u);
-                        return;
-                    }
-                    if (fbUserData.name) {
-                        window.ppfb.customName = fbUserData.name.slice(0, 15);
-                        try { localStorage.setItem('pp_cached_name_' + u.uid, window.ppfb.customName); } catch (e) { }
-                    }
-                    if (fbUserData.avatar) {
-                        window.ppfb.avatar = fbUserData.avatar;
-                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, fbUserData.avatar); } catch (e) { }
-                    }
-                }
-            } catch (err) {
-                console.warn('Firebase read quota protected, switching to Cloudflare D1:', err);
-            }
+            if (!u || !u.uid) return;
+            setProfileUI(u);
 
-            // ফায়ারবেসের ব্যালেন্স ও প্রোফাইল সরাসরি Cloudflare D1-এ অটো-মাইগ্রেট ও সিঙ্ক
-            const d1Wallet = await syncD1Wallet(u, fbUserData);
+            // ১. ক্লাউডফ্লেয়ার D1 থেকে ইউজারের ওয়ালেট ও ব্যালেন্স আনা
+            const w = await syncD1Wallet(u);
 
-            const isBanned = (fbUserData && (fbUserData.banned === true || fbUserData.banned === 1 || fbUserData.banned === "1")) ||
-                (d1Wallet && (d1Wallet.banned === 1 || d1Wallet.banned === true || d1Wallet.banned === "1"));
-
-            if (isBanned) {
-                const bReason = (fbUserData && fbUserData.banReason) || (d1Wallet && d1Wallet.banReason) || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।';
-                window.ppfb.banned = true;
-                setBannedUI(true, bReason);
-                setProfileUI(u);
-                return;
-            }
-
-            window.ppfb.banned = false;
-            setBannedUI(false);
-            if (unsubBalance) unsubBalance();
-            unsubBalance = _snap(ref, s => {
-                if (s.exists()) {
-                    if (s.data().banned === true || s.data().banned === 1 || s.data().banned === "1") {
-                        window.ppfb.banned = true;
-                        setBannedUI(true, s.data().banReason || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।');
-                        return;
+            // ২. ব্যাকগ্রাউন্ডে ব্যালেন্স সবসময় লাইভ রাখতে প্রতি ৪ সেকেন্ড পর পর D1 চেক করা
+            if (unsubBalance) clearInterval(unsubBalance);
+            unsubBalance = setInterval(async () => {
+                if (!auth || !auth.currentUser) return;
+                try {
+                    let tok = '';
+                    try { tok = await auth.currentUser.getIdToken(); } catch(e){}
+                    const r = await fetch(`${CF_API}/api/wallet?uid=${auth.currentUser.uid}`, {
+                        headers: { ...(tok ? { 'Authorization': 'Bearer ' + tok } : {}) }
+                    });
+                    const d = await r.json();
+                    if (d && d.ok && d.wallet) {
+                        const wl = d.wallet;
+                        setBalanceUI(wl.balance, wl.playPoints, wl.pendingPoints, wl.realBalance, wl.bonusBalance);
+                        window.ppfb.loyaltyStars = Number(wl.loyaltyStars || 0);
+                        if (wl.banned) {
+                            window.ppfb.banned = true;
+                            setBannedUI(true, wl.banReason || 'Account suspended');
+                        }
                     }
-                    window.ppfb.banned = false;
-                    setBannedUI(false);
-                    const d = s.data();
-                    const bonusC = Number(d.bonusBalance || 0);
-                    const totalBal = Number(d.balance !== undefined ? d.balance : 0);
-                    // যদি অ্যাডমিন শুধুমাত্র balance ফিল্ড আপডেট করে, তবে রিয়েল ব্যালেন্স স্বয়ংক্রিয়ভাবে সিঙ্ক হবে
-                    const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
-                        ? Number(d.realBalance)
-                        : Math.max(0, totalBal - bonusC);
-                    setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
-                    window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
-                    if (window.renderLoyaltyStars) window.renderLoyaltyStars();
-                    window.ppfb.tgChatId = (s.data().tgChatId || '').toString().trim();
-                    if (window.ppfb.tgChatId) {
-                        try { localStorage.setItem('pp_cached_tg_' + u.uid, window.ppfb.tgChatId); } catch (e) { }
-                    }
-                    window.ppfb.avatar = (s.data().avatar || '').toString().trim();
-                    if (window.paintAvatar) paintAvatar();
-                    window.ppfb.refCode = (s.data().refCode || '').toString().trim();
-                    window.ppfb.referredBy = (s.data().referredBy || '').toString().trim();
-                    window.ppfb.refCount = Number(s.data().refCount) || 0;
-                    window.ppfb.refEarned = Number(s.data().refEarned) || 0;
-                    if (window.refreshReferUI) { try { const rs = document.getElementById('screenRefer'); if (rs && !rs.classList.contains('hidden')) window.refreshReferUI(); } catch (e) { } }
-                    // CardGen premium access (paid mode): users/{uid}.genUntil
-                    try {
-                        const g = s.data().genUntil;
-                        let ms = 0;
-                        if (g && typeof g.toMillis === 'function') ms = g.toMillis();
-                        else if (typeof g === 'number') ms = g;
-                        else if (typeof g === 'string' && g) ms = Date.parse(g) || 0;
-                        window.ppfb.genUntil = ms || 0;
-                    } catch (e) { window.ppfb.genUntil = 0; }
-                    if (window.refreshTgConn) refreshTgConn();
-                    if (window.refreshGenUI) { try { window.refreshGenUI(); } catch (e) { } }
-                    setProfileUI(u); // ফায়ারস্টোরে আইডি পাওয়া মাত্র সাথে সাথে প্রোফাইল রিফ্রেশ ও বাটন হাইড
-                }
-            }, e => console.warn('balance listener:', e));
+                } catch(e){}
+            }, 4000);
+
             setProfileUI(u);
         }
 
