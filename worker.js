@@ -4331,15 +4331,6 @@ userNotifyBot.on("callback_query", async (query) => {
                     }
                 );
             }
-            const userSnap = await userRef.get().catch(() => null);
-            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
-
-            if (userData.isVerified) {
-                return userNotifyBot.sendMessage(chatId, "✅ <b>আপনি ইতিমধ্যে সম্পূর্ণ ভেরিফাইড!</b>", {
-                    parse_mode: "HTML",
-                    reply_markup: getMainMenuReplyKeyboard(true)
-                });
-            }
 
             // ১২ ঘণ্টার লকআউট চেক
             if (userData.captchaLockedUntil) {
@@ -5811,7 +5802,6 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             const notifyId = await getUserTgId(uid, userTgId);
             await notifyUserTelegram(notifyId,
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
-                `🎮 <b>গেম:</b> ${orderData.game || 'Task'}\n` +
                 `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
                 `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`
             );
