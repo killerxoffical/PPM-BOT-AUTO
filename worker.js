@@ -1514,23 +1514,30 @@ async function checkAllowedCountry(rawPhone) {
 }
 
 // ---------------- 5 REAL IMAGES WITH 30s TIMER & 2 CHANCES ----------------
-const pendingCaptchas = new Map(); // userId -> { code, expires, attempts }
+const pendingCaptchas = new Map(); // userId -> { code, expires, attempts, messageId, timer, chatId }
 
 const IMAGE_CAPTCHA_POOL = [
     { code: "3H7ZK", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/3H7ZK.png" },
     { code: "4J8K7", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/4J8K7.png" },
     { code: "6P9T3", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/6P9T3.png" },
+    { code: "7KQ9F", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/7KQ9F.png" },
     { code: "8K4Q7", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/8K4Q7.png" },
     { code: "9F2M6", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/9F2M6.png" }
 ];
 
-async function sendRandomCaptcha(chatId, userId, attemptNum = 1) {
+async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
+    // নিশ্চিত ১ অথবা ২ নির্ধারণ (মেসেজ আইডি পাস হওয়ার বাগ প্রতিরোধ)
+    const attemptNum = (rawAttempt === 2) ? 2 : 1;
+
+    // পূর্বের কোনো রানিং টাইমার থাকলে বন্ধ করা
+    if (pendingCaptchas.has(userId)) {
+        const prev = pendingCaptchas.get(userId);
+        if (prev.timer) clearTimeout(prev.timer);
+    }
+
     const item = IMAGE_CAPTCHA_POOL[Math.floor(Math.random() * IMAGE_CAPTCHA_POOL.length)];
-    pendingCaptchas.set(userId, {
-        code: item.code.toUpperCase(),
-        expires: Date.now() + 30000, // ঠিক ৩০ সেকেন্ড সময়সীমা
-        attempts: attemptNum
-    });
+    const code = item.code.toUpperCase();
+    const expiresAt = Date.now() + 30000; // প্রতিটি ট্রাই এর জন্য পৃথক পূর্ণ ৩০ সেকেন্ড
 
     const caption = 
         `🖼️ <b>ছবি দেখে ক্যাপচা পূরণ করুন (৩০ সেকেন্ড সময়)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1540,21 +1547,83 @@ async function sendRandomCaptcha(chatId, userId, attemptNum = 1) {
         `⚠️ <b>সতর্কতা:</b> পরপর ২ বার ভুল বা সময় পার হলে অ্যাকাউন্ট <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
 
     const kb = {
-        inline_keyboard: [[{ text: "🔄 নতুন ছবি দিন (Change Image)", callback_data: "start_captcha" }]]
+        inline_keyboard: [[{ text: "🔄 নতুন ছবি দিন (Change Image)", callback_data: `new_cpt_img:${attemptNum}` }]]
     };
 
+    let sentMsg = null;
     try {
-        return await userNotifyBot.sendPhoto(chatId, item.url, {
+        sentMsg = await userNotifyBot.sendPhoto(chatId, item.url, {
             caption: caption,
             parse_mode: "HTML",
             reply_markup: kb
         });
     } catch (e) {
-        return await userNotifyBot.sendMessage(chatId, caption, {
+        sentMsg = await userNotifyBot.sendMessage(chatId, caption, {
             parse_mode: "HTML",
             reply_markup: kb
         });
     }
+
+    const msgId = sentMsg ? sentMsg.message_id : null;
+
+    // ৩০ সেকেন্ড পর স্বয়ংক্রিয় মেসেজ ডিলিট ও ব্যর্থতা নোটিফিকেশন টাইমার
+    const timer = setTimeout(async () => {
+        const curr = pendingCaptchas.get(userId);
+        if (!curr || curr.code !== code) return;
+        pendingCaptchas.delete(userId);
+
+        if (msgId) {
+            userNotifyBot.deleteMessage(chatId, msgId).catch(() => {});
+        }
+
+        if (attemptNum === 1) {
+            // ১ম সুযোগে ৩০ সেকেন্ড শেষ -> ২য় সুযোগের সুযোগ থাকবে
+            return userNotifyBot.sendMessage(chatId,
+                `⏱️ <b>সময় শেষ! (৩০ সেকেন্ড পার হয়ে গেছে)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `❌ আপনি ৩০ সেকেন্ডের মধ্যে ক্যাপচা কোডটি পাঠাননি।\n` +
+                `⚠️ আপনার এখনও <b>১টি সুযোগ বাকি আছে (সুযোগ: ২/২)</b>।\n\n` +
+                `👉 নতুন ক্যাপচা পেতে নিচের বাটনে চাপ দিন:`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🧩 নতুন ক্যাপচা দিন (সুযোগ ২/২)", callback_data: "cpt_second_chance" }]
+                        ]
+                    }
+                }
+            ).catch(() => {});
+        } else {
+            // ২য় সুযোগেও ৩০ সেকেন্ড পার -> ১২ ঘণ্টা লক
+            const lockDuration = 12 * 60 * 60 * 1000;
+            const lockedUntil = Date.now() + lockDuration;
+            const failReason = "ক্যাপচার নির্ধারিত ৩০ সেকেন্ড সময় অতিক্রম করায় সময় শেষ হয়েছে।";
+
+            await db.collection("tg_bot_users").doc(userId).set({
+                captchaLockedUntil: lockedUntil,
+                captchaLockReason: failReason,
+                isVerified: false
+            }, { merge: true }).catch(() => {});
+
+            return userNotifyBot.sendMessage(chatId,
+                `🚫 <b>অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `⚠️ <b>লক হওয়ার কারণ:</b>\n<i>${failReason} (সুযোগ ২/২ শেষ)</i>\n\n` +
+                `⏳ রোবট ও ফেক ভেরিফিকেশন রোধে অ্যাকাউন্টটি সাময়িক লক করা হয়েছে। ১২ ঘণ্টা পর পুনরায় ভেরিফাই করতে পারবেন।\n` +
+                `💬 প্রয়োজনে এডমিনের সাথে যোগাযোগ করুন: @Blackmoney54`,
+                { parse_mode: "HTML" }
+            ).catch(() => {});
+        }
+    }, 30000);
+
+    pendingCaptchas.set(userId, {
+        code: code,
+        expires: expiresAt,
+        attempts: attemptNum,
+        messageId: msgId,
+        timer: timer,
+        chatId: chatId
+    });
+
+    return sentMsg;
 }
 
 async function checkUserMembership(userId) {
@@ -1645,7 +1714,8 @@ function buildAdminControlDashboard() {
         `⚡ <b>PP MOD EXECUTIVE ADMIN CONTROLS</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👑 <b>ম্যানেজমেন্ট প্যানেল:</b>\n` +
-        `নিচের বাটনগুলো দিয়ে যেকোনো ইউজারের রেফারেল রিসেট, ব্যালেন্স এডিট এবং প্রবাসী নম্বর অনুমোদন করুন:\n\n` +
+        `নিচের বাটনগুলো দিয়ে যেকোনো ইউজারের রেফারেল রিসেট, লক অ্যাকাউন্ট আনলক এবং প্রবাসী নম্বর অনুমোদন করুন:\n\n` +
+        `├ 🔒 <b>Locked Users:</b> ১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট তালিকা ও আনলক\n` +
         `├ 🔄 <b>Reset All:</b> সবার ফেক রেফার সম্পূর্ণ মুছে ০ করা\n` +
         `├ 👤 <b>Reset User:</b> নির্দিষ্ট আইডি বা @username রিসেট করা\n` +
         `├ 💰 <b>Reset Balance:</b> নির্দিষ্ট ইউজারের রেফার আয় ০ করা\n` +
@@ -1654,6 +1724,10 @@ function buildAdminControlDashboard() {
 
     const keyboard = {
         inline_keyboard: [
+            [
+                { text: "🔒 Locked Accounts (12h)", callback_data: "adm_view_locked" },
+                { text: "🔓 Unlock User (ID/@User)", callback_data: "adm_ask_unlock_user" }
+            ],
             [
                 { text: "🔄 Reset All Referrals", callback_data: "adm_ask_reset_all" },
                 { text: "👤 Reset User (ID/@User)", callback_data: "adm_ask_reset_user" }
@@ -1807,7 +1881,7 @@ userNotifyBot.on("message", async (msg) => {
                 });
             }
             if (userData.phone) {
-                return sendRandomCaptcha(chatId, fromId, null);
+                return sendRandomCaptcha(chatId, fromId, 1);
             }
             return userNotifyBot.sendMessage(chatId,
                 `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1934,20 +2008,30 @@ userNotifyBot.on("message", async (msg) => {
             const userSnap = await userRef.get().catch(() => null);
             const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
 
+            // টাইমার ক্লিয়ার করা
+            if (pending.timer) clearTimeout(pending.timer);
+
             // ১২ ঘণ্টার লকআউট চেক
             if (userData.captchaLockedUntil) {
                 const lockMs = Number(userData.captchaLockedUntil) - Date.now();
                 if (lockMs > 0) {
+                    pendingCaptchas.delete(fromId);
                     const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
                     const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
-                    return userNotifyBot.sendMessage(chatId, `🚫 আপনার অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`);
+                    const rReason = userData.captchaLockReason ? `\n⚠️ <b>কারণ:</b> <i>${userData.captchaLockReason}</i>` : "";
+                    return userNotifyBot.sendMessage(chatId, `🚫 <b>আপনার অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক!</b>${rReason}\n⏳ আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`, { parse_mode: "HTML" });
                 }
             }
 
             const isExpired = Date.now() > pending.expires;
             const cleanInput = text.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
-            const correctCode = pending.code.toUpperCase().trim();
+            const correctCode = (pending.code || "").toUpperCase().trim();
             const isCorrect = !isExpired && (cleanInput === correctCode);
+
+            // ক্যাপচা ছবি মেসেজটি ডিলিট করা
+            if (pending.messageId) {
+                userNotifyBot.deleteMessage(chatId, pending.messageId).catch(() => {});
+            }
 
             if (isCorrect) {
                 // ✅ ক্যাপচা সফল!
@@ -2029,38 +2113,112 @@ userNotifyBot.on("message", async (msg) => {
                 );
             } else {
                 // ❌ ব্যর্থ (৩০ সেকেন্ড শেষ অথবা ভুল কোড)
-                const currentAttempts = pending.attempts || 1;
+                const currentAttempts = (pending.attempts === 2) ? 2 : 1;
+                pendingCaptchas.delete(fromId);
 
-                if (currentAttempts < 2) {
-                    // ২য় সুযোগ দেওয়া হবে (নতুন ছবি ও ৩০ সেকেন্ড)
-                    pendingCaptchas.delete(fromId);
-                    const reason = isExpired ? "৩০ সেকেন্ড সময় শেষ হয়ে গেছে" : "ভুল কোড লিখেছেন";
+                let failSpecificReason = "";
+                if (isExpired) {
+                    failSpecificReason = "৩০ সেকেন্ড সময় পার হয়ে গেছে";
+                } else {
+                    failSpecificReason = `ভুল কোড লিখেছেন (আপনি দিয়েছেন: "${cleanInput}")`;
+                }
 
+                if (currentAttempts === 1) {
+                    // ১ম সুযোগ ব্যর্থ -> ২য় সুযোগ দেওয়া হবে (পূর্ণ ৩০ সেকেন্ডের নতুন ক্যাপচা)
                     await userNotifyBot.sendMessage(chatId,
-                        `❌ <b>${reason}!</b>\n` +
-                        `⚠️ আপনি আর <b>১ বার সুযোগ</b> পাবেন (সুযোগ: ২/২)। নিচের ছবিতে থাকা নতুন কোডটি ৩০ সেকেন্ডের মধ্যে পাঠান:`,
+                        `❌ <b>${failSpecificReason}!</b>\n` +
+                        `⚠️ আপনার <b>১টি শেষ সুযোগ বাকি আছে (সুযোগ: ২/২)</b>।\n` +
+                        `নিচের ছবিতে থাকা নতুন ৫ অক্ষরের কোডটি ৩০ সেকেন্ডের মধ্যে লিখে পাঠান:`,
                         { parse_mode: "HTML" }
                     );
                     return sendRandomCaptcha(chatId, fromId, 2);
                 } else {
-                    // ২ বারই ব্যর্থ -> ১২ ঘণ্টার লকআউট
-                    pendingCaptchas.delete(fromId);
+                    // ২য় সুযোগও ব্যর্থ -> সুনির্দিষ্ট কারণসহ ১২ ঘণ্টার লকআউট
                     const lockDuration = 12 * 60 * 60 * 1000;
                     const lockedUntil = Date.now() + lockDuration;
+                    const finalReason = `পরপর ২ বার ক্যাপচা ব্যর্থ (${failSpecificReason})`;
 
                     await userRef.set({
                         captchaLockedUntil: lockedUntil,
+                        captchaLockReason: finalReason,
                         isVerified: false
                     }, { merge: true }).catch(() => {});
 
                     return userNotifyBot.sendMessage(chatId,
-                        `🚫 <b>২ বারই ব্যর্থ হয়েছেন! অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `আপনি ৩০ সেকেন্ডে সঠিক কোড দিতে পারেননি। রোবট ও ফেক স্ক্রিপ্ট প্রতিরোধে আপনার অ্যাকাউন্ট <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
-                        `⏳ ১২ ঘণ্টা পর আপনি পুনরায় ভেরিফাই করার সুযোগ পাবেন।\n━━━━━━━━━━━━━━━━━━━━━━`,
+                        `🚫 <b>অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `⚠️ <b>লক হওয়ার নির্দিষ্ট কারণ:</b>\n<i>${finalReason}</i>\n\n` +
+                        `রোবট ও ফেক ভেরিফিকেশন প্রতিরোধে সিস্টেম স্বয়ংক্রিয়ভাবে ১২ ঘণ্টার জন্য লক করেছে।\n` +
+                        `⏳ ১২ ঘণ্টা পর আবার চেষ্টা করতে পারবেন অথবা এডমিনের সাথে যোগাযোগ করুন: @Blackmoney54`,
                         { parse_mode: "HTML" }
                     );
                 }
             }
+        }
+
+        // ---------------- 2b. ADMIN DIRECT COMMAND: /unlock <ID or @username> & /lockedusers ----------------
+        if (text.startsWith("/unlock ") && isFromAdmin) {
+            const queryTarget = text.replace("/unlock ", "").trim();
+            const targetUser = await findBotUserByIdOrUsername(queryTarget);
+            if (!targetUser) {
+                return userNotifyBot.sendMessage(chatId, `❌ <code>${safeTgHtml(queryTarget)}</code> আইডি বা ইউজারনেম দিয়ে কোনো ইউজার পাওয়া যায়নি!`, { parse_mode: "HTML" });
+            }
+            const tid = targetUser.id;
+            await db.collection("tg_bot_users").doc(tid).set({
+                captchaLockedUntil: null,
+                captchaLockReason: null
+            }, { merge: true });
+
+            userNotifyBot.sendMessage(tid,
+                `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
+                { parse_mode: "HTML" }
+            ).catch(() => {});
+
+            return userNotifyBot.sendMessage(chatId,
+                `✅ <b>ইউজার আনলক সফল!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👤 <b>Name:</b> ${safeTgHtml(targetUser.name || 'User')}\n` +
+                `🆔 <b>ID:</b> <code>${tid}</code>\n` +
+                `✈️ <b>Username:</b> ${targetUser.username ? '@' + targetUser.username.replace(/^@/, '') : 'None'}\n` +
+                `🔓 ক্যাপচা লক সফলভাবে রিমুভ করা হয়েছে।`,
+                { parse_mode: "HTML" }
+            );
+        }
+
+        if (text === "/lockedusers" && isFromAdmin) {
+            const nowTime = Date.now();
+            const snap = await db.collection("tg_bot_users")
+                .where("captchaLockedUntil", ">", nowTime)
+                .limit(25)
+                .get();
+
+            if (snap.empty) {
+                return userNotifyBot.sendMessage(chatId, "✅ <b>বর্তমানে কোনো ১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট নেই!</b>", { parse_mode: "HTML" });
+            }
+
+            let msgOut = `🔒 <b>১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট তালিকা (${snap.docs.length} জন):</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            const buttons = [];
+
+            snap.docs.forEach((docSnap, i) => {
+                const u = docSnap.data();
+                const remMs = Number(u.captchaLockedUntil) - nowTime;
+                const hoursLeft = Math.floor(remMs / (1000 * 60 * 60));
+                const minsLeft = Math.ceil((remMs % (1000 * 60 * 60)) / (1000 * 60));
+                const uName = safeTgHtml(u.name || "User");
+                const uUser = u.username ? '@' + u.username.replace(/^@/, '') : 'None';
+                const reason = u.captchaLockReason || "ক্যাপচা ব্যর্থতা";
+
+                msgOut += `${i + 1}. <b>${uName}</b> (${uUser})\n` +
+                          `   ├ 🆔 <code>${docSnap.id}</code>\n` +
+                          `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
+                          `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
+
+                buttons.push([{ text: `🔓 Unlock ${uName.slice(0, 15)} (${docSnap.id})`, callback_data: `adm_unlock:${docSnap.id}` }]);
+            });
+
+            return userNotifyBot.sendMessage(chatId, msgOut, {
+                parse_mode: "HTML",
+                reply_markup: { inline_keyboard: buttons }
+            });
         }
 
         // ---------------- 3. ADMIN WHITELIST PROBASHI PHONES ----------------
@@ -2240,6 +2398,34 @@ userNotifyBot.on("message", async (msg) => {
                 }, { merge: true });
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>প্রবাসী নম্বর সফলভাবে অনুমোদন করা হয়েছে!</b>\n📱 <b>নম্বর:</b> <code>+${cleanPhone}</code>\nএখন এই নম্বর দিয়ে সরাসরি ভেরিফিকেশন করা যাবে।`,
+                    { parse_mode: "HTML" }
+                );
+            }
+
+            // ৪. নির্দিষ্ট লক হওয়া অ্যাকাউন্ট আনলক করা (ID বা @Username দিয়ে রিপ্লাই)
+            if (repText.includes("১২ ঘণ্টার লক তুলে দিতে চান") || repText.includes("Unlock User Account")) {
+                const targetUser = await findBotUserByIdOrUsername(text);
+                if (!targetUser) {
+                    return userNotifyBot.sendMessage(chatId, `❌ <code>${safeTgHtml(text)}</code> আইডি বা ইউজারনেম দিয়ে কোনো ইউজার পাওয়া যায়নি!`, { parse_mode: "HTML" });
+                }
+                const tid = targetUser.id;
+                await db.collection("tg_bot_users").doc(tid).set({
+                    captchaLockedUntil: null,
+                    captchaLockReason: null
+                }, { merge: true });
+
+                userNotifyBot.sendMessage(tid,
+                    `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
+                    { parse_mode: "HTML" }
+                ).catch(() => {});
+
+                return userNotifyBot.sendMessage(chatId,
+                    `✅ <b>ইউজার আনলক সফল!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 <b>Name:</b> ${safeTgHtml(targetUser.name || 'User')}\n` +
+                    `🆔 <b>ID:</b> <code>${tid}</code>\n` +
+                    `✈️ <b>Username:</b> ${targetUser.username ? '@' + targetUser.username.replace(/^@/, '') : 'None'}\n` +
+                    `🔓 ক্যাপচা লক সফলভাবে তুলে দেওয়া হয়েছে।`,
                     { parse_mode: "HTML" }
                 );
             }
@@ -3426,6 +3612,88 @@ userNotifyBot.on("callback_query", async (query) => {
             );
         }
 
+        if (data === "adm_view_locked") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id);
+            const nowTime = Date.now();
+            const snap = await db.collection("tg_bot_users")
+                .where("captchaLockedUntil", ">", nowTime)
+                .limit(25)
+                .get();
+
+            if (snap.empty) {
+                return userNotifyBot.sendMessage(chatId, "✅ <b>বর্তমানে কোনো ১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট নেই!</b>", { parse_mode: "HTML" });
+            }
+
+            let msgOut = `🔒 <b>১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট তালিকা (${snap.docs.length} জন):</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            const buttons = [];
+
+            snap.docs.forEach((docSnap, i) => {
+                const u = docSnap.data();
+                const remMs = Number(u.captchaLockedUntil) - nowTime;
+                const hoursLeft = Math.floor(remMs / (1000 * 60 * 60));
+                const minsLeft = Math.ceil((remMs % (1000 * 60 * 60)) / (1000 * 60));
+                const uName = safeTgHtml(u.name || "User");
+                const uUser = u.username ? '@' + u.username.replace(/^@/, '') : 'None';
+                const reason = u.captchaLockReason || "ক্যাপচা ব্যর্থতা";
+
+                msgOut += `${i + 1}. <b>${uName}</b> (${uUser})\n` +
+                          `   ├ 🆔 <code>${docSnap.id}</code>\n` +
+                          `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
+                          `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
+
+                buttons.push([{ text: `🔓 Unlock ${uName.slice(0, 15)} (${docSnap.id})`, callback_data: `adm_unlock:${docSnap.id}` }]);
+            });
+
+            return userNotifyBot.sendMessage(chatId, msgOut, {
+                parse_mode: "HTML",
+                reply_markup: { inline_keyboard: buttons }
+            });
+        }
+
+        if (data === "adm_ask_unlock_user") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return userNotifyBot.sendMessage(chatId,
+                `🔓 <b>Unlock User Account</b>\n\nযে ইউজারের ১২ ঘণ্টার লক তুলে দিতে চান, তার <b>Telegram ID</b> অথবা <b>@username</b> লিখে এই মেসেজে Reply দিন:`,
+                { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
+            );
+        }
+
+        if (data.startsWith("adm_unlock:")) {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id);
+            const targetId = data.replace("adm_unlock:", "").trim();
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "Unlocking user..." });
+
+            await db.collection("tg_bot_users").doc(targetId).set({
+                captchaLockedUntil: null,
+                captchaLockReason: null
+            }, { merge: true });
+
+            userNotifyBot.sendMessage(targetId,
+                `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
+                { parse_mode: "HTML" }
+            ).catch(() => {});
+
+            return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] সফলভাবে আনলক হয়েছে!</b>`, { parse_mode: "HTML" });
+        }
+
+        // নতুন ছবি বা ২য় সুযোগের বাটন
+        if (data.startsWith("new_cpt_img:")) {
+            const att = parseInt(data.replace("new_cpt_img:", ""), 10) || 1;
+            await userNotifyBot.answerCallbackQuery(query.id);
+            if (query.message && query.message.message_id) {
+                userNotifyBot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+            }
+            return sendRandomCaptcha(chatId, userId, att);
+        }
+
+        if (data === "cpt_second_chance") {
+            await userNotifyBot.answerCallbackQuery(query.id);
+            return sendRandomCaptcha(chatId, userId, 2);
+        }
+
         // Admin User Management Button Handlers (Superfast Cloudflare D1 Backend)
         if (data.startsWith("u_toggle_ban:")) {
             const targetUid = data.replace("u_toggle_ban:", "").trim();
@@ -3922,7 +4190,7 @@ userNotifyBot.on("callback_query", async (query) => {
 
             // যদি ফোন নম্বর আগেই শেয়ার করা থাকে, সরাসরি ক্যাপচা শুরু করবে
             if (userData.phone) {
-                return sendRandomCaptcha(chatId, userId, query.message ? query.message.message_id : null);
+                return sendRandomCaptcha(chatId, userId, 1);
             }
 
             // অন্যথায় ফোন কন্টাক্ট শেয়ারের প্রম্পট পাঠাবে
@@ -4001,7 +4269,7 @@ userNotifyBot.on("callback_query", async (query) => {
             }
 
             await userNotifyBot.answerCallbackQuery(query.id);
-            return sendRandomCaptcha(chatId, userId, query.message ? query.message.message_id : null);
+            return sendRandomCaptcha(chatId, userId, 1);
         }
 
         // ---------------- CAPTCHA ANSWER HANDLER (WITH 12-HOUR LOCKOUT) ----------------
