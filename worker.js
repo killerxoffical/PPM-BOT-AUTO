@@ -28,8 +28,8 @@ const { NewMessage } = require("telegram/events");
 
 // gramjs inline Button (auto-reply নিচে বাটন দেখানোর জন্য) — robust import
 let TgButton = null;
-try { TgButton = require("telegram").Button || null; } catch (e) {}
-if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) {} }
+try { TgButton = require("telegram").Button || null; } catch (e) { }
+if (!TgButton) { try { TgButton = require("telegram/tl/custom/button").Button; } catch (e) { } }
 function buildPrimeButtons() {
     try {
         if (!TgButton || typeof TgButton.url !== "function") return null;
@@ -48,13 +48,18 @@ app.use(express.json());
 
 // Cloudflare D1 + Worker Edge API Gateway
 const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
+const CF_ADMIN_KEY = (process.env.CF_ADMIN_KEY || process.env.ADMIN_KEY || "").trim();
 const CF_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 PPMOD-Worker/2.0",
     "Accept": "application/json"
 };
 function cfFetch(url, opts = {}) {
     const o = Object.assign({}, opts);
-    o.headers = Object.assign({}, CF_HEADERS, opts.headers || {});
+    const headers = Object.assign({}, CF_HEADERS, opts.headers || {});
+    if (CF_ADMIN_KEY && !headers["X-Admin-Key"]) {
+        headers["X-Admin-Key"] = CF_ADMIN_KEY;
+    }
+    o.headers = headers;
     return fetch(url, o);
 }
 
@@ -63,7 +68,7 @@ let serviceAccount;
 try {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 } catch (e) {
-    try { serviceAccount = require("./serviceAccountKey.json"); } catch (err) {}
+    try { serviceAccount = require("./serviceAccountKey.json"); } catch (err) { }
 }
 if (!admin.apps.length && serviceAccount) {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -259,14 +264,14 @@ function parseSmsBody(sender, body) {
     else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) method = "Rocket";
 
     // আধুনিক বিকাশ/নগদ/রকেট TrxID পার্সিং (সহজে সব ধরনের ফরম্যাট গ্রহণ করে)
-    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i) 
-                || text.match(/\b([A-Z0-9]{8,12})\b/i);
+    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i)
+        || text.match(/\b([A-Z0-9]{8,12})\b/i);
     if (trxMatch) trxId = trxMatch[1].trim().toUpperCase();
 
     // টাকা পার্সিং (টাকা, Tk, BDT, Amount বা received ইত্যাদি সব হ্যান্ডেল করা)
     let amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i)
-                || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i)
-                || text.match(/(?:Tk|টাকা)\s*([\d,]+(?:\.\d+)?)/i);
+        || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i)
+        || text.match(/(?:Tk|টাকা)\s*([\d,]+(?:\.\d+)?)/i);
     if (amtMatch) amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, "")));
 
     if (trxId && amount) {
@@ -311,7 +316,7 @@ app.post("/api/p2p/payment-sent", async (req, res) => {
                     await pRec.client.sendMessage(buyerTgUsername, { message: alertMsg, parseMode: "html" });
                     sentViaPrime = true;
                     break;
-                } catch (pe) {}
+                } catch (pe) { }
             }
         }
 
@@ -362,7 +367,7 @@ app.post("/api/adell/create-tg-group", async (req, res) => {
         }
 
         if (!primaryTgClient) {
-            try { primaryTgClient = await getUsableTelegramClient(); } catch (e) {}
+            try { primaryTgClient = await getUsableTelegramClient(); } catch (e) { }
         }
 
         if (primaryTgClient) {
@@ -375,7 +380,7 @@ app.post("/api/adell/create-tg-group", async (req, res) => {
                         megagroup: true
                     })
                 );
-                
+
                 const channel = createRes.chats && createRes.chats[0];
                 if (channel) {
                     const exportRes = await primaryTgClient.invoke(
@@ -390,12 +395,12 @@ app.post("/api/adell/create-tg-group", async (req, res) => {
                     try {
                         await primaryTgClient.sendMessage(channel, {
                             message: `🤝 <b>ADELL Private Trade Room</b>\n\n` +
-                                     `📦 <b>Deal:</b> ${r.title || "Trade"}\n` +
-                                     `🪙 <b>Escrow:</b> ${r.coins} Coins (হোল্ড করা আছে)\n\n` +
-                                     `⚠️ <b>সতর্কবার্তা:</b> ডিল সংক্রান্ত আলোচনা ও প্রুফ এখানে শেয়ার করুন। কাজ সম্পন্ন হলে অ্যাপে ফিরে Slide Confirm করুন।`,
+                                `📦 <b>Deal:</b> ${r.title || "Trade"}\n` +
+                                `🪙 <b>Escrow:</b> ${r.coins} Coins (হোল্ড করা আছে)\n\n` +
+                                `⚠️ <b>সতর্কবার্তা:</b> ডিল সংক্রান্ত আলোচনা ও প্রুফ এখানে শেয়ার করুন। কাজ সম্পন্ন হলে অ্যাপে ফিরে Slide Confirm করুন।`,
                             parseMode: "html"
                         });
-                    } catch (mErr) {}
+                    } catch (mErr) { }
                 }
             } catch (tgErr) {
                 console.error("[ADELL TG GROUP CREATION ERR]:", tgErr);
@@ -694,11 +699,11 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
                 adminMsg: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! ভুল TrxID বা ফেক সাবমিশন।"
-            }).catch(() => {});
-            return res.status(400).json({ 
-                ok: false, 
-                autoApproved: false, 
-                error: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! সঠিক TrxID দিন অথবা টাকা পাঠানোর ১ মিনিট পর আবার সাবমিট করুন।" 
+            }).catch(() => { });
+            return res.status(400).json({
+                ok: false,
+                autoApproved: false,
+                error: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! সঠিক TrxID দিন অথবা টাকা পাঠানোর ১ মিনিট পর আবার সাবমিট করুন।"
             });
         }
 
@@ -750,7 +755,7 @@ async function getBonusCfg() {
         const c = await db.collection("config").doc("app").get();
         const d = c.exists ? (c.data() || {}) : {};
         bonusCfgCache = { at: Date.now(), enabled: d.bonusEnabled !== false };
-    } catch (e) {}
+    } catch (e) { }
     return bonusCfgCache;
 }
 function rollBonus() {
@@ -818,17 +823,17 @@ app.get("/api/bonus/status", async (req, res) => {
         const s = await db.collection("users").doc(uid).get();
         const d = s.exists ? (s.data() || {}) : {};
         const isClaimed = d.lastBonusDay === dhakaDay(0);
-        
+
         const nowServer = Date.now();
         const dhakaNextMidnight = new Date(new Date(nowServer).toLocaleString("en-US", { timeZone: "Asia/Dhaka" }));
         dhakaNextMidnight.setHours(24, 0, 0, 0);
         const msUntilNext = Math.max(0, dhakaNextMidnight.getTime() - new Date(new Date(nowServer).toLocaleString("en-US", { timeZone: "Asia/Dhaka" })).getTime());
         const serverNextClaimAt = nowServer + msUntilNext;
 
-        return res.json({ 
-            ok: true, 
-            enabled: cfg.enabled, 
-            claimed: isClaimed, 
+        return res.json({
+            ok: true,
+            enabled: cfg.enabled,
+            claimed: isClaimed,
             streak: Number(d.lastBonusStreak) || 0,
             serverNow: nowServer,
             nextClaimAt: isClaimed ? serverNextClaimAt : 0
@@ -920,7 +925,7 @@ async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
     try {
         const cfgSnap = await db.collection("config").doc("app").get();
         if (cfgSnap.exists && cfgSnap.data().coinRate) coinRate = Number(cfgSnap.data().coinRate);
-    } catch (e) {}
+    } catch (e) { }
 
     await approveDepositSafe(depId, depData, depData.amount || 15, coinRate);
     return depData;
@@ -945,7 +950,7 @@ async function rejectDepositById(depId, reason = "") {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: depId, status: "rejected" })
         });
-    } catch (e) {}
+    } catch (e) { }
 
     // টেলিগ্রামে সম্পূর্ণ রিজেক্ট মেসেজ পাঠানো
     await sendDepositTelegramNotification(dData, "rejected", rejectMsg, dData.amount, 0);
@@ -1137,8 +1142,8 @@ async function creditReferralBonus(buyerUid, orderId, gameName) {
                     `🎁 <b>Referral Bonus!</b>\n\nআপনার রেফারে ১টি টাস্ক সম্পন্ন হয়েছে।\n🪙 <b>+1 PP Coin</b> যোগ হয়েছে!`
                 );
             }
-        } catch (e) {}
-    } catch (e) {}
+        } catch (e) { }
+    } catch (e) { }
 }
 
 // ---------------- PENDING POINTS AUTO-MATURER ----------------
@@ -1150,7 +1155,7 @@ setInterval(async () => {
         for (const d of snap.docs) {
             const v = d.data() || {};
             let ms = 0;
-            try { ms = v.unlockAt && v.unlockAt.toMillis ? v.unlockAt.toMillis() : 0; } catch (e) {}
+            try { ms = v.unlockAt && v.unlockAt.toMillis ? v.unlockAt.toMillis() : 0; } catch (e) { }
             if (!ms || ms > now) continue;
             const pts = Number(v.points) || 0;
             if (!pts) continue;
@@ -1177,10 +1182,10 @@ setInterval(async () => {
                         const tg = uSnap.exists ? (uSnap.data().tgChatId || "").toString().trim() : "";
                         if (tg) await notifyUserTelegram(tg, `🎉 <b>৳ ${pts} টাকা Live হয়েছে!</b>\n\nPending সময় শেষ — এখন withdraw করতে পারবেন।`);
                     }
-                } catch (e) {}
-            } catch (e) {}
+                } catch (e) { }
+            } catch (e) { }
         }
-    } catch (e) {}
+    } catch (e) { }
 }, 30 * 60 * 1000); // ৩০ মিনিট পর পর চেক করবে (কোটা সাশ্রয়ী)
 
 // ---------------- P2P 23H EXPIRE & ESCROW AUTO-REFUND ----------------
@@ -1324,9 +1329,9 @@ async function runRetentionOnce() {
                             await d.ref.delete();
                             total++;
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
         try {
             const qs = await db.collection("pending_points").where("status", "==", "live").limit(CAP).get();
@@ -1336,15 +1341,16 @@ async function runRetentionOnce() {
                         const v = d.data() || {};
                         const ms = tsMs(v.unlockAt) || tsMs(v.movedAt) || tsMs(v.createdAt);
                         if (ms && ms < cutoff) { await d.ref.delete(); total++; }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
         if (total) console.log("[RETENTION] 10d+ purono " + total + " doc deleted");
-    } catch (e) {}
+    } catch (e) { }
 }
-setInterval(runRetentionOnce, 12 * 60 * 60 * 1000);
-setTimeout(runRetentionOnce, 5 * 60 * 1000);
+// Automatic interval disabled per user requirement: history is preserved and only purged manually by Admin
+// setInterval(runRetentionOnce, 12 * 60 * 60 * 1000);
+// setTimeout(runRetentionOnce, 5 * 60 * 1000);
 
 // ---------------- 3. CONFIGURATIONS ----------------
 // ✅ আপনার দেওয়া নতুন Telegram Credentials
@@ -1357,7 +1363,7 @@ const ORDER_LOG_CHANNEL = process.env.ORDER_LOG_CHANNEL || "@ppmododderlog";
 
 // 409 Conflict প্রতিরোধে safe polling
 const userNotifyBot = new TelegramBot(USER_NOTIFY_BOT_TOKEN, { polling: true });
-userNotifyBot.on("polling_error", () => {});
+userNotifyBot.on("polling_error", () => { });
 
 const BOT_USERNAME = "Ppmod_bot";
 
@@ -1399,7 +1405,7 @@ async function auditLeaderboardMembers(adminChatId = null) {
     lastAuditTimestamp = now;
 
     if (adminChatId) {
-        userNotifyBot.sendMessage(adminChatId, "🔍 <b>চ্যানেল মেম্বার অডিট শুরু হয়েছে...</b>\nটপ রেফারারদের মেম্বাররা এখনও চ্যানেলে আছে কিনা স্ক্যান করা হচ্ছে। অনুগ্রহ করে অপেক্ষা করুন...", { parse_mode: "HTML" }).catch(() => {});
+        userNotifyBot.sendMessage(adminChatId, "🔍 <b>চ্যানেল মেম্বার অডিট শুরু হয়েছে...</b>\nটপ রেফারারদের মেম্বাররা এখনও চ্যানেলে আছে কিনা স্ক্যান করা হচ্ছে। অনুগ্রহ করে অপেক্ষা করুন...", { parse_mode: "HTML" }).catch(() => { });
     }
 
     try {
@@ -1458,7 +1464,7 @@ async function auditLeaderboardMembers(adminChatId = null) {
                     db.collection("tg_bot_users").doc(invitedUid).set({
                         isVerified: false,
                         leftChannel: true
-                    }, { merge: true }).catch(() => {});
+                    }, { merge: true }).catch(() => { });
                 }
                 // টেলিগ্রাম API রেট লিমিট এড়াতে ছোট বিরতি
                 await new Promise(r => setTimeout(r, 60));
@@ -1484,7 +1490,7 @@ async function auditLeaderboardMembers(adminChatId = null) {
                         refBalance: newCorrectBalance,
                         resetRefBalance: 1
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 auditReport.push({
                     name: refName,
@@ -1507,12 +1513,12 @@ async function auditLeaderboardMembers(adminChatId = null) {
                 reportMsg += `⚠️ <b>লিভ নেওয়া ইউজারদের বাদ দিয়ে লিডারবোর্ড আপডেট করা হয়েছে:</b>\n\n`;
                 auditReport.forEach((r, idx) => {
                     reportMsg += `${idx + 1}. <b>${safeTgHtml(r.name)}</b> (<code>${r.id}</code>)\n` +
-                                 `   ├ 👥 আগে ছিল: <b>${r.before}</b> জন\n` +
-                                 `   ├ ❌ লিভ নিয়েছে: <b>${r.left > 0 ? r.left : 0}</b> জন\n` +
-                                 `   └ ✅ বর্তমান সক্রিয় রেফার: <b>${r.after}</b> জন\n\n`;
+                        `   ├ 👥 আগে ছিল: <b>${r.before}</b> জন\n` +
+                        `   ├ ❌ লিভ নিয়েছে: <b>${r.left > 0 ? r.left : 0}</b> জন\n` +
+                        `   └ ✅ বর্তমান সক্রিয় রেফার: <b>${r.after}</b> জন\n\n`;
                 });
                 reportMsg += `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                             `📊 মোট <b>${totalCleanedCount}</b> জন রেফারারের রেফার সংখ্যা সঠিক করা হয়েছে।`;
+                    `📊 মোট <b>${totalCleanedCount}</b> জন রেফারারের রেফার সংখ্যা সঠিক করা হয়েছে।`;
             }
 
             const kb = {
@@ -1522,14 +1528,14 @@ async function auditLeaderboardMembers(adminChatId = null) {
                 ]
             };
 
-            userNotifyBot.sendMessage(adminChatId, reportMsg, { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+            userNotifyBot.sendMessage(adminChatId, reportMsg, { parse_mode: "HTML", reply_markup: kb }).catch(() => { });
         }
 
         return { audited: topSnap.docs.length, changed: totalCleanedCount, report: auditReport };
     } catch (err) {
         console.error("[AUDIT ERROR]:", err);
         if (adminChatId) {
-            userNotifyBot.sendMessage(adminChatId, `❌ অডিট সম্পন্ন করতে সমস্যা: ${err.message}`).catch(() => {});
+            userNotifyBot.sendMessage(adminChatId, `❌ অডিট সম্পন্ন করতে সমস্যা: ${err.message}`).catch(() => { });
         }
     } finally {
         isAuditInProgress = false;
@@ -1542,7 +1548,7 @@ userNotifyBot.setMyCommands([
     { command: "refer", description: "👥 রেফারেল ড্যাশবোর্ড ও লিংক" },
     { command: "leaderboard", description: "🏆 সেরা ১০ রেফারেল লিডারবোর্ড" },
     { command: "profile", description: "👤 আপনার একাউন্ট প্রোফাইল" }
-]).catch(() => {});
+]).catch(() => { });
 
 const PRIME_AUTO_REPLY_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791345238749_file_000000003d348211a5a894b5cf98d67c.png";
 const PRIME_AUTO_REPLY_CAPTION = `👋 <b>হ্যালো!</b>\n\nএডমিন অনলাইনে আসলে আপনার মেসেজের রিপ্লাই দেওয়া হবে। আপনার কী প্রয়োজন তা নিচে লিখে রাখুন।\n\n⚡ <b>Auto Quest Complete মাত্র ৩ সেকেন্ডে:</b>\n👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n📢 <b>আমাদের সকল চ্যানেল ও গ্রুপ (১-ক্লিক ফোল্ডার):</b>\n👉 <a href="https://t.me/addlist/BmHpnIKMpzQzN2Fl">https://t.me/addlist/BmHpnIKMpzQzN2Fl</a>\n\nধন্যবাদ! ✨`;
@@ -1563,7 +1569,7 @@ const pendingAuthClients = new Map();
 function isBotTaskCompleted(rawText) {
     if (!rawText) return false;
     const t = rawText.toLowerCase();
-    if (t.includes("error") || t.includes("failed") || t.includes("rejected") || 
+    if (t.includes("error") || t.includes("failed") || t.includes("rejected") ||
         t.includes("cancel") || t.includes("tap") || t.includes("notification to your phone") ||
         t.includes("send format") || t.includes("confirm credentials")) {
         return false;
@@ -1627,7 +1633,7 @@ async function findBotUserByIdOrUsername(queryStr) {
     try {
         const docById = await db.collection("tg_bot_users").doc(clean).get();
         if (docById.exists) return { id: docById.id, ...docById.data() };
-    } catch (e) {}
+    } catch (e) { }
 
     // ২. @username দিয়ে ফায়ারস্টোরে খোঁজা
     try {
@@ -1636,7 +1642,7 @@ async function findBotUserByIdOrUsername(queryStr) {
             .limit(1)
             .get();
         if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
-    } catch (e) {}
+    } catch (e) { }
 
     // ৩. রিয়েলটাইম স্ক্যান ফলব্যাক
     try {
@@ -1646,7 +1652,7 @@ async function findBotUserByIdOrUsername(queryStr) {
             return un === cleanUser || d.id === clean;
         });
         if (found) return { id: found.id, ...found.data() };
-    } catch (e) {}
+    } catch (e) { }
 
     return null;
 }
@@ -1674,7 +1680,7 @@ async function checkAllowedCountry(rawPhone) {
             adminWhitelistedPhones.add(clean);
             return { allowed: true, country: "অনুমোদিত প্রবাসী (Whitelisted)", phone: clean, isProbashi: true };
         }
-    } catch (e) {}
+    } catch (e) { }
 
     return { allowed: false, phone: clean, isProbashi: false };
 }
@@ -1705,7 +1711,7 @@ async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
     const code = item.code.toUpperCase();
     const expiresAt = Date.now() + 30000; // প্রতিটি ট্রাই এর জন্য পৃথক পূর্ণ ৩০ সেকেন্ড
 
-    const caption = 
+    const caption =
         `🖼️ <b>ছবি দেখে ক্যাপচা পূরণ করুন (৩০ সেকেন্ড সময়)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
         `রোবট ও স্ক্রিপ্ট প্রতিরোধে <b>উপরের ছবিতে থাকা ৫ অক্ষরের কোডটি</b> দেখে দ্রুত লিখে পাঠান:\n\n` +
         `⏱️ <b>সময়সীমা:</b> ৩০ সেকেন্ড (সুযোগ: <b>${attemptNum}/২</b>)\n` +
@@ -1739,7 +1745,7 @@ async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
         pendingCaptchas.delete(userId);
 
         if (msgId) {
-            userNotifyBot.deleteMessage(chatId, msgId).catch(() => {});
+            userNotifyBot.deleteMessage(chatId, msgId).catch(() => { });
         }
 
         if (attemptNum === 1) {
@@ -1757,7 +1763,7 @@ async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
                         ]
                     }
                 }
-            ).catch(() => {});
+            ).catch(() => { });
         } else {
             // ২য় সুযোগেও ৩০ সেকেন্ড পার -> ১২ ঘণ্টা লক
             const lockDuration = 12 * 60 * 60 * 1000;
@@ -1768,7 +1774,7 @@ async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
                 captchaLockedUntil: lockedUntil,
                 captchaLockReason: failReason,
                 isVerified: false
-            }, { merge: true }).catch(() => {});
+            }, { merge: true }).catch(() => { });
 
             return userNotifyBot.sendMessage(chatId,
                 `🚫 <b>অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1776,7 +1782,7 @@ async function sendRandomCaptcha(chatId, userId, rawAttempt = 1) {
                 `⏳ রোবট ও ফেক ভেরিফিকেশন রোধে অ্যাকাউন্টটি সাময়িক লক করা হয়েছে। ১২ ঘণ্টা পর পুনরায় ভেরিফাই করতে পারবেন।\n` +
                 `💬 প্রয়োজনে এডমিনের সাথে যোগাযোগ করুন: @Blackmoney54`,
                 { parse_mode: "HTML" }
-            ).catch(() => {});
+            ).catch(() => { });
         }
     }, 30000);
 
@@ -1834,9 +1840,9 @@ async function enforceChannelMembership(chatId, userId) {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: userId, isVerified: 0 })
-                }).catch(() => {});
+                }).catch(() => { });
             }
-        } catch (e) {}
+        } catch (e) { }
 
         await userNotifyBot.sendMessage(chatId,
             `⚠️ <b>আপনি চ্যানেল বা গ্রুপ থেকে লিভ নিয়েছেন!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1857,7 +1863,7 @@ async function enforceChannelMembership(chatId, userId) {
                     ]
                 }
             }
-        ).catch(() => {});
+        ).catch(() => { });
         return false;
     }
     return true;
@@ -1880,7 +1886,7 @@ function getMainMenuReplyKeyboard(isVerified = false, isAdminUser = false) {
 }
 
 function buildAdminControlDashboard() {
-    const text = 
+    const text =
         `⚡ <b>PP MOD EXECUTIVE ADMIN CONTROLS</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👑 <b>ম্যানেজমেন্ট প্যানেল:</b>\n` +
@@ -1958,7 +1964,7 @@ function buildUserAdminCard(uid, uData, phoneNo = "") {
     const cleanEmail = (uData.email || "No Email").replace(/[<>&]/g, "").trim();
     const cleanPhone = phoneNo || uData.phone || "Not Shared";
 
-    const text = 
+    const text =
         `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
         `📛 <b>Name:</b> ${cleanName}\n` +
         `📧 <b>Email:</b> <code>${cleanEmail}</code>\n` +
@@ -2146,7 +2152,7 @@ userNotifyBot.on("message", async (msg) => {
                         );
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             // Save phone and advance stage to awaiting_captcha
             await db.collection("tg_bot_users").doc(fromId).set({
@@ -2202,7 +2208,7 @@ userNotifyBot.on("message", async (msg) => {
 
             // ক্যাপচা ছবি মেসেজটি ডিলিট করা
             if (pending.messageId) {
-                userNotifyBot.deleteMessage(chatId, pending.messageId).catch(() => {});
+                userNotifyBot.deleteMessage(chatId, pending.messageId).catch(() => { });
             }
 
             if (isCorrect) {
@@ -2230,43 +2236,81 @@ userNotifyBot.on("message", async (msg) => {
                         phone: userData.phone || "",
                         isVerified: 1
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
-                // রেফারারকে বোনাস প্রদান
-                const targetInviterId = userData.inviterId;
-                if (targetInviterId && targetInviterId !== fromId) {
+                // রেফারারকে বোনাস প্রদান (+০.৫ Coins ও +১ রেফারেল)
+                const targetInviterId = userData.inviterId ? String(userData.inviterId).trim() : null;
+                if (targetInviterId && targetInviterId !== String(fromId)) {
                     const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
                         ? Number(publicCache.config.tgRefBonus)
                         : 0.5;
 
+                    let invName = "User";
+                    let invUser = "";
+                    try {
+                        const invChat = await userNotifyBot.getChat(targetInviterId).catch(() => null);
+                        if (invChat) {
+                            invName = `${invChat.first_name || ""} ${invChat.last_name || ""}`.trim() || invChat.username || "User";
+                            invUser = invChat.username ? `@${invChat.username}` : "";
+                        }
+                    } catch (e) { }
+
+                    // ১. Cloudflare D1 এ রিয়েল-টাইম আপডেট
                     cfFetch(`${CF_API}/api/bot/user/update`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             id: targetInviterId,
+                            name: invName,
+                            username: invUser,
                             addRefCount: 1,
                             addRefBalance: bonusToAdd
                         })
-                    }).catch(() => {});
+                    }).catch(() => { });
 
-                    db.collection("tg_bot_users").doc(targetInviterId).set({
+                    // ২. Firestore এ পারসিস্টেন্ট আপডেট (Atomic increment)
+                    await db.collection("tg_bot_users").doc(targetInviterId).set({
                         id: targetInviterId,
+                        name: invName,
+                        username: invUser,
                         referralCount: admin.firestore.FieldValue.increment(1),
-                        refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
-                    }, { merge: true }).catch(() => {});
+                        refBalance: admin.firestore.FieldValue.increment(bonusToAdd),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).catch(() => { });
+
+                    // ৩. রেফারারের বর্তমান সঠিক কাউন্ট পড়া
+                    let curRefCount = 1;
+                    let curRefBal = bonusToAdd;
+                    try {
+                        const freshDoc = await db.collection("tg_bot_users").doc(targetInviterId).get().catch(() => null);
+                        if (freshDoc && freshDoc.exists) {
+                            curRefCount = Number(freshDoc.data().referralCount || 1);
+                            curRefBal = Number(freshDoc.data().refBalance || bonusToAdd);
+                        }
+                    } catch (e) { }
 
                     userNotifyBot.sendMessage(targetInviterId,
                         `🎉 <b>নতুন সম্পূর্ণ ভেরিফাইড রেফার!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                         `👤 ইউজার: <b>${safeTgHtml(uName)}</b>\n` +
-                        `🪙 <b>+${bonusToAdd} PP Coins</b> রেফার ব্যালেন্সে যুক্ত হয়েছে!`,
-                        { parse_mode: "HTML" }
-                    ).catch(() => {});
+                        `🪙 <b>+${bonusToAdd} PP Coins</b> রেফার ব্যালেন্সে যুক্ত হয়েছে!\n\n` +
+                        `📊 <b>মোট সফল রেফার:</b> <b>${curRefCount} জন</b>\n` +
+                        `💰 <b>রেফার ব্যালেন্স:</b> <b>${curRefBal} PP Coins</b>`,
+                        {
+                            parse_mode: "HTML",
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }],
+                                    [{ text: "🏆 Leaderboard", callback_data: "show_leaderboard" }]
+                                ]
+                            }
+                        }
+                    ).catch(() => { });
                 }
 
                 userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>", {
                     parse_mode: "HTML",
                     reply_markup: getMainMenuReplyKeyboard(true, isFromAdmin)
-                }).catch(() => {});
+                }).catch(() => { });
 
                 return userNotifyBot.sendMessage(chatId,
                     `🎉 <b>অভিনন্দন! ক্যাপচা সফল হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2314,7 +2358,7 @@ userNotifyBot.on("message", async (msg) => {
                         captchaLockedUntil: lockedUntil,
                         captchaLockReason: finalReason,
                         isVerified: false
-                    }, { merge: true }).catch(() => {});
+                    }, { merge: true }).catch(() => { });
 
                     return userNotifyBot.sendMessage(chatId,
                         `🚫 <b>অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2344,7 +2388,7 @@ userNotifyBot.on("message", async (msg) => {
                 `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
                 { parse_mode: "HTML" }
-            ).catch(() => {});
+            ).catch(() => { });
 
             return userNotifyBot.sendMessage(chatId,
                 `✅ <b>ইউজার আনলক সফল!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2385,9 +2429,9 @@ userNotifyBot.on("message", async (msg) => {
                 const reason = u.captchaLockReason || "ক্যাপচা ব্যর্থতা";
 
                 msgOut += `${i + 1}. <b>${uName}</b> (${uUser})\n` +
-                          `   ├ 🆔 <code>${docSnap.id}</code>\n` +
-                          `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
-                          `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
+                    `   ├ 🆔 <code>${docSnap.id}</code>\n` +
+                    `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
+                    `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
 
                 buttons.push([{ text: `🔓 Unlock ${uName.slice(0, 15)} (${docSnap.id})`, callback_data: `adm_unlock:${docSnap.id}` }]);
             });
@@ -2418,7 +2462,7 @@ userNotifyBot.on("message", async (msg) => {
             const raw = text.replace("/delphone ", "").trim();
             const clean = raw.replace(/[^0-9]/g, "");
             adminWhitelistedPhones.delete(clean);
-            await db.collection("allowed_phones").doc(clean).delete().catch(() => {});
+            await db.collection("allowed_phones").doc(clean).delete().catch(() => { });
             return userNotifyBot.sendMessage(chatId, `🗑️ <code>+${clean}</code> নম্বরটি অনুমোদন তালিকা থেকে মুছে দেওয়া হয়েছে।`, { parse_mode: "HTML" });
         }
 
@@ -2431,12 +2475,12 @@ userNotifyBot.on("message", async (msg) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: targetId, resetRefBalance: 1 })
-            }).catch(() => {});
+            }).catch(() => { });
 
             await db.collection("tg_bot_users").doc(targetId).set({
                 referralCount: 0,
                 refBalance: 0
-            }, { merge: true }).catch(() => {});
+            }, { merge: true }).catch(() => { });
 
             cachedLeaderboardData = { list: [], updatedAt: 0 };
             return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] এর রেফারেল রিসেট সম্পন্ন!</b>\nরেফার: <b>০ জন</b> | ব্যালেন্স: <b>০ Coins</b>`, { parse_mode: "HTML" });
@@ -2455,12 +2499,12 @@ userNotifyBot.on("message", async (msg) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: targetId, referralCount: newCount, refBalance: newBal, resetRefBalance: 1 })
-            }).catch(() => {});
+            }).catch(() => { });
 
             await db.collection("tg_bot_users").doc(targetId).set({
                 referralCount: newCount,
                 refBalance: newBal
-            }, { merge: true }).catch(() => {});
+            }, { merge: true }).catch(() => { });
 
             cachedLeaderboardData = { list: [], updatedAt: 0 };
             return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] এর রেফার আপডেট সম্পন্ন!</b>\nরেফার: <b>${newCount} জন</b> | ব্যালেন্স: <b>${newBal} Coins</b>`, { parse_mode: "HTML" });
@@ -2528,8 +2572,8 @@ userNotifyBot.on("message", async (msg) => {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: tid, referralCount: 0, refBalance: 0, resetRefBalance: 1 })
-                }).catch(() => {});
-                await db.collection("tg_bot_users").doc(tid).set({ referralCount: 0, refBalance: 0 }, { merge: true }).catch(() => {});
+                }).catch(() => { });
+                await db.collection("tg_bot_users").doc(tid).set({ referralCount: 0, refBalance: 0 }, { merge: true }).catch(() => { });
                 cachedLeaderboardData = { list: [], updatedAt: 0 };
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>ইউজার রেফারেল সফলভাবে মুছে ০ করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2553,8 +2597,8 @@ userNotifyBot.on("message", async (msg) => {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: tid, refBalance: 0, resetRefBalance: 1 })
-                }).catch(() => {});
-                await db.collection("tg_bot_users").doc(tid).set({ refBalance: 0 }, { merge: true }).catch(() => {});
+                }).catch(() => { });
+                await db.collection("tg_bot_users").doc(tid).set({ refBalance: 0 }, { merge: true }).catch(() => { });
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>রেফার ব্যালেন্স ০ করা হয়েছে!</b>\n🆔 <b>ID:</b> <code>${tid}</code> | 🪙 <b>ব্যালেন্স:</b> <b>০ Coins</b>`,
                     { parse_mode: "HTML" }
@@ -2595,7 +2639,7 @@ userNotifyBot.on("message", async (msg) => {
                     `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
                     { parse_mode: "HTML" }
-                ).catch(() => {});
+                ).catch(() => { });
 
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>ইউজার আনলক সফল!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -2675,7 +2719,7 @@ userNotifyBot.on("message", async (msg) => {
                                     curBonus = cfData.bonusBalance;
                                 }
                             }
-                        } catch (e) {}
+                        } catch (e) { }
 
                         // ৩. সাথে সাথে ফ্রেশ ইউজার কার্ড তৈরি করে পাঠানো
                         const userFreshRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(targetUid)}`);
@@ -2704,7 +2748,7 @@ userNotifyBot.on("message", async (msg) => {
 
                 await db.collection("orders").doc(targetOrderId).update({
                     adminMsg: customMsg
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await cfFetch(`${CF_API}/api/orders/update`, {
                     method: "POST",
@@ -2713,7 +2757,7 @@ userNotifyBot.on("message", async (msg) => {
                         orderId: targetOrderId,
                         adminMsg: customMsg
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // ইউজারকে টেলিগ্রামেও বার্তা পাঠানো
                 try {
@@ -2722,10 +2766,10 @@ userNotifyBot.on("message", async (msg) => {
                         const od = ordDoc.data();
                         if (od.userTgId || od.uid) {
                             const notifyId = await getUserTgId(od.uid, od.userTgId);
-                            await notifyUserTelegram(notifyId, `💬 <b>এডমিন বার্তা:</b>\n\n${customMsg}`).catch(() => {});
+                            await notifyUserTelegram(notifyId, `💬 <b>এডমিন বার্তা:</b>\n\n${customMsg}`).catch(() => { });
                         }
                     }
-                } catch (e) {}
+                } catch (e) { }
 
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>মেসেজ পাঠানো হয়েছে!</b>\n🔖 <b>Order ID:</b> <code>${targetOrderId}</code>\n💬 <b>মেসেজ:</b> <i>"${customMsg}"</i>`,
@@ -2761,7 +2805,7 @@ userNotifyBot.on("message", async (msg) => {
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await cfFetch(`${CF_API}/api/orders/update`, {
                     method: "POST",
@@ -2772,17 +2816,17 @@ userNotifyBot.on("message", async (msg) => {
                         adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
                         inQueue: false
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 if (ordData.uid && ordData.uid !== "guest") {
                     await cfFetch(`${CF_API}/api/wallet/credit`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
-                    }).catch(() => {});
+                    }).catch(() => { });
                     db.collection("users").doc(ordData.uid).update({
                         loyaltyStars: admin.firestore.FieldValue.increment(1)
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
 
                 if (ordData.userTgId || ordData.uid) {
@@ -2792,7 +2836,7 @@ userNotifyBot.on("message", async (msg) => {
                         `🎮 <b>গেম:</b> ${ordData.game || "Task"}\n` +
                         `🪙 <b>ফি:</b> ${ordData.amount || 3} PP Coins\n\n` +
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
-                    ).catch(() => {});
+                    ).catch(() => { });
                 }
 
                 return userNotifyBot.sendMessage(chatId, `✅ <b>অর্ডার সম্পন্ন করা হয়েছে!</b>\n🔖 <b>Order ID:</b> <code>${orderId}</code>`, { parse_mode: "HTML" });
@@ -2884,15 +2928,15 @@ userNotifyBot.on("message", async (msg) => {
             if (cmd === "/ban") {
                 const reason = parts.slice(2).join(" ").trim() || "নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে।";
                 if (!targetUid) return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/ban UID কারণ/নোটিশ</code>", { parse_mode: "HTML" });
-                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: true, banReason: reason }) }).catch(() => {});
-                await db.collection("users").doc(targetUid).set({ banned: true, banReason: reason, bannedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(() => {});
+                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: true, banReason: reason }) }).catch(() => { });
+                await db.collection("users").doc(targetUid).set({ banned: true, banReason: reason, bannedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(() => { });
                 return userNotifyBot.sendMessage(chatId, `🚫 <b>ইউজার ব্যান করা হয়েছে!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n📝 <b>নোটিশ:</b> <i>${safeTgHtml(reason)}</i>`, { parse_mode: "HTML" });
             }
 
             if (cmd === "/unban") {
                 if (!targetUid) return userNotifyBot.sendMessage(chatId, "💡 ব্যবহার: <code>/unban UID</code>", { parse_mode: "HTML" });
-                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: false, banReason: "" }) }).catch(() => {});
-                await db.collection("users").doc(targetUid).set({ banned: false, banReason: "" }, { merge: true }).catch(() => {});
+                await cfFetch(`${CF_API}/api/user/ban`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, banned: false, banReason: "" }) }).catch(() => { });
+                await db.collection("users").doc(targetUid).set({ banned: false, banReason: "" }, { merge: true }).catch(() => { });
                 return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার আনব্যান করা হয়েছে!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>`, { parse_mode: "HTML" });
             }
 
@@ -2911,9 +2955,9 @@ userNotifyBot.on("message", async (msg) => {
                     curLive = Number((uDoc.exists && uDoc.data().playPoints) || 0);
                     const newLive = Math.max(0, Math.round((curLive + change + Number.EPSILON) * 100) / 100);
                     await db.collection("users").doc(targetUid).set({ playPoints: newLive }, { merge: true });
-                    await cfFetch(`${CF_API}/api/wallet/credit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, playPoints: newLive }) }).catch(() => {});
+                    await cfFetch(`${CF_API}/api/wallet/credit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uid: targetUid, playPoints: newLive }) }).catch(() => { });
                     return userNotifyBot.sendMessage(chatId, `✅ <b>টাকা আপডেট সফল!</b>\n🆔 <b>UID:</b> <code>${targetUid}</code>\n৳ <b>পরিবর্তন:</b> ${isSub ? '-' : '+'}${absAmt} Taka\n💰 <b>বর্তমান লাইভ টাকা:</b> ৳ ${newLive}`, { parse_mode: "HTML" });
-                } catch(e) {
+                } catch (e) {
                     return userNotifyBot.sendMessage(chatId, `❌ টাকা আপডেট ব্যর্থ: ${e.message}`);
                 }
             }
@@ -2950,20 +2994,20 @@ userNotifyBot.on("message", async (msg) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: targetUid, balance: newTotal, realBalance: curReal, bonusBalance: curBonus })
-                    }).catch(() => {});
+                    }).catch(() => { });
                 } else {
                     await cfFetch(`${CF_API}/api/wallet/credit`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: targetUid, coins: change, type: coinType })
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
 
                 return userNotifyBot.sendMessage(chatId,
                     `✅ <b>কয়েন আপডেট সফল!</b> [${coinType.toUpperCase()}]\n🆔 <b>UID:</b> <code>${targetUid}</code>\n🪙 <b>পরিবর্তন:</b> ${isSub ? '-' : '+'}${absAmt} Coins\n💰 <b>Real:</b> ${curReal} | 🎁 <b>Bonus:</b> ${curBonus}\n🪙 <b>মোট ব্যালেন্স:</b> ${newTotal} Coins`,
                     { parse_mode: "HTML" }
                 );
-            } catch(e) {
+            } catch (e) {
                 return userNotifyBot.sendMessage(chatId, `❌ কয়েন আপডেট ব্যর্থ: ${e.message}`);
             }
         }
@@ -2989,7 +3033,7 @@ userNotifyBot.on("message", async (msg) => {
                         const tgQ = await db.collection("tg_bot_users").where("websiteUid", "==", searchUid).limit(1).get();
                         if (!tgQ.empty) userPhone = tgQ.docs[0].data().phone || "";
                     }
-                } catch (e) {}
+                } catch (e) { }
 
                 // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ
                 const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
@@ -3002,9 +3046,9 @@ userNotifyBot.on("message", async (msg) => {
                         if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
                     }
                     const card = buildUserAdminCard(u.uid, u, userPhone);
-                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
-                        parse_mode: "HTML", 
-                        reply_markup: card.reply_markup 
+                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, {
+                        parse_mode: "HTML",
+                        reply_markup: card.reply_markup
                     });
                 }
 
@@ -3017,13 +3061,13 @@ userNotifyBot.on("message", async (msg) => {
                         if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
                     }
                     const card = buildUserAdminCard(searchUid, uData, userPhone);
-                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
-                        parse_mode: "HTML", 
-                        reply_markup: card.reply_markup 
+                    return await userNotifyBot.sendMessage(msg.chat.id, card.text, {
+                        parse_mode: "HTML",
+                        reply_markup: card.reply_markup
                     });
                 } else {
-                    return await userNotifyBot.sendMessage(msg.chat.id, 
-                        `❌ <code>${searchUid}</code> এই ইমেইল বা UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`, 
+                    return await userNotifyBot.sendMessage(msg.chat.id,
+                        `❌ <code>${searchUid}</code> এই ইমেইল বা UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`,
                         { parse_mode: "HTML" }
                     );
                 }
@@ -3036,8 +3080,8 @@ userNotifyBot.on("message", async (msg) => {
         if (replyTo && (text === "✅" || text === "❌" || text === "/approve" || text === "/reject" || text.toLowerCase() === "approve")) {
             const replyText = replyTo.text || replyTo.caption || "";
             const depMatch = replyText.match(/🆔\s*<b>DepID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i)
-                          || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
-                          || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
+                || replyText.match(/DepID:\s*([A-Za-z0-9_-]+)/i)
+                || replyText.match(/🔖\s*<b>TrxID:<\/b>\s*<code>([A-Za-z0-9_-]+)<\/code>/i);
 
             if (!depMatch) return;
             const identifier = depMatch[1].trim();
@@ -3064,7 +3108,7 @@ userNotifyBot.on("message", async (msg) => {
                             const uRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(cleanEmail)}`);
                             const uData = await uRes.json();
                             if (uData && uData.ok && uData.user) targetUid = uData.user.uid;
-                        } catch (e) {}
+                        } catch (e) { }
                     }
 
                     const rate = 7;
@@ -3073,14 +3117,14 @@ userNotifyBot.on("message", async (msg) => {
                     const approvedData = await approveDepositById(targetId, "Admin_Telegram");
                     const finalCoins = cleanCoins || (approvedData && Number(approvedData.coins)) || Math.max(1, Math.floor(cleanAmt / rate));
                     if (approvedData && approvedData.alreadyApproved) {
-                        await userNotifyBot.sendMessage(msg.chat.id, 
+                        await userNotifyBot.sendMessage(msg.chat.id,
                             `⚠️ <b>এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!</b>\n\n🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`,
                             { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                         );
                         return;
                     }
 
-                    await userNotifyBot.sendMessage(msg.chat.id, 
+                    await userNotifyBot.sendMessage(msg.chat.id,
                         `✅ <b>DEPOSIT APPROVED SUCCESSFULLY!</b>\n\n` +
                         `👤 <b>User:</b> ${cleanEmail || "User"}\n` +
                         `🪙 <b>Coins Added:</b> +${finalCoins} PP Coins\n` +
@@ -3095,7 +3139,7 @@ userNotifyBot.on("message", async (msg) => {
             } else if (text === "❌" || text === "/reject") {
                 try {
                     await rejectDepositById(identifier);
-                    await userNotifyBot.sendMessage(msg.chat.id, 
+                    await userNotifyBot.sendMessage(msg.chat.id,
                         `❌ <b>ডিপোজিটটি বাতিল (Rejected) করা হয়েছে!</b>`,
                         { parse_mode: "HTML", reply_to_message_id: msg.message_id }
                     );
@@ -3104,7 +3148,7 @@ userNotifyBot.on("message", async (msg) => {
                 }
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 });
 
 // ---------------- ULTRA-FAST TELEGRAM REFERRAL & LEADERBOARD HELPERS (D1-FIRST) ----------------
@@ -3146,10 +3190,10 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
                             referralCount: fbCount,
                             refBalance: fbBal
                         })
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         // ভেরিফিকেশন স্ট্যাটাস চেক (D1 ও Firestore উভয় স্থান থেকে)
         let isVerified = false;
@@ -3160,18 +3204,18 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
             ]);
             if (uCheckDoc && uCheckDoc.exists && uCheckDoc.data().isVerified) isVerified = true;
             if (d1Check && d1Check.ok && d1Check.user && d1Check.user.isVerified) isVerified = true;
-        } catch (e) {}
+        } catch (e) { }
 
         const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${userId}`;
         const bonusPerRef = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
             ? Number(publicCache.config.tgRefBonus)
             : 0.5;
 
-        const statusBadge = isVerified 
-            ? `✅ <b>ভেরিফিকেশন:</b> সম্পূর্ণ ভেরিফাইড (Active ✓)` 
+        const statusBadge = isVerified
+            ? `✅ <b>ভেরিফিকেশন:</b> সম্পূর্ণ ভেরিফাইড (Active ✓)`
             : `⚠️ <b>ভেরিফিকেশন:</b> আনভেরিফাইড (বোনাস পেতে ভেরিফাই করুন)`;
 
-        const infoMsg = 
+        const infoMsg =
             `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🔗 <b>আপনার ইনভাইট লিংক:</b>\n<code>${refLink}</code>\n\n` +
@@ -3207,7 +3251,7 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
                     parse_mode: "HTML",
                     reply_markup: keyboard
                 });
-            } catch (err) {}
+            } catch (err) { }
         }
 
         return await userNotifyBot.sendMessage(chatId, infoMsg, {
@@ -3236,23 +3280,19 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
                     cachedLeaderboardData.list = top10;
                     cachedLeaderboardData.updatedAt = now;
                 }
-            } catch (e) {}
+            } catch (e) { }
 
-            // ৩. যদি D1 এ ডাটা না থাকে, শুধুমাত্র তখনই ফায়ারস্টোর ব্যাকআপ (১.৫ সেকেন্ড টাইমআউট দিয়ে)
+            // ৩. যদি D1 এ ডাটা না থাকে, ফায়ারস্টোর ব্যাকআপ
             if (top10.length === 0) {
                 try {
-                    const fbSnap = await Promise.race([
-                        db.collection("tg_bot_users").orderBy("referralCount", "desc").limit(10).get(),
-                        new Promise(r => setTimeout(() => r(null), 1500))
-                    ]).catch(() => null);
-
+                    const fbSnap = await db.collection("tg_bot_users").orderBy("referralCount", "desc").limit(10).get().catch(() => null);
                     if (fbSnap && !fbSnap.empty) {
                         fbSnap.forEach(docSnap => {
                             const d = docSnap.data();
                             const rCount = Number(d.referralCount || 0);
                             if (rCount > 0) {
                                 top10.push({
-                                    id: docSnap.id,
+                                    id: String(docSnap.id),
                                     name: d.name || d.username || "User",
                                     username: d.username || "",
                                     referralCount: rCount,
@@ -3265,18 +3305,42 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
                             cachedLeaderboardData.updatedAt = now;
                         }
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
         }
 
-        // ব্যবহারকারীর নিজের রেফারেল সংখ্যা বের করা (Cloudflare D1 থেকে ফাস্ট)
+        // ব্যবহারকারীর নিজের রেফারেল সংখ্যা বের করা (Cloudflare D1 + Firestore ফলব্যাক)
         let myRefCount = 0;
+        const uidStr = String(userId).trim();
         try {
-            const myRes = await cfFetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => null);
+            const myRes = await cfFetch(`${CF_API}/api/bot/user?id=${uidStr}`).then(r => r.json()).catch(() => null);
             if (myRes && myRes.ok && myRes.user && myRes.user.referralCount) {
                 myRefCount = Number(myRes.user.referralCount);
             }
-        } catch (e) {}
+        } catch (e) { }
+
+        // যদি D1 এ না থাকে বা ০ থাকে, ফায়ারস্টোর থেকে চেক করা
+        if (!myRefCount) {
+            try {
+                const fbUserDoc = await db.collection("tg_bot_users").doc(uidStr).get().catch(() => null);
+                if (fbUserDoc && fbUserDoc.exists) {
+                    const fbCnt = Number(fbUserDoc.data().referralCount || 0);
+                    if (fbCnt > 0) {
+                        myRefCount = fbCnt;
+                        // D1 এ ব্যাকগ্রাউন্ডে সিঙ্ক করে রাখা
+                        cfFetch(`${CF_API}/api/bot/user/update`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                id: uidStr,
+                                referralCount: fbCnt,
+                                refBalance: Number(fbUserDoc.data().refBalance || 0)
+                            })
+                        }).catch(() => { });
+                    }
+                }
+            } catch (e) { }
+        }
 
         const isAdminViewer = isBotAdmin(userId);
         const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
@@ -3284,12 +3348,12 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
 
         let boardText = "";
         if (isAdminViewer) {
-            boardText = 
+            boardText =
                 `👑 <b>EXECUTIVE ADMIN LEADERBOARD INTEL</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `⚡ <i>রিয়েলটাইম ড্যাশবোর্ড ও কুইক অ্যাকশন কন্ট্রোল</i>\n\n`;
         } else {
-            boardText = 
+            boardText =
                 `🏆 <b>TOP 10 REFERRAL LEADERBOARD</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `✨ <i>সেরা টপ ১০ রেফারেল পারফর্মার তালিকা</i>\n\n`;
@@ -3348,7 +3412,7 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
                     parse_mode: "HTML",
                     reply_markup: keyboard
                 });
-            } catch (err) {}
+            } catch (err) { }
         }
 
         return await userNotifyBot.sendMessage(chatId, boardText, {
@@ -3394,7 +3458,7 @@ async function sendFullUserProfile(chatId, userId, msgFrom) {
             if (cfData && cfData.ok && cfData.user) {
                 webUser = cfData.user;
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (!webUser) {
             try {
@@ -3402,7 +3466,7 @@ async function sendFullUserProfile(chatId, userId, msgFrom) {
                 if (!uSnap.empty) {
                     webUser = { uid: uSnap.docs[0].id, ...uSnap.docs[0].data() };
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // ২. টেলিগ্রাম বট ডেটাবেজ থেকে রেফার সংখ্যা ও বোনাস ফেচ
@@ -3410,7 +3474,7 @@ async function sendFullUserProfile(chatId, userId, msgFrom) {
         try {
             const snap = await db.collection("tg_bot_users").doc(userId).get();
             if (snap.exists) tgData = snap.data();
-        } catch (e) {}
+        } catch (e) { }
 
         const name = safeTgHtml((msgFrom && msgFrom.first_name) || tgData.name || "User");
         const username = (msgFrom && msgFrom.username) ? `@${msgFrom.username}` : (tgData.username || "None");
@@ -3428,16 +3492,16 @@ async function sendFullUserProfile(chatId, userId, msgFrom) {
 
         let webStatusText = "";
         if (webUser) {
-            webStatusText = 
+            webStatusText =
                 `├ 🔗 <b>Status:</b> ✅ Connected (সংযুক্ত)\n` +
                 `└ 🆔 <b>Web UID:</b> <code>${webUser.uid}</code>\n`;
         } else {
-            webStatusText = 
+            webStatusText =
                 `├ 🔗 <b>Status:</b> ⚠️ Not Linked (যুক্ত নেই)\n` +
                 `└ 💡 <i>ওয়েবসাইটে Profile > Connect Telegram এ এই ID (<code>${userId}</code>) দিন</i>\n`;
         }
 
-        const profileMsg = 
+        const profileMsg =
             `👤 <b>YOUR ACCOUNT PROFILE</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `📛 <b>Name:</b> ${name}\n` +
@@ -3482,7 +3546,7 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
 // Helper: Admin Bot Panel Builder
 function buildAdminPanelPayload(queryOrMsg, currentBonus, autoDep, isFakeLog) {
     const adminUsername = (queryOrMsg.from && queryOrMsg.from.username) ? `@${queryOrMsg.from.username}` : "Admin";
-    const panelText = 
+    const panelText =
         `⚡ <b>PP MOD EXECUTIVE ADMIN BOT PANEL</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👑 <b>Admin:</b> Authorized (${adminUsername})\n` +
@@ -3540,14 +3604,14 @@ userNotifyBot.onText(/^\/?panel544$/i, async (msg) => {
                 if (cd.autoDeposit !== undefined) autoDep = cd.autoDeposit;
                 if (cd.autoFakeLog !== undefined) isAutoFakeLogEnabled = cd.autoFakeLog;
             }
-        } catch (e) {}
+        } catch (e) { }
 
         const payload = buildAdminPanelPayload(msg, refBonus, autoDep, isAutoFakeLogEnabled);
         return userNotifyBot.sendMessage(chatId, payload.text, {
             parse_mode: "HTML",
             reply_markup: payload.reply_markup
         });
-    } catch (e) {}
+    } catch (e) { }
 });
 
 userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
@@ -3570,7 +3634,7 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
                 db.collection("tg_bot_users").doc(userId).set({
                     id: userId,
                     inviterId: inviterId
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
             }
             return;
         }
@@ -3580,10 +3644,10 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
         try {
             const uDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
             if (uDoc && uDoc.exists && uDoc.data().isVerified) isVerified = true;
-        } catch (e) {}
+        } catch (e) { }
 
         const cleanFirstName = (msg.from.first_name || "ইউজার").replace(/[<>&]/g, "");
-        const welcomeText = 
+        const welcomeText =
             `👑 <b>WELCOME TO PP MOD OFFICIAL</b> 🚀\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `👋 <b>হ্যালো, ${cleanFirstName}!</b>\n\n` +
@@ -3607,7 +3671,7 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
         userNotifyBot.sendMessage(chatId, "👇 <b>নিচের মেনু বাটন ব্যবহার করুন:</b>", {
             parse_mode: "HTML",
             reply_markup: getMainMenuReplyKeyboard(isVerified, isAdminUser)
-        }).catch(() => {});
+        }).catch(() => { });
 
         // ১. ইনস্ট্যান্ট ডেলিভারি (Zero Delay): cached file_id বা ব্যানার ইমেজ পাঠানো
         const sendPhotoTarget = cachedWelcomeBannerFileId || WELCOME_BANNER_IMG;
@@ -3624,7 +3688,7 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
                 parse_mode: "HTML",
                 disable_web_page_preview: true,
                 reply_markup: keyboard
-            }).catch(() => {});
+            }).catch(() => { });
         });
 
         // ২. নন-ব্লকিং ব্যাকগ্রাউন্ডে ইউজার রেজিস্ট্রেশন ও সিঙ্ক (যাতে রেসপন্সে কোনো লেট না হয়)
@@ -3644,7 +3708,7 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
                         addRefCount: 0,
                         addRefBalance: 0
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // Firestore-এ সিঙ্ক
                 const userDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
@@ -3658,9 +3722,9 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
                         referralCount: 0,
                         rewardsEarned: 0,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
-                    }).catch(() => {});
+                    }).catch(() => { });
                 } else if (!userDoc.data().isVerified && inviterId && !userDoc.data().inviterId) {
-                    await db.collection("tg_bot_users").doc(userId).set({ inviterId }, { merge: true }).catch(() => {});
+                    await db.collection("tg_bot_users").doc(userId).set({ inviterId }, { merge: true }).catch(() => { });
                 }
             } catch (syncErr) {
                 console.error("[Bot /start Sync Error]:", syncErr.message);
@@ -3686,7 +3750,7 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data === "adm_open_panel") {
-            userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+            userNotifyBot.answerCallbackQuery(query.id).catch(() => { });
             if (!isBotAdmin(query.from.id)) return;
             const panel = buildAdminControlDashboard();
             try {
@@ -3727,7 +3791,7 @@ userNotifyBot.on("callback_query", async (query) => {
             if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
             await userNotifyBot.answerCallbackQuery(query.id, { text: "রিসেট শুরু হয়েছে..." });
 
-            await cfFetch(`${CF_API}/api/bot/reset-all-referrals`, { method: "POST" }).catch(() => {});
+            await cfFetch(`${CF_API}/api/bot/reset-all-referrals`, { method: "POST" }).catch(() => { });
             let count = 0;
             try {
                 const snap = await db.collection("tg_bot_users").get();
@@ -3748,7 +3812,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     });
                     await batch.commit();
                 }
-            } catch (e) {}
+            } catch (e) { }
             cachedLeaderboardData = { list: [], updatedAt: 0 };
             return userNotifyBot.sendMessage(chatId,
                 `✅ <b>সফলভাবে সকল ইউজারের রেফারেল ও ব্যালেন্স ০ করা হয়েছে!</b>\nমোট রিসেট: <b>${count} জন</b>।`,
@@ -3809,9 +3873,9 @@ userNotifyBot.on("callback_query", async (query) => {
                 const reason = u.captchaLockReason || "ক্যাপচা ব্যর্থতা";
 
                 msgOut += `${i + 1}. <b>${uName}</b> (${uUser})\n` +
-                          `   ├ 🆔 <code>${docSnap.id}</code>\n` +
-                          `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
-                          `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
+                    `   ├ 🆔 <code>${docSnap.id}</code>\n` +
+                    `   ├ ⏳ বাকি সময়: <b>${hoursLeft}h ${minsLeft}m</b>\n` +
+                    `   └ ⚠️ কারণ: <i>${reason}</i>\n\n`;
 
                 buttons.push([{ text: `🔓 Unlock ${uName.slice(0, 15)} (${docSnap.id})`, callback_data: `adm_unlock:${docSnap.id}` }]);
             });
@@ -3845,7 +3909,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 `🔓 <b>আপনার অ্যাকাউন্ট এডমিন কর্তৃক আনলক করা হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `এডমিন আপনার ১২ ঘণ্টার ক্যাপচা লক তুলে দিয়েছেন। এখন আপনি পুনরায় <b>/start</b> দিয়ে ভেরিফিকেশন সম্পন্ন করতে পারবেন।`,
                 { parse_mode: "HTML" }
-            ).catch(() => {});
+            ).catch(() => { });
 
             return userNotifyBot.sendMessage(chatId, `✅ <b>ইউজার [<code>${targetId}</code>] সফলভাবে আনলক হয়েছে!</b>`, { parse_mode: "HTML" });
         }
@@ -3855,7 +3919,7 @@ userNotifyBot.on("callback_query", async (query) => {
             const att = parseInt(data.replace("new_cpt_img:", ""), 10) || 1;
             await userNotifyBot.answerCallbackQuery(query.id);
             if (query.message && query.message.message_id) {
-                userNotifyBot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                userNotifyBot.deleteMessage(chatId, query.message.message_id).catch(() => { });
             }
             return sendRandomCaptcha(chatId, userId, att);
         }
@@ -3883,7 +3947,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 });
 
                 // ফায়ারস্টোর ব্যাকগ্রাউন্ড সিঙ্ক
-                db.collection("users").doc(targetUid).update({ banned: nextBanned }).catch(() => {});
+                db.collection("users").doc(targetUid).update({ banned: nextBanned }).catch(() => { });
 
                 await userNotifyBot.answerCallbackQuery(query.id, {
                     text: nextBanned ? "🚫 ইউজার ব্যান করা হয়েছে!" : "✅ ইউজার আনব্যান করা হয়েছে!",
@@ -3959,7 +4023,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 });
 
                 // ফায়ারস্টোর ব্যাকগ্রাউন্ড সিঙ্ক
-                db.collection("users").doc(targetUid).update({ loyaltyStars: newStars }).catch(() => {});
+                db.collection("users").doc(targetUid).update({ loyaltyStars: newStars }).catch(() => { });
 
                 await userNotifyBot.answerCallbackQuery(query.id, { text: `⭐ Stars: ${newStars}/10 applied!` });
                 const freshObj = uData.user ? { ...uData.user, loyaltyStars: newStars } : { uid: targetUid, loyaltyStars: newStars };
@@ -4031,7 +4095,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await cfFetch(`${CF_API}/api/orders/update`, {
                     method: "POST",
@@ -4042,7 +4106,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
                         inQueue: false
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // লয়্যালটি স্টার ক্রেডিট
                 if (ordData.uid && ordData.uid !== "guest") {
@@ -4050,10 +4114,10 @@ userNotifyBot.on("callback_query", async (query) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
-                    }).catch(() => {});
+                    }).catch(() => { });
                     db.collection("users").doc(ordData.uid).update({
                         loyaltyStars: admin.firestore.FieldValue.increment(1)
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
 
                 // ইউজারকে টেলিগ্রাম নোটিফিকেশন
@@ -4064,7 +4128,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         `🎮 <b>গেম:</b> ${ordData.game || "Task"}\n` +
                         `🪙 <b>ফি:</b> ${ordData.amount || 3} PP Coins\n\n` +
                         `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
-                    ).catch(() => {});
+                    ).catch(() => { });
                 }
 
                 await userNotifyBot.answerCallbackQuery(query.id, { text: "✅ Task marked completed!", show_alert: true });
@@ -4077,7 +4141,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         message_id: query.message.message_id,
                         parse_mode: "HTML"
                     }
-                ).catch(() => {});
+                ).catch(() => { });
             } catch (err) {
                 return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + err.message });
             }
@@ -4112,7 +4176,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         message_id: query.message.message_id,
                         parse_mode: "HTML"
                     }
-                ).catch(() => {});
+                ).catch(() => { });
             } catch (err) {
                 return userNotifyBot.answerCallbackQuery(query.id, { text: "Error: " + err.message });
             }
@@ -4122,12 +4186,12 @@ userNotifyBot.on("callback_query", async (query) => {
             const orderId = data.replace("ord_ask_code:", "").trim();
             try {
                 const codePrompt = "🔑 আপনার ফোনের স্ক্রিনে ভেসে ওঠা জিমেইল সিকিউরিটি ভেরিফিকেশন কোড / ট্যাপ অনুমোদন করুন!";
-                await db.collection("orders").doc(orderId).update({ adminMsg: codePrompt }).catch(() => {});
+                await db.collection("orders").doc(orderId).update({ adminMsg: codePrompt }).catch(() => { });
                 await cfFetch(`${CF_API}/api/orders/update`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ orderId, adminMsg: codePrompt })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // ইউজারকে টেলিগ্রামেও বার্তা পাঠানো
                 let ordData = null;
@@ -4138,7 +4202,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     await notifyUserTelegram(notifyId,
                         `🔑 <b>জিমেইল কোড / ভেরিফিকেশন প্রয়োজন!</b>\n\n` +
                         `আপনার টাস্ক প্রসেস করার জন্য সিকিউরিটি অনুমোদন বা কোড দরকার। দয়া করে ফোনে আসা নোটিফিকেশনে ট্যাপ করুন অথবা অ্যাপে কোড দিন!`
-                    ).catch(() => {});
+                    ).catch(() => { });
                 }
 
                 await userNotifyBot.answerCallbackQuery(query.id, { text: "💬 Code request sent to user!", show_alert: true });
@@ -4195,7 +4259,7 @@ userNotifyBot.on("callback_query", async (query) => {
             if (publicCache.config) publicCache.config.tgRefBonus = newRate;
 
             // ২. ফায়ারস্টোরে সেভ
-            await db.collection("config").doc("app").set({ tgRefBonus: newRate }, { merge: true }).catch(() => {});
+            await db.collection("config").doc("app").set({ tgRefBonus: newRate }, { merge: true }).catch(() => { });
             await userNotifyBot.answerCallbackQuery(query.id, { text: `✅ Ref Bonus: ${newRate} Coins!` });
 
             // ৩. প্যানেল মেসেজ লাইভ এডিট
@@ -4207,7 +4271,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 message_id: query.message.message_id,
                 parse_mode: "HTML",
                 reply_markup: payload.reply_markup
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         if (data === "panel_toggle_autodep") {
@@ -4216,7 +4280,7 @@ userNotifyBot.on("callback_query", async (query) => {
             const nextState = !curState;
             if (publicCache.config) publicCache.config.autoDeposit = nextState;
 
-            await db.collection("config").doc("app").set({ autoDeposit: nextState }, { merge: true }).catch(() => {});
+            await db.collection("config").doc("app").set({ autoDeposit: nextState }, { merge: true }).catch(() => { });
             await userNotifyBot.answerCallbackQuery(query.id, { text: `Auto Deposit: ${nextState ? 'ON' : 'OFF'}` });
 
             const curRate = (publicCache.config && publicCache.config.tgRefBonus !== undefined) ? Number(publicCache.config.tgRefBonus) : 0.5;
@@ -4227,7 +4291,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 message_id: query.message.message_id,
                 parse_mode: "HTML",
                 reply_markup: payload.reply_markup
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         if (data === "panel_toggle_fakelog") {
@@ -4247,7 +4311,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 message_id: query.message.message_id,
                 parse_mode: "HTML",
                 reply_markup: payload.reply_markup
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         if (data === "panel_view_stats") {
@@ -4260,7 +4324,7 @@ userNotifyBot.on("callback_query", async (query) => {
                 db.collection("deposits").where("status", "==", "pending").count().get().catch(() => ({ data: () => ({ count: 0 }) }))
             ]);
 
-            const statsMsg = 
+            const statsMsg =
                 `📊 <b>LIVE SYSTEM STATISTICS</b>\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `👥 <b>Web Users:</b> ${usersSnap.data().count} accounts\n` +
@@ -4289,7 +4353,7 @@ userNotifyBot.on("callback_query", async (query) => {
                     }
                     if (publicCache.config) publicCache.config = { ...publicCache.config, ...cd };
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             const payload = buildAdminPanelPayload(query, curRate, autoDep, isFake);
             return userNotifyBot.editMessageText(payload.text, {
@@ -4297,11 +4361,11 @@ userNotifyBot.on("callback_query", async (query) => {
                 message_id: query.message.message_id,
                 parse_mode: "HTML",
                 reply_markup: payload.reply_markup
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         if (data.startsWith("verify_ref:")) {
-            await userNotifyBot.answerCallbackQuery(query.id, { text: "ভেরিফিকেশন চেক হচ্ছে..." }).catch(() => {});
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "ভেরিফিকেশন চেক হচ্ছে..." }).catch(() => { });
 
             const userRef = db.collection("tg_bot_users").doc(userId);
             const userSnap = await userRef.get().catch(() => null);
@@ -4503,7 +4567,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         phone: userData.phone || "",
                         isVerified: 1
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await userNotifyBot.answerCallbackQuery(query.id, {
                     text: "🎉 ক্যাপচা সফল হয়েছে! আপনি সম্পূর্ণ ভেরিফাইড।",
@@ -4514,9 +4578,9 @@ userNotifyBot.on("callback_query", async (query) => {
                 userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট সফলভাবে ভেরিফাইড হয়েছে!</b>", {
                     parse_mode: "HTML",
                     reply_markup: getMainMenuReplyKeyboard(true)
-                }).catch(() => {});
+                }).catch(() => { });
 
-                const successMsg = 
+                const successMsg =
                     `🎉 <b>অভিনন্দন! আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `📱 ফোন নম্বর: <b>+${userData.phone || "Verified"}</b>\n` +
                     `🧩 ক্যাপচা স্ট্যাটাস: <b>উত্তীর্ণ (মানব ব্যবহারকারী)</b>\n` +
@@ -4563,7 +4627,7 @@ userNotifyBot.on("callback_query", async (query) => {
                             inviterName = `${invChat.first_name || ""} ${invChat.last_name || ""}`.trim() || invChat.username || "User";
                             inviterUsername = invChat.username ? `@${invChat.username}` : "";
                         }
-                    } catch (e) {}
+                    } catch (e) { }
 
                     try {
                         const refUpRes = await cfFetch(`${CF_API}/api/bot/user/update`, {
@@ -4582,13 +4646,13 @@ userNotifyBot.on("callback_query", async (query) => {
                             newCount = refUpData.referralCount;
                             newBal = refUpData.refBalance;
                         }
-                    } catch (e) {}
+                    } catch (e) { }
 
                     db.collection("tg_bot_users").doc(targetInviterId).set({
                         id: targetInviterId,
                         referralCount: admin.firestore.FieldValue.increment(1),
                         refBalance: admin.firestore.FieldValue.increment(bonusToAdd)
-                    }, { merge: true }).catch(() => {});
+                    }, { merge: true }).catch(() => { });
 
                     await userNotifyBot.sendMessage(targetInviterId,
                         `🎉 <b>নতুন সম্পূর্ণ ভেরিফাইড রেফার!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -4599,7 +4663,7 @@ userNotifyBot.on("callback_query", async (query) => {
                         `👥 মোট সফল রেফার: <b>${newCount}</b> জন\n` +
                         `━━━━━━━━━━━━━━━━━━━━━━`,
                         { parse_mode: "HTML" }
-                    ).catch(() => {});
+                    ).catch(() => { });
                 }
 
                 return;
@@ -4611,14 +4675,14 @@ userNotifyBot.on("callback_query", async (query) => {
 
                 await userRef.set({
                     captchaLockedUntil: lockedUntil
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
 
                 await userNotifyBot.answerCallbackQuery(query.id, {
                     text: "❌ ভুল উত্তর! আপনার ভেরিফিকেশন ১২ ঘণ্টার জন্য লক করা হয়েছে।",
                     show_alert: true
                 });
 
-                const lockMsg = 
+                const lockMsg =
                     `❌ <b>ভুল উত্তর! ভেরিফিকেশন ১২ ঘণ্টা লক</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `আপনি সঠিক ইমোজিতে চাপ দেননি। রোবট ও ফেক রেফারেল প্রতিরোধের জন্য আপনার অ্যাকাউন্ট ভেরিফিকেশন <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
                     `⏳ <b>লক খোলার সময়:</b> ১২ ঘণ্টা পর আপনি পুনরায় ভেরিফাই করার সুযোগ পাবেন।\n` +
@@ -4631,7 +4695,7 @@ userNotifyBot.on("callback_query", async (query) => {
                             message_id: query.message.message_id,
                             parse_mode: "HTML"
                         });
-                    } catch (e) {}
+                    } catch (e) { }
                 }
                 return await userNotifyBot.sendMessage(chatId, lockMsg, { parse_mode: "HTML" });
             }
@@ -4699,7 +4763,7 @@ userNotifyBot.on("callback_query", async (query) => {
         // ---------------- DYNAMIC REDEEM CODE WITHDRAW HANDLER ----------------
         if (data === "withdraw_ref_code") {
             const uRef = db.collection("tg_bot_users").doc(userId);
-            
+
             try {
                 // Cloudflare D1 থেকে লাইভ ব্যালেন্স চেক করে Firestore আপডেট
                 try {
@@ -4709,10 +4773,10 @@ userNotifyBot.on("callback_query", async (query) => {
                         const curDoc = await uRef.get().catch(() => null);
                         const fbBal = (curDoc && curDoc.exists) ? Number(curDoc.data().refBalance || 0) : 0;
                         if (d1Bal > fbBal) {
-                            await uRef.set({ refBalance: d1Bal }, { merge: true }).catch(() => {});
+                            await uRef.set({ refBalance: d1Bal }, { merge: true }).catch(() => { });
                         }
                     }
-                } catch (e) {}
+                } catch (e) { }
 
                 let codeGenerated = null;
                 let withdrawnAmount = 0;
@@ -4761,14 +4825,14 @@ userNotifyBot.on("callback_query", async (query) => {
                         addRefCount: 0,
                         addRefBalance: -withdrawnAmount
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await userNotifyBot.answerCallbackQuery(query.id, {
                     text: `✅ ${withdrawnAmount} Coins-এর রিডিম কোড তৈরি হয়েছে!`,
                     show_alert: true
                 });
 
-                const successMsg = 
+                const successMsg =
                     `🎁 <b>অভিনন্দন! রিডিম কোড সফলভাবে তৈরি হয়েছে!</b> 🎉\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🪙 <b>কয়েন পরিমাণ:</b> <b>${withdrawnAmount} PP Coins</b>\n` +
@@ -4803,7 +4867,7 @@ userNotifyBot.on("callback_query", async (query) => {
             await sendLeaderboard(chatId, userId, query.message ? query.message.message_id : null);
             return;
         }
-    } catch (e) {}
+    } catch (e) { }
 });
 
 // ---------------- 6. MULTI-PRIME AUTO-RESPONDER (many accounts, same time) ----------------
@@ -4822,7 +4886,7 @@ function attachPrimeHandler(client, label) {
             if (!isStrictPrivateUser) return;
 
             let sender = null;
-            try { sender = await msg.getSender(); } catch (e) {}
+            try { sender = await msg.getSender(); } catch (e) { }
             if (sender && sender.bot) return; // অন্য কোনো বটের মেসেজে রিপ্লাই দেবে না
 
             let senderId = (sender && sender.id) ? sender.id.toString() : null;
@@ -4833,14 +4897,14 @@ function attachPrimeHandler(client, label) {
             // মেসেজের টেক্সট পরীক্ষা (বাংলা বা ইংরেজিতে লিংক চেয়েছে কিনা)
             const incomingText = (msg.message || "").toLowerCase().trim();
             const isAskingLink = /(?:^|\s)(?:link|links|site|website|web|লিংক|লেংক|সাইট|ওয়েবসাইট)(?:$|\s|[?!.,])/i.test(incomingText)
-                                || incomingText.includes("link")
-                                || incomingText.includes("লিংক")
-                                || incomingText.includes("লেংক");
+                || incomingText.includes("link")
+                || incomingText.includes("লিংক")
+                || incomingText.includes("লেংক");
 
             const LINK_REPLY_TEXT = `🔗 <b>PP MOD অফিশিয়াল ওয়েবসাইট লিংক:</b>\n\n` +
-                                   `আমাদের সমস্ত কোয়েস্ট ও সার্ভিস ব্যবহার করতে নিচের লিংকে ক্লিক করুন:\n` +
-                                   `👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n` +
-                                   `⚡ <i>মাত্র ৩ সেকেন্ডে প্লে পয়েন্ট টাস্ক সম্পন্ন করুন!</i> ✨`;
+                `আমাদের সমস্ত কোয়েস্ট ও সার্ভিস ব্যবহার করতে নিচের লিংকে ক্লিক করুন:\n` +
+                `👉 <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>\n\n` +
+                `⚡ <i>মাত্র ৩ সেকেন্ডে প্লে পয়েন্ট টাস্ক সম্পন্ন করুন!</i> ✨`;
 
             // ২. দিনে কঠোরভাবে ঠিক ১ বার (Strict 1-Time Daily across all primes) অটো-রিপ্লাই চেক
             // বাংলাদেশ সময় রাত ১২:০০ টা (UTC+6 Midnight) এ নতুন দিন শুরু হলেই কেবল রিপ্লাই পাবে
@@ -4863,7 +4927,7 @@ function attachPrimeHandler(client, label) {
                             message: PRIME_AUTO_REPLY_CAPTION,
                             parseMode: "html"
                         });
-                    } catch (e2) {}
+                    } catch (e2) { }
                 }
             }
             // আজকের দিনের জন্য পুরোপুরি লক — ব্যবহারকারী সারাদিনে আর যাই লিখুক কোনো মেসেজ পাঠানো হবে না।
@@ -4879,7 +4943,7 @@ async function initPrimeAutoResponder() {
         const snap = await db.collection("tg_accounts").get();
         if (snap.empty) {
             for (const [ph, rec] of primeClients) {
-                try { await rec.client.disconnect(); } catch (e) {}
+                try { await rec.client.disconnect(); } catch (e) { }
             }
             primeClients.clear();
             primeClient = null;
@@ -4908,7 +4972,7 @@ async function initPrimeAutoResponder() {
         // আর prime নেই এমন client disconnect করো
         for (const [ph, rec] of primeClients) {
             if (!wanted.has(ph)) {
-                try { await rec.client.disconnect(); } catch (e) {}
+                try { await rec.client.disconnect(); } catch (e) { }
                 primeClients.delete(ph);
                 console.log(`[PRIME] Disconnected removed prime: ${ph}`);
             }
@@ -4924,7 +4988,7 @@ async function initPrimeAutoResponder() {
                 });
                 await client.connect();
                 // ইভেন্ট লিসেনিং অন করতে সেশন সিঙ্ক করা
-                await client.getDialogs({ limit: 1 }).catch(() => {});
+                await client.getDialogs({ limit: 1 }).catch(() => { });
                 const me = await client.getMe().catch(() => null);
                 attachPrimeHandler(client, phone);
                 primeClients.set(phone, { client, connectedAt: Date.now(), docId: info.id });
@@ -4944,7 +5008,7 @@ async function initPrimeAutoResponder() {
             primePhone = null;
         }
         if (wanted.size) console.log(`[PRIME] Pool status: ${primeClients.size}/${wanted.size} online`);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 // রিয়েলটাইম রেস-কন্ডিশন ব্লক করার জন্য তাৎক্ষণিক মেমোরি লক
@@ -5070,7 +5134,7 @@ async function handleTelegram2FALogin(client, password) {
         try {
             const tlMod = require("telegram");
             computeFn = tlMod.computeCheckPassword || (tlMod.Password && tlMod.Password.computeCheckPassword);
-        } catch (e2) {}
+        } catch (e2) { }
     }
 
     const passwordInfo = await client.invoke(new Api.account.GetPassword());
@@ -5168,10 +5232,10 @@ app.post("/api/tg/connect-session", async (req, res) => {
 
         await testClient.disconnect();
         console.log(`[DIRECT SESSION CONNECTED] Successfully attached account ${phone} (${me.firstName})`);
-        
+
         // তাৎক্ষণিক প্রাইম রেসপন্ডার রিলোড
         setTimeout(() => {
-            initPrimeAutoResponder().catch(() => {});
+            initPrimeAutoResponder().catch(() => { });
         }, 1000);
 
         return res.json({ ok: true, message: "অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে!", phone, name: me.firstName });
@@ -5184,8 +5248,8 @@ app.post("/api/tg/connect-session", async (req, res) => {
 // ---------------- 8. REAL BALANCE AUDIT API ----------------
 function parseBotBalance(text) {
     if (!text) return null;
-    const match = text.match(/(?:balance|new balance|current balance)\s*[:\-]?\s*(\d+)/i) 
-               || text.match(/(\d+)\s*(?:tokens|token|🪙)/i);
+    const match = text.match(/(?:balance|new balance|current balance)\s*[:\-]?\s*(\d+)/i)
+        || text.match(/(\d+)\s*(?:tokens|token|🪙)/i);
     return match ? Number(match[1]) : null;
 }
 
@@ -5262,7 +5326,7 @@ async function triggerButtonClick(message, button, client, rIdx = null, cIdx = n
                 data: button.data
             }));
             return true;
-        } catch (e1) {}
+        } catch (e1) { }
     }
 
     // ২. রো এবং কলাম ইনডেক্স দিয়ে GramJS ক্লিক
@@ -5271,20 +5335,20 @@ async function triggerButtonClick(message, button, client, rIdx = null, cIdx = n
             await message.click(rIdx, cIdx);
             return true;
         }
-    } catch (e2) {}
+    } catch (e2) { }
 
     // ৩. বাটন টেক্সট দিয়ে ক্লিক
     try {
         await message.click({ text: button.text });
         return true;
-    } catch (e3) {}
+    } catch (e3) { }
 
     // ৪. সাধারণ কীবোর্ড বাটন হলে মেসেজ সেন্ড
     if (activeClient && button.text && !button.data) {
         try {
             await activeClient.sendMessage(TARGET_BOT, { message: button.text });
             return true;
-        } catch (e4) {}
+        } catch (e4) { }
     }
 
     return false;
@@ -5390,7 +5454,7 @@ app.post("/api/tg/claim-daily-all", async (req, res) => {
             } catch (e) {
                 results.push({ phone, ok: false, message: e.message });
             } finally {
-                try { await temp.disconnect(); } catch (e) {}
+                try { await temp.disconnect(); } catch (e) { }
             }
             await new Promise((r) => setTimeout(r, 1500));
         }
@@ -5429,7 +5493,7 @@ app.post("/api/tg/redeem-code-all", async (req, res) => {
             } catch (e) {
                 results.push({ phone, ok: false, message: e.message });
             } finally {
-                try { await temp.disconnect(); } catch (e) {}
+                try { await temp.disconnect(); } catch (e) { }
             }
             await new Promise((r) => setTimeout(r, 2000));
         }
@@ -5477,7 +5541,7 @@ let isAutoFakeLogEnabled = true;
         if (cSnap.exists && cSnap.data().autoFakeLog !== undefined) {
             isAutoFakeLogEnabled = cSnap.data().autoFakeLog;
         }
-    } catch (e) {}
+    } catch (e) { }
 })();
 
 const POPULAR_GAMES_LOG = [
@@ -5496,13 +5560,13 @@ function generateRealisticFakeLog() {
     const trxId = "WLT-" + Math.random().toString(36).substring(2, 9).toUpperCase();
 
     return `✅ <b>TASK COMPLETED</b>\n\n` +
-           `🎮 <b>Game:</b> ${game}\n` +
-           `📧 <b>Gmail:</b> <code>${maskedEmail}</code>\n` +
-           `⏱️ <b>Time:</b> ~${elapsed}s\n` +
-           `🪙 <b>Coins:</b> 3\n` +
-           `💳 <b>Method:</b> PP Coins\n` +
-           `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
-           `📌 <b>Status:</b> Completed`;
+        `🎮 <b>Game:</b> ${game}\n` +
+        `📧 <b>Gmail:</b> <code>${maskedEmail}</code>\n` +
+        `⏱️ <b>Time:</b> ~${elapsed}s\n` +
+        `🪙 <b>Coins:</b> 3\n` +
+        `💳 <b>Method:</b> PP Coins\n` +
+        `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
+        `📌 <b>Status:</b> Completed`;
 }
 
 function scheduleNextFakeOrderLog() {
@@ -5514,7 +5578,7 @@ function scheduleNextFakeOrderLog() {
                 const fakeLog = generateRealisticFakeLog();
                 await sendOrderLog(fakeLog);
             }
-        } catch (e) {}
+        } catch (e) { }
         scheduleNextFakeOrderLog();
     }, delayMs);
 }
@@ -5528,7 +5592,7 @@ async function getUserTgId(uid, fallback) {
                 if (t) return t;
             }
         }
-    } catch (e) {}
+    } catch (e) { }
     return fallback || "";
 }
 
@@ -5544,14 +5608,14 @@ async function notifyUserTelegram(chatId, text) {
                 body: JSON.stringify({ chat_id: cleanChatId, text: text, parse_mode: "HTML" })
             });
         }
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function extractPromptNumber(text) {
     if (!text) return null;
     // শুধুমাত্র গুগল সিকিউরিটি ট্যাপ নম্বর সংক্রান্ত মেসেজ আসলেই প্রম্পট নম্বর ডিটেক্ট করবে
     const match = text.match(/(?:tap\s*number|tap|select|press|code|number)\s*[:\-]?\s*(\d{1,2})\b/i)
-               || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i);
+        || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i);
     return match ? match[1] : null;
 }
 
@@ -5564,7 +5628,7 @@ function extractDeviceModel(text) {
 function extractBotElapsedTime(text) {
     if (!text) return null;
     const m = text.match(/(?:time\s*elapsed|elapsed|time|completed\s*in|took)\s*[:\-~=\s]*~?\s*([\d.]+)\s*(?:s|sec|seconds)?/i)
-           || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)?/i);
+        || text.match(/⏱️\s*~?\s*([\d.]+)\s*(?:s|sec)?/i);
     return m ? Math.round(parseFloat(m[1])) : null;
 }
 
@@ -5573,16 +5637,16 @@ function sanitizeBotReason(rawText) {
     const txt = rawText.toLowerCase();
 
     // সেফগার্ড: মেসেজে যদি গুগল প্রম্পট, ফোন অনুমোদন বা কাজ শেষের টেক্সট থাকে, তবে কখনোই এরর ধরবে না
-    if (txt.includes("tap") || txt.includes("notification to your phone") || txt.includes("confirmed from your phone") || 
+    if (txt.includes("tap") || txt.includes("notification to your phone") || txt.includes("confirmed from your phone") ||
         txt.includes("unlocking task") || txt.includes("all quests") || txt.includes("completed") || txt.includes("claim your points")) {
         return null;
     }
 
     // ১. ভুল জিমেইল বা গুগল একাউন্ট না পাওয়ার সব এরর হ্যান্ডলার
     if (txt.includes("couldn't find your google account") || txt.includes("could not find your google account") ||
-        txt.includes("find your google account") || txt.includes("no account found") || 
-        txt.includes("account does not exist") || txt.includes("invalid email") || 
-        txt.includes("wrong email") || txt.includes("email not found") || 
+        txt.includes("find your google account") || txt.includes("no account found") ||
+        txt.includes("account does not exist") || txt.includes("invalid email") ||
+        txt.includes("wrong email") || txt.includes("email not found") ||
         txt.includes("enter a valid email") || txt.includes("doesn't match our records")) {
         return "📧 <b>জিমেইল ভুল / পাওয়া যায়নি!</b>\n\nগুগলে এই জিমেইল অ্যাড্রেসটি পাওয়া যায়নি। অনুগ্রহ করে সঠিক জিমেইল দিয়ে পুনরায় চেষ্টা করুন।";
     }
@@ -5650,7 +5714,7 @@ async function getLatestBotMessage(client = null, minTimestamp = 0) {
         if (msgs && msgs.length > 0) {
             const incoming = msgs.filter(m => !m.out);
             // সার্ভার ও টেলিগ্রাম ক্লকের সামান্য পার্থক্য যাতে মেসেজ বাদ না ফেলে (-15s tolerance)
-            const fresh = minTimestamp > 0 
+            const fresh = minTimestamp > 0
                 ? incoming.filter(m => (m.date * 1000) >= (minTimestamp - 15000))
                 : incoming;
 
@@ -5660,7 +5724,7 @@ async function getLatestBotMessage(client = null, minTimestamp = 0) {
                 return newest;
             }
         }
-    } catch (e) {}
+    } catch (e) { }
     return null;
 }
 
@@ -5743,13 +5807,33 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
     let refundAmt = 3;
     let refundHappened = false;
     try {
+        // ১. Cloudflare D1-এর সিকিউর লেজার রিফান্ড এন্ডপয়েন্টে কল (সার্ভার চেক: কাজ কমপ্লিট হয়ে থাকলে কখনোই রিফান্ড হবে না)
+        try {
+            const cfRes = await cfFetch(`${CF_API}/api/orders/refund`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderId, reason, actor: "render-worker" })
+            });
+            const cfData = await cfRes.json().catch(() => null);
+            if (cfData && !cfData.ok && (cfData.code === "completed" || cfData.code === "already_completed")) {
+                console.warn(`[REFUND STRICTLY BLOCKED]: Order ${orderId} is already completed on D1. Aborting refund.`);
+                completedOrdersTracker.add(orderId);
+                return;
+            }
+        } catch (cfErr) {
+            console.warn(`[REFUND CF WARNING]:`, cfErr && cfErr.message);
+        }
+
         await db.runTransaction(async (t) => {
             const ordRef = db.collection("orders").doc(orderId);
             const userRef = db.collection("users").doc(uid);
             const ordSnap = await t.get(ordRef);
             if (!ordSnap.exists) return;
             const ordData = ordSnap.data();
-            if (ordData.status === "completed" || ordData.status === "refunded") return;
+            if (ordData.status === "completed" || ordData.status === "refunded") {
+                if (ordData.status === "completed") completedOrdersTracker.add(orderId);
+                return;
+            }
 
             const userSnap = await t.get(userRef);
             const ud = userSnap.exists ? userSnap.data() : {};
@@ -5773,32 +5857,13 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 status: "refunded",
                 adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
                 refundedAt: admin.firestore.FieldValue.serverTimestamp(),
-                botProcessing: false
+                botProcessing: false,
+                promptNumber: admin.firestore.FieldValue.delete()
             });
             refundHappened = true;
         });
 
-        // শুধুমাত্র ফায়ারস্টোর যদি আসলেই রিফান্ড করে, কেবল তখনই D1-এ ক্রেডিট করা
-        if (refundHappened) {
-            try {
-                await cfFetch(`${CF_API}/api/wallet/credit`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
-                });
-                await cfFetch(`${CF_API}/api/orders/update`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        orderId: orderId,
-                        status: "refunded",
-                        adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
-                    })
-                });
-            } catch (cfErr) {}
-        }
-
-        if (userTgId) {
+        if (refundHappened && userTgId) {
             const notifyId = await getUserTgId(uid, userTgId);
             await notifyUserTelegram(notifyId,
                 `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
@@ -5806,8 +5871,9 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
                 `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`
             );
         }
-        // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
-    } catch (e) {}
+    } catch (e) {
+        console.warn(`[REFUND ERROR]:`, e && e.message);
+    }
 }
 
 async function processOrder(orderId, orderData, preAssignedWorker = null) {
@@ -5826,7 +5892,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ orderId, ...payload })
             });
-        } catch (e) {}
+        } catch (e) { }
     };
 
     try {
@@ -5854,9 +5920,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             inQueue: false,
             queuePosition: 0,
             assignedWorker: assignedWorker
-        }).catch(() => {});
+        }).catch(() => { });
 
-        await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
+        await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => { });
         await new Promise((r) => setTimeout(r, 1500));
 
         // নতুন বট মেনু অনুযায়ী '📍 Select Quest' বাটন ক্লিক বা টেক্সট পাঠানো
@@ -5867,9 +5933,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             if (!btnClicked) btnClicked = await clickInlineButton(initialMsg, "Quest", tg);
         }
         if (!btnClicked) {
-            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => {});
-            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => {});
-            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" }).catch(() => {});
+            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => { });
+            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => { });
+            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" }).catch(() => { });
         }
 
         let found = await waitForCondition((m) => {
@@ -5878,8 +5944,8 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         }, 25000, tg);
 
         if (!found) {
-            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => {});
-            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => {});
+            await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => { });
+            await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => { });
             found = await waitForCondition((m) => {
                 const txt = (m.message || "").toLowerCase();
                 return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest");
@@ -5893,7 +5959,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             const retryMenu = await getLatestBotMessage(tg);
             if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
         }
-        
+
         // গেম বাটনে ক্লিক না হলে কখনোই ইমেইল পাঠানো যাবে না!
         if (!clicked) {
             throw new Error(`Google Play বটের মেনু থেকে "${orderData.game}" সিলেক্ট করা যায়নি। দয়া করে অন্য কোনো গেম সিলেক্ট করুন।`);
@@ -5918,7 +5984,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         const credText = `${orderData.accEmail.trim()} ${orderData.accPass.trim()}`;
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
         const credSentTime = Date.now();
-        
+
         await orderRef.update({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." });
         await tg.sendMessage(TARGET_BOT, { message: credText });
 
@@ -5958,7 +6024,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 if (g) {
                     gamerSaved = true;
                     gamerName = g;
-                    try { await orderRef.update({ gamerName: g }); } catch (e) {}
+                    try { await orderRef.update({ gamerName: g }); } catch (e) { }
                 }
             }
 
@@ -5984,7 +6050,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
-                }).catch(() => {});
+                }).catch(() => { });
 
                 if (orderData.userTgId || orderData.uid) {
                     const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
@@ -6006,20 +6072,20 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ uid: orderData.uid, loyaltyStarsInc: 1 })
-                    }).catch(() => {});
+                    }).catch(() => { });
 
                     try {
                         await db.collection("users").doc(orderData.uid).update({
                             loyaltyStars: admin.firestore.FieldValue.increment(1)
                         });
-                    } catch (sErr) {}
+                    } catch (sErr) { }
                 }
 
-                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
+                try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) { }
 
                 // ২. সম্পূর্ণ ডেটাসহ সরাসরি অ্যাডমিনের টেলিগ্রামে ইনস্ট্যান্ট নোটিফিকেশন পাঠানো
                 const adminTgChatId = process.env.ADMIN_TG_ID || "7504616242";
-                const adminAlertText = 
+                const adminAlertText =
                     `🎉 <b>QUEST COMPLETED ALERT!</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `👤 <b>User:</b> ${orderData.name || "User"} (${orderData.email || "No Email"})\n` +
@@ -6035,7 +6101,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `✅ <i>Status: Completed on Worker [${assignedWorker || 'Bot'}]</i>`;
 
-                userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
+                userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => { });
 
                 // ৩. চ্যানেলে পাবলিক লগ পাঠানো
                 sendOrderLog(
@@ -6061,7 +6127,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 await orderRef.update({
                     adminMsg: loginSuccessMsg,
                     promptNumber: admin.firestore.FieldValue.delete()
-                }).catch(() => {});
+                }).catch(() => { });
             }
 
             // ৩. গুগল সিকিউরিটি ট্যাপ প্রম্পট এসেছে কিনা চেক (প্রম্পট আসার অর্থই পাসওয়ার্ড সঠিক!)
@@ -6075,7 +6141,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 const devText = devModel ? ` (${devModel})` : "";
                 const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
                 syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
-                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
+                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => { });
             }
 
             // ৪. এরর ফিল্টার: একবার পাসওয়ার্ড পার হয়ে প্রম্পট স্টেজে চলে গেলে বা লগইন হলে কখনোই পাসওয়ার্ড ভুল ধরা যাবে না!
@@ -6127,7 +6193,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
-                }).catch(() => {});
+                }).catch(() => { });
                 return;
             }
             throw new Error("সার্ভার রেসপন্স সময়সীমা অতিক্রম করেছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
@@ -6168,14 +6234,14 @@ async function updateQueuePositions() {
                 const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 15))));
                 // ইউজারকে সিরিয়াল নম্বর না দেখিয়ে প্রফেশনাল ক্লাউড প্রসেসিং মেসেজ দেওয়া (সিরিয়াল ইন্টারনাল থাকবে)
                 const msg = `⏳ ক্লাউড সার্ভারে আপনার রিকোয়েস্ট প্রসেসিং চলছে (${percentDone}% সম্পন্ন)। অনুগ্রহ করে পেজ কেটে বের হবেন না, লাইভ থাকুন...`;
-                
+
                 await docSnap.ref.update({
                     inQueue: true,
                     queuePosition: pos,
                     queuePercent: percentDone,
                     estimatedWaitSec: estWaitSec,
                     adminMsg: msg
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // Cloudflare D1-এ লাইভ কিউ স্ট্যাটাস আপডেট
                 try {
@@ -6190,7 +6256,7 @@ async function updateQueuePositions() {
                             adminMsg: msg
                         })
                     });
-                } catch (cfErr) {}
+                } catch (cfErr) { }
 
                 pos++;
             }
@@ -6237,13 +6303,13 @@ let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
-    initPrimeAutoResponder().catch(() => {});
+    initPrimeAutoResponder().catch(() => { });
     let primeReinitTimer = null;
     db.collection("tg_accounts").onSnapshot(() => {
         if (primeReinitTimer) clearTimeout(primeReinitTimer);
         primeReinitTimer = setTimeout(() => {
             primeReinitTimer = null;
-            initPrimeAutoResponder().catch(() => {});
+            initPrimeAutoResponder().catch(() => { });
         }, 3000);
     });
 
@@ -6254,10 +6320,10 @@ async function startMasterWorker() {
             const d = snap.exists ? snap.data() : {};
             botModeCache = (d && d.botMode === undefined) ? undefined : !!(d && d.botMode);
             console.log("[CONFIG] botMode =", botModeCache);
-        } catch (e) {}
+        } catch (e) { }
     });
 
-    getUsableTelegramClient().catch(() => {});
+    getUsableTelegramClient().catch(() => { });
 
     async function claimDailySingle(sessionStr) {
         if (!sessionStr) return;
@@ -6274,7 +6340,7 @@ async function startMasterWorker() {
                 if (!clicked) clicked = await clickInlineButton(targetMsg, "Daily");
             }
         } finally {
-            try { await temp.disconnect(); } catch (e) {}
+            try { await temp.disconnect(); } catch (e) { }
         }
     }
 
@@ -6284,11 +6350,11 @@ async function startMasterWorker() {
             for (const docSnap of snap.docs) {
                 const acc = docSnap.data();
                 if (acc.session) {
-                    await claimDailySingle(acc.session).catch(() => {});
+                    await claimDailySingle(acc.session).catch(() => { });
                     await new Promise((r) => setTimeout(r, 3000));
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
     }, 12 * 60 * 60 * 1000);
 
     const notifiedDeposits = new Set();
@@ -6300,7 +6366,7 @@ async function startMasterWorker() {
                 if (notifiedDeposits.has(depId)) return;
                 notifiedDeposits.add(depId);
 
-                const adminAlert = 
+                const adminAlert =
                     `💰 <b>NEW DEPOSIT PENDING!</b>\n\n` +
                     `👤 <b>User:</b> ${dep.name || "User"} (${dep.email || "No Email"})\n` +
                     `💳 <b>Method:</b> ${dep.method}\n` +
@@ -6311,7 +6377,7 @@ async function startMasterWorker() {
                     `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>✅</b> পাঠালে Approve হবে।</i>\n` +
                     `👉 <i>এই মেসেজে রিপ্লাই দিয়ে <b>❌</b> পাঠালে Reject হবে।</i>`;
 
-                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => {});
+                userNotifyBot.sendMessage(process.env.ADMIN_TG_ID || "7504616242", adminAlert, { parse_mode: "HTML" }).catch(() => { });
             }
         });
     });
@@ -6338,16 +6404,16 @@ async function startMasterWorker() {
                             uName = uName || uData.name || uData.displayName || "User";
                             uEmail = uEmail || uData.email || "No Email";
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
 
                 const adminChat = process.env.ADMIN_TG_ID || "7504616242";
                 const workerObjCheck = await getAvailableWorkerClient();
-                const workerStatusText = workerObjCheck 
-                    ? `🤖 <b>Assigned Worker:</b> <code>${workerObjCheck.phone}</code> (${safeTgHtml(workerObjCheck.name || 'Worker')})\n🪙 <b>Worker Token Bal:</b> <code>${workerObjCheck.balance} Tokens</code>` 
+                const workerStatusText = workerObjCheck
+                    ? `🤖 <b>Assigned Worker:</b> <code>${workerObjCheck.phone}</code> (${safeTgHtml(workerObjCheck.name || 'Worker')})\n🪙 <b>Worker Token Bal:</b> <code>${workerObjCheck.balance} Tokens</code>`
                     : `⚠️ <b>No Worker Free:</b> <i>সকল টেলিগ্রাম অ্যাকাউন্ট ব্যস্ত বা অফলাইন</i>`;
 
-                const alertText = 
+                const alertText =
                     `🚨 <b>NEW PP TASK ORDER!</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🎮 <b>Game:</b> ${safeTgHtml(ord.game || 'Task')}\n` +
@@ -6404,11 +6470,11 @@ async function startMasterWorker() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ orderId, adminMsg: queueMsg, inQueue: true })
-                }).catch(() => {});
+                }).catch(() => { });
                 db.collection("orders").doc(orderId).update({
                     adminMsg: queueMsg,
                     inQueue: true
-                }).catch(() => {});
+                }).catch(() => { });
             }
         }
     }
@@ -6441,7 +6507,7 @@ async function startMasterWorker() {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
     }, 3000);
 
     // ফায়ারবেসের ফলব্যাক চেক: কোটা বাঁচাতে প্রতি ৫ মিনিটে ব্যাকআপ চেক (অন-স্ন্যাপশট অলরেডি রিয়েলটাইমে কাজ করছে)
@@ -6453,7 +6519,7 @@ async function startMasterWorker() {
                 const ord = doc.data();
                 handleIncomingOrder(doc.id, ord, "Firestore Fallback");
             }
-        } catch (e) {}
+        } catch (e) { }
     }, 300000);
 
     console.log("[MASTER INIT] Active!");
