@@ -1510,54 +1510,48 @@ async function checkAllowedCountry(rawPhone) {
     return { allowed: false, phone: clean, isProbashi: false };
 }
 
-// ---------------- 5-CHARACTER ALPHANUMERIC ANTI-BOT CAPTCHA ----------------
-const pendingCaptchas = new Map(); // userId -> { code, expires }
+// ---------------- 5 REAL IMAGES WITH 30s TIMER & 2 CHANCES ----------------
+const pendingCaptchas = new Map(); // userId -> { code, expires, attempts }
 
-function generateAlphanumericCaptcha() {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 5; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-}
+const IMAGE_CAPTCHA_POOL = [
+    { code: "3H7ZK", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/3H7ZK.png" },
+    { code: "4J8K7", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/4J8K7.png" },
+    { code: "6P9T3", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/6P9T3.png" },
+    { code: "8K4Q7", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/8K4Q7.png" },
+    { code: "9F2M6", url: "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/webp/9F2M6.png" }
+];
 
-async function sendRandomCaptcha(chatId, userId, editMessageId = null) {
-    const code = generateAlphanumericCaptcha();
+async function sendRandomCaptcha(chatId, userId, attemptNum = 1) {
+    const item = IMAGE_CAPTCHA_POOL[Math.floor(Math.random() * IMAGE_CAPTCHA_POOL.length)];
     pendingCaptchas.set(userId, {
-        code: code,
-        expires: Date.now() + 300000 // 5 minutes validity
+        code: item.code.toUpperCase(),
+        expires: Date.now() + 30000, // ঠিক ৩০ সেকেন্ড সময়সীমা
+        attempts: attemptNum
     });
 
-    const spacedArt = code.split("").join("  •  ");
-    const text = 
-        `🤖 <b>হিউম্যান সিকিউরিটি ভেরিফিকেশন (CAPTCHA)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `রোবট ও ফেক স্ক্রিপ্ট প্রতিরোধে নিচের বক্সের <b>৫ অক্ষরের কোডটি</b> দেখে চ্যাটে লিখে পাঠান:\n\n` +
-        `<code>╔══════════════════════╗</code>\n` +
-        `<code>║   🎯   ${spacedArt}   ║</code>\n` +
-        `<code>╚══════════════════════╝</code>\n\n` +
-        `👉 <b>আপনার করণীয়:</b> উপরের কোডটি দেখে হুবহু লিখে এই মেসেজের রিপ্লাই দিন বা চ্যাটে পাঠিয়ে দিন।\n\n` +
-        `⚠️ <b>সতর্কতা:</b> ভুল কোড লিখলে অ্যাকাউন্ট সাথে সাথে <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
+    const caption = 
+        `🖼️ <b>ছবি দেখে ক্যাপচা পূরণ করুন (৩০ সেকেন্ড সময়)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `রোবট ও স্ক্রিপ্ট প্রতিরোধে <b>উপরের ছবিতে থাকা ৫ অক্ষরের কোডটি</b> দেখে দ্রুত লিখে পাঠান:\n\n` +
+        `⏱️ <b>সময়সীমা:</b> ৩০ সেকেন্ড (সুযোগ: <b>${attemptNum}/২</b>)\n` +
+        `👉 ছবিতে থাকা ইংরেজি বড় হাতের অক্ষর ও সংখ্যা দেখে লিখে সেন্ড করুন।\n\n` +
+        `⚠️ <b>সতর্কতা:</b> পরপর ২ বার ভুল বা সময় পার হলে অ্যাকাউন্ট <b>১২ ঘণ্টার জন্য লক</b> হয়ে যাবে!`;
 
-    if (editMessageId) {
-        try {
-            return await userNotifyBot.editMessageText(text, {
-                chat_id: chatId,
-                message_id: editMessageId,
-                parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [[{ text: "🔄 নতুন কোড দিন (New Code)", callback_data: "start_captcha" }]]
-                }
-            });
-        } catch (e) {}
+    const kb = {
+        inline_keyboard: [[{ text: "🔄 নতুন ছবি দিন (Change Image)", callback_data: "start_captcha" }]]
+    };
+
+    try {
+        return await userNotifyBot.sendPhoto(chatId, item.url, {
+            caption: caption,
+            parse_mode: "HTML",
+            reply_markup: kb
+        });
+    } catch (e) {
+        return await userNotifyBot.sendMessage(chatId, caption, {
+            parse_mode: "HTML",
+            reply_markup: kb
+        });
     }
-
-    return await userNotifyBot.sendMessage(chatId, text, {
-        parse_mode: "HTML",
-        reply_markup: {
-            inline_keyboard: [[{ text: "🔄 নতুন কোড দিন (New Code)", callback_data: "start_captcha" }]]
-        }
-    });
 }
 
 async function checkUserMembership(userId) {
@@ -1596,9 +1590,23 @@ async function checkUserMembership(userId) {
 async function enforceChannelMembership(chatId, userId) {
     const isMember = await checkUserMembership(userId);
     if (!isMember) {
+        // ইউজার চ্যানেল বা গ্রুপ থেকে বের হয়ে গেলে ভেরিফিকেশন বাতিল করা
+        try {
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get();
+            if (userSnap.exists && userSnap.data().isVerified) {
+                await userRef.set({ isVerified: false, verificationStage: "awaiting_captcha" }, { merge: true });
+                cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: userId, isVerified: 0 })
+                }).catch(() => {});
+            }
+        } catch (e) {}
+
         await userNotifyBot.sendMessage(chatId,
-            `❌ <b>আপনি আমাদের চ্যানেল বা গ্রুপে জয়েন নেই!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `বট ব্যবহার করতে এবং রেফারেল বা অফার অ্যাক্সেস করতে আপনাকে অবশ্যই নিচের সব চ্যানেল ও গ্রুপে জয়েন থাকতে হবে:\n\n` +
+            `⚠️ <b>আপনি চ্যানেল বা গ্রুপ থেকে লিভ নিয়েছেন!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `গ্রুপ বা চ্যানেল থেকে বের হয়ে যাওয়ায় আপনার ভেরিফিকেশন বাতিল হয়েছে। পুনরায় বট ও রেফারেল সুবিধা পেতে নিচের সব চ্যানেল ও গ্রুপে জয়েন করে ক্যাপচা পূরণ করুন:\n\n` +
             `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
             `├ 📋 <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
             `└ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n\n` +
@@ -1609,7 +1617,7 @@ async function enforceChannelMembership(chatId, userId) {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "🚀 Join All Channels (1-Click Folder)", url: FOLDER_INVITE_LINK }],
-                        [{ text: "🔄 জয়েন করেছি, চেক করুন", callback_data: "recheck_channels" }]
+                        [{ text: "🔄 জয়েন করেছি, ক্যাপচা ভেরিফাই করুন", callback_data: "recheck_channels" }]
                     ]
                 }
             }
@@ -1750,7 +1758,10 @@ userNotifyBot.on("message", async (msg) => {
         const chatId = msg.chat.id;
         const fromId = msg.from ? msg.from.id.toString() : chatId.toString();
 
-        // স্থায়ী মেনু বাটন হ্যান্ডলার (Quest Bot এর মতো)
+        // অ্যাডমিন স্ট্যাটাস সবার উপরে নিশ্চিতভাবে চেক করা
+        const isFromAdmin = isBotAdmin(chatId) || (msg.from && isBotAdmin(msg.from.id));
+
+        // স্থায়ী মেনু বাটন হ্যান্ডলার
         if (text === "🚀 Auto Quest (3s)" || text === "🌐 Visit Website") {
             return userNotifyBot.sendMessage(chatId,
                 `⚡ <b>PP MOD AUTO QUEST ENGINE</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1761,16 +1772,7 @@ userNotifyBot.on("message", async (msg) => {
             );
         }
         if (text === "👤 Profile") {
-            const isJoined = await enforceChannelMembership(chatId, fromId);
-            if (!isJoined) return;
-            return userNotifyBot.sendMessage(chatId,
-                `👤 <b>আপনার একাউন্ট প্রোফাইল</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                `🆔 <b>Telegram ID:</b> <code>${fromId}</code>\n` +
-                `📛 <b>Name:</b> ${safeTgHtml(msg.from.first_name || "User")}\n` +
-                `✈️ <b>Username:</b> ${msg.from.username ? '@' + msg.from.username : 'None'}\n\n` +
-                `🚀 <b>Web App:</b> <a href="https://ppmods.netlify.app/">https://ppmods.netlify.app/</a>`,
-                { parse_mode: "HTML" }
-            );
+            return sendFullUserProfile(chatId, fromId, msg.from);
         }
         if (text === "👥 Referral") {
             const isJoined = await enforceChannelMembership(chatId, fromId);
@@ -1784,6 +1786,13 @@ userNotifyBot.on("message", async (msg) => {
             if (!isJoined) return;
             return sendLeaderboard(chatId, fromId, null);
         }
+        if (text === "⚡ Admin Controls" && isFromAdmin) {
+            const panel = buildAdminControlDashboard();
+            return userNotifyBot.sendMessage(chatId, panel.text, {
+                parse_mode: "HTML",
+                reply_markup: panel.reply_markup
+            });
+        }
         if (text === "🔐 Verify Account") {
             const isJoined = await checkUserMembership(fromId);
             if (!isJoined) {
@@ -1795,7 +1804,7 @@ userNotifyBot.on("message", async (msg) => {
             if (userData.isVerified) {
                 return userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট ইতিমধ্যে সম্পূর্ণ ভেরিফাইড!</b>", {
                     parse_mode: "HTML",
-                    reply_markup: getMainMenuReplyKeyboard(true)
+                    reply_markup: getMainMenuReplyKeyboard(true, isFromAdmin)
                 });
             }
             if (userData.phone) {
@@ -1804,7 +1813,7 @@ userNotifyBot.on("message", async (msg) => {
             return userNotifyBot.sendMessage(chatId,
                 `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `নিচের <b>"📱 Share Contact / ফোন নম্বর ভেরিফাই"</b> বাটনে চাপ দিন:\n\n` +
-                `✅ <b>অনুমোদিত দেশ:</b> বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), সৌদি আরব (+966), দুবাই (+971)।`,
+                `✅ <b>অনুমোদিত দেশ:</b> বাংলাদেশ (+880)। প্রবাসী বাংলাদেশিরা নম্বর অ্যালাউ করতে এডমিনের সাথে যোগাযোগ করুন।`,
                 {
                     parse_mode: "HTML",
                     reply_markup: {
@@ -1823,19 +1832,10 @@ userNotifyBot.on("message", async (msg) => {
                 { parse_mode: "HTML" }
             );
         }
-        if (text === "⚡ Admin Controls" && isFromAdmin) {
-            const panel = buildAdminControlDashboard();
-            return userNotifyBot.sendMessage(chatId, panel.text, {
-                parse_mode: "HTML",
-                reply_markup: panel.reply_markup
-            });
-        }
 
         // Skip only commands with separate dedicated onText handlers
         if (/^\/(?:start|profile|leaderboard|top|lb|referr|refer|referral|ref|panel544)(?:@\w+)?/i.test(text)) return;
         const replyTo = msg.reply_to_message;
-
-        const isFromAdmin = isBotAdmin(msg.chat.id) || (msg.from && isBotAdmin(msg.from.id));
 
         // ---------------- 1. PHONE CONTACT VERIFICATION (STEP 1) ----------------
         if (msg.contact) {
@@ -1928,37 +1928,30 @@ userNotifyBot.on("message", async (msg) => {
             );
         }
 
-        // ---------------- 2. USER TEXT CAPTCHA SUBMISSION ----------------
+        // ---------------- 2. USER TEXT CAPTCHA (30s & 2 ATTEMPTS) ----------------
         if (pendingCaptchas.has(fromId) && !text.startsWith("/")) {
             const pending = pendingCaptchas.get(fromId);
             const userRef = db.collection("tg_bot_users").doc(fromId);
             const userSnap = await userRef.get().catch(() => null);
             const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
 
-            if (Date.now() > pending.expires) {
-                pendingCaptchas.delete(fromId);
-                return userNotifyBot.sendMessage(chatId, "⌛ <b>ক্যাপচার ৫ মিনিট সময় শেষ!</b>\nনিচের বাটনে চাপ দিয়ে নতুন কোড নিন:", {
-                    parse_mode: "HTML",
-                    reply_markup: {
-                        inline_keyboard: [[{ text: "🔄 নতুন ক্যাপচা নিন", callback_data: "start_captcha" }]]
-                    }
-                });
+            // ১২ ঘণ্টার লকআউট চেক
+            if (userData.captchaLockedUntil) {
+                const lockMs = Number(userData.captchaLockedUntil) - Date.now();
+                if (lockMs > 0) {
+                    const hoursLeft = Math.floor(lockMs / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil((lockMs % (1000 * 60 * 60)) / (1000 * 60));
+                    return userNotifyBot.sendMessage(chatId, `🚫 আপনার অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক! আর ${hoursLeft} ঘণ্টা ${minsLeft} মিনিট পর চেষ্টা করুন।`);
+                }
             }
 
+            const isExpired = Date.now() > pending.expires;
             const cleanInput = text.toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
             const correctCode = pending.code.toUpperCase().trim();
+            const isCorrect = !isExpired && (cleanInput === correctCode);
 
-            // ৫ অক্ষরের কম বা বেশি দিলে ওয়ার্নিং দেবে, সাথে সাথে লক করবে না
-            if (cleanInput.length !== 5) {
-                return userNotifyBot.sendMessage(chatId,
-                    `⚠️ <b>কোডটি ঠিক ৫ অক্ষরের হতে হবে!</b>\n` +
-                    `বক্সে দেখানো ৫ অক্ষরের কোডটি দেখে সঠিকভাবে লিখে পাঠান।`,
-                    { parse_mode: "HTML" }
-                );
-            }
-
-            if (cleanInput === correctCode) {
-                // ✅ ক্যাপচা সফল! সম্পূর্ণ ভেরিফাইড
+            if (isCorrect) {
+                // ✅ ক্যাপচা সফল!
                 pendingCaptchas.delete(fromId);
 
                 await userRef.set({
@@ -1984,7 +1977,7 @@ userNotifyBot.on("message", async (msg) => {
                     })
                 }).catch(() => {});
 
-                // রেফারারকে বোনাস প্রদান (+০.৫ Coins ও +১ রেফারেল)
+                // রেফারারকে বোনাস প্রদান
                 const targetInviterId = userData.inviterId;
                 if (targetInviterId && targetInviterId !== fromId) {
                     const bonusToAdd = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
@@ -2017,13 +2010,13 @@ userNotifyBot.on("message", async (msg) => {
 
                 userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট সফলভাবে সম্পূর্ণ ভেরিফাইড হয়েছে!</b>", {
                     parse_mode: "HTML",
-                    reply_markup: getMainMenuReplyKeyboard(true)
+                    reply_markup: getMainMenuReplyKeyboard(true, isFromAdmin)
                 }).catch(() => {});
 
                 return userNotifyBot.sendMessage(chatId,
                     `🎉 <b>অভিনন্দন! ক্যাপচা সফল হয়েছে!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `📱 ফোন নম্বর: <b>+${userData.phone || "Verified"}</b>\n` +
-                    `🧩 ক্যাপচা: <b>উত্তীর্ণ (রিয়েল হিউম্যান)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `🧩 ক্যাপচা: <b>সফলভাবে যাচাইকৃত</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                     `এখন থেকে আপনি সম্পূর্ণ নিরাপদভাবে বন্ধুদের রেফার করে কয়েন ইনকাম করতে পারবেন।`,
                     {
                         parse_mode: "HTML",
@@ -2036,18 +2029,38 @@ userNotifyBot.on("message", async (msg) => {
                     }
                 );
             } else {
-                // ❌ ভুল কোড ইনপুট -> ১২ ঘণ্টার লকআউট
-                pendingCaptchas.delete(fromId);
-                const lockedUntil = Date.now() + (12 * 60 * 60 * 1000);
+                // ❌ ব্যর্থ (৩০ সেকেন্ড শেষ অথবা ভুল কোড)
+                const currentAttempts = pending.attempts || 1;
 
-                await userRef.set({ captchaLockedUntil: lockedUntil }, { merge: true }).catch(() => {});
+                if (currentAttempts < 2) {
+                    // ২য় সুযোগ দেওয়া হবে (নতুন ছবি ও ৩০ সেকেন্ড)
+                    pendingCaptchas.delete(fromId);
+                    const reason = isExpired ? "৩০ সেকেন্ড সময় শেষ হয়ে গেছে" : "ভুল কোড লিখেছেন";
 
-                return userNotifyBot.sendMessage(chatId,
-                    `❌ <b>ভুল কোড! ভেরিফিকেশন ১২ ঘণ্টার জন্য লক!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `আপনি সঠিক কোড দেননি। স্ক্রিপ্ট ও ফেক রেফারেল রোধে আপনার ভেরিফিকেশন <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
-                    `⏳ ১২ ঘণ্টা পর আপনি পুনরায় সুযোগ পাবেন।`,
-                    { parse_mode: "HTML" }
-                );
+                    await userNotifyBot.sendMessage(chatId,
+                        `❌ <b>${reason}!</b>\n` +
+                        `⚠️ আপনি আর <b>১ বার সুযোগ</b> পাবেন (সুযোগ: ২/২)। নিচের ছবিতে থাকা নতুন কোডটি ৩০ সেকেন্ডের মধ্যে পাঠান:`,
+                        { parse_mode: "HTML" }
+                    );
+                    return sendRandomCaptcha(chatId, fromId, 2);
+                } else {
+                    // ২ বারই ব্যর্থ -> ১২ ঘণ্টার লকআউট
+                    pendingCaptchas.delete(fromId);
+                    const lockDuration = 12 * 60 * 60 * 1000;
+                    const lockedUntil = Date.now() + lockDuration;
+
+                    await userRef.set({
+                        captchaLockedUntil: lockedUntil,
+                        isVerified: false
+                    }, { merge: true }).catch(() => {});
+
+                    return userNotifyBot.sendMessage(chatId,
+                        `🚫 <b>২ বারই ব্যর্থ হয়েছেন! অ্যাকাউন্ট ১২ ঘণ্টার জন্য লক</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `আপনি ৩০ সেকেন্ডে সঠিক কোড দিতে পারেননি। রোবট ও ফেক স্ক্রিপ্ট প্রতিরোধে আপনার অ্যাকাউন্ট <b>১২ ঘণ্টার জন্য লক</b> করা হয়েছে।\n\n` +
+                        `⏳ ১২ ঘণ্টা পর আপনি পুনরায় ভেরিফাই করার সুযোগ পাবেন।\n━━━━━━━━━━━━━━━━━━━━━━`,
+                        { parse_mode: "HTML" }
+                    );
+                }
             }
         }
 
@@ -2994,15 +3007,13 @@ userNotifyBot.onText(/^\/(?:leaderboard|top|lb)(?:@\w+)?(?:\s+(.+))?$/i, async (
     await sendLeaderboard(chatId, userId, null);
 });
 
-// ---------------- GUARANTEED USER COMMAND: /profile (INSTANT D1 - ZERO LAG) ----------------
-userNotifyBot.onText(/^\/profile/i, async (msg) => {
+// ---------------- COMPLETE FULL-DETAIL USER PROFILE ENGINE ----------------
+async function sendFullUserProfile(chatId, userId, msgFrom) {
     try {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id.toString();
         const isJoined = await enforceChannelMembership(chatId, userId);
         if (!isJoined) return;
 
-        // Cloudflare D1 থেকে ইনস্ট্যান্ট লাইভ ব্যালেন্স ও ডাটা ফেচ
+        // ১. Cloudflare D1 ও Firestore থেকে ওয়েবসাইট অ্যাকাউন্ট লিংকড আছে কিনা চেক
         let webUser = null;
         try {
             const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${userId}`);
@@ -3012,37 +3023,64 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
             }
         } catch (e) {}
 
+        if (!webUser) {
+            try {
+                const uSnap = await db.collection("users").where("tgChatId", "==", userId).limit(1).get();
+                if (!uSnap.empty) {
+                    webUser = { uid: uSnap.docs[0].id, ...uSnap.docs[0].data() };
+                }
+            } catch (e) {}
+        }
+
+        // ২. টেলিগ্রাম বট ডেটাবেজ থেকে রেফার সংখ্যা ও বোনাস ফেচ
         let tgData = {};
         try {
-            const snap = await Promise.race([
-                db.collection("tg_bot_users").doc(userId).get(),
-                new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 1500))
-            ]);
-            if (snap && snap.exists) tgData = snap.data();
+            const snap = await db.collection("tg_bot_users").doc(userId).get();
+            if (snap.exists) tgData = snap.data();
         } catch (e) {}
 
-        const name = (msg.from.first_name || "User").replace(/[<>&]/g, "");
-        const username = msg.from.username ? `@${msg.from.username}` : "None";
+        const name = safeTgHtml((msgFrom && msgFrom.first_name) || tgData.name || "User");
+        const username = (msgFrom && msgFrom.username) ? `@${msgFrom.username}` : (tgData.username || "None");
+        const userPhone = tgData.phone ? `+${tgData.phone}` : "Not Shared";
+        const isVerified = !!tgData.isVerified;
+
         const coinsBal = webUser ? Number(webUser.balance || 0) : 0;
         const realBal = webUser ? Number(webUser.realBalance !== undefined ? webUser.realBalance : webUser.balance || 0) : 0;
         const bonusBal = webUser ? Number(webUser.bonusBalance || 0) : 0;
         const playPoints = webUser ? Number(webUser.playPoints || 0) : 0;
         const loyaltyStars = webUser ? Number(webUser.loyaltyStars || 0) : 0;
-        const refBal = Number(tgData.refBalance || 0);
+
+        const refCount = Number(tgData.referralCount || 0);
+        const refEarnings = Number(tgData.refBalance || 0);
+
+        let webStatusText = "";
+        if (webUser) {
+            webStatusText = 
+                `├ 🔗 <b>Status:</b> ✅ Connected (সংযুক্ত)\n` +
+                `└ 🆔 <b>Web UID:</b> <code>${webUser.uid}</code>\n`;
+        } else {
+            webStatusText = 
+                `├ 🔗 <b>Status:</b> ⚠️ Not Linked (যুক্ত নেই)\n` +
+                `└ 💡 <i>ওয়েবসাইটে Profile > Connect Telegram এ এই ID (<code>${userId}</code>) দিন</i>\n`;
+        }
 
         const profileMsg = 
-            `👤 <b>MY ACCOUNT PROFILE</b>\n` +
+            `👤 <b>YOUR ACCOUNT PROFILE</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `📛 <b>Name:</b> ${name}\n` +
             `✈️ <b>Username:</b> ${username}\n` +
             `🆔 <b>Telegram ID:</b> <code>${userId}</code>\n` +
-            (webUser ? `🌐 <b>Web UID:</b> <code>${webUser.uid}</code>\n` : `🌐 <b>Web Status:</b> <i>Not Linked (ওয়েবসাইটে Profile > Connect Telegram এ এই ID দিন)</i>\n`) +
-            `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🪙 <b>Total PP Coins:</b> <b>${coinsBal} Coins</b>\n` +
-            `   ├ 💰 Real: <b>${realBal}</b> | 🎁 Bonus: <b>${bonusBal}</b>\n` +
-            `৳ <b>Taka Wallet:</b> <b>৳ ${playPoints}</b>\n` +
-            `🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n` +
-            `👥 <b>Bot Refer Balance:</b> <b>${refBal} Coins</b>\n` +
+            `📱 <b>Phone:</b> <code>${userPhone}</code> ${isVerified ? '(Verified ✓)' : '(Unverified)'}\n\n` +
+            `🌐 <b>PP MOD Web Connection:</b>\n` +
+            webStatusText + `\n` +
+            `💰 <b>YOUR BALANCES:</b>\n` +
+            `├ 🪙 <b>Total PP Coins:</b> <b>${coinsBal} Coins</b>\n` +
+            `│  ├ 💰 Real: <b>${realBal}</b> | 🎁 Bonus: <b>${bonusBal}</b>\n` +
+            `├ ৳ <b>Taka Wallet:</b> <b>৳ ${playPoints}</b>\n` +
+            `└ 🎖️ <b>Loyalty Stars:</b> <b>${loyaltyStars} / 10 Stars</b>\n\n` +
+            `👥 <b>REFERRAL STATS:</b>\n` +
+            `├ 👥 <b>মোট সফল রেফার:</b> <b>${refCount} জন</b>\n` +
+            `└ 💰 <b>রেফারেল আয়:</b> <b>${refEarnings} PP Coins</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🚀 <a href="https://ppmods.netlify.app/">Open PP MOD Web App</a>`;
 
@@ -3051,12 +3089,21 @@ userNotifyBot.onText(/^\/profile/i, async (msg) => {
             disable_web_page_preview: true,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "👥 রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }],
-                    [{ text: "🏆 লিডারবোর্ড", callback_data: "show_leaderboard" }]
+                    [{ text: "👥 রেফারেল ড্যাশবোর্ড", callback_data: "my_ref_info" }, { text: "🏆 লিডারবোর্ড", callback_data: "show_leaderboard" }],
+                    [{ text: "🌐 Open Web App", url: "https://ppmods.netlify.app/" }]
                 ]
             }
         });
-    } catch (e) {}
+    } catch (err) {
+        console.error("sendFullUserProfile err:", err);
+    }
+}
+
+// ---------------- GUARANTEED USER COMMAND: /profile ----------------
+userNotifyBot.onText(/^\/profile/i, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    await sendFullUserProfile(chatId, userId, msg.from);
 });
 
 // Helper: Admin Bot Panel Builder
@@ -3259,14 +3306,22 @@ userNotifyBot.on("callback_query", async (query) => {
 
         // ---------------- ADMIN INTERACTIVE CONTROL PANEL CALLBACKS ----------------
         if (data === "adm_open_panel") {
-            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+            if (!isBotAdmin(query.from.id)) return;
             const panel = buildAdminControlDashboard();
-            return userNotifyBot.editMessageText(panel.text, {
-                chat_id: chatId,
-                message_id: query.message.message_id,
-                parse_mode: "HTML",
-                reply_markup: panel.reply_markup
-            }).catch(() => {});
+            try {
+                return await userNotifyBot.editMessageText(panel.text, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: "HTML",
+                    reply_markup: panel.reply_markup
+                });
+            } catch (err) {
+                return await userNotifyBot.sendMessage(chatId, panel.text, {
+                    parse_mode: "HTML",
+                    reply_markup: panel.reply_markup
+                });
+            }
         }
 
         if (data === "adm_ask_reset_all") {
@@ -3851,12 +3906,10 @@ userNotifyBot.on("callback_query", async (query) => {
             return userNotifyBot.sendMessage(chatId,
                 `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `বট ব্যবহার ও রেফারেল সুবিধা পেতে নিচের ২টি সহজ ধাপ সম্পন্ন করুন:\n\n` +
-                `📱 <b>ধাপ ১:</b> নিচের <b>"📱 Share Contact / ফোন নম্বর ভেরিফাই"</b> বাটনে চাপ দিন (শুধুমাত্র রিয়েল অ্যাকাউন্ট নিশ্চিত করতে)।\n` +
-                `🧩 <b>ধাপ ২:</b> রোবট প্রতিরোধ ক্যাপচা পূরণ করুন।\n\n` +
-                `⚠️ <b>অনুমোদিত দেশসমূহ:</b>\n` +
-                `🇧🇩 বাংলাদেশ (+880) | 🇮🇳 ভারত (+91) | 🇵🇰 পাকিস্তান (+92)\n` +
-                `🇪🇬 মিশর (+20) | 🇸🇦 সৌদি আরব (+966) | 🇦🇪 দুবাই (+971) | 🇮🇷 ইরান (+98)\n` +
-                `<i>(অন্যান্য দেশের কোনো ভার্চুয়াল নম্বর গ্রহণযোগ্য নয়)</i>\n━━━━━━━━━━━━━━━━━━━━━━`,
+                `📱 <b>ধাপ ১:</b> নিচের <b>"📱 Share Contact / ফোন নম্বর ভেরিফাই"</b> বাটনে চাপ দিন।\n` +
+                `🖼️ <b>ধাপ ২:</b> ছবিতে থাকা ক্যাপচা কোডটি পূরণ করুন।\n\n` +
+                `🇧🇩 <b>অনুমোদিত দেশ:</b> শুধুমাত্র <b>বাংলাদেশি নম্বর (+880)</b> অনুমোদিত।\n` +
+                `<i>(প্রবাসী বাংলাদেশিরা নম্বর ভেরিফাই করতে এডমিনের সাথে যোগাযোগ করুন: @Blackmoney54)</i>\n━━━━━━━━━━━━━━━━━━━━━━`,
                 {
                     parse_mode: "HTML",
                     reply_markup: {
@@ -4161,7 +4214,7 @@ userNotifyBot.on("callback_query", async (query) => {
             return userNotifyBot.sendMessage(chatId,
                 `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
                 `বট ব্যবহার ও রেফারেল সুবিধা পেতে নিচের বাটনে চাপ দিয়ে ফোন নম্বর শেয়ার করুন:\n\n` +
-                `⚠️ <b>অনুমোদিত দেশ:</b> বাংলাদেশ (+880), ভারত (+91), পাকিস্তান (+92), মিশর (+20), সৌদি আরব (+966), দুবাই (+971), ইরান (+98)।`,
+                `🇧🇩 <b>অনুমোদিত দেশ:</b> শুধুমাত্র <b>বাংলাদেশি নম্বর (+880)</b> সরাসরি অনুমোদিত। প্রবাসী বাংলাদেশিরা নম্বর ভেরিফাই করতে এডমিনের সাথে যোগাযোগ করুন (@Blackmoney54)।`,
                 {
                     parse_mode: "HTML",
                     reply_markup: {
