@@ -9915,11 +9915,12 @@
             const isCompleted = status === 'completed';
             const isRefunded = status === 'refunded' || status === 'rejected';
 
-            // ১. ভুল পাসওয়ার্ড / ক্রেডেনশিয়াল ডিটেকশন (কেবলমাত্র নিশ্চিতভাবে পাসওয়ার্ড ভুল হলে)
+            // ১. ভুল পাসওয়ার্ড / ক্রেডেনশিয়াল ডিটেকশন
             const isPassError = isRefunded && (
-                rawLower.includes('ভুল পাসওয়ার্ড') || rawLower.includes('পাসওয়ার্ড ভুল') ||
-                rawLower.includes('wrong password') || rawLower.includes('incorrect password') ||
-                rawLower.includes('password error')
+                rawLower.includes('পাসওয়ার্ড') || rawLower.includes('password') ||
+                rawLower.includes('incorrect') || rawLower.includes('wrong') ||
+                rawLower.includes('32') || rawLower.includes('34') ||
+                rawLower.includes('authenticator') || rawLower.includes('লগইন করা যাচ্ছে না')
             );
 
             // ২. ফোন থেকে লগইন সফল ও টাস্ক আনলক অবস্থা
@@ -14217,14 +14218,10 @@
             try {
                 // Step A: Cloudflare D1 Edge Wallet পেমেন্ট (ফায়ারবেস কোটা ছাড়া সরাসরি টাস্ক পেইড)
                 let newBalData = null;
-                let tok = '';
-                try { if (u && u.getIdToken) tok = await u.getIdToken(); } catch (e) {}
-                const payHeaders = { 'Content-Type': 'application/json' };
-                if (tok) payHeaders['Authorization'] = 'Bearer ' + tok;
                 const payRes = await fetch(`${CF_API}/api/wallet/pay-task`, {
                     method: 'POST',
-                    headers: payHeaders,
-                    body: JSON.stringify({ uid: u.uid, feeCoins: feeCoins, isFree: isFree, game: (window._payGameTitle || 'Task') })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, feeCoins: feeCoins, isFree: isFree })
                 });
                 const payData = await payRes.json();
                 if (!payData.ok) {
@@ -14577,9 +14574,10 @@
             // লগইন স্ট্যাটাস ডিটেইলস নির্ণয়
             const rawMsg = (ord.adminMsg || '').toString().toLowerCase();
             const isPassError = isRefunded && (
-                rawMsg.includes('ভুল পাসওয়ার্ড') || rawMsg.includes('পাসওয়ার্ড ভুল') ||
-                rawMsg.includes('wrong password') || rawMsg.includes('incorrect password') ||
-                rawMsg.includes('password error')
+                rawMsg.includes('পাসওয়ার্ড') || rawMsg.includes('password') ||
+                rawMsg.includes('incorrect') || rawMsg.includes('wrong') ||
+                rawMsg.includes('32') || rawMsg.includes('34') ||
+                rawMsg.includes('authenticator') || rawMsg.includes('লগইন করা যাচ্ছে না')
             );
             const isLoginSuccess = !isRefunded && (
                 isCompleted || rawMsg.includes('লগইন সফল') ||
@@ -14926,18 +14924,6 @@
             _adVisitedExternal = false;
             _adExternalStartTime = 0;
 
-            // ক্লাউডফ্লেয়ার D1-এ অ্যান্টি-চিট বোনাস সেশন রেজিস্টার
-            try {
-                if (u && typeof u.getIdToken === 'function') {
-                    u.getIdToken().then(tok => {
-                        fetch(`${CF_API}/api/bonus/start`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` }
-                        }).catch(() => {});
-                    }).catch(() => {});
-                }
-            } catch (e) {}
-
             const modal = document.getElementById("claimAdModal");
             if (modal) {
                 modal.classList.remove("hidden");
@@ -15186,66 +15172,45 @@
             startDailyBonusAdSession(u);
         };
 
-        // আসল ব্যাকএন্ড আপডেট মেথড (Cloudflare D1 Ledger এ ভেরিফাইড ০.১ / ০.২ বোনাস)
+        // আসল ফায়ারবেস আপডেট মেথড (ঝামেলামুক্ত Direct Safe Update)
         async function executeRealDailyBonusClaim(u) {
             const today = getDhakaDateStr(0);
+            const yesterday = getDhakaDateStr(-1);
 
             try {
-                // ১. Cloudflare D1 সিকিউর সার্ভার থেকে বোনাস ক্লেইম (সার্ভার সর্বোচ্চ ০.১ বা ০.২ দেবে, ক্লায়েন্ট টেম্পারিং অসম্ভব)
-                let awardedAmt = 0.1;
-                let newTotal = 0, newBonus = 0, curReal = 0;
-                let curStreak = 1;
-                let claimedOk = false;
+                const uref = _doc(db, 'users', u.uid);
+                const us = await _getDoc(uref);
+                if (!us.exists()) throw new Error('nouser');
+                const ud = us.data() || {};
 
-                try {
-                    const tok = await u.getIdToken(true);
-                    const cfRes = await fetch(`${CF_API}/api/bonus/claim`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` }
-                    });
-                    const cfData = await cfRes.json();
-                    if (cfData && cfData.ok) {
-                        awardedAmt = Number(cfData.bonus || 0.1);
-                        newTotal = Number(cfData.balance || 0);
-                        curReal = Number(cfData.realBalance || 0);
-                        newBonus = Number(cfData.bonusBalance || 0);
-                        curStreak = Number(cfData.streak || 1);
-                        claimedOk = true;
-                    } else if (cfData && cfData.code === 'claimed') {
-                        toast('আজকের বোনাস ইতিমধ্যে নেওয়া হয়ে গেছে!');
-                        return;
-                    } else if (cfData && cfData.code === 'ad_not_watched') {
-                        toast('বিজ্ঞাপন দেখা সম্পন্ন হয়নি!');
-                        return;
-                    }
-                } catch (cfErr) {
-                    console.warn('[CF Bonus Claim Fallback]', cfErr);
-                }
-
-                if (!claimedOk) {
-                    toast('বোনাস ক্লেইম ব্যর্থ, আবার চেষ্টা করুন');
+                if (ud.lastBonusDay === today) {
+                    toast('আজকের বোনাস ইতিমধ্যে নেওয়া হয়ে গেছে!');
                     return;
                 }
 
+                const awardedAmt = Math.random() < 0.5 ? 0.1 : 0.2;
+                const curStreak = (ud.lastBonusDay === yesterday) ? (Number(ud.lastBonusStreak) || 0) + 1 : 1;
+
+                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                const curBonus = Number(ud.bonusBalance || 0);
+                const newBonus = Math.round((curBonus + awardedAmt + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
+
                 // Leaderboard points: +0.5 point for daily ad
                 const curMonthKey = (new Date()).toISOString().slice(0, 7);
-                const uref = _doc(db, 'users', u.uid);
-                const us = await _getDoc(uref).catch(() => null);
-                const ud = us && us.exists() ? us.data() : {};
                 const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                 const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
                 const newPts = Math.round((curPts + 0.5 + Number.EPSILON) * 10) / 10;
 
-                // ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট (D1-এর সাথে হুবহু সিঙ্ক)
+                // ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট
                 await _setDoc(uref, {
-                    balance: newTotal,
-                    realBalance: curReal,
                     bonusBalance: newBonus,
+                    balance: newTotal,
                     lastBonusDay: today,
                     lastBonusStreak: curStreak,
                     monthlyPoints: newPts,
                     monthlyPointsMonth: curMonthKey
-                }, { merge: true }).catch(() => {});
+                }, { merge: true });
 
                 // যদি ইউজার কাউকে দিয়ে রেফার হয়ে থাকে: রেফারার অ্যাড দেখার জন্য পাবে +০.১ পয়েন্ট
                 if (ud.referredBy) {
