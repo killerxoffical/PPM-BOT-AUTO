@@ -1631,23 +1631,27 @@ async function checkUserMembership(userId) {
         const uid = parseInt(userId, 10);
         if (!uid || isNaN(uid)) return false;
 
-        for (const ch of REQUIRED_CHANNELS) {
-            const uname = (ch.username || "").trim();
-            if (!uname) continue;
-            try {
-                const member = await userNotifyBot.getChatMember(uname, uid);
-                // প্রতিটি চ্যানেল বা গ্রুপে মেম্বার স্ট্যাটাস সক্রিয় হতে হবে
-                if (!member || !["creator", "administrator", "member", "restricted"].includes(member.status)) {
-                    return false;
-                }
-            } catch (e) {
-                // ইউজার না থাকলে বা কোনো ত্রুটি হলেই জয়েন নেই ধরা হবে
+        // প্রাইমারি মেইন চ্যানেল যাচাই (অন্যান্য চ্যানেলে পারমিশন জটিলতায় ইউজার যেন আটকে না থাকে)
+        const primaryChannel = "@googleplaypointhack";
+        try {
+            const member = await userNotifyBot.getChatMember(primaryChannel, uid);
+            if (member && ["creator", "administrator", "member", "restricted"].includes(member.status)) {
+                return true;
+            }
+            if (member && ["left", "kicked"].includes(member.status)) {
                 return false;
             }
+        } catch (e) {
+            // যদি বটের পারমিশন সংক্রান্ত টেলিগ্রাম ইস্যু হয় তবে ইউজারকে অযথা ব্লক না করা
+            const errStr = (e && e.message) || "";
+            if (errStr.includes("CHAT_ADMIN_REQUIRED") || errStr.includes("chat not found")) {
+                return true;
+            }
+            return false;
         }
         return true;
     } catch (e) {
-        return false;
+        return true;
     }
 }
 
@@ -2974,46 +2978,25 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
             }
         } catch (e) {}
 
-        // ভেরিফিকেশন গার্ড: আনভেরিফাইড ইউজারদের রেফারেল ড্যাশবোর্ড ব্লক থাকবে
+        // ভেরিফিকেশন স্ট্যাটাস চেক (D1 ও Firestore উভয় স্থান থেকে)
         let isVerified = false;
         try {
-            const uCheckDoc = await db.collection("tg_bot_users").doc(userId).get().catch(() => null);
+            const [uCheckDoc, d1Check] = await Promise.all([
+                db.collection("tg_bot_users").doc(userId).get().catch(() => null),
+                cfFetch(`${CF_API}/api/bot/user?id=${userId}`).then(r => r.json()).catch(() => null)
+            ]);
             if (uCheckDoc && uCheckDoc.exists && uCheckDoc.data().isVerified) isVerified = true;
+            if (d1Check && d1Check.ok && d1Check.user && d1Check.user.isVerified) isVerified = true;
         } catch (e) {}
-
-        if (!isVerified) {
-            const unverifiedMsg = 
-                `⚠️ <b>আপনার অ্যাকাউন্ট এখনও ভেরিফাইড নয়!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                `রেফারেল লিংক তৈরি করতে ও বোনাস পেতে প্রথমে আপনার <b>ফোন নম্বর ও ওয়েবসাইট UID</b> দিয়ে ভেরিফিকেশন সম্পন্ন করুন।\n\n` +
-                `👉 এখনই ভেরিফাই করতে নিচের <b>"🔐 একাউন্ট ভেরিফাই"</b> বাটনে চাপ দিন:`;
-            
-            const unverifiedKb = {
-                inline_keyboard: [
-                    [{ text: "🔐 একাউন্ট ভেরিফাই / Verify", callback_data: `verify_ref:none` }],
-                    [{ text: "🏆 Top 10 Leaderboard", callback_data: "show_leaderboard" }]
-                ]
-            };
-
-            if (editMessageId) {
-                try {
-                    return await userNotifyBot.editMessageText(unverifiedMsg, {
-                        chat_id: chatId,
-                        message_id: editMessageId,
-                        parse_mode: "HTML",
-                        reply_markup: unverifiedKb
-                    });
-                } catch (e) {}
-            }
-            return await userNotifyBot.sendMessage(chatId, unverifiedMsg, {
-                parse_mode: "HTML",
-                reply_markup: unverifiedKb
-            });
-        }
 
         const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${userId}`;
         const bonusPerRef = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
             ? Number(publicCache.config.tgRefBonus)
             : 0.5;
+
+        const statusBadge = isVerified 
+            ? `✅ <b>ভেরিফিকেশন:</b> সম্পূর্ণ ভেরিফাইড (Active ✓)` 
+            : `⚠️ <b>ভেরিফিকেশন:</b> আনভেরিফাইড (বোনাস পেতে ভেরিফাই করুন)`;
 
         const infoMsg = 
             `👥 <b>আপনার রেফারেল ড্যাশবোর্ড</b>\n` +
@@ -3022,18 +3005,26 @@ async function sendReferralDashboard(chatId, userId, userName = "", userUsername
             `💰 <b>রেফার ব্যালেন্স:</b> <b>${refBal} PP Coins</b>\n` +
             `📊 <b>মোট সফল রেফার:</b> <b>${refCount}</b> জন\n` +
             `🪙 <b>রেফার বোনাস:</b> প্রতি রেফারে <b>${bonusPerRef} Coins</b>\n` +
-            `⚠️ <b>উইথড্র শর্ত:</b> ন্যূনতম ৩ কয়েন হলে কোড তৈরি করতে পারবেন।\n` +
+            `${statusBadge}\n` +
+            `⚠️ <b>উইথড্র শর্ত:</b> ন্যূনতম ৩ কয়েন হলে রিডিম কোড নিতে পারবেন।\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `<i>আপনার লিংক বন্ধুদের শেয়ার করুন এবং ব্যালেন্স জমিয়ে রিডিম কোড নিন!</i>`;
+            `<i>আপনার লিংকটি বন্ধুদের শেয়ার করুন এবং পয়েন্ট জিতে নিন! 🚀</i>`;
 
-        const keyboard = {
-            inline_keyboard: [
-                [{ text: `🎁 রিডিম কোড তৈরি করুন (${refBal} Coins)`, callback_data: "withdraw_ref_code" }],
-                [{ text: "🏆 লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }],
-                [{ text: "📤 বন্ধুদের শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং জিতে নিন ফ্রি গুগল প্লে পয়েন্ট কয়েন!")}` }],
-                [{ text: "🔄 Refresh Stats", callback_data: "my_ref_info" }]
-            ]
-        };
+        const actionButtons = [
+            [{ text: `🎁 রিডিম কোড তৈরি করুন (${refBal} Coins)`, callback_data: "withdraw_ref_code" }]
+        ];
+
+        if (!isVerified) {
+            actionButtons.push([{ text: "🔐 একাউন্ট ভেরিফাই করুন / Verify Account", callback_data: "verify_ref:none" }]);
+        }
+
+        actionButtons.push([
+            { text: "🏆 লিডারবোর্ড", callback_data: "show_leaderboard" },
+            { text: "📤 শেয়ার করুন", url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("PP MOD-এ জয়েন করুন এবং ফ্রি গুগল প্লে পয়েন্ট জিতে নিন!")}` }
+        ]);
+        actionButtons.push([{ text: "🔄 Refresh Stats", callback_data: "my_ref_info" }]);
+
+        const keyboard = { inline_keyboard: actionButtons };
 
         if (editMessageId) {
             try {
@@ -4130,13 +4121,24 @@ userNotifyBot.on("callback_query", async (query) => {
         }
 
         if (data.startsWith("verify_ref:")) {
-            userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "ভেরিফিকেশন চেক হচ্ছে..." }).catch(() => {});
+
+            const userRef = db.collection("tg_bot_users").doc(userId);
+            const userSnap = await userRef.get().catch(() => null);
+            const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
+
+            if (userData.isVerified) {
+                return userNotifyBot.sendMessage(chatId, "✅ <b>আপনার অ্যাকাউন্ট ইতিমধ্যে সম্পূর্ণ ভেরিফাইড!</b>", {
+                    parse_mode: "HTML",
+                    reply_markup: getMainMenuReplyKeyboard(true, isBotAdmin(userId))
+                });
+            }
 
             const isAllJoined = await checkUserMembership(userId);
             if (!isAllJoined) {
                 return userNotifyBot.sendMessage(chatId,
-                    `❌ <b>আপনি এখনও সব চ্যানেলে জয়েন করেননি!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `দয়া করে নিচের চ্যানেলে জয়েন করে পুনরায় চেষ্টা করুন:\n` +
+                    `❌ <b>আপনি এখনও চ্যানেলে জয়েন করেননি!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `দয়া করে নিচের বাটনে চাপ দিয়ে আমাদের চ্যানেলে জয়েন করুন এবং এরপর ভেরিফাই করুন:\n` +
                     `👉 <a href="${FOLDER_INVITE_LINK}">1-Click All Channels Folder</a>`,
                     {
                         parse_mode: "HTML",
@@ -4149,8 +4151,6 @@ userNotifyBot.on("callback_query", async (query) => {
                     }
                 );
             }
-
-            const userRef = db.collection("tg_bot_users").doc(userId);
             const userSnap = await userRef.get().catch(() => null);
             const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
 
