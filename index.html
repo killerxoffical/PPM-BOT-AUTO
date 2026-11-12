@@ -8642,7 +8642,7 @@
         // গ্লোবাল স্কোপে টাস্ক কয়েন ফি ফাংশন (যাতে সব স্ক্রিপ্ট থেকে সরাসরি পায়)
         function getTaskCoinCost() {
             const f = window.ppfb && window.ppfb.config && Number(window.ppfb.config.fee);
-            return (f !== undefined && !isNaN(f) && f > 0) ? f : 2;
+            return (f !== undefined && !isNaN(f) && f > 0) ? f : 3;
         }
         window.getTaskCoinCost = getTaskCoinCost;
 
@@ -9658,15 +9658,22 @@
                     }).join('');
 
                     const isPassErr = rawMsg.toLowerCase().includes('পাসওয়ার্ড') || rawMsg.toLowerCase().includes('password');
+                    const isMaint = rawMsg.toLowerCase().includes('মেইনটেনেন্সে') || rawMsg.toLowerCase().includes('blackmoney54');
                     msgBox.innerHTML = `
                         <div class="p-4 bg-rose-50/90 border-2 border-rose-200 rounded-2xl space-y-3 text-left shadow-2xs">
                             <div class="flex items-center gap-1.5 text-rose-700 pb-1.5 border-b border-rose-100">
                                 <i data-lucide="alert-octagon" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
-                                <span class="text-xs font-black uppercase tracking-wider">${isPassErr ? 'পাসওয়ার্ড ত্রুটি ও রিফান্ডের বিবরণ' : 'অর্ডার বাতিল ও রিফান্ডের বিবরণ'}</span>
+                                <span class="text-xs font-black uppercase tracking-wider">${isMaint ? 'গেম সার্ভিস মেইনটেনেন্স নোটিশ' : (isPassErr ? 'পাসওয়ার্ড ত্রুটি ও রিফান্ডের বিবরণ' : 'অর্ডার বাতিল ও রিফান্ডের বিবরণ')}</span>
                             </div>
                             <div class="space-y-1 text-left">
                                 ${bodyHtml}
                             </div>
+                            ${isMaint ? `
+                            <div class="pt-2">
+                                <a href="https://t.me/Blackmoney54" target="_blank" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all active:scale-98">
+                                    <i data-lucide="send" class="w-4 h-4"></i> অ্যাডমিনের সাথে যোগাযোগ করুন (@Blackmoney54)
+                                </a>
+                            </div>` : ''}
                             ${isPassErr ? `
                             <div class="pt-2">
                                 <button onclick="resetToHome()" class="w-full py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all active:scale-98">
@@ -14246,9 +14253,10 @@
                     ...(deductBonus > 0 ? {} : { loyaltyStars: newBalData.loyaltyStars })
                 }, { merge: true }).catch(() => { });
 
-                // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost)
+                // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost with Previous Balance)
                 let ordId = 'ORD-' + Date.now();
                 const payMethodLabel = isFree ? 'Free 10th Task' : (deductBonus > 0 ? `PP Coins (Real: ${deductReal}, Bonus: ${deductBonus})` : 'PP Coins (Real)');
+                const beforeOrderBalance = curBalNow;
                 try {
                     const cfRes = await fetch(`${CF_API}/api/orders/create`, {
                         method: 'POST',
@@ -14265,7 +14273,8 @@
                             amount: feeCoins,
                             paidWithReal: deductReal,
                             paidWithBonus: deductBonus,
-                            isFreeTask: isFree
+                            isFreeTask: isFree,
+                            previousBalance: beforeOrderBalance
                         })
                     });
                     const cfData = await cfRes.json();
@@ -14378,8 +14387,9 @@
                     }).catch(() => { });
                 }
 
-                // Cloudflare D1-এ ডিপোজিট লগ করা (ইউজারের হিস্ট্রি সর্বদা দৃশ্যমান থাকবে)
+                // Cloudflare D1-এ ডিপোজিট লগ করা (ইউজারের হিস্ট্রি ও আগের ব্যালেন্স সর্বদা দৃশ্যমান থাকবে)
                 try {
+                    const currentBalSnapshot = Number(window.ppfb?.balance || 0);
                     await fetch(`${CF_API}/api/transactions/log`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -14392,6 +14402,7 @@
                             info: `${method} • ${clean}`,
                             amount: Number(amount),
                             status: "pending",
+                            previousBalance: currentBalSnapshot,
                             createdAt: Date.now()
                         })
                     });
@@ -15188,7 +15199,8 @@
                     return;
                 }
 
-                const awardedAmt = Math.random() < 0.5 ? 0.1 : 0.2;
+                // 0.1 বেশি পাবে (৮৫%), 0.2 খুব কম (১৫%), এর বেশি কখনোই পাবে না
+                const awardedAmt = Math.random() < 0.85 ? 0.1 : 0.2;
                 const curStreak = (ud.lastBonusDay === yesterday) ? (Number(ud.lastBonusStreak) || 0) + 1 : 1;
 
                 const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
@@ -15594,13 +15606,13 @@
         }
         window.histSkeleton = histSkeleton;
         function rebuildHist() {
-            const SEVEN_D = 7 * 24 * 3600 * 1000;
+            const SIXTY_D = 60 * 24 * 3600 * 1000;
             const nowMs = Date.now();
             const keepFresh = arr => (arr || []).filter(x => {
                 const isPending = (x.status || 'pending').toString().toLowerCase() === 'pending';
                 if (isPending) return true;
                 const m = getTimestampMs(x);
-                return m ? (nowMs - m <= SEVEN_D) : true;
+                return m ? (nowMs - m <= SIXTY_D) : true;
             });
             const items = [
                 ...keepFresh(histOrders).map(o => ({ kind: 'TASK', ...o })),
@@ -15645,6 +15657,7 @@
                             logo: parsedLogo,
                             method: parsedMethod,
                             timeElapsed: parsedTime,
+                            previousBalance: item.previousBalance !== undefined ? item.previousBalance : null,
                             game: item.game || item.title || 'Task',
                             title: item.title || item.game || 'Task',
                             status: item.status || 'pending',
@@ -15701,9 +15714,9 @@
             const buys = [];
             const pends = [];
             const nowMs = Date.now();
-            const SEVEN_D = 7 * 24 * 3600 * 1000;
+            const SIXTY_D = 60 * 24 * 3600 * 1000;
 
-            // ৭ দিনের পুরনো নন-পেন্ডিং ডাটা ফায়ারবেস থেকে স্বয়ংক্রিয় ক্লিনআপ (পেন্ডিং সব সময় সংরক্ষিত থাকবে)
+            // ৬০ দিনের পুরনো নন-পেন্ডিং ডাটা স্বয়ংক্রিয় ক্লিনআপ (পেন্ডিং সব সময় সংরক্ষিত থাকবে)
             try {
                 const old = [['orders', fbOrders], ['deposits', deps], ['withdrawals', wds]];
                 let del = 0;
@@ -15713,7 +15726,7 @@
                         const isPending = (d.status || 'pending').toString().toLowerCase() === 'pending';
                         if (isPending) continue; // PENDING সব সময় থাকবে! কখনো ডিলিট হবে না
                         const m = histMs(d);
-                        if (d.id && m && (nowMs - m > SEVEN_D)) {
+                        if (d.id && m && (nowMs - m > SIXTY_D)) {
                             del++;
                             _deleteDoc(_doc(db, col, d.id)).catch(() => { });
                         }

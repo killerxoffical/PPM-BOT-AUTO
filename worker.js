@@ -754,8 +754,8 @@ async function getBonusCfg() {
     return bonusCfgCache;
 }
 function rollBonus() {
-    // শুধুমাত্র 0.1 অথবা 0.2 রিওয়ার্ড
-    return Math.random() < 0.5 ? 0.1 : 0.2;
+    // 0.1 বেশি পাবে (৮৫% সম্ভাবনা), 0.2 খুব কম পাবে (১৫% সম্ভাবনা), 0.2 এর বেশি কখনো নয়
+    return Math.random() < 0.85 ? 0.1 : 0.2;
 }
 function dhakaDay(offsetDays) {
     try {
@@ -1258,8 +1258,8 @@ setInterval(async () => {
     }
 }, 20 * 60 * 1000); // ২০ মিনিট পর পর চেক (৪৩,০০০ ফায়ারবেস রিড সেভ!)
 
-// ---------------- 7-DAY HISTORY RETENTION ----------------
-const RET_D = 7 * 86400000;
+// ---------------- 60-DAY HISTORY RETENTION (Cloud Long Storage) ----------------
+const RET_D = 60 * 86400000;
 function tsMs(v) {
     try {
         if (!v) return 0;
@@ -1562,21 +1562,40 @@ const pendingAuthClients = new Map();
 
 function isBotTaskCompleted(rawText) {
     if (!rawText) return false;
-    const t = rawText.toLowerCase();
+    // অ্যাকসেন্ট মুক্ত করা (é -> e, ইত্যাদি) যাতে কোনো গেমের নামের কারণে মিস না হয়
+    const cleanNorm = rawText.normalize ? rawText.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : rawText;
+    const t = cleanNorm.toLowerCase();
+
+    // যদি সফলতার কোনো স্পষ্ট চিহ্ন থাকে, তবে কোনো ছোটখাটো ওয়ার্নিং থাকলেও সেটাকে কমপ্লিট ধরবে (রিফান্ড আটকাবে)
+    const hasSuccessKeywords = 
+        t.includes("all quests") ||
+        t.includes("quests completed") ||
+        t.includes("quest completed") ||
+        t.includes("completed!") ||
+        t.includes("completed") ||
+        t.includes("tokens remaining") ||
+        t.includes("deducted") ||
+        t.includes("claim your points") ||
+        t.includes("open and claim points") ||
+        t.includes("official level") ||
+        t.includes("google play gamer") ||
+        t.includes("quest finished") ||
+        t.includes("task finished");
+
+    if (hasSuccessKeywords) {
+        // পাসওয়ার্ড বা ক্যাপচার সুস্পষ্ট এরর না থাকলে নিশ্চিত সাকসেস
+        if (!t.includes("incorrect password") && !t.includes("wrong password") && !t.includes("couldn't sign you in")) {
+            return true;
+        }
+    }
+
     if (t.includes("error") || t.includes("failed") || t.includes("rejected") || 
         t.includes("cancel") || t.includes("tap") || t.includes("notification to your phone") ||
         t.includes("send format") || t.includes("confirm credentials")) {
         return false;
     }
     return (
-        t.includes("all quests") ||
-        t.includes("completed") ||
-        t.includes("complete") ||
-        t.includes("claim your points") ||
         t.includes("claim points") ||
-        t.includes("quest finished") ||
-        t.includes("task finished") ||
-        t.includes("quests finished") ||
         t.includes("successfully") ||
         t.includes("done!") ||
         /\b(?:done|finished)\b/i.test(t)
@@ -3368,6 +3387,8 @@ userNotifyBot.onText(/^\/(?:referr|refer|referral|ref)(?:@\w+)?(?:\s+(.+))?$/i, 
     if (!isJoined) return;
     const userName = `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim();
     const userUsername = msg.from.username ? `@${msg.from.username}` : "";
+    // ক্যাশ ক্লিয়ার করে একদম লাইভ রিয়েল-টাইম রেফারেল ডাটা লোড
+    cachedLeaderboardData = { list: [], updatedAt: 0 };
     await sendReferralDashboard(chatId, userId, userName, userUsername, null);
 });
 
@@ -5604,8 +5625,8 @@ function sanitizeBotReason(rawText) {
         return "🎮 <b>Play Games প্রোফাইল তৈরি করা নেই!</b>\n\nআপনার এই জিমেইলে এখনও Google Play Games প্রোফাইল সেটআপ করা হয়নি।\n💡 <b>করণীয়:</b> আপনার ফোনের Play Games অ্যাপটি ওপেন করে একটি গেমার ট্যাগ/নাম সিলেক্ট করে প্রোফাইল বানিয়ে তারপর আবার সাবমিট করুন।";
     }
 
-    if (txt.includes("no quests") || txt.includes("quest not started") || txt.includes("not enrolled") || txt.includes("already completed")) {
-        return "⚠️ <b>Play Points কোয়েস্ট পাওয়া যায়নি!</b>\n\nএই জিমেইলে প্লে পয়েন্ট কোয়েস্ট চালু/accept করা নেই অথবা আগেই পয়েন্ট নেওয়া হয়ে গেছে। অন্য ফ্রেশ জিমেইল দিয়ে চেষ্টা করুন।";
+    if (txt.includes("no quests") || txt.includes("quest not started") || txt.includes("not enrolled") || txt.includes("already completed") || txt.includes("not found") || txt.includes("quest unavailable")) {
+        return "⚠️ <b>গেমটি বর্তমানে মেইনটেনেন্সে আছে!</b>\n\nএই গেমটি এই মুহূর্তে সার্ভারে পাওয়া যাচ্ছে না অথবা মেইনটেনেন্স চলছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করে কাজটি সম্পন্ন করে নিন: @Blackmoney54";
     }
 
     if (txt.includes("captcha security check") || txt.includes("captcha")) {
@@ -5760,6 +5781,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             const refundReal = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : refundAmt);
             const refundBonus = Number(ordData.paidWithBonus || 0);
 
+            const beforeBalance = curReal + curBonus;
             const newReal = Math.round((curReal + refundReal + Number.EPSILON) * 100) / 100;
             const newBonus = Math.round((curBonus + refundBonus + Number.EPSILON) * 100) / 100;
             const newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
@@ -5771,6 +5793,7 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             });
             t.update(ordRef, {
                 status: "refunded",
+                previousBalance: beforeBalance,
                 adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
                 refundedAt: admin.firestore.FieldValue.serverTimestamp(),
                 botProcessing: false
@@ -5800,11 +5823,17 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
 
         if (userTgId) {
             const notifyId = await getUserTgId(uid, userTgId);
-            await notifyUserTelegram(notifyId,
-                `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
-                `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
-                `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`
-            );
+            const isMaintenance = reason.includes("মেইনটেনেন্সে") || reason.includes("Blackmoney54");
+            const tgAlert = isMaintenance
+                ? `⚠️ <b>গেম সার্ভিস মেইনটেনেন্স নোটিশ:</b>\n\n` +
+                  `<i>${reason}</i>\n\n` +
+                  `🪙 <b>রিফান্ড:</b> আপনার ${refundAmt} PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅\n` +
+                  `💬 এডমিন সাপোর্ট: @Blackmoney54`
+                : `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
+                  `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
+                  `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`;
+
+            await notifyUserTelegram(notifyId, tgAlert);
         }
         // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
     } catch (e) {}
@@ -5894,9 +5923,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
         }
         
-        // গেম বাটনে ক্লিক না হলে কখনোই ইমেইল পাঠানো যাবে না!
+        // গেম বাটনে ক্লিক না হলে অথবা এই একাউন্টে গেম না থাকলে মেইনটেনেন্স মেসেজ সহ নিরাপদ রিফান্ড
         if (!clicked) {
-            throw new Error(`Google Play বটের মেনু থেকে "${orderData.game}" সিলেক্ট করা যায়নি। দয়া করে অন্য কোনো গেম সিলেক্ট করুন।`);
+            throw new Error(`⚠️ <b>গেমটি বর্তমানে মেইনটেনেন্সে আছে!</b>\n\n"${orderData.game}" গেমটি সার্ভারে পাওয়া যায়নি। দয়া করে অ্যাডমিনের সাথে যোগাযোগ করে সম্পন্ন করে নিন: @Blackmoney54`);
         }
 
         console.log(`[BOT] Game button clicked successfully for ${orderData.game}. Waiting for credentials prompt...`);
@@ -6037,14 +6066,15 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
 
                 userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
 
-                // ৩. চ্যানেলে পাবলিক লগ পাঠানো
+                // ৩. চ্যানেলে পাবলিক লগ পাঠানো (ডাইনামিক রিয়েল ফি সহ)
+                const taskPaidCoins = Number(orderData.amount !== undefined ? orderData.amount : 3);
                 sendOrderLog(
                     `✅ <b>TASK COMPLETED</b>\n\n` +
                     `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
                     `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
                     `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
                     `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
-                    `🪙 <b>Coins:</b> ${orderData.amount || 3}\n` +
+                    `🪙 <b>Coins:</b> ${taskPaidCoins}\n` +
                     `💳 <b>Method:</b> PP Coins\n` +
                     `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
                     `📌 <b>Status:</b> Completed`
@@ -6069,17 +6099,19 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             const promptNum = isErrorState ? null : extractPromptNumber(rawText);
             const devModel = extractDeviceModel(rawText);
 
-            if (promptNum && promptNum !== lastNotifiedPrompt && !text.includes("completed") && !text.includes("confirmed from your phone")) {
-                hasPassedPasswordStage = true; // গুগল প্রম্পট দিয়েছে মানেই পাসওয়ার্ড ১০০% সঠিক!
-                lastNotifiedPrompt = promptNum;
-                const devText = devModel ? ` (${devModel})` : "";
-                const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
-                syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
-                await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
+            if (promptNum && !text.includes("completed") && !text.includes("confirmed from your phone")) {
+                hasPassedPasswordStage = true; // একবার প্রম্পট আসা মানে পাসওয়ার্ড ১০০% সত্য ও নির্ভুল!
+                if (promptNum !== lastNotifiedPrompt) {
+                    lastNotifiedPrompt = promptNum;
+                    const devText = devModel ? ` (${devModel})` : "";
+                    const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
+                    syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
+                    await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
+                }
             }
 
             // ৪. এরর ফিল্টার: একবার পাসওয়ার্ড পার হয়ে প্রম্পট স্টেজে চলে গেলে বা লগইন হলে কখনোই পাসওয়ার্ড ভুল ধরা যাবে না!
-            if (!hasPassedPasswordStage) {
+            if (!hasPassedPasswordStage && !promptNum && !text.includes("tap") && !text.includes("notification") && !text.includes("phone")) {
                 const cleanReason = sanitizeBotReason(rawText);
                 if (cleanReason) {
                     await clickInlineButton(curMsg, "Cancel Process", tg);
@@ -6087,15 +6119,15 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     return;
                 }
 
-                if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password")) {
+                if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password") || text.includes("invalid password")) {
                     await clickInlineButton(curMsg, "Cancel Process", tg);
                     await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
                     return;
                 }
             }
 
-            // ৫. সাধারণ গুগল রিজেকশন বা ক্যাপচা এরর
-            if (text.includes("captcha security check") || text.includes("captcha")) {
+            // ৫. সাধারণ গুগল রিজেকশন বা ক্যাপচা এরর (প্রম্পট আসার পর এগুলো এড়িয়ে চলবে)
+            if (!hasPassedPasswordStage && (text.includes("captcha security check") || text.includes("captcha"))) {
                 await clickInlineButton(curMsg, "Cancel Process", tg);
                 await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId);
                 return;
@@ -6108,22 +6140,42 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             }
         }
         if (!completed) {
-            // রিফান্ড করার আগে শেষবারের মতো ফ্রেশ মেসেজে কমপ্লিট হয়েছে কিনা নিশ্চিত যাচাই
-            const lastCheckMsg = await getLatestBotMessage(tg, 0);
-            if (lastCheckMsg && isBotTaskCompleted(lastCheckMsg._combinedText || lastCheckMsg.message || "")) {
+            // রিফান্ড করার আগে শেষ ৫টি মেসেজে বট কাজ শেষ করেছে কিনা ডাবল-চেক করা (জিরো-লস গার্ড)
+            let lastCheckMsg = null;
+            try {
+                const recentMsgs = await tg.getMessages(TARGET_BOT, { limit: 5 });
+                if (recentMsgs && recentMsgs.length > 0) {
+                    for (const m of recentMsgs) {
+                        const mText = (m.message || "").trim();
+                        if (isBotTaskCompleted(mText)) {
+                            lastCheckMsg = m;
+                            const detectedGamer = extractGamerName(mText);
+                            if (detectedGamer) gamerName = detectedGamer;
+                            break;
+                        }
+                    }
+                }
+            } catch (e) {}
+
+            if (lastCheckMsg) {
                 completed = true;
                 completedOrdersTracker.add(orderId);
+                const botReportedTime = extractBotElapsedTime(lastCheckMsg.message || "");
+                const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
+
                 syncCf({
                     status: "completed",
                     adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    gamerName: gamerName || "",
                     promptNumber: null,
-                    timeElapsed: Math.round((Date.now() - startTime) / 1000)
+                    timeElapsed: elapsedSec
                 });
                 await orderRef.update({
                     status: "completed",
                     adminMsg: "অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉",
+                    gamerName: gamerName || "",
                     promptNumber: admin.firestore.FieldValue.delete(),
-                    timeElapsed: Math.round((Date.now() - startTime) / 1000),
+                    timeElapsed: elapsedSec,
                     completedAt: admin.firestore.FieldValue.serverTimestamp(),
                     botProcessing: false,
                     inQueue: false
