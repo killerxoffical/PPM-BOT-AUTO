@@ -5258,56 +5258,89 @@ function normalizeGameStr(str) {
         .trim();
 }
 
-async function triggerButtonClick(message, button, client) {
+async function triggerButtonClick(message, button, client, rIdx = null, cIdx = null) {
+    const activeClient = client || currentClient;
+    if (!message || !button) return false;
+
+    // ১. টেলিগ্রামের অফিসিয়াল GetBotCallbackAnswer মেথড (ইনলাইন বাটনে ১০০% সফলতার জন্য)
+    if (activeClient && button.data) {
+        try {
+            await activeClient.invoke(new Api.messages.GetBotCallbackAnswer({
+                peer: TARGET_BOT,
+                msgId: message.id,
+                data: button.data
+            }));
+            return true;
+        } catch (e1) {}
+    }
+
+    // ২. রো এবং কলাম ইনডেক্স দিয়ে GramJS ক্লিক
+    try {
+        if (rIdx !== null && cIdx !== null) {
+            await message.click(rIdx, cIdx);
+            return true;
+        }
+    } catch (e2) {}
+
+    // ৩. বাটন টেক্সট দিয়ে ক্লিক
     try {
         await message.click({ text: button.text });
         return true;
-    } catch (e) {
+    } catch (e3) {}
+
+    // ৪. সাধারণ কীবোর্ড বাটন হলে মেসেজ সেন্ড
+    if (activeClient && button.text && !button.data) {
         try {
-            const activeClient = client || currentClient;
-            if (activeClient) {
-                await activeClient.sendMessage(TARGET_BOT, { message: button.text });
-                return true;
-            }
-        } catch (e2) {}
+            await activeClient.sendMessage(TARGET_BOT, { message: button.text });
+            return true;
+        } catch (e4) {}
     }
+
     return false;
 }
 
 async function clickChestButton(message, gameName, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
     const cleanTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, "")).replace(/\s+/g, "");
-    const targetWords = cleanTarget.split(" ").filter(w => w.length >= 2);
+    const targetWords = normalizeGameStr(gameName).split(" ").filter(w => w.length >= 2);
 
+    let rIdx = 0;
     for (const row of message.replyMarkup.rows) {
+        let cIdx = 0;
         for (const button of row.buttons) {
-            if (!button.text) continue;
+            if (!button.text) { cIdx++; continue; }
             const rawBtnText = button.text;
             const cleanBtn = normalizeGameStr(rawBtnText).replace(/\s+/g, "");
 
             // হুবহু বা পার্সিয়াল মিল চেক (স্পেস বা ব্র্যাকেট ছাড়াই)
             if (cleanBtn.includes(cleanTarget) || cleanTarget.includes(cleanBtn)) {
                 console.log(`[CHEST CLICK] Matched button "${rawBtnText}" with target "${gameName}"`);
-                return await triggerButtonClick(message, button, client);
+                return await triggerButtonClick(message, button, client, rIdx, cIdx);
             }
 
             const matchCount = targetWords.filter(w => cleanBtn.includes(w)).length;
             if (targetWords.length > 0 && matchCount >= Math.min(2, targetWords.length)) {
-                return await triggerButtonClick(message, button, client);
+                return await triggerButtonClick(message, button, client, rIdx, cIdx);
             }
+            cIdx++;
         }
+        rIdx++;
     }
 
     if (targetWords.length > 0) {
         const primaryKeyword = targetWords[0];
+        let rIdx2 = 0;
         for (const row of message.replyMarkup.rows) {
+            let cIdx2 = 0;
             for (const button of row.buttons) {
-                if (!button.text) continue;
+                if (!button.text) { cIdx2++; continue; }
                 const cleanBtn = normalizeGameStr(button.text);
                 if (cleanBtn.includes(primaryKeyword)) {
-                    return await triggerButtonClick(message, button, client);
+                    return await triggerButtonClick(message, button, client, rIdx2, cIdx2);
                 }
+                cIdx2++;
             }
+            rIdx2++;
         }
     }
     return false;
@@ -5315,23 +5348,16 @@ async function clickChestButton(message, gameName, client = null) {
 
 async function clickInlineButton(message, textPattern, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
+    let rIdx = 0;
     for (const row of message.replyMarkup.rows) {
+        let cIdx = 0;
         for (const button of row.buttons) {
             if (button.text && button.text.toLowerCase().includes(textPattern.toLowerCase())) {
-                try {
-                    await message.click({ text: button.text });
-                    return true;
-                } catch (e) {
-                    try {
-                        const activeClient = client || currentClient;
-                        if (activeClient) {
-                            await activeClient.sendMessage(TARGET_BOT, { message: button.text });
-                            return true;
-                        }
-                    } catch (e2) {}
-                }
+                return await triggerButtonClick(message, button, client, rIdx, cIdx);
             }
+            cIdx++;
         }
+        rIdx++;
     }
     return false;
 }
@@ -5698,6 +5724,9 @@ async function getAvailableWorkerClient() {
         }
     }
 
+    const workerName = freeAccount.firstName || freeAccount.name || "Worker";
+    const workerBalance = Number(freeAccount.balance || 0);
+
     // ৩. নতুন সেশন কানেক্ট করা ও পুলে সংরক্ষণ করা
     const client = new TelegramClient(new StringSession(freeAccount.session), DEFAULT_API_ID, DEFAULT_API_HASH, {
         connectionRetries: 5,
@@ -5705,7 +5734,7 @@ async function getAvailableWorkerClient() {
     });
     await client.connect();
     connectedWorkerPool.set(chosenPhone, client);
-    return { client, phone: chosenPhone, docId: freeAccount.id };
+    return { client, phone: chosenPhone, docId: freeAccount.id, name: workerName, balance: workerBalance };
 }
 
 // কমপ্যাটিবিলিটি ব্যাকওয়ার্ড কল
@@ -6325,8 +6354,8 @@ async function startMasterWorker() {
                 const adminChat = process.env.ADMIN_TG_ID || "7504616242";
                 const workerObjCheck = await getAvailableWorkerClient();
                 const workerStatusText = workerObjCheck 
-                    ? `🤖 <b>Auto Bot Ready:</b> <code>[${workerObjCheck.phone}]</code>` 
-                    : `⚠️ <b>No Worker Active:</b> <i>Admin manual action required</i>`;
+                    ? `🤖 <b>Assigned Worker:</b> <code>${workerObjCheck.phone}</code> (${safeTgHtml(workerObjCheck.name || 'Worker')})\n🪙 <b>Worker Token Bal:</b> <code>${workerObjCheck.balance} Tokens</code>` 
+                    : `⚠️ <b>No Worker Free:</b> <i>সকল টেলিগ্রাম অ্যাকাউন্ট ব্যস্ত বা অফলাইন</i>`;
 
                 const alertText = 
                     `🚨 <b>NEW PP TASK ORDER!</b>\n` +
@@ -6341,7 +6370,9 @@ async function startMasterWorker() {
                     `🪙 <b>Amount:</b> ${ord.amount || 3} Coins\n` +
                     `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `📱 <b>যে একাউন্ট দিয়ে কাজ হচ্ছে:</b>\n` +
                     `${workerStatusText}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `⚡ <i>Action buttons below:</i>`;
 
                 const orderKeyboard = {
