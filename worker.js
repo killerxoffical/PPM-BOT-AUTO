@@ -966,7 +966,8 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     processedTrxSet.add(cleanTrx);
     const rate = Number(coinRate || 7);
     const verifiedTaka = Number(verifiedAmount || depData.amount || 0);
-    const finalCoinsCalculated = Math.max(1, Math.floor(verifiedTaka / rate));
+    // প্যাকেজের আসল কয়েন সংখ্যাকে অগ্রাধিকার দেওয়া যাতে ১৫ টাকার ৩ কয়েনের প্যাকেজে ২ কয়েন না হয়ে যায়
+    const finalCoinsCalculated = Number(depData.coins) || Math.max(1, Math.floor(verifiedTaka / rate));
 
     // ১. সবার আগে Cloudflare D1-এ নিশ্চিত কয়েন ক্রেডিট ও TrxID লক (Zero Firebase Quota)
     try {
@@ -1436,7 +1437,9 @@ const WELCOME_BANNER_IMG = "https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/
 const REQUIRED_CHANNELS = [
     { name: "📢 Main Channel", url: "https://t.me/googleplaypointhack", username: "@googleplaypointhack" },
     { name: "📋 All Order Log", url: "https://t.me/ppmododderlog", username: "@ppmododderlog" },
-    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" }
+    { name: "💬 Community Group", url: "https://t.me/GPPHMCOMMUNITY", username: "@GPPHMCOMMUNITY" },
+    { name: "🎥 PP Tube Official", url: "https://t.me/pptubeofc", username: "@pptubeofc" },
+    { name: "🌟 User Feedback", url: "https://t.me/ppmodfeedback", username: "@ppmodfeedback" }
 ];
 
 function generateReferralCode() {
@@ -1557,33 +1560,25 @@ async function sendRandomCaptcha(chatId, userId, attemptNum = 1) {
 async function checkUserMembership(userId) {
     try {
         const uid = parseInt(userId, 10);
-        if (!uid || isNaN(uid)) return true;
+        if (!uid || isNaN(uid)) return false;
 
-        const checks = REQUIRED_CHANNELS.map(async (ch) => {
+        for (const ch of REQUIRED_CHANNELS) {
             const uname = (ch.username || "").trim();
-            if (!uname) return true;
+            if (!uname) continue;
             try {
                 const member = await userNotifyBot.getChatMember(uname, uid);
-                if (member && ["creator", "administrator", "member", "restricted"].includes(member.status)) {
-                    return true;
-                }
-                if (member && (member.status === "left" || member.status === "kicked")) {
+                // প্রতিটি চ্যানেল বা গ্রুপে মেম্বার স্ট্যাটাস সক্রিয় হতে হবে
+                if (!member || !["creator", "administrator", "member", "restricted"].includes(member.status)) {
                     return false;
                 }
-                return true;
             } catch (e) {
-                const msg = ((e && e.message) || "").toLowerCase();
-                if (msg.includes("user_not_participant") || msg.includes("not a member") || msg.includes("user not found")) {
-                    return false;
-                }
-                // বটের নিজস্ব পারমিশন বা চ্যানেল রেস্ট্রিকশনে ইউজারকে মিথ্যাভাবে ব্লক না করা
-                return true;
+                // ইউজার না থাকলে বা কোনো ত্রুটি হলেই জয়েন নেই ধরা হবে
+                return false;
             }
-        });
-        const results = await Promise.all(checks);
-        return results.every(Boolean);
-    } catch (e) {
+        }
         return true;
+    } catch (e) {
+        return false;
     }
 }
 
@@ -1606,10 +1601,12 @@ async function enforceChannelMembership(chatId, userId) {
 
         await userNotifyBot.sendMessage(chatId,
             `⚠️ <b>আপনি চ্যানেল বা গ্রুপ থেকে লিভ নিয়েছেন!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `গ্রুপ বা চ্যানেল থেকে বের হয়ে যাওয়ায় আপনার ভেরিফিকেশন বাতিল হয়েছে। পুনরায় বট ও রেফারেল সুবিধা পেতে নিচের সব চ্যানেল ও গ্রুপে জয়েন করে ক্যাপচা পূরণ করুন:\n\n` +
+            `গ্রুপ বা চ্যানেল থেকে বের হয়ে যাওয়ায় আপনার ভেরিফিকেশন বাতিল হয়েছে। পুনরায় বট ও রেফারেল সুবিধা পেতে নিচের ৫টি চ্যানেল ও গ্রুপেই জয়েন করে ক্যাপচা পূরণ করুন:\n\n` +
             `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
             `├ 📋 <a href="https://t.me/ppmododderlog">All Order Log</a>\n` +
-            `└ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n\n` +
+            `├ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
+            `├ 🎥 <a href="https://t.me/pptubeofc">PP Tube Official</a>\n` +
+            `└ 🌟 <a href="https://t.me/ppmodfeedback">User Feedback</a>\n\n` +
             `👉 ১-ক্লিকে সব জয়েন করতে নিচের বাটনে চাপ দিন:`,
             {
                 parse_mode: "HTML",
@@ -1702,7 +1699,7 @@ function getJoinKeyboard(userId, refId = null, isVerified = false) {
 
 // ---------------- ADMIN SWIPE-TO-REPLY & COMMAND HANDLERS ----------------
 // Helper: User Dashboard Card Formatter
-function buildUserAdminCard(uid, uData) {
+function buildUserAdminCard(uid, uData, phoneNo = "") {
     const cleanBal = Math.round(((Number(uData.balance) || 0) + Number.EPSILON) * 100) / 100;
     const cleanPoints = Number(uData.playPoints) || 0;
     const isBanned = (uData.banned === true || uData.banned === 1 || uData.banned === "1");
@@ -1713,12 +1710,14 @@ function buildUserAdminCard(uid, uData) {
     const bonusBal = Number(uData.bonusBalance || 0);
     const cleanName = (uData.name || "User").replace(/[<>&]/g, "").trim().slice(0, 30);
     const cleanEmail = (uData.email || "No Email").replace(/[<>&]/g, "").trim();
+    const cleanPhone = phoneNo || uData.phone || "Not Shared";
 
     const text = 
         `👤 <b>USER PROFILE MANAGEMENT</b>\n\n` +
         `📛 <b>Name:</b> ${cleanName}\n` +
         `📧 <b>Email:</b> <code>${cleanEmail}</code>\n` +
-        `🆔 <b>UID:</b> <code>${uid}</code>\n\n` +
+        `🆔 <b>UID:</b> <code>${uid}</code>\n` +
+        `📱 <b>Phone:</b> <code>${cleanPhone.startsWith("+") ? cleanPhone : (cleanPhone !== "Not Shared" ? "+" + cleanPhone : cleanPhone)}</code>\n\n` +
         `💰 <b>Real (Deposit):</b> <code>${realBal} Coins</code>\n` +
         `🎁 <b>Bonus (Other):</b> <code>${bonusBal} Coins</code>\n` +
         `🪙 <b>Total Coins:</b> <b>${cleanBal} Coins</b>\n\n` +
@@ -2617,13 +2616,29 @@ userNotifyBot.on("message", async (msg) => {
 
         if (searchUid) {
             try {
-                // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ (UID বা Email দুটোই কাজ করবে)
+                // ইউজার ফোন নম্বর খুঁজে বের করা (tg_bot_users থেকে)
+                let userPhone = "";
+                try {
+                    const tgDoc = await db.collection("tg_bot_users").doc(searchUid).get();
+                    if (tgDoc.exists) {
+                        userPhone = tgDoc.data().phone || "";
+                    } else {
+                        const tgQ = await db.collection("tg_bot_users").where("websiteUid", "==", searchUid).limit(1).get();
+                        if (!tgQ.empty) userPhone = tgQ.docs[0].data().phone || "";
+                    }
+                } catch (e) {}
+
+                // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ
                 const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
                 const cfData = await cfRes.json();
 
                 if (cfData && cfData.ok && cfData.user) {
                     const u = cfData.user;
-                    const card = buildUserAdminCard(u.uid, u);
+                    if (!userPhone && u.tgChatId) {
+                        const tDoc = await db.collection("tg_bot_users").doc(u.tgChatId.toString()).get().catch(() => null);
+                        if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
+                    }
+                    const card = buildUserAdminCard(u.uid, u, userPhone);
                     return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
                         parse_mode: "HTML", 
                         reply_markup: card.reply_markup 
@@ -2633,7 +2648,12 @@ userNotifyBot.on("message", async (msg) => {
                 // ২. ক্লাউডফ্লেয়ারে না পেলে ফায়ারস্টোর ফলব্যাক
                 const uDoc = await db.collection("users").doc(searchUid).get();
                 if (uDoc.exists) {
-                    const card = buildUserAdminCard(searchUid, uDoc.data());
+                    const uData = uDoc.data();
+                    if (!userPhone && uData.tgChatId) {
+                        const tDoc = await db.collection("tg_bot_users").doc(uData.tgChatId.toString()).get().catch(() => null);
+                        if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
+                    }
+                    const card = buildUserAdminCard(searchUid, uData, userPhone);
                     return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
                         parse_mode: "HTML", 
                         reply_markup: card.reply_markup 
@@ -2662,14 +2682,16 @@ userNotifyBot.on("message", async (msg) => {
             if (text === "✅" || text === "/approve" || text.toLowerCase() === "approve") {
                 let targetId = identifier;
 
-                // রিপ্লাই মেসেজ থেকে TrxID, Amount ও Email সরাসরি এক্সট্র্যাক্ট করা (যদি ফায়ারস্টোর রিড বন্ধ থাকে)
+                // রিপ্লাই মেসেজ থেকে TrxID, Amount, Coins ও Email সরাসরি এক্সট্র্যাক্ট করা
                 const trxMatch = replyText.match(/TrxID:\s*([A-Za-z0-9_-]+)/i);
                 const amtMatch = replyText.match(/Amount:\s*([\d.]+)/i);
+                const coinsMatch = replyText.match(/Coins(?:\s*Credited)?:\s*\+?(\d+)/i);
                 const emailMatch = replyText.match(/User:.*?\((\S+@\S+)\)/i);
 
                 const cleanTrx = trxMatch ? trxMatch[1].trim().toUpperCase() : identifier.toUpperCase();
                 const cleanAmt = amtMatch ? Number(amtMatch[1]) : 15;
                 const cleanEmail = emailMatch ? emailMatch[1].trim().replace(/\)/g, '') : "";
+                const cleanCoins = coinsMatch ? Number(coinsMatch[1]) : 0;
 
                 try {
                     // ১. ইউজারকে Cloudflare D1 থেকে খোঁজা
@@ -2683,10 +2705,10 @@ userNotifyBot.on("message", async (msg) => {
                     }
 
                     const rate = 7;
-                    const finalCoins = Math.max(1, Math.floor(cleanAmt / rate));
 
                     // approveDepositById কল করা (এটি Cloudflare D1 ও Firestore-এ একবারই নিরাপদভাবে প্রসেস করবে)
                     const approvedData = await approveDepositById(targetId, "Admin_Telegram");
+                    const finalCoins = cleanCoins || (approvedData && Number(approvedData.coins)) || Math.max(1, Math.floor(cleanAmt / rate));
                     if (approvedData && approvedData.alreadyApproved) {
                         await userNotifyBot.sendMessage(msg.chat.id, 
                             `⚠️ <b>এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!</b>\n\n🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`,
@@ -3216,11 +3238,12 @@ userNotifyBot.onText(/^\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
             `👋 <b>হ্যালো, ${cleanFirstName}!</b>\n\n` +
             `🎁 <b>রেফারেল বোনাস অফার:</b>\n` +
             `প্রতি সফল রেফারে পাবেন <b>০.৫ PP Coins</b>! মাত্র <b>৩ কয়েন</b> জমলেই সরাসরি ফ্রি রিডিম কোড তুলে নিতে পারবেন।\n\n` +
-            `⚡ <b>আমাদের অফিসিয়াল কমিউনিটি:</b>\n` +
+            `⚡ <b>আমাদের অফিসিয়াল কমিউনিটি (৫টি চ্যানেল ও গ্রুপ):</b>\n` +
             `├ 📢 <a href="https://t.me/googleplaypointhack">Main Channel</a>\n` +
             `├ 📋 <a href="https://t.me/ppmododderlog">All Order Logs</a>\n` +
             `├ 💬 <a href="https://t.me/GPPHMCOMMUNITY">Community Group</a>\n` +
-            `└ 🔒 <a href="https://t.me/+s09ahNjWHZM4YWM9">VIP Private Access</a>\n\n` +
+            `├ 🎥 <a href="https://t.me/pptubeofc">PP Tube Official</a>\n` +
+            `└ 🌟 <a href="https://t.me/ppmodfeedback">User Feedback</a>\n\n` +
             (isVerified
                 ? `✅ <b>আপনার অ্যাকাউন্ট সম্পূর্ণ ভেরিফাইড!</b>\nনিচের "👥 Referral Stats" বাটনে চাপ দিয়ে আপনার ইনভাইট লিংক দেখতে পারবেন।\n`
                 : `📌 <b>ভেরিফিকেশন আবশ্যক:</b>\nফেক রেফারেল প্রতিরোধে বট ব্যবহার ও রেফারেল লিংক পেতে নিচের <b>"🔐 একাউন্ট ভেরিফাই"</b> বাটনে চাপ দিয়ে ফোন নম্বর ও ওয়েবসাইট UID ভেরিফাই করুন।\n`) +
@@ -4179,23 +4202,19 @@ userNotifyBot.on("callback_query", async (query) => {
             const isAllJoined = await checkUserMembership(userId);
             if (!isAllJoined) {
                 return userNotifyBot.answerCallbackQuery(query.id, {
-                    text: "❌ এখনও সবগুলো চ্যানেল/গ্রুপে জয়েন পাওয়া যায়নি! দয়া করে নিশ্চিত করুন আপনি ৩টি চ্যানেল/গ্রুপেই জয়েন করেছেন।",
+                    text: "❌ এখনও সবগুলো চ্যানেল বা গ্রুপে জয়েন পাওয়া যায়নি! দয়া করে ৩টিতেই জয়েন করে আবার চাপুন।",
                     show_alert: true
                 });
             }
 
             await userNotifyBot.answerCallbackQuery(query.id, {
-                text: "✅ চ্যানেল জয়েন নিশ্চিত হয়েছে!",
+                text: "✅ চ্যানেল ও গ্রুপে জয়েন নিশ্চিত হয়েছে!",
                 show_alert: false
             });
 
             const userRef = db.collection("tg_bot_users").doc(userId);
             const userSnap = await userRef.get().catch(() => null);
             const userData = (userSnap && userSnap.exists) ? userSnap.data() : {};
-
-            if (userData.isVerified) {
-                return userNotifyBot.sendMessage(chatId, "✅ আপনি ইতিমধ্যে ভেরিফাইড! বট ব্যবহার করতে পারেন।");
-            }
 
             // ১২ ঘণ্টা লকআউট চেক
             if (userData.captchaLockedUntil) {
@@ -4207,14 +4226,17 @@ userNotifyBot.on("callback_query", async (query) => {
                 }
             }
 
+            // কন্টাক্ট আগে থেকেই শেয়ার করা থাকলে সরাসরি ইমেজ ক্যাপচায় নিয়ে যাবে
             if (userData.phone) {
-                return sendRandomCaptcha(chatId, userId, null);
+                await userNotifyBot.sendMessage(chatId, "✅ <b>জয়েন নিশ্চিত হয়েছে!</b>\nএখন নিচের ছবিতে থাকা কোডটি ৩০ সেকেন্ডের মধ্যে লিখে ভেরিফাই সম্পন্ন করুন:");
+                return sendRandomCaptcha(chatId, userId, 1);
             }
 
+            // কন্টাক্ট না থাকলে ফোন নম্বর শেয়ারের জন্য বলবে
             return userNotifyBot.sendMessage(chatId,
                 `🛡️ <b>অ্যাকাউন্ট ভেরিফিকেশন (ধাপ ১ / ২)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-                `বট ব্যবহার ও রেফারেল সুবিধা পেতে নিচের বাটনে চাপ দিয়ে ফোন নম্বর শেয়ার করুন:\n\n` +
-                `🇧🇩 <b>অনুমোদিত দেশ:</b> শুধুমাত্র <b>বাংলাদেশি নম্বর (+880)</b> সরাসরি অনুমোদিত। প্রবাসী বাংলাদেশিরা নম্বর ভেরিফাই করতে এডমিনের সাথে যোগাযোগ করুন (@Blackmoney54)।`,
+                `বট ব্যবহার করতে নিচের বাটনে চাপ দিয়ে ফোন নম্বর শেয়ার করুন:\n\n` +
+                `🇧🇩 <b>অনুমোদিত দেশ:</b> শুধুমাত্র <b>বাংলাদেশি নম্বর (+880)</b> অনুমোদিত।`,
                 {
                     parse_mode: "HTML",
                     reply_markup: {
