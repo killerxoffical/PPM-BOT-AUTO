@@ -1370,6 +1370,172 @@ let cachedLeaderboardData = {
     updatedAt: 0
 };
 
+// ---------------- LIVE LEADERBOARD AUDIT & LEAVER CLEANUP ENGINE ----------------
+let lastAuditTimestamp = 0;
+let isAuditInProgress = false;
+
+async function auditLeaderboardMembers(adminChatId = null) {
+    const now = Date.now();
+
+    // কোটা সুরক্ষা ১: একই সাথে একাধিক অডিট চলা রোধ করা
+    if (isAuditInProgress) {
+        if (adminChatId) {
+            userNotifyBot.sendMessage(adminChatId, "⏳ <b>ইতিমধ্যে একটি অডিট চলমান রয়েছে!</b> দয়া করে সেটি শেষ হওয়া পর্যন্ত অপেক্ষা করুন।", { parse_mode: "HTML" });
+        }
+        return;
+    }
+
+    // কোটা সুরক্ষা ২: ৫ মিনিটের কুলডাউন (Firebase Read কোটা সেভার)
+    const cooldownMs = 5 * 60 * 1000;
+    if (now - lastAuditTimestamp < cooldownMs) {
+        const remainingSec = Math.ceil((cooldownMs - (now - lastAuditTimestamp)) / 1000);
+        if (adminChatId) {
+            userNotifyBot.sendMessage(adminChatId, `⚠️ <b>কোটা সুরক্ষা কুলডাউন সক্রিয়!</b>\nডাটাবেজের কোটা সাশ্রয়ের জন্য আর <b>${remainingSec} সেকেন্ড</b> পর পুনরায় অডিট করতে পারবেন।`, { parse_mode: "HTML" });
+        }
+        return;
+    }
+
+    isAuditInProgress = true;
+    lastAuditTimestamp = now;
+
+    if (adminChatId) {
+        userNotifyBot.sendMessage(adminChatId, "🔍 <b>চ্যানেল মেম্বার অডিট শুরু হয়েছে...</b>\nটপ রেফারারদের মেম্বাররা এখনও চ্যানেলে আছে কিনা স্ক্যান করা হচ্ছে। অনুগ্রহ করে অপেক্ষা করুন...", { parse_mode: "HTML" }).catch(() => {});
+    }
+
+    try {
+        // ১. শুধুমাত্র টপ ২০ রেফারারদের আনা (কোটা সাশ্রয়ী লিমিট)
+        const topSnap = await db.collection("tg_bot_users")
+            .where("referralCount", ">", 0)
+            .orderBy("referralCount", "desc")
+            .limit(20)
+            .get();
+
+        if (topSnap.empty) {
+            if (adminChatId) {
+                userNotifyBot.sendMessage(adminChatId, "ℹ️ অডিট করার মতো কোনো রেফারেল রেকর্ড পাওয়া যায়নি।", { parse_mode: "HTML" });
+            }
+            return { audited: 0, changed: 0, report: [] };
+        }
+
+        const bonusPerRef = (publicCache && publicCache.config && publicCache.config.tgRefBonus !== undefined)
+            ? Number(publicCache.config.tgRefBonus)
+            : 0.5;
+
+        const auditReport = [];
+        let totalCleanedCount = 0;
+
+        for (const docSnap of topSnap.docs) {
+            const referrerId = docSnap.id;
+            const refData = docSnap.data();
+            const currentStoredCount = Number(refData.referralCount || 0);
+            const refName = refData.name || "User";
+
+            // ২. এই রেফারারের লিংক দিয়ে জয়েন করা সব ইউজারদের আনা
+            const invitedSnap = await db.collection("tg_bot_users")
+                .where("inviterId", "==", referrerId)
+                .get();
+
+            let activeVerifiedCount = 0;
+            let leftOrInvalidCount = 0;
+
+            for (const invDoc of invitedSnap.docs) {
+                const invitedUser = invDoc.data();
+                const invitedUid = invDoc.id;
+
+                // শুধুমাত্র ভেরিফাইড ইউজারদের চেক করা
+                if (!invitedUser.isVerified) {
+                    leftOrInvalidCount++;
+                    continue;
+                }
+
+                // ৩. ইউজার এখনো মেইন চ্যানেলে মেম্বার আছে কিনা লাইভ চেক
+                const isStillMember = await checkUserMembership(invitedUid);
+                if (isStillMember) {
+                    activeVerifiedCount++;
+                } else {
+                    leftOrInvalidCount++;
+                    // ইউজার লিভ নিলে তার ডাটাতে আনভেরিফাইড চিহ্নিত করা
+                    db.collection("tg_bot_users").doc(invitedUid).set({
+                        isVerified: false,
+                        leftChannel: true
+                    }, { merge: true }).catch(() => {});
+                }
+                // টেলিগ্রাম API রেট লিমিট এড়াতে ছোট বিরতি
+                await new Promise(r => setTimeout(r, 60));
+            }
+
+            // ৪. কাউন্ট পরিবর্তন হলে Firestore ও Cloudflare D1 এ কারেকশন
+            if (activeVerifiedCount !== currentStoredCount) {
+                totalCleanedCount++;
+                const newCorrectBalance = Math.max(0, Math.round((activeVerifiedCount * bonusPerRef + Number.EPSILON) * 100) / 100);
+
+                await db.collection("tg_bot_users").doc(referrerId).set({
+                    referralCount: activeVerifiedCount,
+                    refBalance: newCorrectBalance,
+                    lastAuditedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                cfFetch(`${CF_API}/api/bot/user/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: referrerId,
+                        referralCount: activeVerifiedCount,
+                        refBalance: newCorrectBalance,
+                        resetRefBalance: 1
+                    })
+                }).catch(() => {});
+
+                auditReport.push({
+                    name: refName,
+                    id: referrerId,
+                    before: currentStoredCount,
+                    after: activeVerifiedCount,
+                    left: currentStoredCount - activeVerifiedCount
+                });
+            }
+        }
+
+        // ক্যাশ ক্লিয়ার করা যাতে ফ্রেশ ডাটা শো করে
+        cachedLeaderboardData = { list: [], updatedAt: 0 };
+
+        if (adminChatId) {
+            let reportMsg = `✅ <b>লিডারবোর্ড অডিট ও মেম্বার ভেরিফিকেশন সম্পন্ন!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n`;
+            if (auditReport.length === 0) {
+                reportMsg += `✨ <b>সবাই সক্রিয়!</b> কোনো ইউজার চ্যানেল থেকে লিভ নেয়নি। লিডারবোর্ডের সব ডাটা ১০০% সঠিক রয়েছে।`;
+            } else {
+                reportMsg += `⚠️ <b>লিভ নেওয়া ইউজারদের বাদ দিয়ে লিডারবোর্ড আপডেট করা হয়েছে:</b>\n\n`;
+                auditReport.forEach((r, idx) => {
+                    reportMsg += `${idx + 1}. <b>${safeTgHtml(r.name)}</b> (<code>${r.id}</code>)\n` +
+                                 `   ├ 👥 আগে ছিল: <b>${r.before}</b> জন\n` +
+                                 `   ├ ❌ লিভ নিয়েছে: <b>${r.left > 0 ? r.left : 0}</b> জন\n` +
+                                 `   └ ✅ বর্তমান সক্রিয় রেফার: <b>${r.after}</b> জন\n\n`;
+                });
+                reportMsg += `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                             `📊 মোট <b>${totalCleanedCount}</b> জন রেফারারের রেফার সংখ্যা সঠিক করা হয়েছে।`;
+            }
+
+            const kb = {
+                inline_keyboard: [
+                    [{ text: "🏆 আপডেট লিডারবোর্ড দেখুন", callback_data: "show_leaderboard" }],
+                    [{ text: "⚡ অ্যাডমিন কন্ট্রোল প্যানেল", callback_data: "adm_open_panel" }]
+                ]
+            };
+
+            userNotifyBot.sendMessage(adminChatId, reportMsg, { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+        }
+
+        return { audited: topSnap.docs.length, changed: totalCleanedCount, report: auditReport };
+    } catch (err) {
+        console.error("[AUDIT ERROR]:", err);
+        if (adminChatId) {
+            userNotifyBot.sendMessage(adminChatId, `❌ অডিট সম্পন্ন করতে সমস্যা: ${err.message}`).catch(() => {});
+        }
+    } finally {
+        isAuditInProgress = false;
+    }
+}
+
 // Register Telegram Menu Commands on Startup
 userNotifyBot.setMyCommands([
     { command: "start", description: "🚀 স্টার্ট করুন ও অফার দেখুন" },
@@ -1718,7 +1884,8 @@ function buildAdminControlDashboard() {
         `⚡ <b>PP MOD EXECUTIVE ADMIN CONTROLS</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👑 <b>ম্যানেজমেন্ট প্যানেল:</b>\n` +
-        `নিচের বাটনগুলো দিয়ে যেকোনো ইউজারের রেফারেল রিসেট, লক অ্যাকাউন্ট আনলক এবং প্রবাসী নম্বর অনুমোদন করুন:\n\n` +
+        `নিচের বাটনগুলো দিয়ে যেকোনো ইউজারের রেফারেল অডিট, রিসেট এবং চ্যানেল লিভ নেওয়া ইউজারদের বাদ দিন:\n\n` +
+        `├ 🔍 <b>Audit Leaderboard:</b> চ্যানেল থেকে লিভ নেওয়া ইউজারদের শনাক্ত ও বাদ দেওয়া\n` +
         `├ 🔒 <b>Locked Users:</b> ১২ ঘণ্টার লক হওয়া অ্যাকাউন্ট তালিকা ও আনলক\n` +
         `├ 🔄 <b>Reset All:</b> সবার ফেক রেফার সম্পূর্ণ মুছে ০ করা\n` +
         `├ 👤 <b>Reset User:</b> নির্দিষ্ট আইডি বা @username রিসেট করা\n` +
@@ -1729,23 +1896,24 @@ function buildAdminControlDashboard() {
     const keyboard = {
         inline_keyboard: [
             [
-                { text: "🔒 Locked Accounts (12h)", callback_data: "adm_view_locked" },
-                { text: "🔓 Unlock User (ID/@User)", callback_data: "adm_ask_unlock_user" }
+                { text: "🔍 Audit & Verify Leaderboard", callback_data: "adm_audit_leaderboard" },
+                { text: "🔒 Locked Accounts (12h)", callback_data: "adm_view_locked" }
             ],
             [
-                { text: "🔄 Reset All Referrals", callback_data: "adm_ask_reset_all" },
+                { text: "🔓 Unlock User", callback_data: "adm_ask_unlock_user" },
                 { text: "👤 Reset User (ID/@User)", callback_data: "adm_ask_reset_user" }
             ],
             [
-                { text: "💰 Reset User Ref Balance", callback_data: "adm_ask_reset_bal" },
-                { text: "📱 Allow Probashi Number", callback_data: "adm_ask_allow_phone" }
+                { text: "🔄 Reset All Referrals", callback_data: "adm_ask_reset_all" },
+                { text: "💰 Reset User Ref Balance", callback_data: "adm_ask_reset_bal" }
             ],
             [
-                { text: "🏆 Admin Leaderboard", callback_data: "show_leaderboard" },
-                { text: "📊 Server Live Stats", callback_data: "panel_view_stats" }
+                { text: "📱 Allow Probashi Number", callback_data: "adm_ask_allow_phone" },
+                { text: "🏆 Admin Leaderboard", callback_data: "show_leaderboard" }
             ],
             [
-                { text: "⚙️ System Configuration (panel544)", callback_data: "panel_refresh" }
+                { text: "📊 Server Live Stats", callback_data: "panel_view_stats" },
+                { text: "⚙️ System Config", callback_data: "panel_refresh" }
             ]
         ]
     };
@@ -2186,6 +2354,11 @@ userNotifyBot.on("message", async (msg) => {
                 `🔓 ক্যাপচা লক সফলভাবে রিমুভ করা হয়েছে।`,
                 { parse_mode: "HTML" }
             );
+        }
+
+        // ---------------- ADMIN AUDIT LEADERBOARD COMMAND ----------------
+        if ((text === "/auditref" || text === "/auditleaderboard" || text === "/checkref") && isFromAdmin) {
+            return auditLeaderboardMembers(chatId);
         }
 
         if (text === "/lockedusers" && isFromAdmin) {
@@ -3155,10 +3328,11 @@ async function sendLeaderboard(chatId, userId, editMessageId = null) {
             [{ text: "👥 Referral Stats", callback_data: "my_ref_info" }]
         ];
 
-        // অ্যাডমিন হলে লিডারবোর্ডের ঠিক নিচেই কুইক ম্যানেজমেন্ট বাটন থাকবে
+        // অ্যাডমিন হলে লিডারবোর্ডের নিচেই অডিট বাটন ও কন্ট্রোল প্যানেল বাটন থাকবে
         if (isAdminViewer) {
             keyboardRows.unshift([
-                { text: "⚡ Open Admin Controls", callback_data: "adm_open_panel" }
+                { text: "🔍 Audit & Clean Leavers (অডিট করুন)", callback_data: "adm_audit_leaderboard" },
+                { text: "⚡ Admin Controls", callback_data: "adm_open_panel" }
             ]);
         }
 
@@ -3505,6 +3679,12 @@ userNotifyBot.on("callback_query", async (query) => {
         const data = query.data || "";
 
         // ---------------- ADMIN INTERACTIVE CONTROL PANEL CALLBACKS ----------------
+        if (data === "adm_audit_leaderboard") {
+            if (!isBotAdmin(query.from.id)) return userNotifyBot.answerCallbackQuery(query.id, { text: "Unauthorized" });
+            await userNotifyBot.answerCallbackQuery(query.id, { text: "অডিট শুরু হচ্ছে..." });
+            return auditLeaderboardMembers(chatId);
+        }
+
         if (data === "adm_open_panel") {
             userNotifyBot.answerCallbackQuery(query.id).catch(() => {});
             if (!isBotAdmin(query.from.id)) return;
