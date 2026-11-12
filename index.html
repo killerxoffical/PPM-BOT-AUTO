@@ -9915,11 +9915,12 @@
             const isCompleted = status === 'completed';
             const isRefunded = status === 'refunded' || status === 'rejected';
 
-            // ১. ভুল পাসওয়ার্ড / ক্রেডেনশিয়াল ডিটেকশন (কেবলমাত্র নিশ্চিতভাবে পাসওয়ার্ড ভুল হলে)
+            // ১. ভুল পাসওয়ার্ড / ক্রেডেনশিয়াল ডিটেকশন
             const isPassError = isRefunded && (
-                rawLower.includes('ভুল পাসওয়ার্ড') || rawLower.includes('পাসওয়ার্ড ভুল') ||
-                rawLower.includes('wrong password') || rawLower.includes('incorrect password') ||
-                rawLower.includes('password error')
+                rawLower.includes('পাসওয়ার্ড') || rawLower.includes('password') ||
+                rawLower.includes('incorrect') || rawLower.includes('wrong') ||
+                rawLower.includes('32') || rawLower.includes('34') ||
+                rawLower.includes('authenticator') || rawLower.includes('লগইন করা যাচ্ছে না')
             );
 
             // ২. ফোন থেকে লগইন সফল ও টাস্ক আনলক অবস্থা
@@ -10266,6 +10267,7 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, doc, getDoc, deleteDoc, updateDoc, runTransaction, collection, addDoc, serverTimestamp, query, where, limit, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyAQmiWD9fP0nFpl7ShPjE51udtyFWo6jpA",
@@ -13074,30 +13076,36 @@
 
     <script type="module">
         import { initializeApp as _initApp, getApp as _getApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore as _getFS, doc as _doc, getDoc as _getDoc, setDoc as _setDoc, deleteDoc as _deleteDoc, collection as _col, addDoc as _addDoc, serverTimestamp as _ts, runTransaction as _tx, increment as _inc, query as _q, where as _where, orderBy as _orderBy, limit as _limit, getDocs as _getDocs, onSnapshot as _snap } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
         import { getAuth as _getAuth, GoogleAuthProvider as _GAP, signInWithPopup as _popup, signInWithRedirect as _redir, getRedirectResult as _redirRes, onAuthStateChanged as _onAuth, signOut as _signOut, signInWithEmailAndPassword as _emLogin, createUserWithEmailAndPassword as _emReg, sendPasswordResetEmail as _emReset, updateProfile as _emProf } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
-        // Cloudflare D1 + Worker API Gateway Endpoint (Zero Firestore dependency)
+        // Cloudflare D1 + Worker API Gateway Endpoint
         const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
 
-        // Cloudflare D1 Edge Wallet & Instant Profile Sync
-        async function syncD1Wallet(u) {
+        // Cloudflare D1 Edge Wallet & Auto-Migration Helper
+        async function syncD1Wallet(u, fbData = null) {
             if (!u || !u.uid) return null;
             try {
-                let tok = '';
-                try { tok = await u.getIdToken(); } catch(e){}
                 const payload = {
                     uid: u.uid,
-                    name: ((window.ppfb && window.ppfb.customName) || u.displayName || 'User').slice(0, 30),
-                    email: u.email || '',
-                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || '').trim()
+                    name: ((window.ppfb && window.ppfb.customName) || u.displayName || (fbData && fbData.name) || 'User').slice(0, 30),
+                    email: u.email || (fbData && fbData.email) || '',
+                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || (fbData && fbData.avatar) || '').trim()
                 };
+                // যদি ফায়ারবেসে পুরনো ব্যালেন্স থাকে তবে তা Cloudflare D1-এ ট্রান্সফারের জন্য পাঠানো
+                if (fbData) {
+                    payload.fbBalance = Number(fbData.balance !== undefined ? fbData.balance : 0);
+                    payload.fbReal = Number(fbData.realBalance !== undefined ? fbData.realBalance : payload.fbBalance);
+                    payload.fbBonus = Number(fbData.bonusBalance || 0);
+                    payload.fbPlayPoints = Number(fbData.playPoints || 0);
+                    payload.fbPendingPoints = Number(fbData.pendingPoints || 0);
+                    payload.fbStars = Number(fbData.loyaltyStars || 0);
+                    payload.fbTgChatId = (fbData.tgChatId || '').toString().trim();
+                }
 
                 const res = await fetch(`${CF_API}/api/wallet/sync`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        ...(tok ? { 'Authorization': 'Bearer ' + tok } : {})
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
@@ -13107,16 +13115,10 @@
                     window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
                     if (w.banned === 1 || w.banned === true) {
                         window.ppfb.banned = true;
-                        setBannedUI(true, w.banReason || 'Account suspended');
-                    } else {
-                        window.ppfb.banned = false;
-                        setBannedUI(false);
+                        setBannedUI(true);
                     }
-                    if (w.tgChatId) window.ppfb.tgChatId = w.tgChatId;
-                    if (w.avatar) window.ppfb.avatar = w.avatar;
-                    if (w.name) window.ppfb.customName = w.name;
+                    if (w.tgChatId && !window.ppfb.tgChatId) window.ppfb.tgChatId = w.tgChatId;
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
-                    setProfileUI(u);
                     return w;
                 }
             } catch (err) {
@@ -13528,18 +13530,34 @@
             }
 
             if (btn) { btn.innerHTML = '<span class="pay-spinner"></span><span>রিকোয়েস্ট পাঠানো হচ্ছে...</span>'; }
+            const grossBdt = taka;
+            const feeBdt = Math.round(grossBdt * 0.10); // 10% Platform Fee
+            const bdt = Math.max(0, grossBdt - feeBdt);
             try {
-                let tok = '';
-                try { tok = await u.getIdToken(); } catch (e) {}
-                const res = await fetch(`${CF_API}/api/wallet/withdraw`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-                    body: JSON.stringify({ points: taka, method: method, account: num })
-                });
-                const data = await res.json();
-                if (!data.ok) throw new Error(data.error || 'Withdraw failed');
+                const uref = _doc(db, 'users', u.uid);
+                const us = await _getDoc(uref);
+                if (!us.exists()) throw new Error('nouser');
+                const cur = Number((us.data() && us.data().playPoints) || 0);
+                if (cur < taka) throw new Error('low');
 
-                setBalanceUI(data.balance, data.playPoints, data.pendingPoints, data.realBalance, data.bonusBalance);
+                // লাইভ ব্যালেন্স থেকে কাটা (Exact Safe Update)
+                await _setDoc(uref, { playPoints: Number(cur - taka) }, { merge: true });
+
+                // উইথড্রল রিকোয়েস্ট তৈরি করা
+                const newWid = 'WD_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                await _setDoc(_doc(db, 'withdrawals', newWid), {
+                    uid: u.uid,
+                    name: u.displayName || 'User',
+                    email: u.email || '',
+                    method: method,
+                    account: num,
+                    points: Number(taka),
+                    amount: Number(bdt),
+                    fee: Number(feeBdt),
+                    status: 'pending',
+                    createdAt: _ts(),
+                    expiresAt: new Date(Date.now() + 10 * 86400000)
+                });
 
                 try {
                     if (typeof sendTelegramMsg !== 'undefined' && typeof ADMIN_TG_ID !== 'undefined') {
@@ -13652,35 +13670,92 @@
             if (window.lucide && on) lucide.createIcons();
         }
         async function ensureUser(u) {
-            if (!u || !u.uid) return;
-            setProfileUI(u);
-
-            // ১. ক্লাউডফ্লেয়ার D1 থেকে ইউজারের ওয়ালেট ও ব্যালেন্স আনা
-            const w = await syncD1Wallet(u);
-
-            // ২. ব্যাকগ্রাউন্ডে ব্যালেন্স সবসময় লাইভ রাখতে প্রতি ৪ সেকেন্ড পর পর D1 চেক করা
-            if (unsubBalance) clearInterval(unsubBalance);
-            unsubBalance = setInterval(async () => {
-                if (!auth || !auth.currentUser) return;
-                try {
-                    let tok = '';
-                    try { tok = await auth.currentUser.getIdToken(); } catch(e){}
-                    const r = await fetch(`${CF_API}/api/wallet?uid=${auth.currentUser.uid}`, {
-                        headers: { ...(tok ? { 'Authorization': 'Bearer ' + tok } : {}) }
-                    });
-                    const d = await r.json();
-                    if (d && d.ok && d.wallet) {
-                        const wl = d.wallet;
-                        setBalanceUI(wl.balance, wl.playPoints, wl.pendingPoints, wl.realBalance, wl.bonusBalance);
-                        window.ppfb.loyaltyStars = Number(wl.loyaltyStars || 0);
-                        if (wl.banned) {
-                            window.ppfb.banned = true;
-                            setBannedUI(true, wl.banReason || 'Account suspended');
-                        }
+            let fbUserData = null;
+            const ref = _doc(db, 'users', u.uid);
+            try {
+                const snap = await _getDoc(ref);
+                if (snap && snap.exists()) {
+                    fbUserData = snap.data();
+                    if (fbUserData.banned === true || fbUserData.banned === 1 || fbUserData.banned === "1") {
+                        window.ppfb.banned = true;
+                        setBannedUI(true, fbUserData.banReason || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।');
+                        setProfileUI(u);
+                        return;
                     }
-                } catch(e){}
-            }, 4000);
+                    if (fbUserData.name) {
+                        window.ppfb.customName = fbUserData.name.slice(0, 15);
+                        try { localStorage.setItem('pp_cached_name_' + u.uid, window.ppfb.customName); } catch (e) { }
+                    }
+                    if (fbUserData.avatar) {
+                        window.ppfb.avatar = fbUserData.avatar;
+                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, fbUserData.avatar); } catch (e) { }
+                    }
+                }
+            } catch (err) {
+                console.warn('Firebase read quota protected, switching to Cloudflare D1:', err);
+            }
 
+            // ফায়ারবেসের ব্যালেন্স ও প্রোফাইল সরাসরি Cloudflare D1-এ অটো-মাইগ্রেট ও সিঙ্ক
+            const d1Wallet = await syncD1Wallet(u, fbUserData);
+
+            const isBanned = (fbUserData && (fbUserData.banned === true || fbUserData.banned === 1 || fbUserData.banned === "1")) ||
+                (d1Wallet && (d1Wallet.banned === 1 || d1Wallet.banned === true || d1Wallet.banned === "1"));
+
+            if (isBanned) {
+                const bReason = (fbUserData && fbUserData.banReason) || (d1Wallet && d1Wallet.banReason) || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।';
+                window.ppfb.banned = true;
+                setBannedUI(true, bReason);
+                setProfileUI(u);
+                return;
+            }
+
+            window.ppfb.banned = false;
+            setBannedUI(false);
+            if (unsubBalance) unsubBalance();
+            unsubBalance = _snap(ref, s => {
+                if (s.exists()) {
+                    if (s.data().banned === true || s.data().banned === 1 || s.data().banned === "1") {
+                        window.ppfb.banned = true;
+                        setBannedUI(true, s.data().banReason || 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।');
+                        return;
+                    }
+                    window.ppfb.banned = false;
+                    setBannedUI(false);
+                    const d = s.data();
+                    const bonusC = Number(d.bonusBalance || 0);
+                    const totalBal = Number(d.balance !== undefined ? d.balance : 0);
+                    // যদি অ্যাডমিন শুধুমাত্র balance ফিল্ড আপডেট করে, তবে রিয়েল ব্যালেন্স স্বয়ংক্রিয়ভাবে সিঙ্ক হবে
+                    const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
+                        ? Number(d.realBalance)
+                        : Math.max(0, totalBal - bonusC);
+                    setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
+                    window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
+                    if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                    window.ppfb.tgChatId = (s.data().tgChatId || '').toString().trim();
+                    if (window.ppfb.tgChatId) {
+                        try { localStorage.setItem('pp_cached_tg_' + u.uid, window.ppfb.tgChatId); } catch (e) { }
+                    }
+                    window.ppfb.avatar = (s.data().avatar || '').toString().trim();
+                    if (window.paintAvatar) paintAvatar();
+                    window.ppfb.refCode = (s.data().refCode || '').toString().trim();
+                    window.ppfb.referredBy = (s.data().referredBy || '').toString().trim();
+                    window.ppfb.refCount = Number(s.data().refCount) || 0;
+                    window.ppfb.refEarned = Number(s.data().refEarned) || 0;
+                    if (window.refreshReferUI) { try { const rs = document.getElementById('screenRefer'); if (rs && !rs.classList.contains('hidden')) window.refreshReferUI(); } catch (e) { } }
+                    // CardGen premium access (paid mode): users/{uid}.genUntil
+                    try {
+                        const g = s.data().genUntil;
+                        let ms = 0;
+                        if (g && typeof g.toMillis === 'function') ms = g.toMillis();
+                        else if (typeof g === 'number') ms = g;
+                        else if (typeof g === 'string' && g) ms = Date.parse(g) || 0;
+                        window.ppfb.genUntil = ms || 0;
+                    } catch (e) { window.ppfb.genUntil = 0; }
+                    if (window.refreshTgConn) refreshTgConn();
+                    if (window.refreshGenUI) { try { window.refreshGenUI(); } catch (e) { } }
+                    setProfileUI(u); // ফায়ারস্টোরে আইডি পাওয়া মাত্র সাথে সাথে প্রোফাইল রিফ্রেশ ও বাটন হাইড
+                }
+            }, e => console.warn('balance listener:', e));
             setProfileUI(u);
         }
 
@@ -14141,17 +14216,12 @@
             const trx = 'WLT-' + Date.now().toString(36).toUpperCase();
             const logo = window._payGameLogo || '';
             try {
-                // Step A: Cloudflare D1 Edge Wallet পেমেন্ট (১০০% D1 লেজার ও আসল গেমের নাম)
+                // Step A: Cloudflare D1 Edge Wallet পেমেন্ট (ফায়ারবেস কোটা ছাড়া সরাসরি টাস্ক পেইড)
                 let newBalData = null;
-                let tok = '';
-                try { if (u && u.getIdToken) tok = await u.getIdToken(); } catch (e) {}
-                const payHeaders = { 'Content-Type': 'application/json' };
-                if (tok) payHeaders['Authorization'] = 'Bearer ' + tok;
-                const finalGameName = (window._payGame || selectedGame || 'Play Points Task').trim();
                 const payRes = await fetch(`${CF_API}/api/wallet/pay-task`, {
                     method: 'POST',
-                    headers: payHeaders,
-                    body: JSON.stringify({ uid: u.uid, feeCoins: feeCoins, isFree: isFree, game: finalGameName, logo: (window._payGameLogo || '') })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, feeCoins: feeCoins, isFree: isFree })
                 });
                 const payData = await payRes.json();
                 if (!payData.ok) {
@@ -14168,8 +14238,60 @@
                 setBalanceUI(newBalData.balance, window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0, newBalData.realBalance, newBalData.bonusBalance);
                 if (window.renderLoyaltyStars) window.renderLoyaltyStars();
 
-                // D1 pay-task এন্ডপয়েন্ট আগেই অ্যাটমিকভাবে order ও ledger তৈরি করেছে
-                let ordId = newBalData.orderId || ('ORD-' + Date.now());
+                // ব্যাকগ্রাউন্ডে ফায়ারবেসে ব্যাকআপ রাইট (ফায়ারবেস কোটা ডাউন থাকলেও কোনো এরর দেবে না)
+                _doc && db && _setDoc(_doc(db, 'users', u.uid), {
+                    balance: newBalData.balance,
+                    realBalance: newBalData.realBalance,
+                    bonusBalance: newBalData.bonusBalance,
+                    ...(deductBonus > 0 ? {} : { loyaltyStars: newBalData.loyaltyStars })
+                }, { merge: true }).catch(() => { });
+
+                // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost)
+                let ordId = 'ORD-' + Date.now();
+                const payMethodLabel = isFree ? 'Free 10th Task' : (deductBonus > 0 ? `PP Coins (Real: ${deductReal}, Bonus: ${deductBonus})` : 'PP Coins (Real)');
+                try {
+                    const cfRes = await fetch(`${CF_API}/api/orders/create`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: ordId,
+                            uid: u.uid,
+                            name: u.displayName || 'User',
+                            email: u.email || '',
+                            game: game,
+                            logo: logo,
+                            method: payMethodLabel,
+                            trxId: trx,
+                            amount: feeCoins,
+                            paidWithReal: deductReal,
+                            paidWithBonus: deductBonus,
+                            isFreeTask: isFree
+                        })
+                    });
+                    const cfData = await cfRes.json();
+                    if (cfData && cfData.orderId) ordId = cfData.orderId;
+                } catch (errOrd) {
+                    console.warn('Cloudflare D1 order create fallback:', errOrd);
+                }
+
+                // লাইটওয়েট ব্যাকআপ রেফারেন্স
+                try {
+                    await _setDoc(_doc(db, 'orders', ordId), {
+                        uid: u.uid,
+                        name: u.displayName || (window.ppfb && window.ppfb.user && window.ppfb.user.name) || 'User',
+                        email: u.email || (window.ppfb && window.ppfb.user && window.ppfb.user.email) || '',
+                        photo: u.photoURL || (window.ppfb && window.ppfb.user && window.ppfb.user.photo) || '',
+                        game: game,
+                        logo: logo,
+                        method: payMethodLabel,
+                        status: 'pending',
+                        amount: feeCoins,
+                        paidWithReal: deductReal,
+                        paidWithBonus: deductBonus,
+                        createdAt: _ts()
+                    }, { merge: true }).catch(() => { });
+                } catch (e) { }
+
                 window._currentOrderId = ordId;
                 setBalanceUI(Math.max(0, (Number(window.ppfb.balance) || 0) - feeCoins));
                 toast(feeCoins + ' Coins deducted! Provide credentials below');
@@ -14452,9 +14574,10 @@
             // লগইন স্ট্যাটাস ডিটেইলস নির্ণয়
             const rawMsg = (ord.adminMsg || '').toString().toLowerCase();
             const isPassError = isRefunded && (
-                rawMsg.includes('ভুল পাসওয়ার্ড') || rawMsg.includes('পাসওয়ার্ড ভুল') ||
-                rawMsg.includes('wrong password') || rawMsg.includes('incorrect password') ||
-                rawMsg.includes('password error')
+                rawMsg.includes('পাসওয়ার্ড') || rawMsg.includes('password') ||
+                rawMsg.includes('incorrect') || rawMsg.includes('wrong') ||
+                rawMsg.includes('32') || rawMsg.includes('34') ||
+                rawMsg.includes('authenticator') || rawMsg.includes('লগইন করা যাচ্ছে না')
             );
             const isLoginSuccess = !isRefunded && (
                 isCompleted || rawMsg.includes('লগইন সফল') ||
@@ -14801,18 +14924,6 @@
             _adVisitedExternal = false;
             _adExternalStartTime = 0;
 
-            // ক্লাউডফ্লেয়ার D1-এ অ্যান্টি-চিট বোনাস সেশন রেজিস্টার
-            try {
-                if (u && typeof u.getIdToken === 'function') {
-                    u.getIdToken().then(tok => {
-                        fetch(`${CF_API}/api/bonus/start`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` }
-                        }).catch(() => {});
-                    }).catch(() => {});
-                }
-            } catch (e) {}
-
             const modal = document.getElementById("claimAdModal");
             if (modal) {
                 modal.classList.remove("hidden");
@@ -15061,66 +15172,45 @@
             startDailyBonusAdSession(u);
         };
 
-        // আসল ব্যাকএন্ড আপডেট মেথড (Cloudflare D1 Ledger এ ভেরিফাইড ০.১ / ০.২ বোনাস)
+        // আসল ফায়ারবেস আপডেট মেথড (ঝামেলামুক্ত Direct Safe Update)
         async function executeRealDailyBonusClaim(u) {
             const today = getDhakaDateStr(0);
+            const yesterday = getDhakaDateStr(-1);
 
             try {
-                // ১. Cloudflare D1 সিকিউর সার্ভার থেকে বোনাস ক্লেইম (সার্ভার সর্বোচ্চ ০.১ বা ০.২ দেবে, ক্লায়েন্ট টেম্পারিং অসম্ভব)
-                let awardedAmt = 0.1;
-                let newTotal = 0, newBonus = 0, curReal = 0;
-                let curStreak = 1;
-                let claimedOk = false;
+                const uref = _doc(db, 'users', u.uid);
+                const us = await _getDoc(uref);
+                if (!us.exists()) throw new Error('nouser');
+                const ud = us.data() || {};
 
-                try {
-                    const tok = await u.getIdToken(true);
-                    const cfRes = await fetch(`${CF_API}/api/bonus/claim`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` }
-                    });
-                    const cfData = await cfRes.json();
-                    if (cfData && cfData.ok) {
-                        awardedAmt = Number(cfData.bonus || 0.1);
-                        newTotal = Number(cfData.balance || 0);
-                        curReal = Number(cfData.realBalance || 0);
-                        newBonus = Number(cfData.bonusBalance || 0);
-                        curStreak = Number(cfData.streak || 1);
-                        claimedOk = true;
-                    } else if (cfData && cfData.code === 'claimed') {
-                        toast('আজকের বোনাস ইতিমধ্যে নেওয়া হয়ে গেছে!');
-                        return;
-                    } else if (cfData && cfData.code === 'ad_not_watched') {
-                        toast('বিজ্ঞাপন দেখা সম্পন্ন হয়নি!');
-                        return;
-                    }
-                } catch (cfErr) {
-                    console.warn('[CF Bonus Claim Fallback]', cfErr);
-                }
-
-                if (!claimedOk) {
-                    toast('বোনাস ক্লেইম ব্যর্থ, আবার চেষ্টা করুন');
+                if (ud.lastBonusDay === today) {
+                    toast('আজকের বোনাস ইতিমধ্যে নেওয়া হয়ে গেছে!');
                     return;
                 }
 
+                const awardedAmt = Math.random() < 0.5 ? 0.1 : 0.2;
+                const curStreak = (ud.lastBonusDay === yesterday) ? (Number(ud.lastBonusStreak) || 0) + 1 : 1;
+
+                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                const curBonus = Number(ud.bonusBalance || 0);
+                const newBonus = Math.round((curBonus + awardedAmt + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
+
                 // Leaderboard points: +0.5 point for daily ad
                 const curMonthKey = (new Date()).toISOString().slice(0, 7);
-                const uref = _doc(db, 'users', u.uid);
-                const us = await _getDoc(uref).catch(() => null);
-                const ud = us && us.exists() ? us.data() : {};
                 const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                 const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
                 const newPts = Math.round((curPts + 0.5 + Number.EPSILON) * 10) / 10;
 
-                // ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট (D1-এর সাথে হুবহু সিঙ্ক)
+                // ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট
                 await _setDoc(uref, {
-                    balance: newTotal,
-                    realBalance: curReal,
                     bonusBalance: newBonus,
+                    balance: newTotal,
                     lastBonusDay: today,
                     lastBonusStreak: curStreak,
                     monthlyPoints: newPts,
                     monthlyPointsMonth: curMonthKey
-                }, { merge: true }).catch(() => {});
+                }, { merge: true });
 
                 // যদি ইউজার কাউকে দিয়ে রেফার হয়ে থাকে: রেফারার অ্যাড দেখার জন্য পাবে +০.১ পয়েন্ট
                 if (ud.referredBy) {
@@ -15539,28 +15629,13 @@
         }
         window.rebuildHist = rebuildHist;
         async function fetchHistItems(u) {
-            // ১. Cloudflare D1 থেকে ইউজারের ৬০ দিনের সমস্ত হিস্ট্রি লোড (সম্পূর্ণ ফায়ারবেস-মুক্ত)
-            let tok = '';
-            try { tok = await u.getIdToken(); } catch (e) {}
+            // ১. Cloudflare D1 থেকে ইউজারের সমস্ত হিস্ট্রি লোড (৫০ লাখ রিড ফ্রি কোটা থেকে)
+            let cfHistory = [];
             try {
-                const res = await fetch(`${CF_API}/api/history?uid=${u.uid}`, {
-                    headers: { 'Authorization': `Bearer ${tok}` }
-                });
+                const res = await fetch(`${CF_API}/api/history?uid=${u.uid}`);
                 const data = await res.json();
-                if (data && data.ok) {
-                    histOrders = (data.orders || []).map(o => ({ kind: 'TASK', ...o }));
-                    histDeps = (data.history || []).filter(h => h.kind === 'TOP-UP').map(d => ({ kind: 'TOP-UP', ...d }));
-                    histWd = (data.withdrawals || []).map(w => ({ kind: 'WITHDRAW', ...w }));
-                    histReds = (data.redemptions || []).map(r => ({ kind: 'REDEEM', ...r }));
-                    rebuildHist();
-                    return true;
-                }
-            } catch (err) {
-                console.warn('CF History load error:', err);
-            }
-            return false;
-        }
-        async function _legacyDisabledFetch(u) {
+                if (data && data.ok && Array.isArray(data.history)) {
+                    cfHistory = data.history.map(item => {
                         const parsedLogo = item.logo || (item.info && item.info.match(/LOGO:([^\s|]+)/) ? item.info.match(/LOGO:([^\s|]+)/)[1] : '') || findGameLogoByName(item.game || item.title);
                         const parsedMethod = item.method || (item.info ? item.info.split('•')[0].trim() : (item.game && item.game.includes('Top-up:') ? item.game.replace('Top-up:', '').trim() : ''));
                         const parsedTime = item.timeElapsed !== undefined && item.timeElapsed !== null ? item.timeElapsed : (item.info && item.info.match(/TIME:(\d+)/) ? Number(item.info.match(/TIME:(\d+)/)[1]) : null);
@@ -15628,7 +15703,25 @@
             const nowMs = Date.now();
             const SEVEN_D = 7 * 24 * 3600 * 1000;
 
-            // ৬০ দিনের পুরনো ডাটা সার্ভার সাইডে স্বয়ংক্রিয়ভাবে ক্লিন হবে (ক্লায়েন্ট ব্রাউজারে কোনো ডিলিট রিকোয়েস্ট যাবে না)
+            // ৭ দিনের পুরনো নন-পেন্ডিং ডাটা ফায়ারবেস থেকে স্বয়ংক্রিয় ক্লিনআপ (পেন্ডিং সব সময় সংরক্ষিত থাকবে)
+            try {
+                const old = [['orders', fbOrders], ['deposits', deps], ['withdrawals', wds]];
+                let del = 0;
+                for (const [col, arr] of old) {
+                    for (const d of arr) {
+                        if (del >= 15) break;
+                        const isPending = (d.status || 'pending').toString().toLowerCase() === 'pending';
+                        if (isPending) continue; // PENDING সব সময় থাকবে! কখনো ডিলিট হবে না
+                        const m = histMs(d);
+                        if (d.id && m && (nowMs - m > SEVEN_D)) {
+                            del++;
+                            _deleteDoc(_doc(db, col, d.id)).catch(() => { });
+                        }
+                    }
+                    if (del >= 15) break;
+                }
+            } catch (e) { }
+
             histOrders = mergedOrders;
             histDeps = mergedDeps;
             histReds = reds;
