@@ -9314,9 +9314,9 @@
                     status: wasAuto ? 'approved' : 'pending'
                 });
 
-                // ডিপোজিটের লাইভ রিয়েল-টাইম ট্র্যাকিং চালু
+                // ডিপোজিটের লাইভ রিয়েল-টাইম ট্র্যাকিং চালু (D1 + Firestore)
                 if (r.depId) {
-                    trackLiveDeposit(r.depId);
+                    trackLiveDeposit(r.depId, finalTrx);
                 }
 
                 document.getElementById('trxId').value = '';
@@ -9542,16 +9542,31 @@
         }
 
         let liveDepositUnsub = null;
-        function trackLiveDeposit(depId) {
-            if (!window.FB || !window.FB.db || !depId) return;
-            if (liveDepositUnsub) liveDepositUnsub();
+        let cfDepositPollTimer = null;
+        function trackLiveDeposit(depId, trxId = '') {
+            if (!depId && !trxId) return;
+            if (liveDepositUnsub) { try { liveDepositUnsub(); } catch (e) { } liveDepositUnsub = null; }
+            if (cfDepositPollTimer) { clearInterval(cfDepositPollTimer); cfDepositPollTimer = null; }
 
-            liveDepositUnsub = window.FB.snap(window.FB.doc(window.FB.db, 'deposits', depId), (docSnap) => {
-                if (!docSnap.exists()) return;
-                const dep = docSnap.data();
-
-                // লাইভ স্ট্যাটাস আপডেট
+            const onDepositUpdate = (dep) => {
+                if (!dep) return;
                 if (dep.status === 'approved' || dep.status === 'completed') {
+                    if (cfDepositPollTimer) { clearInterval(cfDepositPollTimer); cfDepositPollTimer = null; }
+                    if (liveDepositUnsub) { try { liveDepositUnsub(); } catch (e) { } liveDepositUnsub = null; }
+
+                    // Cloudflare D1 থেকে সরাসরি নতুন ব্যালেন্স রিফ্রেশ করা
+                    const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || '';
+                    if (curUid) {
+                        fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(curUid)}`)
+                            .then(r => r.json())
+                            .then(wRes => {
+                                if (wRes && wRes.ok && wRes.wallet && window.setBalanceUI) {
+                                    const w = wRes.wallet;
+                                    window.setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                                }
+                            }).catch(() => { });
+                    }
+
                     fillReceipt({
                         kind: 'deposit',
                         title: 'Deposit Approved! 🎉',
@@ -9560,11 +9575,13 @@
                         logo: 'PPCOIN.png',
                         method: dep.method || 'bKash',
                         amount: (dep.amount || '') + ' BDT (' + (dep.coins || 3) + ' Coins)',
-                        trx: dep.trxId,
+                        trx: dep.trxId || trxId,
                         status: 'approved'
                     });
                     toast('✅ Deposit Approved! +' + (dep.coins || 3) + ' Coins added');
                 } else if (dep.status === 'rejected') {
+                    if (cfDepositPollTimer) { clearInterval(cfDepositPollTimer); cfDepositPollTimer = null; }
+                    if (liveDepositUnsub) { try { liveDepositUnsub(); } catch (e) { } liveDepositUnsub = null; }
                     fillReceipt({
                         kind: 'deposit',
                         title: 'Deposit Declined / Rejected',
@@ -9573,12 +9590,31 @@
                         logo: 'PPCOIN.png',
                         method: dep.method || '',
                         amount: (dep.amount || '') + ' BDT',
-                        trx: dep.trxId,
+                        trx: dep.trxId || trxId,
                         status: 'rejected'
                     });
                     toast('❌ Deposit Rejected!');
                 }
-            });
+            };
+
+            // ১. Cloudflare D1 পোলিং (প্রতি ২.৫ সেকেন্ডে চেক — কোটা ফুরিয়ে গেলেও কাজ করবে)
+            const pollCfDep = async () => {
+                try {
+                    const res = await fetch(`${CF_API}/api/deposits/status?id=${encodeURIComponent(depId || '')}&trxId=${encodeURIComponent(trxId || '')}`);
+                    const data = await res.json();
+                    if (data && data.ok && data.deposit && data.deposit.status !== 'pending') {
+                        onDepositUpdate(data.deposit);
+                    }
+                } catch (e) { }
+            };
+            cfDepositPollTimer = setInterval(pollCfDep, 2500);
+
+            // ২. Firestore লিসেনার ব্যাকআপ
+            if (window.FB && window.FB.db && depId) {
+                liveDepositUnsub = window.FB.snap(window.FB.doc(window.FB.db, 'deposits', depId), (docSnap) => {
+                    if (docSnap.exists()) onDepositUpdate(docSnap.data());
+                });
+            }
         }
 
         let liveOrderUnsub = null;
@@ -13296,6 +13332,7 @@
             if (window.refreshWalletPointsUI) { try { refreshWalletPointsUI(); } catch (e) { } }
             refreshPayUI();
         }
+        window.setBalanceUI = setBalanceUI;
 
         function refreshPayUI() {
             if (window.renderLoyaltyStars) { try { window.renderLoyaltyStars(); } catch (e) { } }
@@ -15719,18 +15756,21 @@
             });
             const mergedOrders = Array.from(orderMap.values());
 
-            // ডিপোজিটও মার্জ (Firestore স্ট্যাটাস প্রাধান্য পাবে)
+            // ডিপোজিটও মার্জ (approved বা rejected সর্বদা pending-এর ওপর প্রাধান্য পাবে যাতে পুরনো স্ট্যাটাস আটকে না থাকে)
             const depMap = new Map();
             cfHistory.filter(x => x.kind === 'TOP-UP').forEach(cfd => {
                 depMap.set(cfd.id, cfd);
             });
             (deps || []).forEach(fbd => {
                 const existing = depMap.get(fbd.id) || {};
+                const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
+                    ? existing.status
+                    : (fbd.status || existing.status || 'pending');
                 depMap.set(fbd.id, {
                     kind: 'TOP-UP',
                     ...existing,
                     ...fbd,
-                    status: fbd.status || existing.status || 'pending'
+                    status: finalStatus
                 });
             });
             const mergedDeps = Array.from(depMap.values());
@@ -15885,7 +15925,7 @@
             });
 
             if (st === 'pending') {
-                trackLiveDeposit(id);
+                trackLiveDeposit(id, it.trxId || '');
             }
         };
 

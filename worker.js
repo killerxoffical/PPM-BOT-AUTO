@@ -896,7 +896,7 @@ async function sendDepositTelegramNotification(depData, status, extraNote = "", 
     }
 }
 
-async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
+async function approveDepositById(depId, verifiedBy = "Admin_Telegram", fallbackMeta = null) {
     let depData = null;
     try {
         const depDoc = await db.collection("deposits").doc(depId).get();
@@ -911,18 +911,31 @@ async function approveDepositById(depId, verifiedBy = "Admin_Telegram") {
         console.warn("[FIRESTORE QUOTA BYPASS]: Fetching deposit fallback...");
     }
 
-    // ফায়ারস্টোর কোটা ফুরিয়ে গেলেও মেমোরি/মেসেজ থেকে ডেটা সংগ্রহ
+    // ফায়ারস্টোর কোটা ফুরিয়ে গেলে টেলিগ্রাম রিপ্লাই মেসেজ বা fallbackMeta থেকে সঠিক ডেটা সংগ্রহ
     if (!depData) {
-        depData = { id: depId, status: "pending", amount: 15, trxId: depId, method: "bKash" };
+        depData = {
+            id: depId,
+            uid: (fallbackMeta && fallbackMeta.uid) || "",
+            email: (fallbackMeta && fallbackMeta.email) || "",
+            status: "pending",
+            amount: (fallbackMeta && fallbackMeta.amount) || 20,
+            coins: (fallbackMeta && fallbackMeta.coins) || 0,
+            trxId: (fallbackMeta && fallbackMeta.trxId) || depId,
+            method: (fallbackMeta && fallbackMeta.method) || "bKash"
+        };
+    } else if (fallbackMeta) {
+        if (!depData.uid && fallbackMeta.uid) depData.uid = fallbackMeta.uid;
+        if (!depData.email && fallbackMeta.email) depData.email = fallbackMeta.email;
+        if (!depData.coins && fallbackMeta.coins) depData.coins = fallbackMeta.coins;
     }
 
-    let coinRate = 7;
+    let coinRate = (publicCache && publicCache.config && Number(publicCache.config.coinRate)) || 7;
     try {
         const cfgSnap = await db.collection("config").doc("app").get();
         if (cfgSnap.exists && cfgSnap.data().coinRate) coinRate = Number(cfgSnap.data().coinRate);
     } catch (e) {}
 
-    await approveDepositSafe(depId, depData, depData.amount || 15, coinRate);
+    await approveDepositSafe(depId, depData, depData.amount || 20, coinRate);
     return depData;
 }
 
@@ -3088,8 +3101,20 @@ userNotifyBot.on("message", async (msg) => {
 
                     const rate = 7;
 
-                    // approveDepositById কল করা (এটি Cloudflare D1 ও Firestore-এ একবারই নিরাপদভাবে প্রসেস করবে)
-                    const approvedData = await approveDepositById(targetId, "Admin_Telegram");
+                    const methodMatch = replyText.match(/Method:\s*([A-Za-z ]+)/i);
+                    const uidMatchDep = replyText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
+                    const cleanMethod = methodMatch ? methodMatch[1].trim() : "bKash";
+                    const cleanUid = uidMatchDep ? uidMatchDep[1].trim() : targetUid;
+
+                    // approveDepositById কল করা (ফায়ারবেস কোটা না থাকলেও সম্পূর্ণ ডেটাসহ Cloudflare D1-এ ক্রেডিট হবে)
+                    const approvedData = await approveDepositById(targetId, "Admin_Telegram", {
+                        uid: cleanUid,
+                        email: cleanEmail,
+                        trxId: cleanTrx,
+                        amount: cleanAmt,
+                        coins: cleanCoins,
+                        method: cleanMethod
+                    });
                     const finalCoins = cleanCoins || (approvedData && Number(approvedData.coins)) || Math.max(1, Math.floor(cleanAmt / rate));
                     if (approvedData && approvedData.alreadyApproved) {
                         await userNotifyBot.sendMessage(msg.chat.id, 
@@ -6445,6 +6470,7 @@ async function startMasterWorker() {
                 const adminAlert = 
                     `💰 <b>NEW DEPOSIT PENDING!</b>\n\n` +
                     `👤 <b>User:</b> ${dep.name || "User"} (${dep.email || "No Email"})\n` +
+                    `🆔 <b>UID:</b> <code>${dep.uid || "—"}</code>\n` +
                     `💳 <b>Method:</b> ${dep.method}\n` +
                     `💵 <b>Amount:</b> ${dep.amount} BDT\n` +
                     `🪙 <b>Coins:</b> ${dep.coins || 3} Coins\n` +
