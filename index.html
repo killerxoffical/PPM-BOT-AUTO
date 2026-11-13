@@ -1454,16 +1454,17 @@
 
         /* --- Banner Slider Light Theme Enforcements --- */
         #homeBannerSection {
-            background-color: #f1f5f9 !important;
-            border-color: #e2e8f0 !important;
-            box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.05) !important;
-            border-radius: 1.75rem !important;
+            background-color: transparent !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 6px 20px -6px rgba(15, 23, 42, 0.1) !important;
+            border-radius: 1.35rem !important;
+            overflow: hidden !important;
         }
 
-        #homeBannerSection div,
         #homeBannerTrack,
         #homeBannerTrack>div {
-            background-color: #f1f5f9 !important;
+            background-color: transparent !important;
+            height: 100% !important;
         }
 
         #homeBannerSection button[onclick^="slideHomeBanner"] {
@@ -3316,13 +3317,13 @@
 
             <!-- Dynamic Home Banner Slider -->
             <section id="homeBannerSection"
-                class="relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 shadow-sm bg-slate-950 aspect-[21/9] sm:aspect-[24/9] max-h-48 flex-shrink-0">
+                class="relative overflow-hidden rounded-[1.35rem] border border-slate-200/80 shadow-sm aspect-[16/7] w-full flex-shrink-0">
                 <!-- Slides Track -->
                 <div id="homeBannerTrack"
                     class="w-full h-full flex transition-transform duration-500 ease-out select-none">
-                    <div class="w-full h-full flex-shrink-0 relative overflow-hidden bg-slate-950">
+                    <div class="w-full h-full flex-shrink-0 relative overflow-hidden">
                         <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791346466943_file_00000000702c82118797af8f3a1c57e0.png"
-                            referrerpolicy="no-referrer" class="w-full h-full object-fill select-none" loading="eager"
+                            referrerpolicy="no-referrer" class="w-full h-full object-cover block select-none" loading="eager"
                             alt="Banner">
                     </div>
                 </div>
@@ -6095,7 +6096,7 @@
             <div class="relative">
                 <i data-lucide="zap" class="w-5 h-5"></i>
                 <span
-                    class="absolute -top-1 -right-2 px-1 py-0.2 bg-gradient-to-r from-amber-500 to-emerald-500 text-[8px] font-black text-white rounded-full animate-pulse shadow-2xs">FREE</span>
+                    class="absolute -top-1.5 -right-3 px-1 bg-gradient-to-r from-amber-500 to-emerald-500 text-[7px] leading-tight font-black text-white rounded-full animate-pulse shadow-2xs whitespace-nowrap !max-w-none">FREE</span>
             </div>
             <span class="text-[10px] font-extrabold" data-bn="আর্ন">Earn</span>
         </button>
@@ -7338,11 +7339,11 @@
             const dots = document.getElementById('homeBannerDots');
             if (!track || !dots) return;
 
-            // কোনো ব্যানার না থাকলে ডিফল্ট ইমেজ দেখাবে (কোনো টেক্সট থাকবে না)
+            // কোনো ব্যানার না থাকলে ডিফল্ট ইমেজ দেখাবে (কোনো টেক্সট বা কালো লাইন থাকবে না)
             if (!_homeBanners.length) {
                 track.innerHTML = `
-                    <div class="w-full h-full flex-shrink-0 relative overflow-hidden bg-slate-950">
-                        <img src="${DEFAULT_HOME_BANNER}" referrerpolicy="no-referrer" class="w-full h-full object-fill select-none" alt="Banner">
+                    <div class="w-full h-full flex-shrink-0 relative overflow-hidden">
+                        <img src="${DEFAULT_HOME_BANNER}" referrerpolicy="no-referrer" class="w-full h-full object-cover block select-none" alt="Banner">
                     </div>`;
                 dots.innerHTML = '';
                 return;
@@ -7355,8 +7356,8 @@
                 const cursorCls = b.actionType && b.actionType !== 'none' ? 'cursor-pointer active:scale-[0.99]' : '';
 
                 return `
-                <div class="w-full h-full flex-shrink-0 relative overflow-hidden ${cursorCls} transition-transform bg-slate-950" ${actionAttr}>
-                    <img src="${b.imageUrl.trim()}" referrerpolicy="no-referrer" class="w-full h-full object-fill select-none" loading="${i === 0 ? 'eager' : 'lazy'}" alt="Banner ${i + 1}" onerror="this.onerror=null;this.src='${DEFAULT_HOME_BANNER}';">
+                <div class="w-full h-full flex-shrink-0 relative overflow-hidden ${cursorCls} transition-transform" ${actionAttr}>
+                    <img src="${b.imageUrl.trim()}" referrerpolicy="no-referrer" class="w-full h-full object-cover block select-none" loading="${i === 0 ? 'eager' : 'lazy'}" alt="Banner ${i + 1}" onerror="this.onerror=null;this.src='${DEFAULT_HOME_BANNER}';">
                 </div>`;
             }).join('');
 
