@@ -9601,7 +9601,7 @@
             };
 
             pollCfOrder();
-            cfOrderPollTimer = setInterval(pollCfOrder, 2000);
+            cfOrderPollTimer = setInterval(pollCfOrder, 1200);
 
             if (window.FB && window.FB.db) {
                 liveOrderUnsub = window.FB.snap(window.FB.doc(window.FB.db, 'orders', orderId), docSnap => {

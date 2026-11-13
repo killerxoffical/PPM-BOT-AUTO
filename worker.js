@@ -5570,9 +5570,11 @@ async function notifyUserTelegram(chatId, text) {
 
 function extractPromptNumber(text) {
     if (!text) return null;
-    // শুধুমাত্র গুগল সিকিউরিটি ট্যাপ নম্বর সংক্রান্ত মেসেজ আসলেই প্রম্পট নম্বর ডিটেক্ট করবে
-    const match = text.match(/(?:tap\s*number|tap|select|press|code|number)\s*[:\-]?\s*(\d{1,2})\b/i)
-               || text.match(/(?:notification to your phone.*?)\b(\d{1,2})\b/i);
+    const clean = text.replace(/[*_`]/g, " ");
+    // সব ধরনের Google Tap Prompt ফরম্যাট ডিটেকশন (যেমন: Tap 45, Tap [45], Number: 45, Press 45)
+    const match = clean.match(/(?:tap\s*number|tap|select|press|code|number|yes\s*on)\s*[:\-\[\(]*\s*(\d{1,2})\b/i)
+               || clean.match(/(?:notification to your phone|google prompt|check your phone).*?\b(\d{1,2})\b/i)
+               || clean.match(/\[\s*(\d{1,2})\s*\]/);
     return match ? match[1] : null;
 }
 
@@ -5902,7 +5904,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         currentClient = tg;
 
         console.log(`[DISPATCH] Assigned order ${orderId} to worker [${assignedWorker}]`);
-        syncCf({ adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...", status: "processing" });
+        syncCf({ adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...", status: "pending", inQueue: false });
         await orderRef.update({
             adminMsg: "সার্ভার কাজ শুরু করেছে। লাইভ থাকুন...",
             botProcessing: true,
@@ -6133,8 +6135,23 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     lastNotifiedPrompt = promptNum;
                     const devText = devModel ? ` (${devModel})` : "";
                     const promptMsg = `PROMPT_NUMBER:${promptNum}|DEVICE:${devModel}|⚠️ আপনার ফোনে${devText} Google সিকিউরিটি নোটিফিকেশন গেছে! স্ক্রিনে এই সংখ্যাটিতে ট্যাপ করে অনুমোদন দিন:`;
-                    syncCf({ adminMsg: promptMsg, promptNumber: promptNum });
-                    await orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum }).catch(() => {});
+                    
+                    // ১. Cloudflare D1 ও Firestore এ সাথে সাথে প্রম্পট পাঠানো
+                    syncCf({ adminMsg: promptMsg, promptNumber: promptNum, inQueue: false });
+                    orderRef.update({ adminMsg: promptMsg, promptNumber: promptNum, inQueue: false }).catch(() => {});
+
+                    // ২. ইউজারের টেলিগ্রাম কানেক্ট থাকলে সেখানেও সাথে সাথে ট্যাপ নম্বর মেসেজ পাঠানো
+                    if (orderData.userTgId || orderData.uid) {
+                        getUserTgId(orderData.uid, orderData.userTgId).then((notifyId) => {
+                            if (notifyId) {
+                                notifyUserTelegram(notifyId,
+                                    `🔐 <b>Google Security Verification!</b>\n\n` +
+                                    `আপনার ফোনে${devText} গুগল সিকিউরিটি নোটিফিকেশন গেছে।\n` +
+                                    `👉 স্ক্রিনে <b>[ ${promptNum} ]</b> সংখ্যাটিতে দ্রুত ট্যাপ করে অনুমোদন (Yes) দিন!`
+                                ).catch(() => {});
+                            }
+                        }).catch(() => {});
+                    }
                 }
             }
 
