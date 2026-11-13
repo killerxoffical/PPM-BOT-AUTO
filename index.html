@@ -13702,8 +13702,9 @@
                 console.warn('Firebase read quota protected, switching to Cloudflare D1:', err);
             }
 
-            // ফায়ারবেসের ব্যালেন্স ও প্রোফাইল সরাসরি Cloudflare D1-এ অটো-মাইগ্রেট ও সিঙ্ক
+            // ফায়ারবেসের ব্যালেন্স ও প্রোফাইল সরাসরি Cloudflare D1-এ অটো-মাইগ্রেট ও সিঙ্ক (Master Truth)
             const d1Wallet = await syncD1Wallet(u, fbUserData);
+            window._d1MasterUpdatedAt = d1Wallet ? Number(d1Wallet.updatedAt || Date.now()) : 0;
 
             const isBanned = (fbUserData && (fbUserData.banned === true || fbUserData.banned === 1 || fbUserData.banned === "1")) ||
                 (d1Wallet && (d1Wallet.banned === 1 || d1Wallet.banned === true || d1Wallet.banned === "1"));
@@ -13729,13 +13730,22 @@
                     window.ppfb.banned = false;
                     setBannedUI(false);
                     const d = s.data();
-                    const bonusC = Number(d.bonusBalance || 0);
-                    const totalBal = Number(d.balance !== undefined ? d.balance : 0);
-                    // যদি অ্যাডমিন শুধুমাত্র balance ফিল্ড আপডেট করে, তবে রিয়েল ব্যালেন্স স্বয়ংক্রিয়ভাবে সিঙ্ক হবে
-                    const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
-                        ? Number(d.realBalance)
-                        : Math.max(0, totalBal - bonusC);
-                    setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
+                    // D1-এ যদি ব্যালেন্স অ্যাডমিনের মাধ্যমে আপডেট হয়ে থাকে, তবে পুরনো ফায়ারবেস ক্যাশ দিয়ে ওভাররাইট করবে না
+                    fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(u.uid)}`).then(r => r.json()).then(res => {
+                        if (res && res.ok && res.wallet) {
+                            const w = res.wallet;
+                            setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
+                            if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                        }
+                    }).catch(() => {
+                        const bonusC = Number(d.bonusBalance || 0);
+                        const totalBal = Number(d.balance !== undefined ? d.balance : 0);
+                        const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
+                            ? Number(d.realBalance)
+                            : Math.max(0, totalBal - bonusC);
+                        setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
+                    });
                     window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
                     window.ppfb.tgChatId = (s.data().tgChatId || '').toString().trim();
@@ -14302,7 +14312,7 @@
                 } catch (e) { }
 
                 window._currentOrderId = ordId;
-                setBalanceUI(Math.max(0, (Number(window.ppfb.balance) || 0) - feeCoins));
+                // D1 সার্ভার থেকে আসা আসল ব্যালেন্সই সঠিক (দ্বিতীয়বার মাইনাস করা বন্ধ করা হলো)
                 toast(feeCoins + ' Coins deducted! Provide credentials below');
                 setTimeout(() => {
                     openCredentialScreen(game, logo);
@@ -14483,6 +14493,14 @@
                         status: 'approved', createdAt: _ts(), expiresAt: new Date(Date.now() + 10 * 86400000)
                     }).catch(() => { });
                 } catch (ign) { }
+                // Cloudflare D1 ওয়ালেটেও সাথে সাথে প্রোমো কোডের কয়েন সিঙ্ক করা
+                if (credited > 0) {
+                    fetch(`${CF_API}/api/wallet/credit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: u.uid, coins: credited, type: 'bonus' })
+                    }).catch(() => { });
+                }
                 try {
                     const rk = {};
                     rk[`redeemed.${code}`] = _ts();
@@ -15214,7 +15232,14 @@
                 const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
                 const newPts = Math.round((curPts + 0.5 + Number.EPSILON) * 10) / 10;
 
-                // ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট
+                // ১. Cloudflare D1 ওয়ালেটে সাথে সাথে বোনাস কয়েন সিঙ্ক (Admin ও User একদম সমান দেখবে)
+                await fetch(`${CF_API}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, coins: awardedAmt, type: 'bonus' })
+                }).catch(() => { });
+
+                // ২. ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট
                 await _setDoc(uref, {
                     bonusBalance: newBonus,
                     balance: newTotal,
@@ -15222,7 +15247,7 @@
                     lastBonusStreak: curStreak,
                     monthlyPoints: newPts,
                     monthlyPointsMonth: curMonthKey
-                }, { merge: true });
+                }, { merge: true }).catch(() => { });
 
                 // যদি ইউজার কাউকে দিয়ে রেফার হয়ে থাকে: রেফারার অ্যাড দেখার জন্য পাবে +০.১ পয়েন্ট
                 if (ud.referredBy) {
