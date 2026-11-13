@@ -1600,7 +1600,21 @@ function isBotTaskCompleted(rawText) {
         return false;
     }
 
-    // আসল কোয়েস্ট সফলতার সুনির্দিষ্ট সিগন্যাল
+    // কোনো প্রসেসিং, লগইন বা শুরু হওয়ার মেসেজে কখনো কমপ্লিট ধরা যাবে না
+    if (
+        t.includes("logging in") ||
+        t.includes("signing in") ||
+        t.includes("connecting to google") ||
+        t.includes("checking quests") ||
+        t.includes("in progress") ||
+        t.includes("please wait") ||
+        t.includes("authenticating") ||
+        t.includes("starting process")
+    ) {
+        return false;
+    }
+
+    // আসল কোয়েস্ট সফলতার ১০০% নিশ্চিত সিগন্যাল (টোকেন কাটার মেসেজ বাদ)
     return (
         (t.includes("all quests") && t.includes("completed")) ||
         t.includes("quests completed") ||
@@ -1608,10 +1622,11 @@ function isBotTaskCompleted(rawText) {
         t.includes("open and claim points") ||
         t.includes("claim your points") ||
         t.includes("completed quests") ||
-        (t.includes("tokens remaining") && t.includes("deducted")) ||
         t.includes("quest finished") ||
         t.includes("task finished") ||
-        t.includes("quests finished")
+        t.includes("quests finished") ||
+        t.includes("all tasks finished") ||
+        (t.includes("points") && t.includes("successfully added"))
     );
 }
 
@@ -5296,14 +5311,24 @@ app.post("/api/tg/check-balance", async (req, res) => {
 
 // ---------------- 8b. MASS PROMO & DAILY CLAIM ----------------
 function normalizeGameStr(str) {
-    return (str || "")
+    let s = (str || "")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "") // é -> e, è -> e ইত্যাদি রূপান্তর
         .toLowerCase()
-        .replace(/\s*\(\d+\)|\s*\(all\)/gi, "") // (50), (All) পয়েন্ট ট্যাগ রিমুভ
+        .replace(/\s*\(\d+\)|\s*\(all\)|\s*\(pts\)/gi, "") // (50), (All), (Pts) পয়েন্ট ট্যাগ রিমুভ
         .replace(/[^a-z0-9]/g, " ")     // ™, |, (), ব্র্যাকেট সব স্পেস করে ফেলা
         .replace(/\s+/g, " ")
         .trim();
+
+    // ওয়েবসাইট টাইটেলের বাড়তি শব্দ (যেমন: Task, Quest, Points, Fast) স্বয়ংক্রিয়ভাবে ফিল্টার করা
+    s = s.replace(/\b(quest|quests|task|tasks|points|pts|fast|instant|new|free|game|play)\b/gi, "").replace(/\s+/g, " ").trim();
+
+    // সাধারণ বানান রূপান্তর যাতে বটের বাটনের সাথে হুবহু মিলে যায়
+    if (s.includes("hey day")) s = s.replace("hey day", "hay day");
+    if (s === "8ball" || s === "8ball pool") s = "8 ball pool";
+    if (s.includes("farm heroes saga")) s = s.replace("farm heroes saga", "farm heroes");
+    if (s.includes("mobile leg us") || s.includes("mobile legends us")) s = "mobile legends";
+    return s;
 }
 
 async function triggerButtonClick(message, button, client, rIdx = null, cIdx = null) {
@@ -5349,8 +5374,9 @@ async function triggerButtonClick(message, button, client, rIdx = null, cIdx = n
 
 async function clickChestButton(message, gameName, client = null) {
     if (!message || !message.replyMarkup || !message.replyMarkup.rows) return false;
-    const cleanTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, "")).replace(/\s+/g, "");
-    const targetWords = normalizeGameStr(gameName).split(" ").filter(w => w.length >= 2);
+    const normTarget = normalizeGameStr(gameName.replace(/\(.*?\)/g, "").replace(/\|\d+\|/g, ""));
+    const cleanTarget = normTarget.replace(/\s+/g, "");
+    const targetWords = normTarget.split(" ").filter(w => w.length >= 2 && w !== "game" && w !== "the");
 
     let rIdx = 0;
     for (const row of message.replyMarkup.rows) {
@@ -6012,11 +6038,13 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             await new Promise((r) => setTimeout(r, 2000));
         }
 
-        // বটের আপডেট অনুযায়ী এক স্পেস দিয়ে ফরম্যাট: email password
-        const credText = `${orderData.accEmail.trim()} ${orderData.accPass.trim()}`;
-        console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
+        // ইমেইল এবং পাসওয়ার্ডের অতিরিক্ত স্পেস বাদ দিয়ে সঠিক ফরম্যাট তৈরি
+        const cleanEmail = orderData.accEmail.trim().replace(/\s+/g, "");
+        const cleanPass = orderData.accPass.trim();
+        const credText = `${cleanEmail} ${cleanPass}`;
+        console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(cleanEmail)}`);
         
-        // ঠিক এই মুহূর্তের বট মেসেজ আইডি সেভ (যাতে এই মেসেজের আগের কোনো মেসেজ আর না পড়ে!)
+        // ঠিক এই মুহূর্তের বট মেসেজ আইডি সেভ
         const sentCredRes = await tg.sendMessage(TARGET_BOT, { message: credText });
         const credAnchorId = sentCredRes ? sentCredRes.id : 0;
 
@@ -6027,13 +6055,14 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             if (credAnchorId > 0 && m.id <= credAnchorId) return false;
             const txt = (m.message || "").toLowerCase();
             return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
-        }, 20000, tg);
+        }, 22000, tg);
 
         if (confirmFound) {
             let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay", tg);
             if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Start", tg);
             if (!confClicked) confClicked = await clickInlineButton(confirmFound.msg, "Confirm credentials", tg);
             if (!confClicked) await clickInlineButton(confirmFound.msg, "Confirm", tg);
+            await new Promise((r) => setTimeout(r, 1500));
         }
         const loginInitMsg = "🔑 জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে যাচাই করা হচ্ছে...";
         syncCf({ adminMsg: loginInitMsg });
@@ -6046,7 +6075,10 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let lastNotifiedPrompt = "";
         let hasPassedPasswordStage = false; // গুগল প্রম্পট বা ফোন লগইন স্টেজ পার হলে ট্রু হবে
 
-        while (!completed && attempts < 55) {
+        // ইউজার নোটিফিকেশন চেক করতে থাকলে সময়সীমা বাড়িয়ে ৮৫ বার (প্রায় ২.৫ মিনিট) করা যাতে কোনোভাবেই রিফান্ড না হয়ে যায়
+        const maxAttempts = 85;
+
+        while (!completed && attempts < maxAttempts) {
             attempts++;
             await new Promise((r) => setTimeout(r, 1800));
             const curMsg = await getLatestBotMessage(tg, credAnchorId);
