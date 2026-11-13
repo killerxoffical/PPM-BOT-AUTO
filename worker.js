@@ -5699,14 +5699,26 @@ async function waitForCondition(checkFn, timeoutMs = 45000, client = null) {
 }
 
 const connectedWorkerPool = new Map();
+let cachedTgAccounts = []; // ইন-মেমোরি ওয়ার্কার ক্যাশ (Firebase Quota 0 হলেও বট কাজ চালিয়ে যাবে!)
 
-// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা (Prime হোক বা নরমাল, সব অ্যাকাউন্টই সমান্তরালভাবে টাস্ক সম্পন্ন করবে)
+async function refreshTgAccountsCache() {
+    try {
+        const snap = await db.collection("tg_accounts").get();
+        const arr = [];
+        snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
+        if (arr.length > 0) cachedTgAccounts = arr;
+    } catch (e) {
+        console.warn("[TG ACCOUNTS CACHE WARN]: Using existing memory pool ->", e.message);
+    }
+}
+
+// ফ্রি এবং সেশন থাকা যেকোনো সচল ক্লায়েন্ট খোঁজা (Zero Quota Lag + Full Worker Info)
 async function getAvailableWorkerClient() {
-    const snap = await db.collection("tg_accounts").where("active", "==", true).get();
-    const accounts = [];
-    snap.forEach((d) => accounts.push({ id: d.id, ...d.data() }));
+    if (!cachedTgAccounts.length) {
+        await refreshTgAccountsCache();
+    }
 
-    // সব সচল অ্যাকাউন্টই টাস্ক ওয়ার্কার
+    const accounts = cachedTgAccounts.length ? cachedTgAccounts : [];
     const workerAccounts = accounts.filter(a => a.session && a.active !== false);
 
     // যে অ্যাকাউন্ট এখন busy নয় এবং সেশন একটিভ আছে
@@ -5715,16 +5727,18 @@ async function getAvailableWorkerClient() {
         .sort((a, b) => (Number(b.balance || 0)) - (Number(a.balance || 0)))[0];
 
     if (!freeAccount) {
-        return null; // সব অ্যাকাউন্ট এখন ব্যস্ত!
+        return null; // সব অ্যাকাউন্ট এখন ব্যস্ত বা কোনটিই একটিভ নেই!
     }
 
     const chosenPhone = freeAccount.phone || freeAccount.id;
+    const workerName = freeAccount.firstName || freeAccount.name || "Worker";
+    const workerBalance = Number(freeAccount.balance || 0);
 
     // ১. প্রাইম ক্লায়েন্টদের মধ্যে অলরেডি সচল থাকলে কানেকশন রিইউজ
     if (typeof primeClients !== "undefined" && primeClients.has(chosenPhone)) {
         const pRec = primeClients.get(chosenPhone);
         if (pRec && pRec.client && pRec.client.connected) {
-            return { client: pRec.client, phone: chosenPhone, docId: freeAccount.id };
+            return { client: pRec.client, phone: chosenPhone, docId: freeAccount.id, name: workerName, balance: workerBalance };
         }
     }
 
@@ -5732,12 +5746,9 @@ async function getAvailableWorkerClient() {
     if (connectedWorkerPool.has(chosenPhone)) {
         const poolClient = connectedWorkerPool.get(chosenPhone);
         if (poolClient && poolClient.connected) {
-            return { client: poolClient, phone: chosenPhone, docId: freeAccount.id };
+            return { client: poolClient, phone: chosenPhone, docId: freeAccount.id, name: workerName, balance: workerBalance };
         }
     }
-
-    const workerName = freeAccount.firstName || freeAccount.name || "Worker";
-    const workerBalance = Number(freeAccount.balance || 0);
 
     // ৩. নতুন সেশন কানেক্ট করা ও পুলে সংরক্ষণ করা
     const client = new TelegramClient(new StringSession(freeAccount.session), DEFAULT_API_ID, DEFAULT_API_HASH, {
@@ -5762,63 +5773,78 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
         return;
     }
     let refundAmt = 3;
-    let refundHappened = false;
     try {
-        await db.runTransaction(async (t) => {
-            const ordRef = db.collection("orders").doc(orderId);
-            const userRef = db.collection("users").doc(uid);
-            const ordSnap = await t.get(ordRef);
-            if (!ordSnap.exists) return;
-            const ordData = ordSnap.data();
-            if (ordData.status === "completed" || ordData.status === "refunded") return;
+        // ১. সবার আগে Cloudflare D1 থেকে অর্ডারের আসল অবস্থা যাচাই করা (Zero Firebase Quota)
+        let cfOrd = null;
+        try {
+            const cfRes = await cfFetch(`${CF_API}/api/orders/status?id=${orderId}`).then(r => r.json()).catch(() => null);
+            if (cfRes && cfRes.ok && cfRes.order) cfOrd = cfRes.order;
+        } catch (e) {}
 
-            const userSnap = await t.get(userRef);
-            const ud = userSnap.exists ? userSnap.data() : {};
-            const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-            const curBonus = Number(ud.bonusBalance || 0);
+        if (cfOrd && (cfOrd.status === "completed" || cfOrd.status === "refunded")) {
+            console.warn(`[REFUND SKIPPED]: Order ${orderId} already ${cfOrd.status} in Cloudflare D1.`);
+            return;
+        }
 
-            refundAmt = Number(ordData.amount || 3);
-            const refundReal = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : refundAmt);
-            const refundBonus = Number(ordData.paidWithBonus || 0);
+        refundAmt = cfOrd ? Number(cfOrd.amount || 3) : 3;
 
-            const beforeBalance = curReal + curBonus;
-            const newReal = Math.round((curReal + refundReal + Number.EPSILON) * 100) / 100;
-            const newBonus = Math.round((curBonus + refundBonus + Number.EPSILON) * 100) / 100;
-            const newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
-
-            t.update(userRef, {
-                realBalance: newReal,
-                bonusBalance: newBonus,
-                balance: newTotal
-            });
-            t.update(ordRef, {
+        // ২. Cloudflare D1-এ তাৎক্ষণিক কয়েন রিফান্ড ও অর্ডার স্ট্যাটাস আপডেট
+        if (uid && uid !== "guest" && refundAmt > 0) {
+            await cfFetch(`${CF_API}/api/wallet/credit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
+            }).catch(() => {});
+        }
+        await cfFetch(`${CF_API}/api/orders/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                orderId: orderId,
                 status: "refunded",
-                previousBalance: beforeBalance,
-                adminMsg: `${reason}\n\n🪙 <b>আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
-                refundedAt: admin.firestore.FieldValue.serverTimestamp(),
-                botProcessing: false
-            });
-            refundHappened = true;
-        });
+                adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
+            })
+        }).catch(() => {});
 
-        // শুধুমাত্র ফায়ারস্টোর যদি আসলেই রিফান্ড করে, কেবল তখনই D1-এ ক্রেডিট করা
-        if (refundHappened) {
-            try {
-                await cfFetch(`${CF_API}/api/wallet/credit`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ uid: uid, coins: refundAmt, type: "real" })
+        // ৩. ফায়ারস্টোরে ব্যাকগ্রাউন্ড সিঙ্ক (কোটা শেষ থাকলেও রিফান্ড আটকাবে না)
+        try {
+            await db.runTransaction(async (t) => {
+                const ordRef = db.collection("orders").doc(orderId);
+                const userRef = db.collection("users").doc(uid);
+                const ordSnap = await t.get(ordRef);
+                if (!ordSnap.exists) return;
+                const ordData = ordSnap.data();
+                if (ordData.status === "completed" || ordData.status === "refunded") return;
+
+                const userSnap = await t.get(userRef);
+                const ud = userSnap.exists ? userSnap.data() : {};
+                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                const curBonus = Number(ud.bonusBalance || 0);
+
+                const exactAmt = Number(ordData.amount || refundAmt);
+                const refundReal = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : exactAmt);
+                const refundBonus = Number(ordData.paidWithBonus || 0);
+
+                const beforeBalance = curReal + curBonus;
+                const newReal = Math.round((curReal + refundReal + Number.EPSILON) * 100) / 100;
+                const newBonus = Math.round((curBonus + refundBonus + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
+
+                t.update(userRef, {
+                    realBalance: newReal,
+                    bonusBalance: newBonus,
+                    balance: newTotal
                 });
-                await cfFetch(`${CF_API}/api/orders/update`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        orderId: orderId,
-                        status: "refunded",
-                        adminMsg: `${reason}\n\n🪙 আপনার ${refundAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`
-                    })
+                t.update(ordRef, {
+                    status: "refunded",
+                    previousBalance: beforeBalance,
+                    adminMsg: `${reason}\n\n🪙 <b>আপনার ${exactAmt} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।</b>`,
+                    refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    botProcessing: false
                 });
-            } catch (cfErr) {}
+            });
+        } catch (fbErr) {
+            console.warn("[FIRESTORE QUOTA SAFE]: Refund completed on Cloudflare D1 directly.");
         }
 
         if (userTgId) {
@@ -6048,6 +6074,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
 
                 // ২. সম্পূর্ণ ডেটাসহ সরাসরি অ্যাডমিনের টেলিগ্রামে ইনস্ট্যান্ট নোটিফিকেশন পাঠানো
                 const adminTgChatId = process.env.ADMIN_TG_ID || "7504616242";
+                const wName = (workerClientObj && workerClientObj.name) ? ` (${workerClientObj.name})` : "";
                 const adminAlertText = 
                     `🎉 <b>QUEST COMPLETED ALERT!</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -6061,8 +6088,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     `⏱️ <b>Time Elapsed:</b> ~${elapsedSec}s\n` +
                     `🪙 <b>Fee:</b> ${orderData.amount || 3} Coins ${isRealTask ? '(⭐ +1 Star Added)' : ''}\n` +
                     `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                    `🤖 <b>Bot Account Used:</b> <code>${assignedWorker || 'Bot'}</code>${wName}\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `✅ <i>Status: Completed on Worker [${assignedWorker || 'Bot'}]</i>`;
+                    `✅ <i>Status: Completed Successfully!</i>`;
 
                 userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
 
@@ -6289,15 +6317,21 @@ let botModeCache;
 async function startMasterWorker() {
     console.log("[MASTER INIT] Starting PP MOD Master Guardian...");
 
+    refreshTgAccountsCache().catch(() => {});
     initPrimeAutoResponder().catch(() => {});
     let primeReinitTimer = null;
-    db.collection("tg_accounts").onSnapshot(() => {
+    db.collection("tg_accounts").onSnapshot((snap) => {
+        try {
+            const arr = [];
+            snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
+            if (arr.length > 0) cachedTgAccounts = arr;
+        } catch (e) {}
         if (primeReinitTimer) clearTimeout(primeReinitTimer);
         primeReinitTimer = setTimeout(() => {
             primeReinitTimer = null;
             initPrimeAutoResponder().catch(() => {});
         }, 3000);
-    });
+    }, (err) => console.warn("[TG ACCOUNTS SNAPSHOT WARN]:", err.message));
 
     scheduleNextFakeOrderLog();
 
@@ -6376,7 +6410,14 @@ async function startMasterWorker() {
         if (ord.status !== "pending") return;
         if (completedOrdersTracker.has(orderId)) return;
 
-        // ১. অ্যাডমিনের টেলিগ্রামে তাৎক্ষণিক ইন্টারেক্টিভ নোটিফিকেশন পাঠানো (Zero Delay)
+        // ১. অ্যাডমিনের টেলিগ্রামে তাৎক্ষণিক নোটিফিকেশন ও আগে থেকেই ওয়ার্কার নির্ধারণ
+        let preCheckedWorker = null;
+        try {
+            preCheckedWorker = await getAvailableWorkerClient();
+        } catch (wErr) {
+            console.warn("[Worker Fetch Warn]:", wErr.message);
+        }
+
         if (!notifiedOrders.has(orderId)) {
             notifiedOrders.add(orderId);
             try {
@@ -6384,20 +6425,26 @@ async function startMasterWorker() {
                 let uEmail = ord.email;
                 if ((!uName || !uEmail || uName === 'User' || uEmail === 'No Email') && ord.uid) {
                     try {
-                        const uSnap = await db.collection("users").doc(ord.uid).get();
-                        if (uSnap.exists) {
-                            const uData = uSnap.data() || {};
-                            uName = uName || uData.name || uData.displayName || "User";
-                            uEmail = uEmail || uData.email || "No Email";
+                        // Cloudflare D1 থেকে আগে খোঁজা যাতে কোটা সমস্যায় না আটকায়
+                        const cfU = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(ord.uid)}`).then(r => r.json()).catch(() => null);
+                        if (cfU && cfU.ok && cfU.user) {
+                            uName = uName || cfU.user.name || "User";
+                            uEmail = uEmail || cfU.user.email || "No Email";
+                        } else {
+                            const uSnap = await db.collection("users").doc(ord.uid).get();
+                            if (uSnap.exists) {
+                                const uData = uSnap.data() || {};
+                                uName = uName || uData.name || uData.displayName || "User";
+                                uEmail = uEmail || uData.email || "No Email";
+                            }
                         }
                     } catch (e) {}
                 }
 
                 const adminChat = process.env.ADMIN_TG_ID || "7504616242";
-                const workerObjCheck = await getAvailableWorkerClient();
-                const workerStatusText = workerObjCheck 
-                    ? `🤖 <b>Assigned Worker:</b> <code>${workerObjCheck.phone}</code> (${safeTgHtml(workerObjCheck.name || 'Worker')})\n🪙 <b>Worker Token Bal:</b> <code>${workerObjCheck.balance} Tokens</code>` 
-                    : `⚠️ <b>No Worker Free:</b> <i>সকল টেলিগ্রাম অ্যাকাউন্ট ব্যস্ত বা অফলাইন</i>`;
+                const workerStatusText = preCheckedWorker 
+                    ? `🤖 <b>Assigned Worker:</b> <code>${preCheckedWorker.phone}</code> (${safeTgHtml(preCheckedWorker.name || 'Worker')})\n🪙 <b>Worker Token Bal:</b> <code>${preCheckedWorker.balance} Tokens</code>` 
+                    : `⚠️ <b>No Worker Free:</b> <i>সকল টেলিগ্রাম অ্যাকাউন্ট ব্যস্ত বা একটিভ নেই (Total Cached: ${cachedTgAccounts.length})</i>`;
 
                 const alertText = 
                     `🚨 <b>NEW PP TASK ORDER!</b>\n` +
@@ -6443,11 +6490,11 @@ async function startMasterWorker() {
             }
         }
 
-        // ২. যদি ওয়ার্কার অ্যাকাউন্ট খালি থাকে, অটোমেশন বট শুরু করা
+        // ২. যদি ওয়ার্কার অ্যাকাউন্ট খালি থাকে, অটোমেশন বট শুরু করা (প্রথমেই চেক করা ওয়ার্কার ব্যবহার)
         if (!activeOrders.has(orderId)) {
-            const workerObj = await getAvailableWorkerClient();
+            const workerObj = preCheckedWorker || await getAvailableWorkerClient().catch(() => null);
             if (workerObj) {
-                console.log(`[${source} ORDER] Starting execution for ${orderId} on worker [${workerObj.phone}]`);
+                console.log(`[${source} ORDER] Starting execution for ${orderId} on worker [${workerObj.phone}] (${workerObj.name})`);
                 processOrder(orderId, ord, workerObj);
             } else {
                 console.log(`[${source} ORDER] Order ${orderId} waiting in queue (no worker bot available).`);
