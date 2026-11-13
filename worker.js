@@ -6231,46 +6231,72 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
     }
 }
 
+// হাইব্রিড পেন্ডিং অর্ডার লিস্ট আনয়ন (Cloudflare D1 ফার্স্ট + Firestore ব্যাকআপ — FIFO সিরিয়াল অনুসারে)
+async function getOrderedPendingQueue() {
+    const orderMap = new Map();
+
+    // ১. সবার আগে Cloudflare D1 থেকে FIFO সিরিয়াল (createdAt ASC) নেওয়া (কোটা-ফ্রি)
+    try {
+        const res = await cfFetch(`${CF_API}/api/orders/pending`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.ok && Array.isArray(data.orders)) {
+                for (const o of data.orders) {
+                    if (o && o.id) orderMap.set(o.id, o);
+                }
+            }
+        }
+    } catch (e) {}
+
+    // ২. ফায়ারস্টোর ফলব্যাক (যদি কোনো অর্ডার শুধু ফায়ারস্টোরে থাকে)
+    try {
+        const snap = await db.collection("orders").where("status", "==", "pending").limit(20).get();
+        snap.forEach(d => {
+            const v = d.data();
+            if (v && v.accEmail && !orderMap.has(d.id)) {
+                orderMap.set(d.id, { id: d.id, ...v });
+            }
+        });
+    } catch (e) {}
+
+    // সময় অনুযায়ী সঠিকভাবে আগে আসা অর্ডার আগে সাজানো (FIFO)
+    return Array.from(orderMap.values()).sort((a, b) => tsMs(a.createdAt) - tsMs(b.createdAt));
+}
+
 // কিউ ক্যালকুলেটর ও পরবর্তী কাজ শুরুর মেকানিজম
 async function updateQueuePositions() {
     try {
-        const snap = await db.collection("orders")
-            .where("status", "==", "pending")
-            .orderBy("createdAt", "asc")
-            .get();
-
+        const pendingList = await getOrderedPendingQueue();
         let pos = 1;
-        for (const docSnap of snap.docs) {
-            const ord = docSnap.data();
+        for (const ord of pendingList) {
+            const orderId = ord.id;
             // যে কাজগুলো অলরেডি প্রসেসিংয়ে চলছে সেগুলোকে বাদ দিয়ে কিউ কাউন্ট
-            if (!activeOrders.has(docSnap.id) && ord.accEmail) {
+            if (!activeOrders.has(orderId) && ord.accEmail && !completedOrdersTracker.has(orderId)) {
                 const estWaitSec = Math.max(15, pos * 25);
                 const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 15))));
-                // ইউজারকে সিরিয়াল নম্বর না দেখিয়ে প্রফেশনাল ক্লাউড প্রসেসিং মেসেজ দেওয়া (সিরিয়াল ইন্টারনাল থাকবে)
                 const msg = `⏳ ক্লাউড সার্ভারে আপনার রিকোয়েস্ট প্রসেসিং চলছে (${percentDone}% সম্পন্ন)। অনুগ্রহ করে পেজ কেটে বের হবেন না, লাইভ থাকুন...`;
-                
-                await docSnap.ref.update({
+
+                // Cloudflare D1-এ লাইভ কিউ স্ট্যাটাস আপডেট
+                cfFetch(`${CF_API}/api/orders/update`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        orderId: orderId,
+                        inQueue: true,
+                        queuePosition: pos,
+                        queuePercent: percentDone,
+                        adminMsg: msg
+                    })
+                }).catch(() => {});
+
+                // ফায়ারস্টোরে ব্যাকগ্রাউন্ড আপডেট
+                db.collection("orders").doc(orderId).update({
                     inQueue: true,
                     queuePosition: pos,
                     queuePercent: percentDone,
                     estimatedWaitSec: estWaitSec,
                     adminMsg: msg
                 }).catch(() => {});
-
-                // Cloudflare D1-এ লাইভ কিউ স্ট্যাটাস আপডেট
-                try {
-                    await cfFetch(`${CF_API}/api/orders/update`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            orderId: docSnap.id,
-                            inQueue: true,
-                            queuePosition: pos,
-                            queuePercent: percentDone,
-                            adminMsg: msg
-                        })
-                    });
-                } catch (cfErr) {}
 
                 pos++;
             }
@@ -6284,30 +6310,25 @@ async function processNextQueueOrder() {
     if (isQueueProcessing) return;
     isQueueProcessing = true;
     try {
-        const snap = await db.collection("orders")
-            .where("status", "==", "pending")
-            .orderBy("createdAt", "asc")
-            .limit(20)
-            .get();
+        const pendingList = await getOrderedPendingQueue();
 
-        for (const docSnap of snap.docs) {
-            const ord = docSnap.data();
-            if (ord.accEmail && ord.accPass && !activeOrders.has(docSnap.id)) {
-                // একাধিক ওয়ার্কার ফ্রি থাকলে সমান্তরালভাবে প্যারালাল ডিসপ্যাচ হবে (কোনো break নেই)
+        for (const ord of pendingList) {
+            const orderId = ord.id;
+            if (ord.accEmail && ord.accPass && !activeOrders.has(orderId) && !completedOrdersTracker.has(orderId)) {
+                // একাধিক ওয়ার্কার ফ্রি থাকলে সমান্তরালভাবে প্যারালাল ডিসপ্যাচ হবে
                 const workerObj = await getAvailableWorkerClient();
                 if (!workerObj) {
-                    // কোনো ফ্রি ওয়ার্কার এখন খালি নেই
+                    // সব বট অ্যাকাউন্ট এখন ব্যস্ত -> লুপ থামিয়ে কিউতে ওয়েট করানো
                     break;
                 }
-                console.log(`[QUEUE DISPATCH] Assigned order ${docSnap.id} to worker [${workerObj.phone}]`);
-                processOrder(docSnap.id, ord, workerObj);
+                console.log(`[QUEUE DISPATCH] Assigned queued order ${orderId} to free worker [${workerObj.phone}]`);
+                processOrder(orderId, ord, workerObj);
             }
         }
         await updateQueuePositions();
     } catch (e) {
         console.error("[QUEUE DISPATCH ERR]:", e);
-    }
-    finally {
+    } finally {
         isQueueProcessing = false;
     }
 }
