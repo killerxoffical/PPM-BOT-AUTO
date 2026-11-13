@@ -1575,43 +1575,43 @@ const pendingAuthClients = new Map();
 
 function isBotTaskCompleted(rawText) {
     if (!rawText) return false;
-    // অ্যাকসেন্ট মুক্ত করা (é -> e, ইত্যাদি) যাতে কোনো গেমের নামের কারণে মিস না হয়
+    // অ্যাকসেন্ট মুক্ত করা (é -> e, ইত্যাদি)
     const cleanNorm = rawText.normalize ? rawText.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : rawText;
     const t = cleanNorm.toLowerCase();
 
-    // যদি সফলতার কোনো স্পষ্ট চিহ্ন থাকে, তবে কোনো ছোটখাটো ওয়ার্নিং থাকলেও সেটাকে কমপ্লিট ধরবে (রিফান্ড আটকাবে)
-    const hasSuccessKeywords = 
-        t.includes("all quests") ||
-        t.includes("quests completed") ||
-        t.includes("quest completed") ||
-        t.includes("completed!") ||
-        t.includes("completed") ||
-        t.includes("tokens remaining") ||
-        t.includes("deducted") ||
-        t.includes("claim your points") ||
-        t.includes("open and claim points") ||
-        t.includes("official level") ||
-        t.includes("google play gamer") ||
-        t.includes("quest finished") ||
-        t.includes("task finished");
-
-    if (hasSuccessKeywords) {
-        // পাসওয়ার্ড বা ক্যাপচার সুস্পষ্ট এরর না থাকলে নিশ্চিত সাকসেস
-        if (!t.includes("incorrect password") && !t.includes("wrong password") && !t.includes("couldn't sign you in")) {
-            return true;
-        }
-    }
-
-    if (t.includes("error") || t.includes("failed") || t.includes("rejected") || 
-        t.includes("cancel") || t.includes("tap") || t.includes("notification to your phone") ||
-        t.includes("send format") || t.includes("confirm credentials")) {
+    // কোনো প্রম্পট বা ইনপুট চাওয়ার মেসেজ হলে কখনোই কমপ্লিট ধরা যাবে না
+    if (
+        t.includes("confirm credentials") ||
+        t.includes("confirm deducting") ||
+        t.includes("confirm and start") ||
+        t.includes("confirm & pay") ||
+        t.includes("send format") ||
+        t.includes("available chests") ||
+        t.includes("select the desired chest") ||
+        t.includes("tap number") ||
+        t.includes("notification to your phone") ||
+        t.includes("incorrect password") ||
+        t.includes("wrong password") ||
+        t.includes("couldn't sign you in") ||
+        t.includes("google rejected") ||
+        t.includes("error") ||
+        t.includes("failed")
+    ) {
         return false;
     }
+
+    // আসল কোয়েস্ট সফলতার সুনির্দিষ্ট সিগন্যাল
     return (
-        t.includes("claim points") ||
-        t.includes("successfully") ||
-        t.includes("done!") ||
-        /\b(?:done|finished)\b/i.test(t)
+        (t.includes("all quests") && t.includes("completed")) ||
+        t.includes("quests completed") ||
+        t.includes("quest completed") ||
+        t.includes("open and claim points") ||
+        t.includes("claim your points") ||
+        t.includes("completed quests") ||
+        (t.includes("tokens remaining") && t.includes("deducted")) ||
+        t.includes("quest finished") ||
+        t.includes("task finished") ||
+        t.includes("quests finished")
     );
 }
 
@@ -5701,16 +5701,16 @@ function extractGamerName(text) {
     return "";
 }
 
-async function getLatestBotMessage(client = null, minTimestamp = 0) {
+async function getLatestBotMessage(client = null, minMsgId = 0) {
     try {
         const activeClient = client || currentClient;
         if (!activeClient) return null;
-        const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 4 });
+        const msgs = await activeClient.getMessages(TARGET_BOT, { limit: 6 });
         if (msgs && msgs.length > 0) {
             const incoming = msgs.filter(m => !m.out);
-            // সার্ভার ও টেলিগ্রাম ক্লকের সামান্য পার্থক্য যাতে মেসেজ বাদ না ফেলে (-15s tolerance)
-            const fresh = minTimestamp > 0 
-                ? incoming.filter(m => (m.date * 1000) >= (minTimestamp - 15000))
+            // শুধুমাত্র নির্দিষ্ট Message ID-র পরে আসা ব্র্যান্ড-নিউ মেসেজগুলোই গ্রহণ করা হবে
+            const fresh = minMsgId > 0 
+                ? incoming.filter(m => m.id > minMsgId)
                 : incoming;
 
             if (fresh.length > 0) {
@@ -5949,11 +5949,15 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             assignedWorker: assignedWorker
         }).catch(() => {});
 
+        // রিকোয়েস্ট পাঠানোর আগে সর্বশেষ মেসেজ আইডি সেভ (পুরনো মেসেজ এড়াতে)
+        const preStartMsg = await getLatestBotMessage(tg, 0);
+        const startAnchorId = preStartMsg ? preStartMsg.id : 0;
+
         await tg.sendMessage(TARGET_BOT, { message: "/start" }).catch(() => {});
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1800));
 
         // নতুন বট মেনু অনুযায়ী '📍 Select Quest' বাটন ক্লিক বা টেক্সট পাঠানো
-        let initialMsg = await getLatestBotMessage(tg);
+        let initialMsg = await getLatestBotMessage(tg, startAnchorId);
         let btnClicked = false;
         if (initialMsg) {
             btnClicked = await clickInlineButton(initialMsg, "Select Quest", tg);
@@ -5961,13 +5965,14 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         }
         if (!btnClicked) {
             await tg.sendMessage(TARGET_BOT, { message: "📍 Select Quest" }).catch(() => {});
+            await new Promise((r) => setTimeout(r, 1000));
             await tg.sendMessage(TARGET_BOT, { message: "Select Quest" }).catch(() => {});
-            await tg.sendMessage(TARGET_BOT, { message: "🚀 Start Process" }).catch(() => {});
         }
 
         let found = await waitForCondition((m) => {
+            if (startAnchorId > 0 && m.id <= startAnchorId) return false;
             const txt = (m.message || "").toLowerCase();
-            return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest") || txt.includes("select quest") || txt.includes("choose");
+            return txt.includes("available chests") || txt.includes("select the desired chest") || txt.includes("chests") || txt.includes("choose a chest");
         }, 25000, tg);
 
         if (!found) {
@@ -6010,12 +6015,16 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         // বটের আপডেট অনুযায়ী এক স্পেস দিয়ে ফরম্যাট: email password
         const credText = `${orderData.accEmail.trim()} ${orderData.accPass.trim()}`;
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(orderData.accEmail)}`);
-        const credSentTime = Date.now();
         
-        await orderRef.update({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." });
-        await tg.sendMessage(TARGET_BOT, { message: credText });
+        // ঠিক এই মুহূর্তের বট মেসেজ আইডি সেভ (যাতে এই মেসেজের আগের কোনো মেসেজ আর না পড়ে!)
+        const sentCredRes = await tg.sendMessage(TARGET_BOT, { message: credText });
+        const credAnchorId = sentCredRes ? sentCredRes.id : 0;
+
+        syncCf({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." });
+        orderRef.update({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." }).catch(() => {});
 
         let confirmFound = await waitForCondition((m) => {
+            if (credAnchorId > 0 && m.id <= credAnchorId) return false;
             const txt = (m.message || "").toLowerCase();
             return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
         }, 20000, tg);
@@ -6028,7 +6037,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         }
         const loginInitMsg = "🔑 জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে যাচাই করা হচ্ছে...";
         syncCf({ adminMsg: loginInitMsg });
-        await orderRef.update({ adminMsg: loginInitMsg });
+        orderRef.update({ adminMsg: loginInitMsg }).catch(() => {});
 
         let completed = false;
         let attempts = 0;
@@ -6037,10 +6046,10 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let lastNotifiedPrompt = "";
         let hasPassedPasswordStage = false; // গুগল প্রম্পট বা ফোন লগইন স্টেজ পার হলে ট্রু হবে
 
-        while (!completed && attempts < 50) {
+        while (!completed && attempts < 55) {
             attempts++;
-            await new Promise((r) => setTimeout(r, 2000));
-            const curMsg = await getLatestBotMessage(tg, credSentTime);
+            await new Promise((r) => setTimeout(r, 1800));
+            const curMsg = await getLatestBotMessage(tg, credAnchorId);
             if (!curMsg) continue;
 
             const rawText = (curMsg._combinedText || curMsg.message || "").trim();
@@ -6228,12 +6237,13 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             }
         }
         if (!completed) {
-            // রিফান্ড করার আগে শেষ ৫টি মেসেজে বট কাজ শেষ করেছে কিনা ডাবল-চেক করা (জিরো-লস গার্ড)
+            // রিফান্ড করার আগে শুধুমাত্র এই অর্ডারের ক্রেডেনশিয়াল পাঠানোর পরের মেসেজগুলোতেই কাজ শেষ হয়েছে কিনা ডাবল-চেক
             let lastCheckMsg = null;
             try {
-                const recentMsgs = await tg.getMessages(TARGET_BOT, { limit: 5 });
+                const recentMsgs = await tg.getMessages(TARGET_BOT, { limit: 6 });
                 if (recentMsgs && recentMsgs.length > 0) {
                     for (const m of recentMsgs) {
+                        if (m.out || (credAnchorId > 0 && m.id <= credAnchorId)) continue;
                         const mText = (m.message || "").trim();
                         if (isBotTaskCompleted(mText)) {
                             lastCheckMsg = m;
