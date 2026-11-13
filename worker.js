@@ -4065,16 +4065,27 @@ userNotifyBot.on("callback_query", async (query) => {
                     })
                 }).catch(() => {});
 
-                // লয়্যালটি স্টার ক্রেডিট
+                // লয়্যালটি স্টার ক্রেডিট (শুধুমাত্র রিয়েল ব্যালেন্সের সম্পন্ন অর্ডারে +1 Star, ফ্রি টাস্কে 0 রিসেট)
                 if (ordData.uid && ordData.uid !== "guest") {
-                    await cfFetch(`${CF_API}/api/wallet/credit`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
-                    }).catch(() => {});
-                    db.collection("users").doc(ordData.uid).update({
-                        loyaltyStars: admin.firestore.FieldValue.increment(1)
-                    }).catch(() => {});
+                    const isFreeManual = !!ordData.isFreeTask || Number(ordData.amount) === 0;
+                    const paidRealManual = Number(ordData.paidWithReal !== undefined ? ordData.paidWithReal : (ordData.amount || 3));
+                    if (isFreeManual) {
+                        await cfFetch(`${CF_API}/api/wallet/credit`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ uid: ordData.uid, resetLoyaltyStars: true })
+                        }).catch(() => {});
+                        db.collection("users").doc(ordData.uid).update({ loyaltyStars: 0 }).catch(() => {});
+                    } else if (paidRealManual > 0) {
+                        await cfFetch(`${CF_API}/api/wallet/credit`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ uid: ordData.uid, loyaltyStarsInc: 1 })
+                        }).catch(() => {});
+                        db.collection("users").doc(ordData.uid).update({
+                            loyaltyStars: admin.firestore.FieldValue.increment(1)
+                        }).catch(() => {});
+                    }
                 }
 
                 // ইউজারকে টেলিগ্রাম নোটিফিকেশন
@@ -6054,22 +6065,29 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     );
                 }
 
-                // ১. রিয়েল ব্যালেন্স দিয়ে করা হলে Cloudflare D1 ওয়ালেটে সাথে সাথে স্টার (+1 Star) যোগ করা
+                // ১. টাস্ক COMPLETED হওয়ার পরই স্টার দেওয়া: রিয়েল ব্যালেন্সে হলে +1 Star, আর ১০ম ফ্রি টাস্ক হলে স্টার রিসেট (0)
                 const paidWithReal = Number(orderData.paidWithReal !== undefined ? orderData.paidWithReal : (orderData.amount || 3));
-                const isRealTask = !orderData.isFreeTask && paidWithReal > 0;
+                const isFreeUsed = !!orderData.isFreeTask || Number(orderData.amount) === 0;
+                const isRealTask = !isFreeUsed && paidWithReal > 0;
 
-                if (orderData.uid && orderData.uid !== 'guest' && isRealTask) {
-                    cfFetch(`${CF_API}/api/wallet/credit`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ uid: orderData.uid, loyaltyStarsInc: 1 })
-                    }).catch(() => {});
-
-                    try {
-                        await db.collection("users").doc(orderData.uid).update({
+                if (orderData.uid && orderData.uid !== 'guest') {
+                    if (isFreeUsed) {
+                        cfFetch(`${CF_API}/api/wallet/credit`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ uid: orderData.uid, resetLoyaltyStars: true })
+                        }).catch(() => {});
+                        db.collection("users").doc(orderData.uid).update({ loyaltyStars: 0 }).catch(() => {});
+                    } else if (isRealTask) {
+                        cfFetch(`${CF_API}/api/wallet/credit`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ uid: orderData.uid, loyaltyStarsInc: 1 })
+                        }).catch(() => {});
+                        db.collection("users").doc(orderData.uid).update({
                             loyaltyStars: admin.firestore.FieldValue.increment(1)
-                        });
-                    } catch (sErr) {}
+                        }).catch(() => {});
+                    }
                 }
 
                 try { await creditReferralBonus(orderData.uid, orderId, orderData.game); } catch (e) {}
