@@ -13168,7 +13168,7 @@
                     window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
                     if (w.banned === 1 || w.banned === true) {
                         window.ppfb.banned = true;
-                        setBannedUI(true);
+                        setBannedUI(true, w.banReason);
                     }
                     if (w.tgChatId && !window.ppfb.tgChatId) window.ppfb.tgChatId = w.tgChatId;
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
