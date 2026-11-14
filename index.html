@@ -8209,8 +8209,9 @@
             if (newTg && newTg.trim()) {
                 const cleanId = newTg.replace(/[^0-9]/g, '');
                 if (cleanId.length >= 5) {
-                    document.getElementById('tgChatInput').value = cleanId;
-                    window.saveTgChat();
+                    const inp = document.getElementById('tgChatInput') || document.getElementById('modalProfileTg');
+                    if (inp) inp.value = cleanId;
+                    window.saveTgChat(cleanId);
                 } else {
                     toast('সঠিক সংখ্যাবিশিষ্ট Chat ID দিন');
                 }
@@ -9329,7 +9330,8 @@
 
         async function redeemGo() {
             if (window._redeeming) return;
-            const inp = document.getElementById('redeemInput');
+            const inp = document.getElementById('redeemInput') || document.getElementById('redeemInputPage');
+            if (!inp) { toast('Promo input not found'); return; }
             const code = (inp.value || '').trim();
             if (!code) { toast('Code likhun'); return; }
             if (!(window.ppfb && window.ppfb.user)) { toast('Please login first'); showScreen('screenLogin'); return; }
@@ -9841,7 +9843,9 @@
 
             const credActionBox = document.getElementById('orderCredActionBox');
             if (credActionBox) {
-                credActionBox.classList.toggle('hidden', ord.status !== 'pending');
+                const isDep = ord.kind === 'deposit' || ord.type === 'deposit' || (ord.id && String(ord.id).startsWith('DEP-'));
+                if (isDep) credActionBox.classList.add('hidden');
+                else credActionBox.classList.toggle('hidden', ord.status !== 'pending');
             }
         }
 
@@ -10069,6 +10073,11 @@
             if (stepsEl) stepsEl.style.display = 'none';
             const desk = document.getElementById('adminLiveMsgBox');
             if (desk) desk.style.display = isDep ? 'none' : '';
+            const credActionBox = document.getElementById('orderCredActionBox');
+            if (credActionBox) {
+                if (isDep) credActionBox.classList.add('hidden');
+                else credActionBox.classList.toggle('hidden', o.status !== 'pending');
+            }
             const trow = document.getElementById('receiptTimeRow');
             const ttxt = document.getElementById('receiptTimeText');
             if (trow) trow.classList.remove('hidden');
@@ -13882,14 +13891,22 @@
             const btn = document.getElementById('tgConnBtn');
             if (btn) btn.textContent = id ? 'Change' : 'Connect';
         };
-        window.saveTgChat = async () => {
+        window.saveTgChat = async (passedId = null) => {
             const u = auth && auth.currentUser;
             if (!u || !db) { toast('Please login first'); return; }
-            const v = (document.getElementById('tgChatInput').value || '').replace(/[^0-9]/g, '').slice(0, 20);
+            const inp = document.getElementById('tgChatInput') || document.getElementById('modalProfileTg');
+            const rawVal = passedId || (inp ? inp.value : '');
+            const v = (rawVal || '').replace(/[^0-9]/g, '').slice(0, 20);
             if (v.length < 5) { toast('Sothik Chat ID din (শুধু সংখ্যা)'); return; }
             try {
                 await _setDoc(_doc(db, 'users', u.uid), { tgChatId: v }, { merge: true });
                 window.ppfb.tgChatId = v;
+                // Cloudflare D1 Edge-এও tgChatId সিঙ্ক
+                fetch(`${CF_API}/api/user/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, tgChatId: v })
+                }).catch(() => {});
                 refreshTgConn();
                 toast('Telegram connected!');
 
@@ -14420,38 +14437,31 @@
                     expiresAt: new Date(Date.now() + 7 * 86400000)
                 };
 
-                // যদি আগে পেন্ডিং না থাকে তবে নতুন তৈরি হবে
+                // যদি আগে পেন্ডিং না থাকে তবে নতুন তৈরি হবে (ফায়ারস্টোর কোটা সেফ)
                 if (!targetDepId) {
-                    const createdDep = await _addDoc(_col(db, 'deposits'), body);
-                    targetDepId = createdDep.id;
+                    try {
+                        const createdDep = await _addDoc(_col(db, 'deposits'), body);
+                        targetDepId = createdDep.id;
+                    } catch (fbErr) {
+                        console.warn('[FIRESTORE QUOTA SAVE FALLBACK]:', fbErr);
+                        targetDepId = 'DEP-' + clean;
+                    }
                 }
 
-                // Cloudflare D1-এ TrxID পার্মানেন্ট এজ লক (ভবিষ্যতে ডুপ্লিকেট স্ক্যাম রোধে)
-                if (!isStars) {
-                    fetch(`${CF_API}/api/trx/check-lock`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ trxId: clean, uid: u.uid, amount: Number(amount), lockNow: true })
-                    }).catch(() => { });
-                }
-
-                // Cloudflare D1-এ ডিপোজিট লগ করা (ইউজারের হিস্ট্রি ও আগের ব্যালেন্স সর্বদা দৃশ্যমান থাকবে)
+                // Cloudflare D1-এ সরাসরি ডিপোজিট তৈরি ও হিস্ট্রি লগ (Zero Firebase Quota)
                 try {
-                    const currentBalSnapshot = Number(window.ppfb?.balance || 0);
-                    await fetch(`${CF_API}/api/transactions/log`, {
+                    await fetch(`${CF_API}/api/deposits/create`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            id: targetDepId,
+                            id: targetDepId || ('DEP-' + clean),
                             uid: u.uid,
-                            kind: "TOP-UP",
-                            title: `Wallet Top-up (${method})`,
-                            game: `Top-up: ${method}`,
-                            info: `${method} • ${clean}`,
+                            name: u.displayName || 'User',
+                            email: u.email || '',
+                            method: method,
                             amount: Number(amount),
-                            status: "pending",
-                            previousBalance: currentBalSnapshot,
-                            createdAt: Date.now()
+                            coins: coinAmount,
+                            trxId: clean
                         })
                     });
                 } catch (cfErr) { }

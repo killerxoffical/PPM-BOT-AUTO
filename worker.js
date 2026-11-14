@@ -79,6 +79,8 @@ app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: pr
 app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
 // ---------------- 0. HIGH-SPEED IN-MEMORY CACHE FOR FIREBASE ----------------
+// Channel auto fake log state
+var isAutoFakeLogEnabled = true;
 const publicCache = {
     config: {},
     offers: [],
@@ -568,6 +570,18 @@ app.post("/api/p2p/release", async (req, res) => {
         });
 
         if (sellerUid) {
+            cfFetch(`${CF_API}/api/wallet/credit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    uid: sellerUid,
+                    playPoints: (sellerPoints || 0),
+                    kind: "P2P_RELEASE",
+                    title: "P2P Deal Payout",
+                    info: `P2P Deal (${dealId}) released. +৳${sellerPoints} Taka credited.`
+                })
+            }).catch(() => {});
+
             const sSnap = await db.collection("users").doc(sellerUid).get();
             const tgChat = sSnap.exists ? sSnap.data().tgChatId : null;
             if (tgChat) {
@@ -682,23 +696,23 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
             return res.json({ ok: true, autoApproved: false, note: "Manual Mode" });
         }
 
-        // গেটওয়ে ফোন থেকে সার্ভারে এসএমএস পৌঁছানোর জন্য ৩ সেকেন্ড স্মার্ট পোলিং
+        // গেটওয়ে ফোন থেকে সার্ভারে এসএমএস পৌঁছানোর জন্য স্মার্ট পোলিং (৩ বার চেষ্টা, মোট ৬ সেকেন্ড)
         let smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
-        if (!smsDoc.exists) {
+        for (let pollIdx = 0; pollIdx < 3 && !smsDoc.exists; pollIdx++) {
             await new Promise(r => setTimeout(r, 2000));
             smsDoc = await db.collection("gateway_sms").doc(cleanTrx).get();
         }
 
         if (!smsDoc.exists) {
-            // ভুল বা ফেক TrxID হলে অথবা ফোনে এসএমএস না আসলে অটো-গেটওয়ে দিয়ে সাথে সাথে রিজেক্ট
+            // নেটওয়ার্ক দেরির কারণে এসএমএস দেরিতে পৌঁছালে ভুলবশত সাথে সাথে রিজেক্ট না করা
             await db.collection("deposits").doc(depId).update({
-                status: "rejected",
-                adminMsg: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! ভুল TrxID বা ফেক সাবমিশন।"
+                adminMsg: "⏳ পেমেন্ট ভেরিফাই করা হচ্ছে... এসএমএস সার্ভারে আসার অপেক্ষা চলছে।"
             }).catch(() => {});
-            return res.status(400).json({ 
-                ok: false, 
+            return res.json({ 
+                ok: true, 
                 autoApproved: false, 
-                error: "❌ কোনো পেমেন্ট এসএমএস পাওয়া যায়নি! সঠিক TrxID দিন অথবা টাকা পাঠানোর ১ মিনিট পর আবার সাবমিট করুন।" 
+                pending: true,
+                message: "পেমেন্ট এসএমএস সার্ভারে যাচাই হচ্ছে। ফোনে এসএমএস আসার সাথে সাথে কয়েন স্বয়ংক্রিয়ভাবে অ্যাকাউন্টে জমা হবে।" 
             });
         }
 
@@ -1136,6 +1150,18 @@ async function creditReferralBonus(buyerUid, orderId, gameName) {
             balance: admin.firestore.FieldValue.increment(1),
             refEarned: admin.firestore.FieldValue.increment(1)
         }, { merge: true });
+        cfFetch(`${CF_API}/api/wallet/credit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                uid: ownerUid,
+                coins: 1,
+                type: "real",
+                kind: "REF",
+                title: "Task Referral Commission",
+                info: `Referral bonus: 1 task completed by ${buyerId}${gameName ? ` (${gameName})` : ''} (+1 Coin)`
+            })
+        }).catch(() => {});
         await db.collection("redemptions").add({
             uid: ownerUid, name: "", email: "", code: "REFERRAL", amount: 1,
             note: "Referral bonus: 1 task completed" + (gameName ? " (" + gameName + ")" : ""),
@@ -1233,6 +1259,21 @@ setInterval(async () => {
                         }
                     }
                 });
+
+                if (d.buyerUid && refundCoins > 0) {
+                    cfFetch(`${CF_API}/api/wallet/credit`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            uid: d.buyerUid,
+                            coins: refundCoins,
+                            type: "real",
+                            kind: "REFUND",
+                            title: "P2P Deal Expired Refund",
+                            info: `P2P Deal (${docSnap.id}) expired after 23h. ${refundCoins} Coins refunded.`
+                        })
+                    }).catch(() => {});
+                }
 
                 if (d.buyerUid) {
                     const uSnap = await db.collection("users").doc(d.buyerUid).get();
@@ -1593,9 +1634,7 @@ function isBotTaskCompleted(rawText) {
         t.includes("incorrect password") ||
         t.includes("wrong password") ||
         t.includes("couldn't sign you in") ||
-        t.includes("google rejected") ||
-        t.includes("error") ||
-        t.includes("failed")
+        t.includes("google rejected")
     ) {
         return false;
     }
@@ -1619,14 +1658,25 @@ function isBotTaskCompleted(rawText) {
         (t.includes("all quests") && t.includes("completed")) ||
         t.includes("quests completed") ||
         t.includes("quest completed") ||
+        t.includes("task completed") ||
+        t.includes("tasks completed") ||
         t.includes("open and claim points") ||
         t.includes("claim your points") ||
+        t.includes("claim points") ||
         t.includes("completed quests") ||
         t.includes("quest finished") ||
         t.includes("task finished") ||
+        t.includes("tasks finished") ||
         t.includes("quests finished") ||
         t.includes("all tasks finished") ||
-        (t.includes("points") && t.includes("successfully added"))
+        t.includes("successfully completed") ||
+        t.includes("completed successfully") ||
+        t.includes("chests unlocked") ||
+        t.includes("chest unlocked") ||
+        t.includes("unlocked chest") ||
+        t.includes("points added") ||
+        (t.includes("points") && (t.includes("successfully added") || t.includes("added to your") || t.includes("credited"))) ||
+        (t.includes("points") && t.includes("play store"))
     );
 }
 
@@ -2912,7 +2962,7 @@ userNotifyBot.on("message", async (msg) => {
             return userNotifyBot.sendMessage(msg.chat.id, "🛑 <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো বন্ধ (OFF) করা হয়েছে!</b>", { parse_mode: "HTML" });
         }
         if (text === "/logon") {
-            isAutoFakeLogEnabled = true;
+            var isAutoFakeLogEnabled = true;
             await db.collection("config").doc("app").set({ autoFakeLog: true }, { merge: true });
             return userNotifyBot.sendMessage(msg.chat.id, "✅ <b>চ্যানেলে ফেক অর্ডার লগ পাঠানো চালু (ON) করা হয়েছে!</b>", { parse_mode: "HTML" });
         }
@@ -3937,14 +3987,19 @@ userNotifyBot.on("callback_query", async (query) => {
                 const nextBanned = !curBanned;
 
                 // ২. Cloudflare D1 এ সাথে সাথে ব্যান/আনব্যান
+                const banNotice = nextBanned ? "নিয়ম ভঙ্গের কারণে অ্যাডমিন কর্তৃক অ্যাকাউন্ট স্থগিত করা হয়েছে।" : "";
                 await cfFetch(`${CF_API}/api/user/ban`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ uid: targetUid, banned: nextBanned })
+                    body: JSON.stringify({ uid: targetUid, banned: nextBanned, banReason: banNotice })
                 });
 
                 // ফায়ারস্টোর ব্যাকগ্রাউন্ড সিঙ্ক
-                db.collection("users").doc(targetUid).update({ banned: nextBanned }).catch(() => {});
+                db.collection("users").doc(targetUid).set({
+                    banned: nextBanned,
+                    banReason: banNotice,
+                    bannedAt: nextBanned ? admin.firestore.FieldValue.serverTimestamp() : null
+                }, { merge: true }).catch(() => {});
 
                 await userNotifyBot.answerCallbackQuery(query.id, {
                     text: nextBanned ? "🚫 ইউজার ব্যান করা হয়েছে!" : "✅ ইউজার আনব্যান করা হয়েছে!",
@@ -5320,14 +5375,61 @@ function normalizeGameStr(str) {
         .replace(/\s+/g, " ")
         .trim();
 
-    // ওয়েবসাইট টাইটেলের বাড়তি শব্দ (যেমন: Task, Quest, Points, Fast) স্বয়ংক্রিয়ভাবে ফিল্টার করা
-    s = s.replace(/\b(quest|quests|task|tasks|points|pts|fast|instant|new|free|game|play)\b/gi, "").replace(/\s+/g, " ").trim();
+    // ওয়েবসাইট টাইটেলের বাড়তি শব্দ (যেমন: Task, Quest, Points, Fast, HD, SD, Official) স্বয়ংক্রিয়ভাবে ফিল্টার করা
+    s = s.replace(/\b(quest|quests|task|tasks|points|pts|fast|instant|new|free|game|play|hd|sd|3d|official)\b/gi, "").replace(/\s+/g, " ").trim();
 
-    // সাধারণ বানান রূপান্তর যাতে বটের বাটনের সাথে হুবহু মিলে যায়
-    if (s.includes("hey day")) s = s.replace("hey day", "hay day");
-    if (s === "8ball" || s === "8ball pool") s = "8 ball pool";
-    if (s.includes("farm heroes saga")) s = s.replace("farm heroes saga", "farm heroes");
-    if (s.includes("mobile leg us") || s.includes("mobile legends us")) s = "mobile legends";
+    // ১. Hay Day ভ্যারিয়েন্ট (ha day, hey day, hay day, hay day hd ইত্যাদি)
+    if (s.includes("ha day") || s.includes("hey day") || s.includes("hayday") || s.includes("heyday") || s === "hay" || s === "ha") {
+        s = "hay day";
+    }
+
+    // ২. 8 Ball Pool
+    if (s === "8ball" || s === "8ball pool" || s === "8 ball" || s.includes("8 ball")) {
+        s = "8 ball pool";
+    }
+
+    // ৩. Farm Heroes
+    if (s.includes("farm heroes saga") || s === "farm heroes") {
+        s = "farm heroes";
+    }
+
+    // ৪. Mobile Legends (US বনাম Global আলাদা রাখা)
+    if (s.includes("mobile leg us") || s.includes("mobile legends us") || s.includes("mlbb us")) {
+        s = "mobile legends us";
+    } else if (s.includes("mobile leg") || s.includes("mobile legends Bang Bang") || s.includes("mobile legends") || s === "mlbb") {
+        s = "mobile legends";
+    }
+
+    // ৫. Pokemon ভ্যারিয়েন্ট (TCG Pocket বনাম Masters EX বনাম Unite আলাদা করা)
+    if (s.includes("pokemon") || s.includes("tcg") || s.includes("tcgp") || s.includes("pocket") || s.includes("mex") || s.includes("masters ex") || s.includes("master ex")) {
+        if (s.includes("tcg") || s.includes("tcgp") || s.includes("pocket") || s.includes("card")) {
+            s = "pokemon tcg pocket";
+        } else if (s.includes("ex") || s.includes("mex") || s.includes("master")) {
+            s = "pokemon masters ex";
+        } else if (s.includes("unite")) {
+            s = "pokemon unite";
+        } else if (s.includes("go")) {
+            s = "pokemon go";
+        }
+    }
+
+    // ৬. Warzone বনাম War Machines কঠোর বিভাজন
+    if (s.includes("warzone") || s.includes("war zone") || s.includes("cod warzone")) {
+        s = "warzone";
+    } else if (s.includes("war machine") || s.includes("warmachine") || s.includes("war machines")) {
+        s = "war machines";
+    }
+
+    // ৭. অন্যান্য সাধারণ গেমের নাম রূপান্তর
+    if (s.includes("free fire") || s === "ff" || s === "freefire") s = "free fire";
+    if (s.includes("zenless zone") || s === "zzz") s = "zenless zone";
+    if (s.includes("dice dream")) s = "dice dreams";
+    if (s.includes("domino dream")) s = "domino dreams";
+    if (s.includes("candy crush soda") || s.includes("soda saga")) s = "candy crush soda saga";
+    else if (s.includes("candy crush")) s = "candy crush saga";
+    if (s.includes("gossip harbor")) s = "gossip harbor";
+    if (s.includes("angry birds")) s = "angry birds 2";
+
     return s;
 }
 
@@ -5378,45 +5480,94 @@ async function clickChestButton(message, gameName, client = null) {
     const cleanTarget = normTarget.replace(/\s+/g, "");
     const targetWords = normTarget.split(" ").filter(w => w.length >= 2 && w !== "game" && w !== "the");
 
+    let bestBtn = null;
+    let bestScore = -9999;
+    let bestR = 0, bestC = 0;
+
     let rIdx = 0;
     for (const row of message.replyMarkup.rows) {
         let cIdx = 0;
         for (const button of row.buttons) {
             if (!button.text) { cIdx++; continue; }
             const rawBtnText = button.text;
-            const cleanBtn = normalizeGameStr(rawBtnText).replace(/\s+/g, "");
+            const normBtn = normalizeGameStr(rawBtnText);
+            const cleanBtn = normBtn.replace(/\s+/g, "");
 
-            // হুবহু বা পার্সিয়াল মিল চেক (স্পেস বা ব্র্যাকেট ছাড়াই)
-            if (cleanBtn.includes(cleanTarget) || cleanTarget.includes(cleanBtn)) {
-                console.log(`[CHEST CLICK] Matched button "${rawBtnText}" with target "${gameName}"`);
-                return await triggerButtonClick(message, button, client, rIdx, cIdx);
+            let score = 0;
+
+            // ১. হুবহু ম্যাচ
+            if (normBtn === normTarget || cleanBtn === cleanTarget) {
+                score = 1000;
+            }
+            // ২. সম্পূর্ণ সাবস্ট্রিং ম্যাচ (যাতে ছোট ৩ অক্ষরের শব্দ বড় গেমের ভেতর ভুলবশত ম্যাচ না হয়ে যায়)
+            else if ((cleanBtn.includes(cleanTarget) || cleanTarget.includes(cleanBtn)) && Math.min(cleanBtn.length, cleanTarget.length) >= 5) {
+                const ratio = Math.min(cleanBtn.length, cleanTarget.length) / Math.max(cleanBtn.length, cleanTarget.length);
+                if (ratio >= 0.6) {
+                    score = 600;
+                }
+            } else {
+                // ৩. ওয়ার্ড-লেভেল ম্যাচিং (শুধুমাত্র পূর্ণাঙ্গ শব্দের মিল, কোনো আংশিক শব্দের মিল নয়)
+                const btnWords = normBtn.split(" ").filter(w => w.length >= 2);
+                let matchedWords = 0;
+                for (const tw of targetWords) {
+                    if (btnWords.includes(tw)) matchedWords++;
+                }
+                if (matchedWords > 0) {
+                    score = matchedWords * 150;
+                }
             }
 
-            const matchCount = targetWords.filter(w => cleanBtn.includes(w)).length;
-            if (targetWords.length > 0 && matchCount >= Math.min(2, targetWords.length)) {
-                return await triggerButtonClick(message, button, client, rIdx, cIdx);
+            // ৪. পোকেমন ও সাব-গেম স্পেসিফিক সুরক্ষা (যাতে Pokemon TCG Pocket চাইলে Pokemon Masters EX ক্লিক না হয়)
+            const isTargetTcg = normTarget.includes("tcg") || normTarget.includes("pocket") || normTarget.includes("tcgp");
+            const isBtnTcg = normBtn.includes("tcg") || normBtn.includes("pocket") || normBtn.includes("tcgp");
+            const isTargetEx = normTarget.includes("ex") || normTarget.includes("master");
+            const isBtnEx = normBtn.includes("ex") || normBtn.includes("master");
+
+            if (isTargetTcg && !isBtnTcg) score -= 800;
+            if (isTargetEx && !isBtnEx) score -= 800;
+            if (!isTargetTcg && isBtnTcg) score -= 800;
+            if (!isTargetEx && isBtnEx) score -= 800;
+
+            // ৫. Mobile Legends US বনাম গ্লোবাল সুরক্ষা
+            const isTargetUS = normTarget.includes("us");
+            const isBtnUS = normBtn.includes("us");
+            if (isTargetUS && isBtnUS) score += 300;
+            if (isTargetUS && !isBtnUS) score -= 400;
+            if (!isTargetUS && isBtnUS) score -= 400;
+
+            // ৬. Dreams গেম (Dice Dreams বনাম Domino Dreams)
+            if (normTarget.includes("dice") && normBtn.includes("domino")) score -= 800;
+            if (normTarget.includes("domino") && normBtn.includes("dice")) score -= 800;
+
+            // ৭. Candy Crush Saga বনাম Soda Saga
+            if (normTarget.includes("soda") && !normBtn.includes("soda")) score -= 800;
+            if (!normTarget.includes("soda") && normBtn.includes("soda")) score -= 800;
+
+            // ৮. Hay Day ভ্যারিয়েন্ট সুরক্ষা
+            if (normTarget === "hay day" && normBtn === "hay day") score += 500;
+
+            // ৯. Warzone বনাম War machines কঠোর সুরক্ষা (একটি অন্যটির সাথে কখনোই মিলবে না)
+            if (normTarget.includes("warzone") && !normBtn.includes("warzone")) score -= 1500;
+            if (!normTarget.includes("warzone") && normBtn.includes("warzone")) score -= 1500;
+            if (normTarget.includes("war machine") && !normBtn.includes("war machine")) score -= 1500;
+            if (!normTarget.includes("war machine") && normBtn.includes("war machine")) score -= 1500;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestBtn = button;
+                bestR = rIdx;
+                bestC = cIdx;
             }
             cIdx++;
         }
         rIdx++;
     }
 
-    if (targetWords.length > 0) {
-        const primaryKeyword = targetWords[0];
-        let rIdx2 = 0;
-        for (const row of message.replyMarkup.rows) {
-            let cIdx2 = 0;
-            for (const button of row.buttons) {
-                if (!button.text) { cIdx2++; continue; }
-                const cleanBtn = normalizeGameStr(button.text);
-                if (cleanBtn.includes(primaryKeyword)) {
-                    return await triggerButtonClick(message, button, client, rIdx2, cIdx2);
-                }
-                cIdx2++;
-            }
-            rIdx2++;
-        }
+    if (bestBtn && bestScore >= 400) {
+        console.log(`[CHEST CLICK SMART] Matched button "${bestBtn.text}" (score: ${bestScore}) with target "${gameName}"`);
+        return await triggerButtonClick(message, bestBtn, client, bestR, bestC);
     }
+
     return false;
 }
 
@@ -5551,7 +5702,8 @@ async function sendOrderLog(text, buttonUrl = "https://ppmods.netlify.app/", but
     }
 }
 
-let isAutoFakeLogEnabled = true;
+// Channel auto fake log state
+var isAutoFakeLogEnabled = true;
 
 // ডাটাবেজ থেকে অটো-লগের অবস্থা চেক
 (async () => {
@@ -5831,7 +5983,7 @@ async function getUsableTelegramClient() {
     throw new Error("ALL_WORKERS_BUSY");
 }
 
-async function refundOrder(orderId, uid, reason, userTgId = null) {
+async function refundOrder(orderId, uid, reason, userTgId = null, workerPhone = null) {
     if (completedOrdersTracker.has(orderId)) {
         console.warn(`[REFUND BLOCKED]: Order ${orderId} is completed. Refund strictly prohibited.`);
         return;
@@ -5851,6 +6003,12 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
         }
 
         refundAmt = cfOrd ? Number(cfOrd.amount || 3) : 3;
+        const ordGame = (cfOrd && cfOrd.game) || "Task";
+        const ordEmail = (cfOrd && cfOrd.accEmail) || "";
+        const ordPass = (cfOrd && cfOrd.accPass) || "";
+        const ordUser = (cfOrd && cfOrd.name) || "User";
+        const ordUserEmail = (cfOrd && cfOrd.email) || "No Email";
+        const usedWorker = workerPhone || (cfOrd && cfOrd.assignedWorker) || "Auto-Bot";
 
         // ২. Cloudflare D1-এ তাৎক্ষণিক কয়েন রিফান্ড ও অর্ডার স্ট্যাটাস আপডেট
         if (uid && uid !== "guest" && refundAmt > 0) {
@@ -5911,20 +6069,44 @@ async function refundOrder(orderId, uid, reason, userTgId = null) {
             console.warn("[FIRESTORE QUOTA SAFE]: Refund completed on Cloudflare D1 directly.");
         }
 
-        if (userTgId) {
+        // ৪. ইউজারকে টেলিগ্রামে নোটিফিকেশন
+        if (userTgId || uid) {
             const notifyId = await getUserTgId(uid, userTgId);
-            const isMaintenance = reason.includes("মেইনটেনেন্সে") || reason.includes("Blackmoney54");
-            const tgAlert = isMaintenance
-                ? `⚠️ <b>গেম সার্ভিস মেইনটেনেন্স নোটিশ:</b>\n\n` +
-                  `<i>${reason}</i>\n\n` +
-                  `🪙 <b>রিফান্ড:</b> আপনার ${refundAmt} PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅\n` +
-                  `💬 এডমিন সাপোর্ট: @Blackmoney54`
-                : `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
-                  `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
-                  `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`;
+            if (notifyId) {
+                const isMaintenance = reason.includes("মেইনটেনেন্স") || reason.includes("অফ আছে") || reason.includes("Blackmoney54");
+                const tgAlert = isMaintenance
+                    ? `⚠️ <b>গেম সার্ভিস মেইনটেনেন্স নোটিশ:</b>\n\n` +
+                      `<i>${reason}</i>\n\n` +
+                      `🪙 <b>রিফান্ড:</b> আপনার ${refundAmt} PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅\n` +
+                      `💬 এডমিন সাপোর্ট: @Blackmoney54`
+                    : `❌ <b>অর্ডার রিফান্ড নোটিফিকেশন:</b>\n\n` +
+                      `⚠️ <b>কারণ:</b> <i>${reason}</i>\n` +
+                      `🪙 <b>রিফান্ড:</b> ${refundAmt} টি PP Coins ওয়ালেটে ফেরত দেওয়া হয়েছে। ✅`;
 
-            await notifyUserTelegram(notifyId, tgAlert);
+                await notifyUserTelegram(notifyId, tgAlert).catch(() => {});
+            }
         }
+
+        // ৫. সরাসরি অ্যাডমিনকে টেলিগ্রামে রিফান্ড/ক্যানসেল নোটিফিকেশন পাঠানো
+        try {
+            const adminTgChatId = process.env.ADMIN_TG_ID || "7504616242";
+            const adminRefundAlert = 
+                `❌ <b>QUEST REFUND / CANCELLED ALERT!</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `👤 <b>User:</b> ${safeTgHtml(ordUser)} (${safeTgHtml(ordUserEmail)})\n` +
+                `🆔 <b>UID:</b> <code>${uid || '—'}</code>\n` +
+                `🎮 <b>Game:</b> ${safeTgHtml(ordGame)}\n` +
+                `📧 <b>Gmail:</b> <code>${safeTgHtml(ordEmail || '—')}</code>\n` +
+                `🔑 <b>Pass:</b> <code>${safeTgHtml(ordPass || '—')}</code>\n` +
+                `🪙 <b>Refunded:</b> ${refundAmt} PP Coins ✅\n` +
+                `⚠️ <b>কারণ:</b> <i>${safeTgHtml(reason)}</i>\n` +
+                `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                `🤖 <b>Bot Account:</b> <code>${usedWorker}</code>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `📌 <i>Status: Refunded to User Wallet</i>`;
+
+            await userNotifyBot.sendMessage(adminTgChatId, adminRefundAlert, { parse_mode: "HTML" }).catch(() => {});
+        } catch (e) {}
         // ক্যানসেল বা রিফান্ডে চ্যানেলে আর কোনো লগ পাঠানো হবে না (Only completed logs allowed)
     } catch (e) {}
 }
@@ -6013,6 +6195,17 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
 
         let clicked = await clickChestButton(found.msg, orderData.game || "", tg);
         if (!clicked) {
+            // যদি পেজিনেশন বাটন থাকে (Next / ➡️ / Page), ক্লিক করে পরবর্তী পেজ চেক করা
+            const nextClicked = await clickInlineButton(found.msg, "next", tg) || 
+                                await clickInlineButton(found.msg, "➡️", tg) || 
+                                await clickInlineButton(found.msg, "page", tg);
+            if (nextClicked) {
+                await new Promise((r) => setTimeout(r, 1600));
+                const nextPageMsg = await getLatestBotMessage(tg);
+                if (nextPageMsg) clicked = await clickChestButton(nextPageMsg, orderData.game || "", tg);
+            }
+        }
+        if (!clicked) {
             await new Promise((r) => setTimeout(r, 1500));
             const retryMenu = await getLatestBotMessage(tg);
             if (retryMenu) clicked = await clickChestButton(retryMenu, orderData.game || "", tg);
@@ -6020,7 +6213,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         
         // গেম বাটনে ক্লিক না হলে অথবা এই একাউন্টে গেম না থাকলে মেইনটেনেন্স মেসেজ সহ নিরাপদ রিফান্ড
         if (!clicked) {
-            throw new Error(`⚠️ <b>গেমটি বর্তমানে মেইনটেনেন্সে আছে!</b>\n\n"${orderData.game}" গেমটি সার্ভারে পাওয়া যায়নি। দয়া করে অ্যাডমিনের সাথে যোগাযোগ করে সম্পন্ন করে নিন: @Blackmoney54`);
+            const mErr = new Error("⚠️ এই গেমের সার্ভার বা বটের কাজ চলছে, তাই এটি সাময়িকভাবে অফ আছে। অন্য গেম চেষ্টা করুন অথবা অ্যাডমিন সাপোর্টে যোগাযোগ করুন: @Blackmoney54");
+            mErr.isCustom = true;
+            throw mErr;
         }
 
         console.log(`[BOT] Game button clicked successfully for ${orderData.game}. Waiting for credentials prompt...`);
@@ -6030,9 +6225,28 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let credPromptFound = await waitForCondition((m) => {
             const txt = (m.message || "").toLowerCase();
             return txt.includes("send format") || txt.includes("email password") || txt.includes("last account") || txt.includes("new account") || txt.includes("confirm deducting") || txt.includes("previous") || txt.includes("send your");
-        }, 20000, tg);
+        }, 14000, tg);
 
-        let promptMsg = credPromptFound ? credPromptFound.msg : await getLatestBotMessage(tg);
+        // যদি ১৪ সেকেন্ডেও বটের প্রম্পট না আসে -> মানুষের মতো দ্বিতীয়বার গেম বাটনে ক্লিক করা
+        if (!credPromptFound) {
+            console.log(`[BOT RETRY] Prompt not appeared, clicking game button 2nd time for ${orderData.game}...`);
+            const retryMenu = await getLatestBotMessage(tg);
+            if (retryMenu) await clickChestButton(retryMenu, orderData.game || "", tg);
+            credPromptFound = await waitForCondition((m) => {
+                const txt = (m.message || "").toLowerCase();
+                return txt.includes("send format") || txt.includes("email password") || txt.includes("last account") || txt.includes("new account") || txt.includes("confirm deducting") || txt.includes("previous") || txt.includes("send your");
+            }, 10000, tg);
+        }
+
+        // যদি বট একেবারেই ক্রেডেনশিয়াল না চায় (যেমন গেম অফ বা মেনু আটকে আছে) -> কখনই পাসওয়ার্ড চ্যাটে পাঠানো যাবে না!
+        if (!credPromptFound) {
+            console.warn(`[BOT ERROR] Bot failed to open credential prompt for ${orderData.game}. Aborting send!`);
+            const promptErr = new Error("⚠️ এই গেমের সার্ভার বা বটের কাজ চলছে, তাই এটি সাময়িকভাবে অফ আছে। অন্য গেম চেষ্টা করুন অথবা অ্যাডমিন সাপোর্টে যোগাযোগ করুন: @Blackmoney54");
+            promptErr.isCustom = true;
+            throw promptErr;
+        }
+
+        let promptMsg = credPromptFound.msg;
         if (promptMsg && (promptMsg.message.includes("Last account") || promptMsg.message.includes("Confirm deducting") || promptMsg.message.includes("Previous"))) {
             await clickInlineButton(promptMsg, "New account", tg);
             await new Promise((r) => setTimeout(r, 2000));
@@ -6044,18 +6258,30 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         const credText = `${cleanEmail} ${cleanPass}`;
         console.log(`[BOT SEND] Sending credentials for Order ${orderId}: ${maskGmail(cleanEmail)}`);
         
-        // ঠিক এই মুহূর্তের বট মেসেজ আইডি সেভ
-        const sentCredRes = await tg.sendMessage(TARGET_BOT, { message: credText });
-        const credAnchorId = sentCredRes ? sentCredRes.id : 0;
+        let sentCredRes = await tg.sendMessage(TARGET_BOT, { message: credText });
+        let credAnchorId = sentCredRes ? sentCredRes.id : 0;
 
         syncCf({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." });
         orderRef.update({ adminMsg: "জিমেইল ও পাসওয়ার্ড ক্লাউড সার্ভারে পাঠানো হচ্ছে..." }).catch(() => {});
 
+        // পে বাটন বা কনফার্মেশন প্রম্পট খোঁজা
         let confirmFound = await waitForCondition((m) => {
             if (credAnchorId > 0 && m.id <= credAnchorId) return false;
             const txt = (m.message || "").toLowerCase();
             return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
-        }, 22000, tg);
+        }, 12000, tg);
+
+        // যদি ১ম বার মেসেজ পাঠানোর পর বট আটকে থাকে এবং পে অপশন না আসে -> মানুষের মতো ২য় বার ক্রেডেনশিয়াল পাঠানো
+        if (!confirmFound) {
+            console.log(`[BOT RETRY] Confirm & Pay not appeared after 12s, sending credentials 2nd time for Order ${orderId}...`);
+            const retrySendRes = await tg.sendMessage(TARGET_BOT, { message: credText });
+            if (retrySendRes) credAnchorId = retrySendRes.id;
+            confirmFound = await waitForCondition((m) => {
+                if (credAnchorId > 0 && m.id <= credAnchorId) return false;
+                const txt = (m.message || "").toLowerCase();
+                return txt.includes("confirm credentials") || txt.includes("confirm and start") || txt.includes("confirm & pay") || txt.includes("confirm deducting") || txt.includes("confirm");
+            }, 14000, tg);
+        }
 
         if (confirmFound) {
             let confClicked = await clickInlineButton(confirmFound.msg, "Confirm & Pay", tg);
@@ -6076,15 +6302,25 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let hasPassedPasswordStage = false; // গুগল প্রম্পট বা ফোন লগইন স্টেজ পার হলে ট্রু হবে
 
         // ইউজার নোটিফিকেশন চেক করতে থাকলে সময়সীমা বাড়িয়ে ৮৫ বার (প্রায় ২.৫ মিনিট) করা যাতে কোনোভাবেই রিফান্ড না হয়ে যায়
-        const maxAttempts = 85;
+        let maxAttempts = 85;
 
         while (!completed && attempts < maxAttempts) {
             attempts++;
             await new Promise((r) => setTimeout(r, 1800));
-            const curMsg = await getLatestBotMessage(tg, credAnchorId);
-            if (!curMsg) continue;
 
-            const rawText = (curMsg._combinedText || curMsg.message || "").trim();
+            // ১. সাম্প্রতিক সব মেসেজ নিয়ে আসা (যাতে একাধিক মেসেজ আসলেও কমপ্লিট মিস না হয়)
+            let recentBotMsgs = [];
+            try {
+                const fetched = await tg.getMessages(TARGET_BOT, { limit: 5 });
+                if (fetched && fetched.length > 0) {
+                    recentBotMsgs = fetched.filter(m => !m.out && (credAnchorId === 0 || m.id >= credAnchorId));
+                }
+            } catch (e) {}
+
+            const curMsg = recentBotMsgs.length > 0 ? recentBotMsgs[0] : await getLatestBotMessage(tg, credAnchorId);
+            if (!curMsg && recentBotMsgs.length === 0) continue;
+
+            const rawText = (curMsg ? (curMsg._combinedText || curMsg.message || "") : "").trim();
             const text = rawText.toLowerCase();
 
             if (!gamerSaved) {
@@ -6096,11 +6332,24 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 }
             }
 
-            // ১. সবার আগে চেক: কাজ কি সম্পন্ন হয়েছে? (সবার আগে সাফল্য নিশ্চিত করা)
-            if (isBotTaskCompleted(rawText)) {
+            // ১. সবার আগে চেক: সাম্প্রতিক কোনো মেসেজে কি কাজ সম্পন্ন হয়েছে? (সবার আগে সাফল্য নিশ্চিত করা)
+            let completionMsg = null;
+            for (const m of recentBotMsgs) {
+                const mTxt = (m._combinedText || m.message || "").trim();
+                if (isBotTaskCompleted(mTxt)) {
+                    completionMsg = m;
+                    break;
+                }
+            }
+            if (!completionMsg && curMsg && isBotTaskCompleted(rawText)) {
+                completionMsg = curMsg;
+            }
+
+            if (completionMsg) {
+                const compText = (completionMsg._combinedText || completionMsg.message || "").trim();
                 completed = true;
                 completedOrdersTracker.add(orderId);
-                const botReportedTime = extractBotElapsedTime(rawText);
+                const botReportedTime = extractBotElapsedTime(compText);
                 const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
 
                 syncCf({
@@ -6200,6 +6449,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             // ২. ফোন থেকে গুগল লগইন অনুমোদন হয়েছে কিনা চেক
             if (text.includes("sign-in confirmed from your phone") || text.includes("unlocking task") || text.includes("login successful")) {
                 hasPassedPasswordStage = true;
+                if (maxAttempts < 140) maxAttempts = 140; // সময়সীমা বাড়িয়ে ৪+ মিনিট করা যাতে নিশ্চিন্তে শেষ হয়
                 const loginSuccessMsg = "🎉 ফোন থেকে গুগল লগইন সফল হয়েছে! প্লে পয়েন্ট টাস্ক শুরু হচ্ছে, অপেক্ষা করুন...";
                 syncCf({ adminMsg: loginSuccessMsg, promptNumber: null });
                 await orderRef.update({
@@ -6215,6 +6465,7 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
 
             if (promptNum && !text.includes("completed") && !text.includes("confirmed from your phone")) {
                 hasPassedPasswordStage = true; // একবার প্রম্পট আসা মানে পাসওয়ার্ড ১০০% সত্য ও নির্ভুল!
+                if (maxAttempts < 140) maxAttempts = 140;
                 if (promptNum !== lastNotifiedPrompt) {
                     lastNotifiedPrompt = promptNum;
                     const devText = devModel ? ` (${devModel})` : "";
@@ -6244,13 +6495,13 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 const cleanReason = sanitizeBotReason(rawText);
                 if (cleanReason) {
                     await clickInlineButton(curMsg, "Cancel Process", tg);
-                    await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId);
+                    await refundOrder(orderId, orderData.uid, cleanReason, orderData.userTgId, assignedWorker);
                     return;
                 }
 
                 if (text.includes("password error") || text.includes("incorrect password") || text.includes("wrong password") || text.includes("invalid password")) {
                     await clickInlineButton(curMsg, "Cancel Process", tg);
-                    await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId);
+                    await refundOrder(orderId, orderData.uid, "🔑 ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিয়ে আবার দিন।", orderData.userTgId, assignedWorker);
                     return;
                 }
             }
@@ -6258,25 +6509,25 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             // ৫. সাধারণ গুগল রিজেকশন বা ক্যাপচা এরর (প্রম্পট আসার পর এগুলো এড়িয়ে চলবে)
             if (!hasPassedPasswordStage && (text.includes("captcha security check") || text.includes("captcha"))) {
                 await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId);
+                await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId, assignedWorker);
                 return;
             }
 
             if (text.includes("google rejected sign-in") || text.includes("couldn't sign you in")) {
                 await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, "Google অ্যাকাউন্ট লগইন রিজেক্ট করেছে (No চাপা হয়েছে বা ভেরিফিকেশন ফেইল)।", orderData.userTgId);
+                await refundOrder(orderId, orderData.uid, "Google অ্যাকাউন্ট লগইন রিজেক্ট করেছে (No চাপা হয়েছে বা ভেরিফিকেশন ফেইল)।", orderData.userTgId, assignedWorker);
                 return;
             }
         }
         if (!completed) {
-            // রিফান্ড করার আগে শুধুমাত্র এই অর্ডারের ক্রেডেনশিয়াল পাঠানোর পরের মেসেজগুলোতেই কাজ শেষ হয়েছে কিনা ডাবল-চেক
+            // রিফান্ড করার আগে শুধুমাত্র এই অর্ডারের মেসেজগুলোতে কাজ শেষ হয়েছে কিনা ডিপ ডাবল-চেক (মিস এড়াতে ১০টি মেসেজ স্ক্যান)
             let lastCheckMsg = null;
             try {
-                const recentMsgs = await tg.getMessages(TARGET_BOT, { limit: 6 });
+                const recentMsgs = await tg.getMessages(TARGET_BOT, { limit: 10 });
                 if (recentMsgs && recentMsgs.length > 0) {
                     for (const m of recentMsgs) {
-                        if (m.out || (credAnchorId > 0 && m.id <= credAnchorId)) continue;
-                        const mText = (m.message || "").trim();
+                        if (m.out) continue;
+                        const mText = (m._combinedText || m.message || "").trim();
                         if (isBotTaskCompleted(mText)) {
                             lastCheckMsg = m;
                             const detectedGamer = extractGamerName(mText);
@@ -6288,9 +6539,10 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
             } catch (e) {}
 
             if (lastCheckMsg) {
+                const compText = (lastCheckMsg._combinedText || lastCheckMsg.message || "").trim();
                 completed = true;
                 completedOrdersTracker.add(orderId);
-                const botReportedTime = extractBotElapsedTime(lastCheckMsg.message || "");
+                const botReportedTime = extractBotElapsedTime(compText);
                 const elapsedSec = botReportedTime !== null ? botReportedTime : Math.round((Date.now() - startTime) / 1000);
 
                 syncCf({
@@ -6310,16 +6562,48 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                     botProcessing: false,
                     inQueue: false
                 }).catch(() => {});
+
+                if (orderData.userTgId || orderData.uid) {
+                    const notifyId = await getUserTgId(orderData.uid, orderData.userTgId);
+                    await notifyUserTelegram(notifyId,
+                        `🎉 <b>টাস্ক সম্পন্ন হয়েছে! (Task Completed)</b>\n\n` +
+                        `🎮 <b>গেম:</b> ${orderData.game}\n` +
+                        `⏱️ <b>সময় লেগেছে:</b> ~${elapsedSec} সেকেন্ড\n` +
+                        `🪙 <b>ফি:</b> ৩টি PP Coins\n\n` +
+                        `🎁 এখনই আপনার Google Play Store > Play Points অপশনে গিয়ে পয়েন্ট ক্লেইম করুন! 🚀`
+                    ).catch(() => {});
+                }
+
+                const adminTgChatId = process.env.ADMIN_TG_ID || "7504616242";
+                const wName = (workerClientObj && workerClientObj.name) ? ` (${workerClientObj.name})` : "";
+                const adminAlertText = 
+                    `🎉 <b>QUEST COMPLETED ALERT!</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 <b>User:</b> ${orderData.name || "User"} (${orderData.email || "No Email"})\n` +
+                    `🆔 <b>UID:</b> <code>${orderData.uid || "—"}</code>\n` +
+                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
+                    `🕹️ <b>Gamer Tag:</b> ${(gamerName || "").trim() || "—"}\n` +
+                    `📧 <b>Gmail:</b> <code>${orderData.accEmail}</code>\n` +
+                    `🔑 <b>Pass:</b> <code>${orderData.accPass || "—"}</code>\n` +
+                    `✈️ <b>User TG:</b> ${orderData.userTgId || "Not Given"}\n` +
+                    `⏱️ <b>Time Elapsed:</b> ~${elapsedSec}s\n` +
+                    `🪙 <b>Fee:</b> ${orderData.amount || 3} Coins\n` +
+                    `🔖 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                    `🤖 <b>Bot Account Used:</b> <code>${assignedWorker || 'Bot'}</code>${wName}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ <i>Status: Completed Successfully!</i>`;
+
+                userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
                 return;
             }
             throw new Error("সার্ভার রেসপন্স সময়সীমা অতিক্রম করেছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।");
         }
     } catch (err) {
         let cleanErr = err.message || "সার্ভার সংযোগে সমস্যা হয়েছে।";
-        if (cleanErr.includes("bot") || cleanErr.includes("timeout")) {
+        if (!cleanErr.startsWith("⚠️") && (cleanErr.toLowerCase().includes("bot") || cleanErr.toLowerCase().includes("timeout"))) {
             cleanErr = "সার্ভারে লগইন ভেরিফিকেশন সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আপনার জিমেইল তথ্য চেক করে পুনরায় চেষ্টা করুন।";
         }
-        await refundOrder(orderId, orderData.uid, cleanErr, orderData.userTgId);
+        await refundOrder(orderId, orderData.uid, cleanErr, orderData.userTgId, assignedWorker);
     } finally {
         activeOrders.delete(orderId);
         if (assignedWorker) {
