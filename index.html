@@ -8,6 +8,23 @@
     <meta name="adsbitvex-verify" content="wLKhVEPRQD94RxXsy9JPkHgj">
     <meta name="monetag" content="5eef1dda5924b5a2fe82e1346c3dde86">
     <title>PP MOD - VAREON Studio</title>
+    <!-- Preload Splash Screen Image for Instant High-Priority Loading -->
+    <link rel="preload" as="image" href="fb.png" fetchpriority="high">
+    <link rel="preload" as="image" href="hd.png" fetchpriority="high">
+    <script>
+        // Splash screen image instant cache loader
+        (function() {
+            try {
+                var cached = localStorage.getItem('pp_cached_splash_fb');
+                if (cached) {
+                    var s = document.createElement('style');
+                    s.id = 'pp-splash-instant-css';
+                    s.textContent = '#splashBgImg { content: url("' + cached + '") !important; }';
+                    document.head.appendChild(s);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
@@ -2419,108 +2436,7 @@
             padding: 2px;
         }
 
-        /* --- Refer & Earn --- */
-        .ref-hero {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.75rem;
-            padding: 1.2rem 1.05rem;
-            color: #fff;
-            text-align: center;
-            background: linear-gradient(135deg, #581c87 0%, #7c3aed 55%, #a855f7 100%);
-            border: 1px solid rgba(196, 181, 253, 0.3);
-            box-shadow: 0 14px 30px -16px rgba(76, 29, 149, 0.8);
-        }
-
-        .ref-hero::before {
-            content: "";
-            position: absolute;
-            left: -40px;
-            bottom: -60px;
-            width: 150px;
-            height: 150px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(251, 191, 36, 0.35), transparent 70%);
-        }
-
-        .ref-hero::after {
-            content: "";
-            position: absolute;
-            right: -40px;
-            top: -40px;
-            width: 140px;
-            height: 140px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(52, 211, 153, 0.3), transparent 70%);
-        }
-
-        .ref-hero>* {
-            position: relative;
-            z-index: 1;
-        }
-
-        .ref-code {
-            font-family: ui-monospace, monospace;
-            font-weight: 900;
-            letter-spacing: 0.25em;
-            font-size: 20px;
-            color: #1e1b4b;
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border: 2px dashed #f59e0b;
-            border-radius: 14px;
-            padding: 10px 8px 10px 14px;
-        }
-
-        .ref-stat {
-            flex: 1;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 10px 6px;
-            text-align: center;
-        }
-
-        .ref-share {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 4px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #fff;
-            cursor: pointer;
-            transition: transform 0.15s ease;
-        }
-
-        .ref-share:active {
-            transform: scale(0.94);
-        }
-
-        .ref-step {
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 10px 12px;
-        }
-
-        .ref-step .n {
-            width: 24px;
-            height: 24px;
-            border-radius: 9999px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 900;
-            color: #fff;
-            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-        }
+        /* Refer & Earn CSS removed */
 
         /* --- Wallet Tabs & Transaction Items --- */
         .wtab-wrap {
@@ -3000,10 +2916,38 @@
     <div id="splashScreen" class="fixed inset-0 z-[99999] transition-all duration-500 select-none overflow-hidden"
         style="position:fixed; top:0; left:0; right:0; bottom:0; z-index:99999;">
         <div class="splash-inner-frame">
-            <!-- Fullscreen / Framed Background Image (fb.png) -->
-            <img src="fb.png"
+            <!-- Fullscreen / Framed Background Image (fb.png - Instant Cached) -->
+            <img id="splashBgImg" src="fb.png"
                 class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none z-0"
-                alt="Splash Background" onerror="this.style.display='none';">
+                alt="Splash Background" loading="eager" fetchpriority="high" decoding="sync" onerror="this.style.display='none';">
+            <script>
+                (function cacheSplashBgImage() {
+                    try {
+                        var cached = localStorage.getItem('pp_cached_splash_fb');
+                        var img = document.getElementById('splashBgImg');
+                        if (cached && img) {
+                            img.src = cached;
+                        } else {
+                            fetch('fb.png').then(function(res) {
+                                return res.blob();
+                            }).then(function(blob) {
+                                var reader = new FileReader();
+                                reader.onloadend = function() {
+                                    try {
+                                        localStorage.setItem('pp_cached_splash_fb', reader.result);
+                                    } catch(e) {}
+                                };
+                                reader.readAsDataURL(blob);
+                            }).catch(function() {});
+                        }
+                        if ('caches' in window) {
+                            caches.open('ppmod-splash-v1').then(function(c) {
+                                c.add('fb.png').catch(function() {});
+                            }).catch(function() {});
+                        }
+                    } catch (e) {}
+                })();
+            </script>
 
             <div class="relative z-10 flex flex-col items-center justify-center">
                 <div class="flex items-center justify-center">
@@ -4511,15 +4455,6 @@
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                 </div>
 
-                <!-- 1. Refer & Earn -->
-                <div onclick="openRefer()"
-                    class="flex items-center justify-between py-3.5 px-2 border-b border-slate-200/90 cursor-pointer hover:bg-slate-50/80 active:scale-[.99] transition-all select-none">
-                    <div class="flex items-center gap-3.5">
-                        <i data-lucide="crown" class="w-5 h-5 text-amber-500"></i>
-                        <span class="text-sm font-black text-slate-800 tracking-tight">Refer &amp; Earn</span>
-                    </div>
-                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
-                </div>
 
                 <!-- 2. Wallet -->
                 <div onclick="enterTopup('profile')"
@@ -4558,12 +4493,15 @@
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                 </div>
 
-                <!-- 5. Community (At the very bottom) -->
-                <div onclick="window.open('https://t.me/googleplaypointhack', '_blank')"
+                <!-- 5. Community & Custom Services Promotion -->
+                <div onclick="showScreen('screenCommunity')"
                     class="flex items-center justify-between py-3.5 px-2 border-b border-slate-200/90 cursor-pointer hover:bg-slate-50/80 active:scale-[.99] transition-all select-none">
                     <div class="flex items-center gap-3.5">
-                        <i data-lucide="messages-square" class="w-5 h-5 text-indigo-600"></i>
-                        <span class="text-sm font-black text-slate-800 tracking-tight">Community</span>
+                        <i data-lucide="sparkles" class="w-5 h-5 text-indigo-600"></i>
+                        <div>
+                            <span class="text-sm font-black text-slate-800 tracking-tight">Community &amp; Services</span>
+                            <span class="ml-1.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">কাস্টম বট/ওয়েব</span>
+                        </div>
                     </div>
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                 </div>
@@ -4581,6 +4519,110 @@
                         class="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">RELEASE</span>
                 </p>
                 <p class="text-[9px] font-semibold text-slate-400/80">POWERED BY VAREON STUDIO</p>
+            </div>
+        </main>
+
+        <!-- SCREEN: COMMUNITY & CUSTOM SERVICE PROMOTION -->
+        <main id="screenCommunity" class="screen hidden gen-screen space-y-3.5 pb-12">
+            <!-- Header with Back Button -->
+            <div class="flex items-center gap-2.5">
+                <button onclick="showScreen('screenProfile')"
+                    class="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 transition-all cursor-pointer active:scale-95 shadow-2xs">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <div class="min-w-0 flex-1">
+                    <h2 class="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                        <span>VAREON Studio • কাস্টম সার্ভিস</span>
+                    </h2>
+                    <p class="text-[10px] text-slate-400 font-bold">বট ও ওয়েবসাইট ডেভেলপমেন্ট সার্ভিস</p>
+                </div>
+            </div>
+
+            <!-- Hero Banner -->
+            <div class="relative overflow-hidden rounded-[1.75rem] p-5 text-white bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 shadow-lg border border-white/20">
+                <div class="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+                <div class="relative z-10 space-y-2">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-white/20 border border-white/30 px-2.5 py-0.5 rounded-full text-amber-200">
+                        🚀 OFFICIAL DEVELOPMENT
+                    </span>
+                    <h3 class="text-lg sm:text-xl font-black leading-snug">
+                        আপনার কি নিজস্ব টেলিগ্রাম বট বা গেম ওয়েবসাইট প্রয়োজন?
+                    </h3>
+                    <p class="text-[11.5px] text-indigo-100 font-medium leading-relaxed">
+                        আমরা প্রফেশনাল মানে যেকোনো টেলিগ্রাম মিনি অ্যাপ, অটোমেটেড বট, ৩ডি গেম ওয়েবসাইট ও পেমেন্ট গেটওয়ে সিস্টেম অত্যন্ত বিশ্বস্ততার সাথে তৈরি করে থাকি।
+                    </p>
+                </div>
+            </div>
+
+            <!-- Features Cards List -->
+            <div class="bg-white p-4 rounded-[1.75rem] border border-slate-200/80 shadow-2xs space-y-3">
+                <h4 class="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5 px-0.5">
+                    <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-500"></i>
+                    <span>আমরা যা যা তৈরি করি</span>
+                </h4>
+
+                <div class="grid grid-cols-1 gap-2 text-xs">
+                    <!-- Feature 1 -->
+                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 text-base">🤖</span>
+                        <div class="min-w-0">
+                            <p class="font-extrabold text-slate-800 text-[12px]">অটোমেটেড টেলিগ্রাম বট</p>
+                            <p class="text-[10.5px] text-slate-500 font-medium mt-0.5">টেলিগ্রাম মিনি অ্যাপ, ইউজার ডাটাবেজ সিঙ্ক, চ্যানেল অর্ডার লগ ও অটো নোটিফিকেশন সিস্টেম।</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0 text-base">🎮</span>
+                        <div class="min-w-0">
+                            <p class="font-extrabold text-slate-800 text-[12px]">৩ডি গেম ও প্রফেশনাল ওয়েবসাইট</p>
+                            <p class="text-[10.5px] text-slate-500 font-medium mt-0.5">আধুনিক ৩ডি অ্যানিমেশন, সুপার ফাস্ট রেসপন্সিভ ডিজাইন এবং ১০০% মোবাইল ফ্রেন্ডলি ওয়েবঅ্যাপ।</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 text-base">💳</span>
+                        <div class="min-w-0">
+                            <p class="font-extrabold text-slate-800 text-[12px]">বিকাশ / নগদ / রকেট অটো পেমেন্ট ও ওয়ালেট</p>
+                            <p class="text-[10.5px] text-slate-500 font-medium mt-0.5">অটোমেটেড TrxID ভেরিফিকেশন, কয়েন ওয়ালেট, টাস্ক আর্নিং ও উইথড্র সিস্টেম।</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 text-base">🛡️</span>
+                        <div class="min-w-0">
+                            <p class="font-extrabold text-slate-800 text-[12px]">ফুল অ্যাডমিন কন্ট্রোল প্যানেল</p>
+                            <p class="text-[10.5px] text-slate-500 font-medium mt-0.5">লাইভ অর্ডার ম্যানেজমেন্ট, ইউজার কন্ট্রোল, নোটিশ ও ব্যানার পরিবর্তন করার ফুল ড্যাশবোর্ড।</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Call To Action & Contact Buttons -->
+            <div class="bg-white p-4 rounded-[1.75rem] border border-slate-200/80 shadow-2xs space-y-2.5">
+                <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 text-center">
+                    সরাসরি যোগাযোগ ও অর্ডার করুন
+                </p>
+
+                <button onclick="window.open('https://t.me/Blackmoney54', '_blank')"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-98 transition-all cursor-pointer">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>ডেভেলপারের সাথে কথা বলুন (@Blackmoney54)</span>
+                </button>
+
+                <button onclick="window.open('https://t.me/googleplaypointhack', '_blank')"
+                    class="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-indigo-700 font-black text-xs rounded-xl border border-indigo-200 flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    <span>অফিসিয়াল টেলিগ্রাম চ্যানেল ও কমিউনিটি</span>
+                </button>
+
+                <button onclick="showScreen('screenProfile')"
+                    class="w-full py-2 px-4 bg-transparent text-slate-400 hover:text-slate-600 font-bold text-[11px] rounded-lg transition-all text-center">
+                    ⬅ প্রোফাইলে ফিরে যান
+                </button>
             </div>
         </main>
 
@@ -4901,97 +4943,6 @@
                 <div id="p2pMyDealsFeed" class="space-y-2.5">
                     <p class="text-center text-xs text-slate-400 py-10">আপনার কোনো ডিল নেই</p>
                 </div>
-            </div>
-        </main>
-
-        <!-- SCREEN: REFER & EARN -->
-        <main id="screenRefer" class="screen hidden gen-screen">
-            <section class="ref-hero">
-                <h2 class="text-xl font-extrabold tracking-tight">Refer & Earn</h2>
-                <p
-                    class="inline-block text-[10px] font-extrabold text-amber-200 bg-white/10 border border-amber-300/40 px-3 py-1 rounded-full mt-1">
-                    যত রেফার, তত আয়</p>
-                <div class="flex gap-2 mt-3">
-                    <div class="ref-stat !bg-white/10 !border-white/25 !rounded-2xl">
-                        <span
-                            class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-amber-400/20 border border-amber-300/40 mb-1"><i
-                                data-lucide="users" class="w-4 h-4 text-amber-300"></i></span>
-                        <p id="refTotalCount" class="text-2xl font-black text-white"
-                            style="text-shadow:0 2px 8px rgba(0,0,0,.4)">0</p>
-                        <p class="text-[9px] font-extrabold uppercase tracking-widest text-violet-200">Referrals</p>
-                    </div>
-                    <div class="ref-stat !bg-white/10 !border-white/25 !rounded-2xl">
-                        <span
-                            class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-400/20 border border-emerald-300/40 mb-1"><img
-                                src="PPCOIN.png" class="w-4 h-4 object-contain" alt=""></span>
-                        <p id="refTotalEarned" class="text-2xl font-black text-white"
-                            style="text-shadow:0 2px 8px rgba(0,0,0,.4)">0</p>
-                        <p class="text-[9px] font-extrabold uppercase tracking-widest text-violet-200">Earned</p>
-                    </div>
-                </div>
-            </section>
-
-            <div
-                class="bg-white p-4 rounded-[2rem] border border-slate-200/80 shadow-sm space-y-3.5 flex-1 min-h-0 overflow-y-auto">
-                <div class="space-y-2.5">
-                    <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Your Refer Code</p>
-                    <div class="flex gap-2">
-                        <div id="refCodeBox" class="ref-code flex-1 text-center">------</div>
-                        <button onclick="copyRefCode()"
-                            class="px-4 rounded-xl bg-slate-900 hover:bg-slate-700 text-white font-extrabold text-xs transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 flex-shrink-0">
-                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy
-                        </button>
-                    </div>
-                    <div class="flex gap-2">
-                        <input id="refLinkBox" readonly onclick="this.select()"
-                            class="flex-1 min-w-0 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-mono font-bold text-slate-600 focus:outline-none">
-                        <button onclick="copyRefLink()"
-                            class="px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs transition-all cursor-pointer active:scale-95 flex-shrink-0">Link</button>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="shareRef('tg')" class="ref-share"
-                            style="background:linear-gradient(135deg,#229ED9,#1d84b5)"><i data-lucide="send"
-                                class="w-3.5 h-3.5"></i> Telegram</button>
-                        <button onclick="shareRef('wa')" class="ref-share"
-                            style="background:linear-gradient(135deg,#25D366,#128C7E)"><i data-lucide="message-circle"
-                                class="w-3.5 h-3.5"></i> WhatsApp</button>
-                        <button onclick="shareRef('all')" class="ref-share"
-                            style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)"><i data-lucide="share-2"
-                                class="w-3.5 h-3.5"></i> Share</button>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 px-1">How it works</p>
-                    <div class="ref-step"><span class="n">1</span>
-                        <p class="text-[11px] font-semibold text-slate-600 leading-relaxed">তোমার <span
-                                class="font-extrabold text-slate-800">refer link</span> বন্ধুকে পাঠাও — link-এ tap দিলেই
-                            code <span class="font-extrabold text-slate-800">নিজে নিজে বসে যাবে</span>, কিছু করতে হবে
-                            না।</p>
-                    </div>
-                    <div class="ref-step"><span class="n">2</span>
-                        <p class="text-[11px] font-semibold text-slate-600 leading-relaxed"><span
-                                class="font-extrabold text-slate-800">যত বেশি বন্ধু</span> তোমার link থেকে জয়েন করে
-                            task শেষ করবে, <span class="font-extrabold text-slate-800">তত বেশি earning</span> — Google
-                            দিয়ে account খুললেই হবে!</p>
-                    </div>
-                    <div class="ref-step"><span class="n">3</span>
-                        <p class="text-[11px] font-semibold text-slate-600 leading-relaxed">ব্যস! প্রতিটা সফল task-এ
-                            তুমি পাবে <span class="font-extrabold text-amber-600">+0.5 PP Coin</span> — সব earning নিচে
-                            History-তে দেখতে পাবে।</p>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 px-1">Referral
-                        Earnings</p>
-                    <div id="refEarnList" class="space-y-2"></div>
-                </div>
-
-                <button onclick="showScreen('screenProfile')"
-                    class="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold rounded-xl transition-all text-xs cursor-pointer">
-                    ⬅ Back to Profile
-                </button>
             </div>
         </main>
 
@@ -6717,22 +6668,6 @@
                     </div>
                 </div>
 
-                <!-- 3. Referral Activity Card (Clean Full Width Card) -->
-                <div class="p-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl space-y-1.5">
-                    <span class="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
-                        <span>👥</span> আপনার রেফারাল ইউজারের কাজ:
-                    </span>
-                    <div class="space-y-1 text-[11px] font-black">
-                        <div class="bg-white px-2.5 py-1.5 rounded-lg text-emerald-800 border border-emerald-200 flex items-center justify-between">
-                            <span class="font-bold flex items-center gap-1.5"><span>📺</span> প্রতি ভিডিও বা অ্যাড দেখলে</span>
-                            <span class="font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs whitespace-nowrap">+০.১ Point</span>
-                        </div>
-                        <div class="bg-white px-2.5 py-1.5 rounded-lg text-emerald-800 border border-emerald-200 flex items-center justify-between">
-                            <span class="font-bold flex items-center gap-1.5"><span>🎁</span> প্রতি অফার বা কোয়েস্ট করলে</span>
-                            <span class="font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs whitespace-nowrap">+০.৫ Point</span>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- 4. Ranking Rule Note -->
                 <div class="p-2 bg-slate-50 rounded-xl border border-slate-200 text-center">
@@ -7508,7 +7443,7 @@
         }
 
         function showScreen(id) {
-            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenGen', 'screenEarn', 'screenRefer', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell'].forEach(s => {
+            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenGen', 'screenEarn', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell', 'screenCommunity'].forEach(s => {
                 const el = document.getElementById(s);
                 if (el) el.classList.toggle('hidden', s !== id);
             });
@@ -7530,100 +7465,14 @@
             if (id === 'screenP2P' && window.startP2PLive) { try { window.startP2PLive(); } catch (e) { } }
             if (id !== 'screenP2P' && window.stopP2PLive) { try { window.stopP2PLive(); } catch (e) { } }
             if (id !== 'screenSuccess' && window.liveSecTick) { try { clearInterval(window.liveSecTick); } catch (e) { } }
-            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenEarn: 'earn', screenGen: 'profile', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store' };
+            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenEarn: 'earn', screenGen: 'profile', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
             if (window.paintNav) paintNav(navMap[id] || null);
             // Translation system removed per user request
         }
 
-        /* ===== Referral: link capture + screen + share ===== */
-        try {
-            const _rq = new URLSearchParams(window.location.search);
-            const _rc = (_rq.get('ref') || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-            if (_rc) localStorage.setItem('pp_ref', _rc);
-        } catch (e) { }
-        function refLinkOf(code) {
-            try {
-                if (/^https?:/.test(window.location.protocol)) {
-                    return window.location.origin + window.location.pathname + '?ref=' + code;
-                }
-            } catch (e) { }
-            return code;
-        }
-        async function openRefer() {
-            if (!(window.ppfb && window.ppfb.user)) { toast('Please login first'); showScreen('screenLogin'); return; }
-
-            // তাৎক্ষণিক লোকাল রেফার কোড তৈরি (যাতে স্ক্রিন কখনো ফাঁকা না থাকে)
-            if (!window.ppfb.refCode) {
-                const u = window.ppfb.user;
-                const cleanUid = (u.uid || '').slice(0, 6).toUpperCase();
-                window.ppfb.refCode = cleanUid || 'PPM' + Math.floor(100 + Math.random() * 900);
-            }
-
-            showScreen('screenRefer');
-            if (window.refreshReferUI) window.refreshReferUI();
-
-            try {
-                if (window.ppfb.ensureRefCode) {
-                    const freshCode = await window.ppfb.ensureRefCode();
-                    if (freshCode) {
-                        window.ppfb.refCode = freshCode;
-                        if (window.refreshReferUI) window.refreshReferUI();
-                    }
-                }
-            } catch (e) { }
-        }
-
-        window.refreshReferUI = () => {
-            let code = ((window.ppfb && window.ppfb.refCode) || '').toString().trim();
-            if (!code && window.ppfb && window.ppfb.user) {
-                code = (window.ppfb.user.uid || '').slice(0, 6).toUpperCase();
-                window.ppfb.refCode = code;
-            }
-
-            const cb = document.getElementById('refCodeBox');
-            if (cb) cb.textContent = code || '------';
-
-            const lb = document.getElementById('refLinkBox');
-            if (lb) {
-                const fullLink = window.location.origin + window.location.pathname.replace(/\/$/, '') + '?ref=' + (code || '');
-                lb.value = code ? fullLink : '';
-            }
-            const tc = document.getElementById('refTotalCount');
-            if (tc) tc.textContent = Number((window.ppfb && window.ppfb.refCount) || 0);
-            const te = document.getElementById('refTotalEarned');
-            if (te) te.textContent = Number((window.ppfb && window.ppfb.refEarned) || 0);
-            const box = document.getElementById('refEarnList');
-            if (box) {
-                const arr = (window._histItemsArr || []).filter(x => x.kind === 'REDEEM' && (x.code || '') === 'REFERRAL').slice(0, 5);
-                box.innerHTML = arr.length
-                    ? arr.map(it => window.histRowHtml(it)).join('')
-                    : '<p class="text-center text-[11px] text-slate-400 font-semibold bg-white border border-slate-200 rounded-xl py-4">এখনো earning নাই — link শেয়ার করো!</p>';
-            }
-            if (window.lucide) lucide.createIcons();
-        };
-        function refShareText() {
-            return 'PP MOD এ জয়েন করো আর Google Play Points task করে coin জেতো!';
-        }
-        function copyRefCode() {
-            const code = ((window.ppfb && window.ppfb.refCode) || '').toString().trim();
-            if (!code) { toast('Code paini'); return; }
-            copyText(code, 'Refer code copied!');
-        }
-        function copyRefLink() {
-            const lb = document.getElementById('refLinkBox');
-            const link = lb ? lb.value : '';
-            if (!link) { toast('Link paini'); return; }
-            copyText(link, 'Refer link copied!');
-        }
-        function shareRef(where) {
-            const code = ((window.ppfb && window.ppfb.refCode) || '').toString().trim();
-            if (!code) { toast('Code paini'); return; }
-            const link = refLinkOf(code);
-            const txt = refShareText();
-            if (where === 'tg') { window.open('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent(txt), '_blank'); return; }
-            if (where === 'wa') { window.open('https://wa.me/?text=' + encodeURIComponent(txt + ' ' + link), '_blank'); return; }
-            if (navigator.share) { navigator.share({ title: 'PP MOD Referral', text: txt, url: link }).catch(() => { }); return; }
-            copyText(link, 'Refer link copied!');
+        /* ===== Referral: Disabled ===== */
+        function openRefer() {
+            toast('রেফারেল সুবিধা বর্তমানে বন্ধ আছে');
         }
 
         function navGo(tab) {
@@ -9621,7 +9470,137 @@
 
         let liveOrderUnsub = null;
         let cfOrderPollTimer = null;
+        window._currentLiveOrderId = null;
+        window._activeCaptchaRenderKey = null;
+        window._captchaCountdownTimer = null;
+
+        function stripOrderSpecialTokens(raw) {
+            return (raw || '')
+                .toString()
+                .replace(/PROMPT_NUMBER:[^|]+\|DEVICE:[^|]+\|/i, '')
+                .replace(/CAPTCHA_IMG:[^|]+\|CAPTCHA_ID:[^|]+(?:\|ATTEMPT:[^|]+)?\|/i, '')
+                .replace(/\s*\(⏱️[^)]*\)/g, '')
+                .trim();
+        }
+
+        function parseOrderCaptchaInfo(ord) {
+            if (!ord || ord.status === 'completed' || ord.status === 'refunded' || ord.status === 'rejected') return null;
+            const raw = (ord.adminMsg || '').toString();
+            const mImg = raw.match(/CAPTCHA_IMG:([^|]+)/i);
+            const mId = raw.match(/CAPTCHA_ID:([^|]+)/i);
+            const mAtt = raw.match(/ATTEMPT:(\d+)/i);
+            const url = (mImg && mImg[1]) ? mImg[1].trim() : ((ord.captchaImage && String(ord.captchaImage).startsWith('http')) ? String(ord.captchaImage).trim() : '');
+            if (!url) return null;
+            const id = (mId && mId[1]) ? mId[1].trim() : String(ord.captchaId || '1');
+            const attempt = (mAtt && mAtt[1]) ? Number(mAtt[1]) : 1;
+            return { url, id, attempt };
+        }
+
+        window.reloadOrderCaptchaImg = function () {
+            const img = document.getElementById('orderCaptchaImg');
+            if (!img) return;
+            const base = img.getAttribute('data-base-src') || img.src.split('&r=')[0];
+            img.src = base + '&r=' + Date.now();
+        };
+
+        window.submitOrderCaptcha = async function (orderId, captchaId) {
+            const oid = (orderId || window._currentLiveOrderId || '').toString().trim();
+            const inputEl = document.getElementById('orderCaptchaInput');
+            const btnEl = document.getElementById('orderCaptchaSubmitBtn');
+            const errEl = document.getElementById('orderCaptchaInlineErr');
+            const answer = inputEl ? inputEl.value.trim() : '';
+
+            if (!answer) {
+                if (errEl) {
+                    errEl.textContent = '⚠️ ছবিতে থাকা লেখাটি আগে এখানে লিখুন!';
+                    errEl.classList.remove('hidden');
+                }
+                if (inputEl) inputEl.focus();
+                return;
+            }
+            if (errEl) errEl.classList.add('hidden');
+            if (inputEl) inputEl.disabled = true;
+            if (btnEl) {
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span> <span>বটে পাঠানো হচ্ছে...</span>';
+            }
+
+            try {
+                const res = await fetch('https://ppm-bot-auto.onrender.com/api/order/submit-captcha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: oid,
+                        answer: answer,
+                        captchaId: captchaId || '',
+                        uid: (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : ''
+                    })
+                });
+                const data = await res.json().catch(() => ({ ok: res.ok }));
+
+                // সাইলেন্ট ব্যাকআপ হিসেবে Firestore ও Cloudflare-এও সেভ করা
+                try {
+                    if (window.FB && window.FB.db && oid) {
+                        window.FB.updateDoc(window.FB.doc(window.FB.db, 'orders', oid), {
+                            captchaAnswer: answer,
+                            captchaAnswerId: String(captchaId || '')
+                        }).catch(() => { });
+                    }
+                } catch (e) { }
+                try {
+                    if (window.CF_API && oid) {
+                        fetch(`${window.CF_API}/api/orders/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orderId: oid, captchaAnswer: answer })
+                        }).catch(() => { });
+                    }
+                } catch (e) { }
+
+                if (data && data.ok) {
+                    window._activeCaptchaRenderKey = null;
+                    if (window._captchaCountdownTimer) { clearInterval(window._captchaCountdownTimer); window._captchaCountdownTimer = null; }
+                    const msgBox = document.getElementById('adminLiveMsgText');
+                    if (msgBox) {
+                        msgBox.innerHTML = `
+                            <div class="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl text-left space-y-2">
+                                <div class="flex items-center gap-2 text-indigo-800">
+                                    <span class="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"></span>
+                                    <span class="text-xs font-black">ক্যাপচা কোড যাচাই করা হচ্ছে...</span>
+                                </div>
+                                <p class="text-xs font-bold text-slate-700 leading-relaxed">
+                                    আপনার লেখা <span class="px-1.5 py-0.5 rounded bg-white border border-indigo-200 font-mono text-indigo-700">${escH(answer)}</span> বটে পাঠানো হয়েছে। সঠিক হলে সাথে সাথে লগইন সম্পন্ন হবে, অনুগ্রহ করে লাইভ থাকুন...
+                                </p>
+                            </div>`;
+                    }
+                } else {
+                    if (inputEl) inputEl.disabled = false;
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = '<span>✅ সাবমিট করুন (Verify Captcha)</span>';
+                    }
+                    if (errEl) {
+                        errEl.textContent = (data && data.error) ? data.error : 'সাবমিট করতে সমস্যা হয়েছে, আবার চেষ্টা করুন।';
+                        errEl.classList.remove('hidden');
+                    }
+                }
+            } catch (e) {
+                if (inputEl) inputEl.disabled = false;
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = '<span>✅ সাবমিট করুন (Verify Captcha)</span>';
+                }
+                if (errEl) {
+                    errEl.textContent = 'নেটওয়ার্ক এরর! ইন্টারনেট চেক করে আবার সাবমিট দিন।';
+                    errEl.classList.remove('hidden');
+                }
+            }
+        };
+
         function trackLiveOrder(orderId) {
+            window._currentLiveOrderId = orderId;
+            window._activeCaptchaRenderKey = null;
+            if (window._captchaCountdownTimer) { clearInterval(window._captchaCountdownTimer); window._captchaCountdownTimer = null; }
             if (liveOrderUnsub) liveOrderUnsub();
             if (cfOrderPollTimer) { clearInterval(cfOrderPollTimer); cfOrderPollTimer = null; }
             if (window.liveSecTick) { clearInterval(window.liveSecTick); window.liveSecTick = null; }
@@ -9645,7 +9624,9 @@
             if (window.FB && window.FB.db) {
                 liveOrderUnsub = window.FB.snap(window.FB.doc(window.FB.db, 'orders', orderId), docSnap => {
                     if (!docSnap.exists()) return;
-                    renderSmartDeskCard(docSnap.data());
+                    const d = docSnap.data();
+                    if (!d.id) d.id = orderId;
+                    renderSmartDeskCard(d);
                 });
             }
         }
@@ -9677,10 +9658,13 @@
             if (msgBox && ord.adminMsg) {
                 const rawMsg = (ord.adminMsg || '').replace(/\s*\(⏱️[^)]*\)/g, '').trim();
                 const isRefundOrCancel = (ord.status === 'refunded' || ord.status === 'rejected');
+                const captchaInfo = parseOrderCaptchaInfo(ord);
 
                 if (isRefundOrCancel) {
-                    let lines = rawMsg
-                        .replace(/PROMPT_NUMBER:[^|]+\|DEVICE:[^|]+\|/i, '')
+                    window._activeCaptchaRenderKey = null;
+                    if (window._captchaCountdownTimer) { clearInterval(window._captchaCountdownTimer); window._captchaCountdownTimer = null; }
+
+                    let lines = stripOrderSpecialTokens(rawMsg)
                         .replace(/bot-e paowa jayni/gi, 'পাওয়া যায়নি')
                         .replace(/bot/gi, 'সার্ভার')
                         .split('\n')
@@ -9697,12 +9681,16 @@
                     }).join('');
 
                     const isPassErr = rawMsg.toLowerCase().includes('পাসওয়ার্ড') || rawMsg.toLowerCase().includes('password');
+                    const isCaptchaErr = rawMsg.toLowerCase().includes('ক্যাপচা') || rawMsg.toLowerCase().includes('captcha');
                     const isMaint = rawMsg.toLowerCase().includes('মেইনটেনেন্সে') || rawMsg.toLowerCase().includes('blackmoney54');
+                    const headingText = isMaint
+                        ? 'গেম সার্ভিস মেইনটেনেন্স নোটিশ'
+                        : (isCaptchaErr ? 'ক্যাপচা ভেরিফিকেশন ব্যর্থ ও রিফান্ডের বিবরণ' : (isPassErr ? 'পাসওয়ার্ড ত্রুটি ও রিফান্ডের বিবরণ' : 'অর্ডার বাতিল ও রিফান্ডের বিবরণ'));
                     msgBox.innerHTML = `
                         <div class="p-4 bg-rose-50/90 border-2 border-rose-200 rounded-2xl space-y-3 text-left shadow-2xs">
                             <div class="flex items-center gap-1.5 text-rose-700 pb-1.5 border-b border-rose-100">
                                 <i data-lucide="alert-octagon" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
-                                <span class="text-xs font-black uppercase tracking-wider">${isMaint ? 'গেম সার্ভিস মেইনটেনেন্স নোটিশ' : (isPassErr ? 'পাসওয়ার্ড ত্রুটি ও রিফান্ডের বিবরণ' : 'অর্ডার বাতিল ও রিফান্ডের বিবরণ')}</span>
+                                <span class="text-xs font-black uppercase tracking-wider">${headingText}</span>
                             </div>
                             <div class="space-y-1 text-left">
                                 ${bodyHtml}
@@ -9713,15 +9701,97 @@
                                     <i data-lucide="send" class="w-4 h-4"></i> অ্যাডমিনের সাথে যোগাযোগ করুন (@Blackmoney54)
                                 </a>
                             </div>` : ''}
-                            ${isPassErr ? `
+                            ${(isPassErr || isCaptchaErr) ? `
                             <div class="pt-2">
                                 <button onclick="resetToHome()" class="w-full py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all active:scale-98">
-                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> সঠিক পাসওয়ার্ড দিয়ে পুনরায় অর্ডার করুন
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> ${isCaptchaErr ? 'পুনরায় অর্ডার করুন' : 'সঠিক পাসওয়ার্ড দিয়ে পুনরায় অর্ডার করুন'}
                                 </button>
                             </div>` : ''}
                         </div>`;
+                } else if (captchaInfo) {
+                    const oid = ord.id || window._currentLiveOrderId || '';
+                    const renderKey = `${oid}_${captchaInfo.id}`;
+                    // ইউজার টাইপ করার সময় ১.২ সেকেন্ডের পোলিংয়ে ইনপুট যেন রিসেট বা ফোকাস নষ্ট না হয়!
+                    if (window._activeCaptchaRenderKey === renderKey && document.getElementById('orderCaptchaInput')) {
+                        // Already rendered for this exact captcha image — preserve user's input & focus!
+                    } else {
+                        window._activeCaptchaRenderKey = renderKey;
+                        const attBadge = captchaInfo.attempt > 1 ? `<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black border border-amber-400/30">Attempt #${captchaInfo.attempt}</span>` : '';
+                        msgBox.innerHTML = `
+                            <div class="p-4 bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl text-center space-y-3 shadow-lg border border-amber-400/40 text-white">
+                                <div class="flex items-center justify-between gap-2 flex-wrap">
+                                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-400/15 text-amber-300 text-[10.5px] font-extrabold border border-amber-400/30">
+                                        <span>🧩</span>
+                                        <span>Google Captcha Verification</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        ${attBadge}
+                                        <span id="orderCaptchaTimer" class="px-2 py-0.5 rounded-full bg-white/10 text-slate-200 text-[10px] font-mono font-bold border border-white/15">⏱ 90s</span>
+                                    </div>
+                                </div>
+
+                                <p class="text-xs font-bold text-slate-200 leading-snug">
+                                    নিচের ছবিতে থাকা লেখাগুলো দেখে নিচের বক্সে সঠিকভাবে লিখে <span class="text-emerald-400 font-black">সাবমিট</span> দিন:
+                                </p>
+
+                                <div class="relative bg-white rounded-xl p-2.5 shadow-inner border-2 border-amber-400/50 flex flex-col items-center justify-center min-h-[92px]">
+                                    <img id="orderCaptchaImg"
+                                         src="${escH(captchaInfo.url)}"
+                                         data-base-src="${escH(captchaInfo.url)}"
+                                         alt="Captcha Image"
+                                         class="max-h-36 w-auto mx-auto rounded-lg object-contain select-none"
+                                         onerror="this.alt='ছবি লোড হয়নি — রিলোড বাটনে চাপুন';" />
+                                    <button type="button" onclick="reloadOrderCaptchaImg()" class="mt-2 text-[10.5px] font-extrabold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 cursor-pointer">
+                                        <span>↻ ছবি স্পষ্ট না এলে রিলোড করুন</span>
+                                    </button>
+                                </div>
+
+                                <div class="space-y-2 text-left">
+                                    <input id="orderCaptchaInput"
+                                           type="text"
+                                           autocomplete="off"
+                                           autocorrect="off"
+                                           autocapitalize="off"
+                                           spellcheck="false"
+                                           placeholder="ছবিতে থাকা লেখাটি এখানে লিখুন..."
+                                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitOrderCaptcha('${escH(oid)}', '${escH(captchaInfo.id)}'); }"
+                                           class="w-full px-3.5 py-3 rounded-xl bg-white text-slate-900 font-extrabold text-sm tracking-wider text-center border-2 border-amber-400 focus:outline-none focus:ring-4 focus:ring-amber-400/30 placeholder:text-slate-400 placeholder:font-semibold placeholder:tracking-normal" />
+                                    <p id="orderCaptchaInlineErr" class="hidden text-[11px] font-bold text-rose-400 text-center"></p>
+                                    <button id="orderCaptchaSubmitBtn"
+                                            type="button"
+                                            onclick="submitOrderCaptcha('${escH(oid)}', '${escH(captchaInfo.id)}')"
+                                            class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-500/25 cursor-pointer transition-all active:scale-98">
+                                        <span>✅ সাবমিট করুন (Verify Captcha)</span>
+                                    </button>
+                                </div>
+                            </div>`;
+
+                        // ৯০ সেকেন্ড কাউন্টডাউন টাইমার
+                        if (window._captchaCountdownTimer) clearInterval(window._captchaCountdownTimer);
+                        let secLeft = 90;
+                        window._captchaCountdownTimer = setInterval(() => {
+                            secLeft--;
+                            const tEl = document.getElementById('orderCaptchaTimer');
+                            if (!tEl) {
+                                clearInterval(window._captchaCountdownTimer);
+                                window._captchaCountdownTimer = null;
+                                return;
+                            }
+                            if (secLeft <= 0) {
+                                tEl.textContent = '⏱ 0s';
+                                clearInterval(window._captchaCountdownTimer);
+                                window._captchaCountdownTimer = null;
+                            } else {
+                                tEl.textContent = `⏱ ${secLeft}s`;
+                                if (secLeft <= 20) tEl.className = 'px-2 py-0.5 rounded-full bg-rose-500/25 text-rose-300 text-[10px] font-mono font-bold border border-rose-400/40';
+                            }
+                        }, 1000);
+                    }
                 } else {
-                    const cleanTxt = rawMsg.replace(/PROMPT_NUMBER:[^|]+\|DEVICE:[^|]+\|/i, '').trim();
+                    window._activeCaptchaRenderKey = null;
+                    if (window._captchaCountdownTimer) { clearInterval(window._captchaCountdownTimer); window._captchaCountdownTimer = null; }
+
+                    const cleanTxt = stripOrderSpecialTokens(rawMsg);
                     const isCompleted = (ord.status === 'completed');
                     const isLoginSuccess = cleanTxt.includes('লগইন সফল') || cleanTxt.includes('confirmed from your phone') || cleanTxt.includes('unlocking task') || (ord.gamerName && ord.gamerName.length > 1);
 
@@ -9770,10 +9840,10 @@
                                 </p>
                             </div>`;
                     } else {
-                        const cleanTxt = rawMsg.replace(/PROMPT_NUMBER:[^|]+\|DEVICE:[^|]+\|/i, '').trim();
-                        const isLoginSuccess = cleanTxt.includes('লগইন সফল') || cleanTxt.includes('confirmed from your phone') || cleanTxt.includes('unlocking task');
+                        const cleanTxt2 = stripOrderSpecialTokens(rawMsg);
+                        const isLoginSuccess2 = cleanTxt2.includes('লগইন সফল') || cleanTxt2.includes('confirmed from your phone') || cleanTxt2.includes('unlocking task');
 
-                        if (isLoginSuccess) {
+                        if (isLoginSuccess2) {
                             msgBox.innerHTML = `
                                 <div class="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl text-left space-y-2 shadow-xs">
                                     <div class="flex items-center gap-2 text-emerald-800 pb-1.5 border-b border-emerald-200">
@@ -9791,7 +9861,7 @@
                         } else {
                             msgBox.innerHTML = `
                                 <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-                                    <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${cleanTxt}</p>
+                                    <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${escH(cleanTxt2)}</p>
                                 </div>`;
                         }
                     }
@@ -9977,12 +10047,15 @@
                 rawLower.includes('unlocking task') || (ord && ord.gamerName)
             );
 
-            // ৩. গুগল সিকিউরিটি প্রম্পট (শুধুমাত্র যদি অর্ডারটি সক্রিয় থাকে এবং সম্পন্ন বা রিফান্ড না হয়ে থাকে)
+            // ৩. গুগল সিকিউরিটি প্রম্পট বা ক্যাপচা ভেরিফিকেশন
             let promptNum = null;
+            let hasCaptchaWait = false;
             if (!isRefunded && !isCompleted) {
                 promptNum = (ord && ord.promptNumber) || (raw.match(/PROMPT_NUMBER:(\d{1,2})/i) || [])[1];
+                hasCaptchaWait = /CAPTCHA_IMG:/i.test(raw) || !!(ord && ord.captchaImage);
             }
             const isPromptWait = !isRefunded && !isCompleted && !!promptNum;
+            const isCaptchaError = isRefunded && (rawLower.includes('ক্যাপচা') || rawLower.includes('captcha'));
 
             if (isCompleted) {
                 if (animBox) animBox.innerHTML = '<div class="tick3d"><span>✓</span></div>';
@@ -9993,6 +10066,10 @@
                 if (animBox) animBox.innerHTML = '<div class="passError3d"><span>🔑</span></div>';
                 if (title) { title.textContent = 'পাসওয়ার্ড ভুল হয়েছে!'; title.className = 'text-base font-extrabold text-rose-600 animate-pulse'; }
                 if (msg) msg.textContent = 'আপনার জিমেইল পাসওয়ার্ড সঠিক নয়। সম্পূর্ণ টাকা ওয়ালেটে রিফান্ড করা হয়েছে।';
+            } else if (isCaptchaError) {
+                if (animBox) animBox.innerHTML = '<div class="passError3d"><span>🤖</span></div>';
+                if (title) { title.textContent = 'ক্যাপচা ভেরিফিকেশন ব্যর্থ!'; title.className = 'text-base font-extrabold text-rose-600 animate-pulse'; }
+                if (msg) msg.textContent = 'ভুল ক্যাপচা বা সময়সীমা শেষ হওয়ায় অর্ডার বাতিল ও কয়েন রিফান্ড করা হয়েছে।';
             } else if (isRefunded) {
                 if (animBox) animBox.innerHTML = '<div class="w-20 h-20 rounded-full bg-rose-50 border-2 border-rose-200 flex items-center justify-center text-rose-500 mx-auto mb-2"><i data-lucide="undo-2" class="w-10 h-10"></i></div>';
                 if (title) { title.textContent = 'Order Refunded'; title.className = 'text-base font-extrabold text-rose-600'; }
@@ -10002,6 +10079,10 @@
                 if (animBox) animBox.innerHTML = '<div class="loginSuccess3d"><span>🔓</span></div>';
                 if (title) { title.textContent = 'গুগল লগইন সফল হয়েছে! 🎉'; title.className = 'text-base font-extrabold text-emerald-600'; }
                 if (msg) msg.textContent = 'ফোন থেকে অনুমোদন যাচাই হয়েছে! প্লে পয়েন্ট টাস্ক আনলক ও সম্পন্ন করা হচ্ছে...';
+            } else if (hasCaptchaWait) {
+                if (animBox) animBox.innerHTML = '<div class="promptWait3d"><span>🧩</span></div>';
+                if (title) { title.textContent = 'ক্যাপচা কোড লিখে সাবমিট দিন'; title.className = 'text-base font-extrabold text-amber-600'; }
+                if (msg) msg.textContent = 'নিচের ক্যাপচা ছবিতে থাকা লেখাগুলো দেখে বক্সে লিখে সাবমিট করুন।';
             } else if (isPromptWait) {
                 // গুগল নোটিফিকেশন অনুমোদন অপেক্ষা অ্যানিমেশন (Amber 3D Phone Tap)
                 if (animBox) animBox.innerHTML = '<div class="promptWait3d"><span>📱</span></div>';
@@ -10054,7 +10135,7 @@
                 if (o.adminMsg) {
                     msgBox.innerHTML = `
                         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-                            <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${escH(o.adminMsg.replace(/\s*\(⏱️[^)]*\)/g, '').trim())}</p>
+                            <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${escH(stripOrderSpecialTokens(o.adminMsg))}</p>
                         </div>`;
                 } else {
                     msgBox.innerHTML = `
@@ -13801,11 +13882,7 @@
                     }
                     window.ppfb.avatar = (s.data().avatar || '').toString().trim();
                     if (window.paintAvatar) paintAvatar();
-                    window.ppfb.refCode = (s.data().refCode || '').toString().trim();
-                    window.ppfb.referredBy = (s.data().referredBy || '').toString().trim();
-                    window.ppfb.refCount = Number(s.data().refCount) || 0;
-                    window.ppfb.refEarned = Number(s.data().refEarned) || 0;
-                    if (window.refreshReferUI) { try { const rs = document.getElementById('screenRefer'); if (rs && !rs.classList.contains('hidden')) window.refreshReferUI(); } catch (e) { } }
+
                     // CardGen premium access (paid mode): users/{uid}.genUntil
                     try {
                         const g = s.data().genUntil;
@@ -13917,61 +13994,9 @@
                 );
             } catch (e) { console.warn(e); toast('Save failed: ' + ((e && e.code) || 'try again')); }
         };
-        /* Referral: unique code issue + join claim (server verified) */
-        const REF_SERVER = 'https://ppm-bot-auto.onrender.com/api/ref/join';
-        window.ppfb.ensureRefCode = async () => {
-            const u = auth && auth.currentUser;
-            if (!u || !db) return null;
-
-            try {
-                const uref = _doc(db, 'users', u.uid);
-                const us = await _getDoc(uref).catch(() => null);
-                let existing = us && us.exists() ? ((us.data().refCode) || '').toString().trim() : '';
-
-                if (existing) {
-                    window.ppfb.refCode = existing;
-                    return existing;
-                }
-
-                // সহজ ও ইউনিক ৬ অক্ষরের কোড
-                const ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-                let code = '';
-                for (let i = 0; i < 6; i++) code += ABC[Math.floor(Math.random() * ABC.length)];
-
-                // সরাসরি ফায়ারবেস ডকুমেন্টে আপডেট
-                await _setDoc(uref, { refCode: code }, { merge: true }).catch(() => { });
-                await _setDoc(_doc(db, 'refcodes', code), { code: code, uid: u.uid, createdAt: _ts() }, { merge: true }).catch(() => { });
-
-                window.ppfb.refCode = code;
-                return code;
-            } catch (e) {
-                console.warn('refcode fallback:', e);
-                const fallbackCode = (u.uid || '').slice(0, 6).toUpperCase();
-                window.ppfb.refCode = fallbackCode;
-                return fallbackCode;
-            }
-        };
-        window.claimReferral = async () => {
-            const u = auth && auth.currentUser;
-            if (!u || !db) return;
-            let code = '';
-            try { code = (localStorage.getItem('pp_ref') || '').toString().trim().toUpperCase(); } catch (e) { }
-            if (!code) return;
-            if (((window.ppfb.referredBy) || '').trim()) { try { localStorage.removeItem('pp_ref'); } catch (e) { } return; }
-            try {
-                const r = await fetch(REF_SERVER, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code, uid: u.uid })
-                });
-                const j = await r.json().catch(() => ({}));
-                if (j && j.ok) {
-                    if (j.owner) window.ppfb.referredBy = j.owner;
-                    toast('Referral applied!');
-                    if (window.ppfb.ev) window.ppfb.ev('referral_join');
-                }
-            } catch (e) { }
-            try { localStorage.removeItem('pp_ref'); } catch (e) { }
-        };
+        /* Referral disabled */
+        window.ppfb.ensureRefCode = async () => null;
+        window.claimReferral = async () => {};
         window.ppfb.login = async () => {
             if (!auth) { toast('Loading, please wait...'); return; }
             try {
@@ -14662,6 +14687,8 @@
                 rawMsg.includes('unlocking task') || !!ord.gamerName
             );
             const promptNum = ord.promptNumber || (ord.adminMsg && (ord.adminMsg.match(/PROMPT_NUMBER:(\d{1,2})/i) || [])[1]);
+            const hasCaptchaWait = !isRefunded && !isCompleted && (/CAPTCHA_IMG:/i.test(ord.adminMsg || '') || !!ord.captchaImage);
+            const isCaptchaError = isRefunded && (rawMsg.includes('ক্যাপচা') || rawMsg.includes('captcha'));
 
             // Step 2: Login / Verification
             let s2Html = '';
@@ -14672,6 +14699,16 @@
                         <div class="text-left leading-none">
                             <span class="text-[10px] sm:text-[11px] font-black text-rose-700 uppercase tracking-tight">Login</span>
                             <span class="block text-[8.5px] font-bold text-rose-500 mt-0.5">Wrong Pass</span>
+                        </div>
+                    </div>
+                `;
+            } else if (isCaptchaError) {
+                s2Html = `
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-black shadow-xs">✕</span>
+                        <div class="text-left leading-none">
+                            <span class="text-[10px] sm:text-[11px] font-black text-rose-700 uppercase tracking-tight">Login</span>
+                            <span class="block text-[8.5px] font-bold text-rose-500 mt-0.5">Captcha Fail</span>
                         </div>
                     </div>
                 `;
@@ -14692,6 +14729,16 @@
                         <div class="text-left leading-none">
                             <span class="text-[10px] sm:text-[11px] font-black text-rose-600 uppercase tracking-tight">Login</span>
                             <span class="block text-[8.5px] font-bold text-rose-500 mt-0.5">Failed</span>
+                        </div>
+                    </div>
+                `;
+            } else if (hasCaptchaWait) {
+                s2Html = `
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-black shadow-md shadow-amber-500/30 animate-pulse">🧩</span>
+                        <div class="text-left leading-none">
+                            <span class="text-[10px] sm:text-[11px] font-black text-amber-700 uppercase tracking-tight">Login</span>
+                            <span class="block text-[8.5px] font-bold text-amber-600 mt-0.5">Type Captcha</span>
                         </div>
                     </div>
                 `;
@@ -15297,23 +15344,7 @@
                     monthlyPointsMonth: curMonthKey
                 }, { merge: true }).catch(() => { });
 
-                // যদি ইউজার কাউকে দিয়ে রেফার হয়ে থাকে: রেফারার অ্যাড দেখার জন্য পাবে +০.১ পয়েন্ট
-                if (ud.referredBy) {
-                    try {
-                        const refRef = _doc(db, 'users', ud.referredBy);
-                        _getDoc(refRef).then(rs => {
-                            if (rs.exists()) {
-                                const rd = rs.data() || {};
-                                const rMKey = rd.monthlyPointsMonth;
-                                const rCurPts = (rMKey === curMonthKey) ? (Number(rd.monthlyPoints) || 0) : 0;
-                                _setDoc(refRef, {
-                                    monthlyPoints: Math.round((rCurPts + 0.1 + Number.EPSILON) * 10) / 10,
-                                    monthlyPointsMonth: curMonthKey
-                                }, { merge: true }).catch(() => { });
-                            }
-                        }).catch(() => { });
-                    } catch (e) { }
-                }
+                // Referral point commission disabled
 
                 // রিডেম্পশন কালেকশনে রেকর্ড সেভ
                 await _addDoc(_col(db, 'redemptions'), {
@@ -15974,7 +16005,7 @@
                     if (window._dismissSplash) window._dismissSplash();
                     try { await ensureUser(u); } catch (e) { console.warn(e); }
                     try { if (window.fetchHistItems) window.fetchHistItems(u).catch(() => { }); } catch (e) { }
-                    try { if (window.claimReferral) window.claimReferral(); } catch (e) { }
+                    
                     try { if (window.initADellInviteWatcher) window.initADellInviteWatcher(u.uid); } catch (e) { }
 
                     // Refresh dile ongoing room e automatic auto-enter
@@ -16858,13 +16889,11 @@
                 let newMonthCount = 1;
                 let curPoints = 0;
                 let firestoreMap = {};
-                let userRefBy = '';
                 if (uSnap.exists()) {
                     const ud = uSnap.data() || {};
                     const prevMonth = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                     newMonthCount = (prevMonth === curMonthKey) ? (Number(ud.monthlyTasksCount) || 0) + 1 : 1;
                     curPoints = (prevMonth === curMonthKey) ? (Number(ud.monthlyPoints) || Number(ud.monthlyTasksCount) || 0) : 0;
-                    userRefBy = (ud.referredBy || '').toString().trim();
                     if (ud.completedEarnTasks && typeof ud.completedEarnTasks === 'object' && !Array.isArray(ud.completedEarnTasks)) {
                         firestoreMap = Object.assign({}, ud.completedEarnTasks);
                     }
@@ -16892,26 +16921,7 @@
                     [`completedEarnTasks.${taskId}`]: now
                 }, { merge: true }).catch(err => console.warn('Firestore reward save err:', err));
 
-                // Referral commission points to referrer:
-                // If ad: 0.1 point, if quest/offer/task: 0.5 point
-                if (userRefBy) {
-                    try {
-                        const refPtsToAdd = isShortOrAd ? 0.1 : 0.5;
-                        const refDocRef = _doc(db, 'users', userRefBy);
-                        _getDoc(refDocRef).then(refSnap => {
-                            if (refSnap.exists()) {
-                                const rd = refSnap.data() || {};
-                                const rPrevMonth = rd.monthlyPointsMonth;
-                                const rCurPts = (rPrevMonth === curMonthKey) ? (Number(rd.monthlyPoints) || 0) : 0;
-                                const rNewPts = Math.round((rCurPts + refPtsToAdd + Number.EPSILON) * 10) / 10;
-                                _setDoc(refDocRef, {
-                                    monthlyPoints: rNewPts,
-                                    monthlyPointsMonth: curMonthKey
-                                }, { merge: true }).catch(() => { });
-                            }
-                        }).catch(() => { });
-                    } catch (e) { }
-                }
+                // Referral task commission points disabled
 
                 // Log transaction
                 _addDoc(_col(db, 'transactions'), {

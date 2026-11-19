@@ -75,6 +75,53 @@ app.get("/", (req, res) => res.status(200).send("PP MOD Master Engine Active!"))
 app.get("/ping", (req, res) => res.status(200).send("pong"));
 app.get("/health", (req, res) => res.status(200).json({ status: "ok", uptime: process.uptime() }));
 
+// ---------------- LIVE INTERACTIVE CAPTCHA RELAY (HUMAN-IN-THE-LOOP) ----------------
+const activeOrderCaptchas = new Map(); // orderId -> { buffer, mimeType, msgId, createdAt, answer, resolved, resolveWaiter }
+const submittedCaptchaAnswers = new Map(); // orderId -> { answer, captchaId, ts }
+
+app.get("/api/order/captcha-image/:orderId", (req, res) => {
+    const orderId = (req.params.orderId || "").trim();
+    const rec = activeOrderCaptchas.get(orderId);
+    if (!rec || !rec.buffer) {
+        return res.status(404).send("Captcha image not found or expired");
+    }
+    res.setHeader("Content-Type", rec.mimeType || "image/jpeg");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    return res.status(200).send(rec.buffer);
+});
+
+app.post("/api/order/submit-captcha", async (req, res) => {
+    try {
+        const body = req.body || {};
+        const orderId = (body.orderId || "").toString().trim();
+        const answer = (body.answer || "").toString().trim();
+        const captchaId = (body.captchaId || "").toString().trim();
+
+        if (!orderId || !answer) {
+            return res.status(400).json({ ok: false, error: "Order ID এবং ক্যাপচা লেখা উভয়ই প্রয়োজন।" });
+        }
+
+        submittedCaptchaAnswers.set(orderId, { answer, captchaId, ts: Date.now() });
+
+        const rec = activeOrderCaptchas.get(orderId);
+        if (rec) {
+            rec.answer = answer;
+            rec.resolved = true;
+            if (typeof rec.resolveWaiter === "function") {
+                try { rec.resolveWaiter(answer); } catch (e) {}
+            }
+            console.log(`[CAPTCHA SUBMIT] Order ${orderId} received user captcha answer (len=${answer.length})`);
+            return res.status(200).json({ ok: true, delivered: true, message: "ক্যাপচা উত্তর বটে পাঠানো হয়েছে। যাচাই চলছে..." });
+        }
+
+        return res.status(200).json({ ok: true, delivered: false, message: "ক্যাপচা উত্তর গ্রহণ করা হয়েছে।" });
+    } catch (e) {
+        console.error("[CAPTCHA SUBMIT ERR]:", e);
+        return res.status(500).json({ ok: false, error: "সার্ভার এরর! আবার চেষ্টা করুন।" });
+    }
+});
+
 // Render Port Instant Listening
 app.listen(PORT, "0.0.0.0", () => console.log(`[HTTP] Server active on port ${PORT}`));
 
@@ -1103,81 +1150,14 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
     await sendDepositTelegramNotification(depData, "approved", "Auto Verified", verifiedAmount, finalCoinsCalculated);
 }
 
-// ---------------- 1b. REFERRAL SYSTEM API ----------------
-const REF_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-function makeRefCode() {
-    let c = "";
-    for (let i = 0; i < 6; i++) c += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    return c;
-}
+// ---------------- 1b. REFERRAL SYSTEM API (DISABLED FOR WEBAPP) ----------------
 app.post("/api/ref/join", async (req, res) => {
-    const code = (req.body.code || "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-    const uid = (req.body.uid || "").toString().trim().slice(0, 64);
-    if (!code || !uid) return res.status(400).json({ ok: false });
-    try {
-        const rcSnap = await db.collection("refcodes").doc(code).get();
-        if (!rcSnap.exists) return res.json({ ok: false, error: "invalid" });
-        const ownerUid = (rcSnap.data().uid || "").toString();
-        if (!ownerUid || ownerUid === uid) return res.json({ ok: false, error: "self" });
-        const uRef = db.collection("users").doc(uid);
-        const uSnap = await uRef.get();
-        if (!uSnap.exists) return res.json({ ok: false, error: "nouser" });
-        if ((uSnap.data().referredBy || "").toString()) return res.json({ ok: true, already: true });
-        await uRef.update({ referredBy: ownerUid });
-        await db.collection("users").doc(ownerUid).set({
-            refCount: admin.firestore.FieldValue.increment(1)
-        }, { merge: true });
-        return res.json({ ok: true, owner: ownerUid });
-    } catch (e) {
-        return res.status(500).json({ ok: false });
-    }
+    return res.json({ ok: false, message: "Referral system disabled" });
 });
 
 async function creditReferralBonus(buyerUid, orderId, gameName) {
-    try {
-        if (!buyerUid || !orderId) return;
-        const oRef = db.collection("orders").doc(orderId);
-        const oSnap = await oRef.get();
-        const od = oSnap.exists ? oSnap.data() : {};
-        if (od.refPaid === true) return;
-        const buyerId = (od.uid || buyerUid || "").toString();
-        if (!buyerId) return;
-        const bSnap = await db.collection("users").doc(buyerId).get();
-        const ownerUid = bSnap.exists ? (bSnap.data().referredBy || "").toString().trim() : "";
-        await oRef.set({ refPaid: true }, { merge: true });
-        if (!ownerUid || ownerUid === buyerId) return;
-        await db.collection("users").doc(ownerUid).set({
-            balance: admin.firestore.FieldValue.increment(1),
-            refEarned: admin.firestore.FieldValue.increment(1)
-        }, { merge: true });
-        cfFetch(`${CF_API}/api/wallet/credit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                uid: ownerUid,
-                coins: 1,
-                type: "real",
-                kind: "REF",
-                title: "Task Referral Commission",
-                info: `Referral bonus: 1 task completed by ${buyerId}${gameName ? ` (${gameName})` : ''} (+1 Coin)`
-            })
-        }).catch(() => {});
-        await db.collection("redemptions").add({
-            uid: ownerUid, name: "", email: "", code: "REFERRAL", amount: 1,
-            note: "Referral bonus: 1 task completed" + (gameName ? " (" + gameName + ")" : ""),
-            status: "approved", createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiresAt: new Date(Date.now() + 10 * 86400000)
-        });
-        try {
-            const oSnap2 = await db.collection("users").doc(ownerUid).get();
-            const tg = oSnap2.exists ? (oSnap2.data().tgChatId || "").toString().trim() : "";
-            if (tg) {
-                await notifyUserTelegram(tg,
-                    `🎁 <b>Referral Bonus!</b>\n\nআপনার রেফারে ১টি টাস্ক সম্পন্ন হয়েছে।\n🪙 <b>+1 PP Coin</b> যোগ হয়েছে!`
-                );
-            }
-        } catch (e) {}
-    } catch (e) {}
+    // Referral commission disabled for webapp
+    return;
 }
 
 // ---------------- PENDING POINTS AUTO-MATURER ----------------
@@ -5723,8 +5703,39 @@ const POPULAR_GAMES_LOG = [
 ];
 const EMAIL_SNIPPETS = ["has", "rak", "tan", "784", "902", "sh", "joy", "fah", "321", "nah", "kab", "551", "al", "sak", "619", "mim"];
 
+// ডাইনামিক গেম লিস্ট ক্যাশ (অ্যাডমিনের নতুন গেম স্বয়ংক্রিয়ভাবে লগে যোগ হবে)
+let dynamicGamesList = [...POPULAR_GAMES_LOG];
+let lastGamesFetchTime = 0;
+
+async function refreshDynamicGames() {
+    try {
+        const snap = await db.collection("offers").get();
+        if (!snap.empty) {
+            const list = [];
+            snap.forEach(doc => {
+                const data = doc.data() || {};
+                if (data.active !== false && data.name) {
+                    const pts = (data.points !== undefined && data.points !== null && data.points !== "") ? data.points : 50;
+                    list.push(`${data.name} (${pts})`);
+                }
+            });
+            if (list.length > 0) {
+                // অ্যাডমিনের ডাটাবেজ থেকে পাওয়া গেম + ডিফল্ট গেম মিলিয়ে ইউনিক লিস্ট
+                dynamicGamesList = Array.from(new Set([...list, ...POPULAR_GAMES_LOG]));
+                lastGamesFetchTime = Date.now();
+            }
+        }
+    } catch (e) {
+        console.warn("[refreshDynamicGames error]:", e.message);
+    }
+}
+
+// প্রসেস শুরুর সময় গেম লিস্ট রিফ্রেশ
+refreshDynamicGames();
+
 function generateRealisticFakeLog() {
-    const game = POPULAR_GAMES_LOG[Math.floor(Math.random() * POPULAR_GAMES_LOG.length)];
+    const games = (dynamicGamesList && dynamicGamesList.length > 0) ? dynamicGamesList : POPULAR_GAMES_LOG;
+    const game = games[Math.floor(Math.random() * games.length)];
     const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
     const maskedEmail = `++++++${snip}@gmail.com`;
     const elapsed = Math.floor(Math.random() * 6) + 6;
@@ -5740,12 +5751,33 @@ function generateRealisticFakeLog() {
            `📌 <b>Status:</b> Completed`;
 }
 
+// বাংলাদেশ সময় অনুযায়ী রাত ২টা থেকে সকাল ৮টা পর্যন্ত কম লগ পাঠানোর লজিক
+function getNextLogDelayMs() {
+    // বাংলাদেশ সময়: UTC + 6
+    const bdtHour = (new Date().getUTCHours() + 6) % 24;
+    const isNight = bdtHour >= 2 && bdtHour < 8; // রাত ২:০০ থেকে সকাল ৭:৫৯:৫৯
+
+    let randomMinutes;
+    if (isNight) {
+        // গভীর রাতে অর্ডার অনেক কম হয়, তাই মোট ৬ ঘণ্টায় মাত্র ৭ থেকে ১০টি লগের মতো যাবে
+        // ৩৬ থেকে ৫২ মিনিট ব্যবধান (গড় ৪৪ মিনিট -> ৬ ঘণ্টায় ~৮-৯টি লগ)
+        randomMinutes = Math.floor(Math.random() * (52 - 36 + 1)) + 36;
+    } else {
+        // দিনের স্বাভাবিক সময়: ৮ থেকে ২৫ মিনিট পর পর
+        randomMinutes = Math.floor(Math.random() * (25 - 8 + 1)) + 8;
+    }
+    return randomMinutes * 60 * 1000;
+}
+
 function scheduleNextFakeOrderLog() {
-    const randomMinutes = Math.floor(Math.random() * (25 - 8 + 1)) + 8;
-    const delayMs = randomMinutes * 60 * 1000;
+    const delayMs = getNextLogDelayMs();
     setTimeout(async () => {
         try {
             if (isAutoFakeLogEnabled) {
+                // প্রতি ১০ মিনিট অন্তর ডাটাবেজের নতুন গেম লিস্ট আপডেট
+                if (Date.now() - lastGamesFetchTime > 10 * 60 * 1000) {
+                    await refreshDynamicGames();
+                }
                 const fakeLog = generateRealisticFakeLog();
                 await sendOrderLog(fakeLog);
             }
@@ -5845,8 +5877,8 @@ function sanitizeBotReason(rawText) {
         return "⚠️ <b>গেমটি বর্তমানে মেইনটেনেন্সে আছে!</b>\n\nএই গেমটি এই মুহূর্তে সার্ভারে পাওয়া যাচ্ছে না অথবা মেইনটেনেন্স চলছে। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করে কাজটি সম্পন্ন করে নিন: @Blackmoney54";
     }
 
-    if (txt.includes("captcha security check") || txt.includes("captcha")) {
-        return "🤖 <b>গুগল সিকিউরিটি ক্যাপচা!</b>\n\nগুগল স্বয়ংক্রিয় লগইনে অতিরিক্ত ভেরিফিকেশন চাচ্ছে। ৫-১০ মিনিট পর পুনরায় চেষ্টা করুন।";
+    if (isCaptchaFailureText(txt)) {
+        return "🤖 <b>ক্যাপচা ভেরিফিকেশন ব্যর্থ হয়েছে!</b>\n\nভুল ক্যাপচা কোড দেওয়া হয়েছে অথবা বট ক্যাপচা গ্রহণ করেনি। অনুগ্রহ করে পুনরায় অর্ডার করে সঠিক ক্যাপচা দিন।";
     }
 
     if (txt.includes("google rejected") || txt.includes("couldn't sign you in") || txt.includes("disabled") || txt.includes("suspended")) {
@@ -5858,6 +5890,57 @@ function sanitizeBotReason(rawText) {
     }
 
     return null;
+}
+
+function isMessageCaptchaMedia(m) {
+    if (!m || m.out) return false;
+    if (m.photo) return true;
+    const media = m.media;
+    if (!media) return false;
+    if (media.photo || media.className === "MessageMediaPhoto") return true;
+    const doc = m.document || media.document;
+    if (doc && doc.mimeType && String(doc.mimeType).toLowerCase().startsWith("image/")) {
+        return true;
+    }
+    return false;
+}
+
+function isCaptchaFailureText(rawLower) {
+    if (!rawLower) return false;
+    const t = rawLower.toLowerCase();
+    const mentionsCaptcha = t.includes("captcha") || t.includes("verification code") || t.includes("code");
+    if (!mentionsCaptcha) return false;
+    return (
+        t.includes("wrong captcha") ||
+        t.includes("invalid captcha") ||
+        t.includes("incorrect captcha") ||
+        t.includes("captcha failed") ||
+        t.includes("captcha fail") ||
+        t.includes("captcha error") ||
+        t.includes("captcha expired") ||
+        t.includes("captcha timeout") ||
+        t.includes("captcha timed out") ||
+        t.includes("captcha rejected") ||
+        t.includes("failed captcha") ||
+        t.includes("bad captcha") ||
+        (t.includes("captcha") && (t.includes("failed") || t.includes("cancelled") || t.includes("canceled") || t.includes("too many") || t.includes("abort")))
+    );
+}
+
+function isCaptchaPromptText(rawLower) {
+    if (!rawLower) return false;
+    const t = rawLower.toLowerCase();
+    if (isCaptchaFailureText(t)) return false;
+    return (
+        t.includes("captcha") ||
+        t.includes("type the text") ||
+        t.includes("enter the text") ||
+        t.includes("enter the characters") ||
+        t.includes("type the characters") ||
+        t.includes("solve the image") ||
+        t.includes("shown in the image") ||
+        t.includes("from the image")
+    );
 }
 
 function extractGamerName(text) {
@@ -6300,6 +6383,9 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         let gamerName = (orderData.gamerName || "").toString();
         let lastNotifiedPrompt = "";
         let hasPassedPasswordStage = false; // গুগল প্রম্পট বা ফোন লগইন স্টেজ পার হলে ট্রু হবে
+        let lastHandledCaptchaMsgId = 0;
+        let captchaAttempts = 0;
+        let captchaTextOnlyTicks = 0;
 
         // ইউজার নোটিফিকেশন চেক করতে থাকলে সময়সীমা বাড়িয়ে ৮৫ বার (প্রায় ২.৫ মিনিট) করা যাতে কোনোভাবেই রিফান্ড না হয়ে যায়
         let maxAttempts = 85;
@@ -6458,6 +6544,181 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 }).catch(() => {});
             }
 
+            // ২.৫ ইন্টারঅ্যাক্টিভ ক্যাপচা ইমেজ হ্যান্ডলার (বট ক্যাপচা ছবি দিলে ইউজারের সাইটে দেখানো ও উত্তর নিয়ে বটে পাঠানো)
+            let captchaMediaMsg = null;
+            for (const m of recentBotMsgs) {
+                if (isMessageCaptchaMedia(m) && m.id > lastHandledCaptchaMsgId && (credAnchorId === 0 || m.id >= credAnchorId)) {
+                    captchaMediaMsg = m;
+                    break;
+                }
+            }
+            if (!captchaMediaMsg && curMsg && isMessageCaptchaMedia(curMsg) && curMsg.id > lastHandledCaptchaMsgId) {
+                captchaMediaMsg = curMsg;
+            }
+
+            if (captchaMediaMsg && !completed) {
+                captchaAttempts++;
+                captchaTextOnlyTicks = 0;
+                lastHandledCaptchaMsgId = captchaMediaMsg.id;
+
+                if (captchaAttempts > 3) {
+                    activeOrderCaptchas.delete(orderId);
+                    submittedCaptchaAnswers.delete(orderId);
+                    await clickInlineButton(captchaMediaMsg, "Cancel Process", tg).catch(() => {});
+                    await refundOrder(orderId, orderData.uid, "🤖 পরপর ৩ বার ক্যাপচা ভেরিফিকেশন ব্যর্থ হয়েছে। আপনার কয়েন ওয়ালেটে রিফান্ড করা হয়েছে।", orderData.userTgId, assignedWorker);
+                    return;
+                }
+
+                try {
+                    const imgBuffer = await tg.downloadMedia(captchaMediaMsg, {});
+                    if (imgBuffer && imgBuffer.length > 0) {
+                        const isPng = imgBuffer.length > 4 && imgBuffer[0] === 0x89 && imgBuffer[1] === 0x50 && imgBuffer[2] === 0x4E && imgBuffer[3] === 0x47;
+                        const mimeType = isPng ? "image/png" : "image/jpeg";
+                        const workerBaseUrl = (process.env.WORKER_PUBLIC_URL || "https://ppm-bot-auto.onrender.com").replace(/\/+$/, "");
+                        const captchaImgUrl = `${workerBaseUrl}/api/order/captcha-image/${encodeURIComponent(orderId)}?m=${captchaMediaMsg.id}&t=${Date.now()}`;
+                        const captchaAdminMsg = `CAPTCHA_IMG:${captchaImgUrl}|CAPTCHA_ID:${captchaMediaMsg.id}|ATTEMPT:${captchaAttempts}|🧩 গুগল ক্যাপচা ভেরিফিকেশন! নিচের ছবিতে থাকা লেখাটি দেখে সঠিকভাবে লিখে সাবমিট করুন:`;
+
+                        submittedCaptchaAnswers.delete(orderId);
+                        let resolveWaiterFn = null;
+                        const waiterPromise = new Promise((resolve) => { resolveWaiterFn = resolve; });
+
+                        activeOrderCaptchas.set(orderId, {
+                            buffer: imgBuffer,
+                            mimeType: mimeType,
+                            msgId: captchaMediaMsg.id,
+                            createdAt: Date.now(),
+                            answer: null,
+                            resolved: false,
+                            resolveWaiter: resolveWaiterFn
+                        });
+
+                        console.log(`[CAPTCHA RELAY] Order ${orderId}: Captcha image downloaded (${imgBuffer.length} bytes, msgId=${captchaMediaMsg.id}, attempt=${captchaAttempts}). Showing on user UI...`);
+
+                        syncCf({
+                            adminMsg: captchaAdminMsg,
+                            promptNumber: null,
+                            captchaImage: captchaImgUrl,
+                            captchaId: String(captchaMediaMsg.id),
+                            inQueue: false
+                        });
+                        await orderRef.update({
+                            adminMsg: captchaAdminMsg,
+                            promptNumber: admin.firestore.FieldValue.delete(),
+                            captchaImage: captchaImgUrl,
+                            captchaId: String(captchaMediaMsg.id),
+                            captchaAnswer: admin.firestore.FieldValue.delete(),
+                            inQueue: false
+                        }).catch(() => {});
+
+                        // ইউজারের টেলিগ্রাম কানেক্ট থাকলে সেখানেও দ্রুত নোটিফিকেশন পাঠানো
+                        if (orderData.userTgId || orderData.uid) {
+                            getUserTgId(orderData.uid, orderData.userTgId).then((notifyId) => {
+                                if (notifyId) {
+                                    notifyUserTelegram(notifyId,
+                                        `🧩 <b>গুগল ক্যাপচা ভেরিফিকেশন এসেছে!</b>\n\n` +
+                                        `অর্ডার সম্পন্ন করতে এখনই আমাদের ওয়েবসাইটে ফিরে গিয়ে ক্যাপচা ছবিটি দেখে সঠিক লেখাটি সাবমিট করুন। (সময়সীমা: ৯০ সেকেন্ড)`
+                                    ).catch(() => {});
+                                }
+                            }).catch(() => {});
+                        }
+
+                        // ইউজারের উত্তরের জন্য সর্বোচ্চ ৯০ সেকেন্ড অপেক্ষা (HTTP submit-captcha + Firestore ব্যাকআপ)
+                        const CAPTCHA_WAIT_MS = 90000;
+                        const waitStart = Date.now();
+                        let userCaptchaAnswer = null;
+                        let botAbortedWhileWaiting = null;
+
+                        const pollFallback = (async () => {
+                            while (Date.now() - waitStart < CAPTCHA_WAIT_MS) {
+                                const recNow = activeOrderCaptchas.get(orderId);
+                                if (!recNow || recNow.resolved) return;
+
+                                // ১. সাবমিটেড ম্যাপ চেক
+                                const sub = submittedCaptchaAnswers.get(orderId);
+                                if (sub && sub.answer && (!sub.captchaId || String(sub.captchaId) === String(captchaMediaMsg.id))) {
+                                    recNow.resolved = true;
+                                    recNow.answer = sub.answer;
+                                    if (resolveWaiterFn) resolveWaiterFn(sub.answer);
+                                    return;
+                                }
+
+                                // ২. ফায়ারস্টোর ব্যাকআপ চেক
+                                try {
+                                    const snap = await orderRef.get();
+                                    if (snap.exists) {
+                                        const sd = snap.data();
+                                        if (sd && sd.captchaAnswer && (!sd.captchaAnswerId || String(sd.captchaAnswerId) === String(captchaMediaMsg.id))) {
+                                            recNow.resolved = true;
+                                            recNow.answer = String(sd.captchaAnswer).trim();
+                                            if (resolveWaiterFn) resolveWaiterFn(recNow.answer);
+                                            return;
+                                        }
+                                    }
+                                } catch (e) {}
+
+                                // ৩. বট নিজে এর মধ্যে ক্যানসেল/টাইমআউট/কমপ্লিট করে দিলো কিনা চেক
+                                try {
+                                    const latestCheck = await tg.getMessages(TARGET_BOT, { limit: 3 });
+                                    if (latestCheck && latestCheck.length > 0) {
+                                        const newer = latestCheck.find(m => !m.out && m.id > captchaMediaMsg.id);
+                                        if (newer) {
+                                            const nTxt = (newer.message || "").toLowerCase();
+                                            if (isBotTaskCompleted(newer.message || "") || isCaptchaFailureText(nTxt) || nTxt.includes("timed out") || nTxt.includes("cancelled") || nTxt.includes("canceled") || nTxt.includes("expired")) {
+                                                botAbortedWhileWaiting = newer;
+                                                recNow.resolved = true;
+                                                if (resolveWaiterFn) resolveWaiterFn("__BOT_CHANGED__");
+                                                return;
+                                            }
+                                        }
+                                    }
+                                } catch (e) {}
+
+                                await new Promise((r) => setTimeout(r, 2500));
+                            }
+                            if (resolveWaiterFn) resolveWaiterFn("__TIMEOUT__");
+                        })();
+
+                        userCaptchaAnswer = await waiterPromise;
+                        activeOrderCaptchas.delete(orderId);
+                        submittedCaptchaAnswers.delete(orderId);
+
+                        if (userCaptchaAnswer === "__BOT_CHANGED__" && botAbortedWhileWaiting) {
+                            console.log(`[CAPTCHA RELAY] Order ${orderId}: Bot sent state change while waiting for captcha.`);
+                            continue; // মূল লুপে গিয়ে নতুন মেসেজ (completed বা fail/refund) হ্যান্ডেল করবে
+                        }
+
+                        if (!userCaptchaAnswer || userCaptchaAnswer === "__TIMEOUT__") {
+                            await clickInlineButton(captchaMediaMsg, "Cancel Process", tg).catch(() => {});
+                            await refundOrder(orderId, orderData.uid, "⏱️ ক্যাপচা উত্তর দেওয়ার সময়সীমা (৯০ সেকেন্ড) শেষ হয়ে গেছে। আপনার কয়েন ওয়ালেটে রিফান্ড করা হয়েছে।", orderData.userTgId, assignedWorker);
+                            return;
+                        }
+
+                        // ইউজারের লেখা ক্যাপচা বটে পাঠানো হচ্ছে!
+                        const cleanCaptchaAns = String(userCaptchaAnswer).trim();
+                        console.log(`[CAPTCHA RELAY] Order ${orderId}: Forwarding user captcha answer to TARGET_BOT...`);
+
+                        const verifyingCaptchaMsg = "🔄 আপনার দেওয়া ক্যাপচা কোডটি সার্ভারে যাচাই করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...";
+                        syncCf({ adminMsg: verifyingCaptchaMsg, captchaImage: "", captchaId: "" });
+                        await orderRef.update({
+                            adminMsg: verifyingCaptchaMsg,
+                            captchaImage: admin.firestore.FieldValue.delete(),
+                            captchaId: admin.firestore.FieldValue.delete(),
+                            captchaAnswer: admin.firestore.FieldValue.delete()
+                        }).catch(() => {});
+
+                        const sentCapRes = await tg.sendMessage(TARGET_BOT, { message: cleanCaptchaAns });
+                        if (sentCapRes && sentCapRes.id) {
+                            credAnchorId = Math.max(credAnchorId, sentCapRes.id);
+                        }
+                        if (maxAttempts < 150) maxAttempts = 150;
+                        continue;
+                    }
+                } catch (capErr) {
+                    console.error(`[CAPTCHA RELAY ERR] Order ${orderId}:`, capErr.message);
+                    activeOrderCaptchas.delete(orderId);
+                }
+            }
+
             // ৩. গুগল সিকিউরিটি ট্যাপ প্রম্পট এসেছে কিনা চেক (প্রম্পট আসার অর্থই পাসওয়ার্ড সঠিক!)
             const isErrorState = text.includes("google rejected") || text.includes("couldn't sign you in");
             const promptNum = isErrorState ? null : extractPromptNumber(rawText);
@@ -6506,11 +6767,21 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 }
             }
 
-            // ৫. সাধারণ গুগল রিজেকশন বা ক্যাপচা এরর (প্রম্পট আসার পর এগুলো এড়িয়ে চলবে)
-            if (!hasPassedPasswordStage && (text.includes("captcha security check") || text.includes("captcha"))) {
+            // ৫. ক্যাপচা ফেইল হলে সাথে সাথে রিফান্ড; আর শুধু টেক্সট ক্যাপচা মেসেজ এলে ছবির জন্য কয়েক সেকেন্ড অপেক্ষা
+            if (isCaptchaFailureText(text)) {
                 await clickInlineButton(curMsg, "Cancel Process", tg);
-                await refundOrder(orderId, orderData.uid, "Google Captcha সমস্যা দেখা দিয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।", orderData.userTgId, assignedWorker);
+                await refundOrder(orderId, orderData.uid, "🤖 ক্যাপচা ভেরিফিকেশন ব্যর্থ হয়েছে! ভুল ক্যাপচা দেওয়া হয়েছে বা বট রিজেক্ট করেছে। আপনার কয়েন রিফান্ড করা হয়েছে।", orderData.userTgId, assignedWorker);
                 return;
+            }
+
+            if (!hasPassedPasswordStage && isCaptchaPromptText(text)) {
+                captchaTextOnlyTicks++;
+                if (captchaTextOnlyTicks >= 6) {
+                    await clickInlineButton(curMsg, "Cancel Process", tg);
+                    await refundOrder(orderId, orderData.uid, "🤖 গুগল ক্যাপচা ছবিটি লোড করা যায়নি। কিছুক্ষণ পর পুনরায় চেষ্টা করুন।", orderData.userTgId, assignedWorker);
+                    return;
+                }
+                continue;
             }
 
             if (text.includes("google rejected sign-in") || text.includes("couldn't sign you in")) {
@@ -6606,6 +6877,8 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
         await refundOrder(orderId, orderData.uid, cleanErr, orderData.userTgId, assignedWorker);
     } finally {
         activeOrders.delete(orderId);
+        activeOrderCaptchas.delete(orderId);
+        submittedCaptchaAnswers.delete(orderId);
         if (assignedWorker) {
             busyWorkers.delete(assignedWorker);
             console.log(`[WORKER RELEASED] Worker [${assignedWorker}] is now FREE.`);
