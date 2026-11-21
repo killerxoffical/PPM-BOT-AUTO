@@ -1,0 +1,1360 @@
+/**
+ * PP MOD Cloudflare D1 + Worker Edge API Gateway
+ * URL: ppmod-api.tredarskvt.workers.dev
+ */
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...CORS_HEADERS,
+    },
+  });
+}
+
+// 60-day auto-cleanup: keeps pending forever, purges records older than 60 days
+async function autoPruneOldTransactions(db) {
+  try {
+    const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
+    await db.prepare(`
+      DELETE FROM transactions WHERE status != 'pending' AND createdAt < ?
+    `).bind(sixtyDaysAgo).run();
+    await db.prepare(`
+      DELETE FROM orders WHERE status != 'pending' AND createdAt < ?
+    `).bind(sixtyDaysAgo).run();
+  } catch (e) {
+    // ignore if tables not yet created
+  }
+}
+
+async function ensureTables(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id TEXT PRIMARY KEY, uid TEXT, game TEXT, logo TEXT, accEmail TEXT, accPass TEXT,
+      userTgId TEXT, amount REAL, status TEXT, adminMsg TEXT, timeElapsed INTEGER, gamerName TEXT,
+      promptNumber TEXT DEFAULT '',
+      captchaImage TEXT DEFAULT '', captchaId TEXT DEFAULT '', captchaAnswer TEXT DEFAULT '',
+      inQueue INTEGER DEFAULT 0, queuePosition INTEGER DEFAULT 0, queuePercent INTEGER DEFAULT 0,
+      createdAt INTEGER, completedAt INTEGER
+    )
+  `).run();
+
+  try {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN promptNumber TEXT DEFAULT '';`).run();
+  } catch (e) { }
+  try {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaImage TEXT DEFAULT '';`).run();
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaId TEXT DEFAULT '';`).run();
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaAnswer TEXT DEFAULT '';`).run();
+  } catch (e) { }
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY, uid TEXT, kind TEXT, title TEXT, game TEXT, info TEXT,
+      amount REAL, status TEXT, proofUrl TEXT, previousBalance REAL DEFAULT 0, createdAt INTEGER
+    )
+  `).run();
+
+  try {
+    await db.prepare(`ALTER TABLE transactions ADD COLUMN previousBalance REAL DEFAULT 0;`).run();
+  } catch (e) { }
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS app_cache (
+      id TEXT PRIMARY KEY, data TEXT, updatedAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS used_trx (
+      trxId TEXT PRIMARY KEY, uid TEXT, amount REAL, usedAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS deposits (
+      id TEXT PRIMARY KEY, uid TEXT, name TEXT, email TEXT, method TEXT, amount REAL, coins INTEGER, trxId TEXT, status TEXT, adminMsg TEXT, createdAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS user_wallets (
+      uid TEXT PRIMARY KEY,
+      name TEXT DEFAULT 'User',
+      email TEXT DEFAULT '',
+      avatar TEXT DEFAULT '',
+      tgChatId TEXT DEFAULT '',
+      balance REAL DEFAULT 0,
+      realBalance REAL DEFAULT 0,
+      bonusBalance REAL DEFAULT 0,
+      playPoints INTEGER DEFAULT 0,
+      pendingPoints INTEGER DEFAULT 0,
+      loyaltyStars INTEGER DEFAULT 0,
+      banned INTEGER DEFAULT 0,
+      banReason TEXT DEFAULT '',
+      updatedAt INTEGER
+    )
+  `).run();
+
+  try {
+    await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banned INTEGER DEFAULT 0;`).run();
+  } catch (e) { }
+  try {
+    await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run();
+  } catch (e) { }
+
+  // Remove legacy sync_accounts table and tokens as per requirements
+  await db.prepare(`DROP TABLE IF EXISTS sync_accounts;`).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS pp_sync_vault (
+      id TEXT PRIMARY KEY,
+      uid TEXT DEFAULT '',
+      code TEXT UNIQUE,
+      email TEXT,
+      token TEXT,
+      country TEXT DEFAULT 'GLOBAL',
+      status TEXT DEFAULT 'active',
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS gateway_sms (
+      trxId TEXT PRIMARY KEY,
+      sender TEXT,
+      raw TEXT,
+      method TEXT,
+      amount REAL,
+      balance REAL DEFAULT 0,
+      claimed INTEGER DEFAULT 0,
+      receivedAt INTEGER
+    )
+  `).run().catch(() => { });
+
+  try {
+    await db.prepare(`ALTER TABLE tg_bot_users ADD COLUMN phone TEXT DEFAULT '';`).run();
+  } catch (e) { }
+  try {
+    await db.prepare(`ALTER TABLE tg_bot_users ADD COLUMN websiteUid TEXT DEFAULT '';`).run();
+  } catch (e) { }
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS tg_bot_users (
+      id TEXT PRIMARY KEY,
+      name TEXT DEFAULT 'User',
+      username TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      websiteUid TEXT DEFAULT '',
+      inviterId TEXT DEFAULT '',
+      isVerified INTEGER DEFAULT 0,
+      referralCount INTEGER DEFAULT 0,
+      refBalance REAL DEFAULT 0,
+      updatedAt INTEGER
+    )
+  `).run();
+}
+
+export default {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: CORS_HEADERS });
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // ==================== 0. RENDER VPS BRIDGE PROXY ====================
+    if (path.startsWith("/render/") || path === "/render") {
+      const targetPath = path.replace(/^\/render/, "") || "/";
+      const targetUrl = "https://pp-mod-auto-quest.onrender.com" + targetPath + url.search;
+
+      const newHeaders = new Headers(request.headers);
+      newHeaders.set("Host", "pp-mod-auto-quest.onrender.com");
+      newHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+
+      const newReq = new Request(targetUrl, {
+        method: request.method,
+        headers: newHeaders,
+        body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+        redirect: "follow"
+      });
+
+      const resp = await fetch(newReq);
+      const respHeaders = new Headers(resp.headers);
+      for (const [k, v] of Object.entries(CORS_HEADERS)) {
+        respHeaders.set(k, v);
+      }
+      return new Response(resp.body, {
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: respHeaders
+      });
+    }
+
+    try {
+      // 1. Health Check
+      if (path === "/" || path === "/api/health") {
+        return json({ status: "online", engine: "Cloudflare D1", time: Date.now() });
+      }
+
+      // 1a. TrxID Duplicate Check & Lock (Edge Lock against duplicate abuse with Amount Guard)
+      if (path === "/api/trx/check-lock" && request.method === "POST") {
+        const body = await request.json();
+        const trxId = (body.trxId || "").trim().toUpperCase();
+        const uid = body.uid || "";
+        const amount = Number(body.amount) || 0;
+        if (!trxId) return json({ ok: false, error: "Missing trxId" }, 400);
+
+        // শুধুমাত্র ইতিমধ্যে অ্যাপ্রুভড হওয়া TrxID ডুপ্লিকেট হিসেবে চিহ্নিত হবে
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(trxId).first();
+        if (approvedDep) {
+          return json({
+            ok: false,
+            duplicate: true,
+            error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।"
+          }, 400);
+        }
+
+        return json({ ok: true, duplicate: false, verifiedAmount: amount });
+      }
+
+      // Ensure database schema is ready
+      if (env.DB) {
+        await ensureTables(env.DB);
+      }
+
+      // ==================== CLOUDFLARE D1 EDGE WALLET & DATA SHIFT ENGINE ====================
+
+      // 1b. Fetch User Wallet (50 Lakh Daily Free Reads)
+      if (path === "/api/wallet" && request.method === "GET") {
+        const uid = url.searchParams.get("uid");
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let row = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!row) {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, banReason, updatedAt)
+            VALUES (?, 0, 0, 0, 0, 0, 0, 0, '', ?)
+            ON CONFLICT(uid) DO NOTHING
+          `).bind(uid, Date.now()).run();
+          row = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, banned: 0, banReason: "" };
+        }
+        return json({ ok: true, wallet: row });
+      }
+
+      // 1c. Fast Task Payment (Instant deduction directly on D1 - zero firebase quota)
+      if (path === "/api/wallet/pay-task" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, feeCoins, isFree } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, loyaltyStars: 0 };
+        }
+
+        const fee = isFree ? 0 : Number(feeCoins || 3);
+        const curReal = Number(w.realBalance || 0);
+        const curBonus = Number(w.bonusBalance || 0);
+        const totalBal = Number(w.balance || (curReal + curBonus));
+
+        if (!isFree && totalBal < fee) {
+          return json({ ok: false, error: "insufficient", balance: totalBal }, 400);
+        }
+
+        let deductReal = Math.min(curReal, fee);
+        let deductBonus = Math.max(0, fee - deductReal);
+        let newReal = Math.max(0, Math.round((curReal - deductReal + Number.EPSILON) * 100) / 100);
+        let newBonus = Math.max(0, Math.round((curBonus - deductBonus + Number.EPSILON) * 100) / 100);
+        let newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
+        // পেমেন্টের সময় কোনো স্টার বাড়বে না — শুধুমাত্র টাস্ক COMPLETED হলেই স্টার বাড়বে!
+        let newStars = Number(w.loyaltyStars || 0);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.realBalance,
+            bonusBalance = excluded.bonusBalance,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newTotal, newReal, newBonus, newStars, Date.now()).run();
+
+        return json({ ok: true, balance: newTotal, realBalance: newReal, bonusBalance: newBonus, loyaltyStars: newStars });
+      }
+
+      // 1d. Credit Wallet Balance & Loyalty Stars (Deposits, Refunds, Task Stars)
+      if (path === "/api/wallet/credit" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, coins, type, playPoints, pendingPoints, loyaltyStarsInc } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0 };
+        }
+
+        let curReal = Number(w.realBalance || 0);
+        let curBonus = Number(w.bonusBalance || 0);
+        let addCoins = Number(coins || 0);
+        const prevBal = Number(w.balance || (curReal + curBonus));
+
+        if (type === "bonus") {
+          curBonus = Math.max(0, Math.round((curBonus + addCoins + Number.EPSILON) * 100) / 100);
+        } else {
+          curReal = Math.max(0, Math.round((curReal + addCoins + Number.EPSILON) * 100) / 100);
+        }
+        let newTotal = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
+
+        let newPlayPoints = playPoints !== undefined ? Number(playPoints) : Number(w.playPoints || 0);
+        let newPendingPoints = pendingPoints !== undefined ? Number(pendingPoints) : Number(w.pendingPoints || 0);
+
+        // শুধুমাত্র টাস্ক সফলভাবে COMPLETED হলে স্টার বাড়বে (এবং ১০ম ফ্রি টাস্ক সম্পন্ন হলে ০ এ রিসেট হবে)
+        let curStars = Number(w.loyaltyStars || 0);
+        let newStars = body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.min(10, curStars + Number(loyaltyStarsInc)) : curStars);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.realBalance,
+            bonusBalance = excluded.bonusBalance,
+            playPoints = excluded.playPoints,
+            pendingPoints = excluded.pendingPoints,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newTotal, curReal, curBonus, newPlayPoints, newPendingPoints, newStars, Date.now()).run();
+
+        // অডিট ট্রেইল: কয়েন যোগ বা কাটা হলে সাথে সাথে ট্রানজ্যাকশন হিস্ট্রি টেবিল রেকর্ড করা
+        if (addCoins !== 0 && body.skipTxLog !== true) {
+          const txId = body.txId || `TX-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+          const isAdd = addCoins > 0;
+          const adminTag = body.adminEmail ? ` by ${body.adminEmail}` : (body.byAdmin ? " by Admin" : "");
+          const txKind = body.kind || (isAdd ? (type === 'bonus' ? 'BONUS' : 'ADMIN_CREDIT') : 'ADMIN_DEDUCT');
+          const txTitle = body.title || (isAdd ? (type === 'bonus' ? 'Bonus Coins Added' : `Admin Manual Credit${adminTag}`) : `Admin Balance Deduction${adminTag}`);
+          const txInfo = body.info || (isAdd
+            ? `Admin/System Credit${adminTag} | Bal: ${prevBal} ➔ ${newTotal} (+${addCoins} ${type === 'bonus' ? 'Bonus' : 'Real'} Coins)`
+            : `Admin/System Deduct${adminTag} | Bal: ${prevBal} ➔ ${newTotal} (${addCoins} Coins)`);
+
+          await env.DB.prepare(`
+            INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, createdAt)
+            VALUES (?, ?, ?, ?, 'WALLET', ?, ?, 'approved', ?, ?)
+          `).bind(txId, uid, txKind, txTitle, txInfo, Math.abs(addCoins), prevBal, Date.now()).run().catch(() => { });
+        }
+
+        return json({ ok: true, balance: newTotal, realBalance: curReal, bonusBalance: curBonus, loyaltyStars: newStars, previousBalance: prevBal });
+      }
+
+      // 1d-sync. PP Server Cloudflare D1 Account & Token Sync Engine
+      if (path === "/api/sync/save" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        let email = (body.email || "").trim().toLowerCase();
+        let token = (body.token || body.oauth_token || body.master_token || "").trim();
+        let code = (body.code || "").trim();
+        let country = (body.country || "GLOBAL").trim();
+        let uid = (body.uid || "").trim();
+
+        if (!token && !code) {
+          return json({ ok: false, error: "Token or code required" }, 400);
+        }
+
+        // Auto-Exchange temporary oauth_token cookie to permanent Google Master Token (aas_et/...)
+        if (token && !token.startsWith("aas_et/") && !token.startsWith("oauth2rt_1/")) {
+          try {
+            const cleanTok = token.includes("oauth_token=") ? (token.match(/oauth_token=([a-zA-Z0-9_\-]+)/)?.[1] || token.replace("oauth_token=", "")) : token;
+            const androidId = (body.android_id || "46e14d2451000000").trim();
+            const postBody = new URLSearchParams({
+              Email: email && email.includes("@") ? email : "",
+              Token: cleanTok,
+              androidId: androidId,
+              service: "ac2dm",
+              app: "com.google.android.gms",
+              client_sig: "38918a453d07199354f8b19af05ec6562ced5788",
+              has_permission: "1",
+              device_country: "us",
+              operatorCountry: "us",
+              lang: "en",
+              sdk_version: "28"
+            });
+            const gRes = await fetch("https://android.clients.google.com/auth", {
+              method: "POST",
+              headers: {
+                "User-Agent": "GoogleAuth/1.4 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001)",
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              body: postBody.toString()
+            });
+            const gText = await gRes.text();
+            for (const line of gText.split("\n")) {
+              const [k, ...v] = line.split("=");
+              if (k === "Token" && v.length) {
+                token = v.join("=");
+              } else if (k === "Email" && v.length && (!email || !email.includes("@"))) {
+                email = v.join("=").toLowerCase();
+              }
+            }
+          } catch(e) {}
+        }
+
+        // CRITICAL REQUIREMENT: If this email was previously added, delete any old entries for this email
+        // so that a fresh new code is always assigned and never reuses stale/old codes!
+        if (email && email.includes("@")) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run().catch(() => {});
+        }
+
+        // Generate a fresh new 6-digit sync code
+        if (!code || code.length !== 6) {
+          code = String(Math.floor(100000 + Math.random() * 900000));
+        }
+
+        const id = body.id || `VAULT-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+        await env.DB.prepare(`
+          INSERT INTO pp_sync_vault (id, uid, code, email, token, country, status, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+          ON CONFLICT(code) DO UPDATE SET
+            uid = excluded.uid,
+            email = excluded.email,
+            token = excluded.token,
+            country = excluded.country,
+            status = 'active',
+            updatedAt = excluded.updatedAt
+        `).bind(id, uid, code, email, token, country, Date.now(), Date.now()).run();
+
+        return json({ ok: true, code, email, id, master_token: token, message: "Account saved to Cloud Vault with permanent Master Token" });
+      }
+
+      if (path === "/api/sync/accounts" && request.method === "GET") {
+        const uid = (url.searchParams.get("uid") || "").trim();
+        let res;
+        if (uid) {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, status, createdAt, updatedAt FROM pp_sync_vault
+            WHERE (uid = ? OR uid = '') AND status = 'active'
+            ORDER BY createdAt DESC LIMIT 100
+          `).bind(uid).all();
+        } else {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, status, createdAt, updatedAt FROM pp_sync_vault
+            WHERE status = 'active'
+            ORDER BY createdAt DESC LIMIT 150
+          `).all();
+        }
+        return json({ ok: true, accounts: res.results || [] });
+      }
+
+      if (path === "/api/sync/get" && request.method === "GET") {
+        const code = url.searchParams.get("code") || "";
+        if (!code) return json({ ok: false, error: "Missing code" }, 400);
+        const row = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first();
+        if (!row) return json({ ok: false, error: "Code not found" }, 404);
+        return json({ ok: true, account: row });
+      }
+
+      if (path === "/api/sync/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        const email = (body.email || "").trim().toLowerCase();
+        if (code) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE code = ?`).bind(code).run();
+        }
+        if (email) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run();
+        }
+        return json({ ok: true, message: "Account permanently deleted from Cloud Vault" });
+      }
+
+      // Cloudflare D1 Persistent Cloud Backup for Games & Portal Services (Survives Render Redeploys)
+      if (path === "/api/cloud/portal-services" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'portal_services' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/portal-services" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('portal_services', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Portal services permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/custom-games" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'custom_games' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/custom-games" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('custom_games', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Custom games permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/registered-devices" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'registered_devices' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/registered-devices" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('registered_devices', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Registered devices permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      // 1d-gw. PP Auto Payment Gateway Edge API
+      if (path === "/api/gateway/sms" && request.method === "POST") {
+        const secret = request.headers.get("x-gateway-secret") || "";
+        const body = await request.json().catch(() => ({}));
+        const reqSecret = secret || body.secret || "";
+
+        if (reqSecret !== "PPMOD_GATEWAY_SEC_2025") {
+          return json({ ok: false, error: "Unauthorized Gateway App" }, 401);
+        }
+
+        const sender = body.sender || "Gateway";
+        const message = body.message || body.raw || "";
+        let trxId = (body.trxId || "").trim().toUpperCase();
+        let amount = Number(body.amount) || 0;
+        let balance = Number(body.balance) || 0;
+        let method = body.method || "bKash";
+        const timestamp = body.timestamp || Date.now();
+
+        // Fallback parse
+        if (!trxId && message) {
+          const m = message.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i) || message.match(/\b([A-Z0-9]{8,12})\b/i);
+          if (m) trxId = m[1].trim().toUpperCase();
+        }
+        if (!amount && message) {
+          const a = message.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || message.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
+          if (a) amount = Math.round(parseFloat(a[1].replace(/,/g, "")));
+        }
+
+        if (!trxId || !amount) {
+          return json({ ok: true, matched: false, message: "Ignored (non-payment SMS or missing TrxID/amount)" });
+        }
+
+        // Store SMS in gateway_sms
+        await env.DB.prepare(`
+          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, receivedAt)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+          ON CONFLICT(trxId) DO UPDATE SET
+            amount = excluded.amount,
+            balance = excluded.balance,
+            receivedAt = excluded.receivedAt
+        `).bind(trxId, sender, message, method, amount, balance, timestamp).run();
+
+        // 1. Check if TrxID already used in used_trx or approved deposit
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(trxId).first();
+
+        if (usedTrx || approvedDep) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        // 2. Check for a pending deposit matching this TrxID
+        const pendingDep = await env.DB.prepare(`SELECT * FROM deposits WHERE trxId = ? AND status = 'pending' ORDER BY createdAt DESC LIMIT 1`).bind(trxId).first();
+
+        if (pendingDep) {
+          // Verify time window (within 10 minutes)
+          const depTime = pendingDep.createdAt || Date.now();
+          if (Math.abs(Date.now() - depTime) > 10 * 60 * 1000) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ সময়সীমা পার হয়ে গেছে! ৫-১০ মিনিটের মধ্যে সাবমিট করুন।' WHERE id = ?`).bind(pendingDep.id).run();
+            return json({ ok: false, error: "Deposit submission expired" }, 400);
+          }
+
+          // Verify exact amount
+          if (Number(pendingDep.amount) === amount) {
+            const coinRate = 7;
+            const coinsToAdd = pendingDep.coins || Math.round(amount * coinRate);
+
+            // Add coins to user wallet
+            await env.DB.prepare(`
+              UPDATE user_wallets 
+              SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+              WHERE uid = ?
+            `).bind(coinsToAdd, coinsToAdd, Math.round(amount), Date.now(), pendingDep.uid).run();
+
+            // Mark deposit approved
+            await env.DB.prepare(`
+              UPDATE deposits SET status = 'approved', adminMsg = 'Auto Verified & Approved by PP Gateway', coins = ?, amount = ? WHERE id = ?
+            `).bind(coinsToAdd, amount, pendingDep.id).run();
+
+            // Record in used_trx to permanently lock against reuse
+            await env.DB.prepare(`
+              INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+              ON CONFLICT(trxId) DO NOTHING
+            `).bind(trxId, pendingDep.uid, amount, Date.now()).run();
+
+            // Mark claimed in gateway_sms
+            await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1 WHERE trxId = ?`).bind(trxId).run();
+
+            return json({ ok: true, matched: true, autoApproved: true, depId: pendingDep.id, amount, coinsAdded: coinsToAdd });
+          } else {
+            // Mismatch
+            await env.DB.prepare(`
+              UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ?
+            `).bind(`❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${amount} BDT কিন্তু সাবমিট করেছেন ${pendingDep.amount} BDT`, pendingDep.id).run();
+
+            return json({ ok: false, matched: true, autoApproved: false, error: "Amount mismatch" }, 400);
+          }
+        }
+
+        return json({ ok: true, matched: true, autoApproved: false, message: "Payment SMS recorded in Cloudflare D1, awaiting user submission" });
+      }
+
+      if (path === "/api/gateway/recent" && request.method === "GET") {
+        const res = await env.DB.prepare(`
+          SELECT trxId, sender, method, amount, balance, claimed, receivedAt FROM gateway_sms ORDER BY receivedAt DESC LIMIT 50
+        `).all();
+        return json({ ok: true, transactions: res.results || [] });
+      }
+
+      // 1e. Auto-Migrate Single User on Login
+      if (path === "/api/wallet/sync" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, name, email, photo, fbBalance, fbReal, fbBonus, fbPlayPoints, fbPendingPoints, fbStars, fbTgChatId } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          const b = Number(fbBalance || 0);
+          const r = Number(fbReal !== undefined ? fbReal : b);
+          const bn = Number(fbBonus || 0);
+          const pp = Number(fbPlayPoints || 0);
+          const pend = Number(fbPendingPoints || 0);
+          const st = Number(fbStars || 0);
+          const tg = fbTgChatId || "";
+
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, avatar, tgChatId, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+          `).bind(uid, name || "User", email || "", photo || "", tg, b, r, bn, pp, pend, st, Date.now()).run().catch(() => { });
+
+          w = { uid, name, email, avatar: photo, tgChatId: tg, balance: b, realBalance: r, bonusBalance: bn, playPoints: pp, pendingPoints: pend, loyaltyStars: st, banned: 0 };
+        }
+        return json({ ok: true, wallet: w });
+      }
+
+      // 1f. 1-Click Batch Migrate from Admin Panel (Optimized with D1 Batch - Lightning Fast)
+      if (path === "/api/wallet/batch-migrate" && request.method === "POST") {
+        const body = await request.json();
+        const users = body.users || [];
+        let count = 0;
+        const stmts = [];
+
+        for (const u of users) {
+          if (!u || !u.uid) continue;
+          stmts.push(env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, avatar, tgChatId, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET
+              name = excluded.name,
+              email = excluded.email,
+              avatar = excluded.avatar,
+              tgChatId = excluded.tgChatId,
+              balance = excluded.balance,
+              realBalance = excluded.realBalance,
+              bonusBalance = excluded.bonusBalance,
+              playPoints = excluded.playPoints,
+              pendingPoints = excluded.pendingPoints,
+              loyaltyStars = excluded.loyaltyStars,
+              updatedAt = excluded.updatedAt
+          `).bind(
+            u.uid, u.name || "User", u.email || "", u.photo || "", u.tgChatId || "",
+            Number(u.balance || 0), Number(u.realBalance || 0), Number(u.bonusBalance || 0),
+            Number(u.playPoints || 0), Number(u.pendingPoints || 0), Number(u.loyaltyStars || 0), Date.now()
+          ));
+          count++;
+        }
+
+        // 100 জনের ডাটা এক সেকেন্ডের মধ্যে ডাটাবেজে সেভ করতে Batch ট্রানজ্যাকশন ব্যবহার
+        if (stmts.length > 0) {
+          await env.DB.batch(stmts);
+        }
+
+        return json({ ok: true, count });
+      }
+
+      // 1g. Profile Update on Cloudflare D1
+      if (path === "/api/user/update" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, name, avatar, tgChatId } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, name, avatar, tgChatId, updatedAt)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            name = COALESCE(excluded.name, user_wallets.name),
+            avatar = COALESCE(excluded.avatar, user_wallets.avatar),
+            tgChatId = COALESCE(excluded.tgChatId, user_wallets.tgChatId),
+            updatedAt = excluded.updatedAt
+        `).bind(uid, name || null, avatar || null, tgChatId || null, Date.now()).run();
+
+        return json({ ok: true });
+      }
+
+      // 1b. Public In-Memory Edge Cache & Instant Purge (Zero Firebase Reads)
+      if (path === "/api/cache/public-data" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data, updatedAt FROM app_cache WHERE id = 'public_bundle' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                ...CORS_HEADERS
+              }
+            });
+          }
+        } catch (e) { }
+        return json({ ok: false, error: "Cache empty or not initialized" }, 404);
+      }
+
+      if (path === "/api/cache/sync" && request.method === "POST") {
+        const body = await request.json();
+        const payloadStr = JSON.stringify({
+          ok: true,
+          config: body.config || {},
+          offers: body.offers || [],
+          allOffers: body.allOffers || body.offers || [],
+          storeItems: body.storeItems || [],
+          updatedAt: Date.now()
+        });
+        await env.DB.prepare(`
+          INSERT INTO app_cache (id, data, updatedAt) VALUES ('public_bundle', ?, ?)
+          ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+        `).bind(payloadStr, Date.now()).run();
+        return json({ ok: true, message: "Edge cache synced and purged successfully!" });
+      }
+
+      // 2. টাস্ক অর্ডার তৈরি (Create Task Order with Full Balance Audit & Gamer Tag)
+      if (path === "/api/orders/create" && request.method === "POST") {
+        const body = await request.json();
+        const id = body.id || `ORD-${Date.now()}`;
+        const uid = body.uid;
+        if (!uid || !body.game) return json({ ok: false, error: "Missing uid or game" }, 400);
+
+        const now = Date.now();
+        const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        const prevBal = userWallet ? Number(userWallet.balance || 0) : 0;
+        const isFree = body.isFreeTask === true || Number(body.amount) === 0;
+        const taskCost = isFree ? 0 : (body.amount !== undefined ? Number(body.amount) : 2);
+        const newBal = Math.max(0, Math.round((prevBal - taskCost + Number.EPSILON) * 100) / 100);
+
+        await env.DB.prepare(`
+          INSERT INTO orders (id, uid, game, logo, accEmail, accPass, userTgId, amount, status, adminMsg, gamerName, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            game = excluded.game, logo = excluded.logo, accEmail = excluded.accEmail,
+            accPass = excluded.accPass, userTgId = excluded.userTgId, amount = excluded.amount,
+            status = 'pending', adminMsg = excluded.adminMsg, gamerName = COALESCE(excluded.gamerName, orders.gamerName)
+        `).bind(
+          id, uid, body.game, body.logo || "", body.accEmail || "",
+          body.accPass || "", body.userTgId || "", taskCost,
+          body.adminMsg || "সার্ভার কাজ শুরু করেছে...", body.gamerName || "", now
+        ).run();
+
+        // অডিট লগ: আগে কত ছিল -> কত কাটল -> বর্তমান ব্যালেন্স
+        const payType = isFree ? '⭐ 10th Free Star Task (0 Coins)' : (body.paidWithBonus > 0 ? `Coins (Real: ${body.paidWithReal || 0}, Bonus: ${body.paidWithBonus || 0})` : 'Coins (Real)');
+        const taskInfo = `Trx: ${id} | Game: ${body.game} | Pay: ${payType} | Bal: ${prevBal} ➔ ${newBal} (-${taskCost} Coins) | LOGO: ${body.logo || ''}`;
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, createdAt)
+          VALUES (?, ?, 'TASK', ?, ?, ?, ?, 'pending', ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title, game = excluded.game, info = excluded.info, amount = excluded.amount, status = 'pending', previousBalance = excluded.previousBalance
+        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, prevBal, now).run();
+
+        await autoPruneOldTransactions(env.DB);
+
+        return json({ ok: true, orderId: id, previousBalance: prevBal, currentBalance: newBal });
+      }
+
+      // 3. রেন্ডার বটের জন্য পেন্ডিং অর্ডার ফেচ (Fetch Pending for Render Bot & Admin)
+      if (path === "/api/orders/pending" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT * FROM orders WHERE status = 'pending' OR status = 'paid' ORDER BY createdAt DESC LIMIT 100
+        `).all();
+        return json({ ok: true, orders: results || [] });
+      }
+
+      // 3b. এডমিন প্যানেলের জন্য সমস্ত অর্ডার ফেচ (Admin All Orders)
+      if (path === "/api/admin/orders" && request.method === "GET") {
+        const status = url.searchParams.get("status");
+        let q = "SELECT * FROM orders";
+        const params = [];
+        if (status && status !== "all") {
+          q += " WHERE status = ?";
+          params.push(status);
+        }
+        q += " ORDER BY createdAt DESC LIMIT 100";
+        const { results } = await env.DB.prepare(q).bind(...params).all();
+        return json({ ok: true, orders: results || [] });
+      }
+
+      // 4. অর্ডারের লাইভ স্ট্যাটাস আপডেট (Update Order Status by Bot/Admin/Credentials)
+      if (path === "/api/orders/update" && request.method === "POST") {
+        const body = await request.json();
+        const {
+          orderId, status, adminMsg, timeElapsed, gamerName, promptNumber,
+          captchaImage, captchaId, captchaAnswer,
+          accEmail, accPass, userTgId, inQueue, queuePosition, queuePercent
+        } = body;
+        if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
+
+        let query = "UPDATE orders SET ";
+        const params = [];
+        const updates = [];
+
+        if (status) { updates.push("status = ?"); params.push(status); }
+        if (adminMsg !== undefined) { updates.push("adminMsg = ?"); params.push(adminMsg); }
+        if (promptNumber !== undefined) { updates.push("promptNumber = ?"); params.push(promptNumber === null ? "" : String(promptNumber)); }
+        if (captchaImage !== undefined) { updates.push("captchaImage = ?"); params.push(captchaImage === null ? "" : String(captchaImage)); }
+        if (captchaId !== undefined) { updates.push("captchaId = ?"); params.push(captchaId === null ? "" : String(captchaId)); }
+        if (captchaAnswer !== undefined) { updates.push("captchaAnswer = ?"); params.push(captchaAnswer === null ? "" : String(captchaAnswer)); }
+        if (timeElapsed !== undefined) {
+          updates.push("timeElapsed = ?");
+          params.push(timeElapsed);
+          await env.DB.prepare(`
+            UPDATE transactions SET info = info || ' | TIME:' || ? WHERE id = ?
+          `).bind(timeElapsed, orderId).run().catch(() => { });
+        }
+        if (gamerName !== undefined) { updates.push("gamerName = ?"); params.push(gamerName); }
+        if (accEmail !== undefined) { updates.push("accEmail = ?"); params.push(accEmail); }
+        if (accPass !== undefined) { updates.push("accPass = ?"); params.push(accPass); }
+        if (userTgId !== undefined) { updates.push("userTgId = ?"); params.push(userTgId); }
+        if (inQueue !== undefined) { updates.push("inQueue = ?"); params.push(inQueue ? 1 : 0); }
+        if (queuePosition !== undefined) { updates.push("queuePosition = ?"); params.push(Number(queuePosition) || 0); }
+        if (queuePercent !== undefined) { updates.push("queuePercent = ?"); params.push(Number(queuePercent) || 0); }
+        if (status === "completed") { updates.push("completedAt = ?"); params.push(Date.now()); }
+
+        if (updates.length) {
+          query += updates.join(", ") + " WHERE id = ?";
+          params.push(orderId);
+          await env.DB.prepare(query).bind(...params).run();
+        }
+
+        // ট্রানজ্যাকশন টেবিলেও স্ট্যাটাস সিঙ্ক (completed, refunded, etc.)
+        if (status) {
+          await env.DB.prepare(`
+            UPDATE transactions SET status = ? WHERE id = ?
+          `).bind(status, orderId).run();
+        }
+
+        return json({ ok: true });
+      }
+
+      // 5. ইউজারের একক অর্ডার লাইভ ট্র্যাকিং (Get Single Order Live Status)
+      if (path === "/api/orders/status" && request.method === "GET") {
+        const id = url.searchParams.get("id");
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        const order = await env.DB.prepare(`SELECT * FROM orders WHERE id = ?`).bind(id).first();
+        if (!order) return json({ ok: false, error: "Not found" }, 404);
+        return json({ ok: true, order });
+      }
+
+      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড (Unlimited History Read - Zero Firebase Cost!)
+      // PENDING সবসময় থাকবে, ৭ দিনের পুরনো completed/refunded স্বয়ংক্রিয়ভাবে রিমুভ হবে
+      if (path === "/api/history" && request.method === "GET") {
+        const uid = url.searchParams.get("uid");
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        // 7-day auto prune of old finished transactions
+        await autoPruneOldTransactions(env.DB);
+
+        const { results } = await env.DB.prepare(`
+          SELECT * FROM transactions WHERE uid = ? ORDER BY createdAt DESC LIMIT 100
+        `).bind(uid).all();
+
+        return json({ ok: true, history: results || [] });
+      }
+
+      // 7. নতুন ট্রানজ্যাকশন লগ করা (Log Top-up, Withdraw, Redeem with Previous Balance)
+      if (path === "/api/transactions/log" && request.method === "POST") {
+        const body = await request.json();
+        const id = body.id || `TX-${Date.now()}`;
+        const uid = body.uid;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let prevBal = body.previousBalance !== undefined ? Number(body.previousBalance) : null;
+        if (prevBal === null) {
+          const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
+          prevBal = userWallet ? Number(userWallet.balance || 0) : 0;
+        }
+
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, proofUrl, previousBalance, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status, info = excluded.info, amount = excluded.amount, previousBalance = excluded.previousBalance
+        `).bind(
+          id, uid, body.kind || "TOP-UP", body.title || "Transaction",
+          body.game || body.title || "", body.info || "", Number(body.amount) || 0,
+          body.status || "pending", body.proofUrl || "", prevBal, body.createdAt || Date.now()
+        ).run();
+
+        return json({ ok: true, id, previousBalance: prevBal });
+      }
+
+      // 8. ট্রানজ্যাকশন স্ট্যাটাস আপডেট (Admin/Bot approve or reject)
+      if (path === "/api/transactions/update" && request.method === "POST") {
+        const body = await request.json();
+        const { id, status } = body;
+        if (!id || !status) return json({ ok: false, error: "Missing id or status" }, 400);
+
+        await env.DB.prepare(`
+          UPDATE transactions SET status = ? WHERE id = ?
+        `).bind(status, id).run();
+
+        return json({ ok: true });
+      }
+
+      // 8a. Cloudflare D1 Create Deposit (Zero Firebase Quota)
+      if (path === "/api/deposits/create" && request.method === "POST") {
+        const body = await request.json();
+        const { id, uid, name, email, method, amount, coins, trxId } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!uid || !cleanTrx) return json({ ok: false, error: "Missing uid or trxId" }, 400);
+
+        const depId = id || `DEP-${cleanTrx}`;
+        const now = Date.now();
+        const amt = Number(amount) || 0;
+        const c = Number(coins) || Math.floor(amt / 7) || 3;
+
+        // চেক: ইতিমধ্যে একই TrxID দিয়ে approved ডিপোজিট আছে কিনা
+        const existingApp = await env.DB.prepare(`
+          SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1
+        `).bind(cleanTrx).first();
+
+        if (existingApp) {
+          return json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!" }, 400);
+        }
+
+        // deposits টেবিলে সরাসরি সেভ (ক্লাউডফ্লেয়ার D1)
+        await env.DB.prepare(`
+          INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+          ON CONFLICT(id) DO UPDATE SET
+            amount = excluded.amount,
+            coins = excluded.coins,
+            trxId = excluded.trxId
+        `).bind(depId, uid, name || "User", email || "", method || "bKash", amt, c, cleanTrx, now).run();
+
+        // transactions হিস্ট্রি টেবিলেও সেভ করা
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'pending', ?)
+          ON CONFLICT(id) DO UPDATE SET
+            amount = excluded.amount,
+            status = 'pending'
+        `).bind(
+          depId,
+          uid,
+          `Wallet Top-up (${method || 'bKash'})`,
+          `Top-up: ${method || 'bKash'}`,
+          `${method || 'bKash'} • ${cleanTrx}`,
+          amt,
+          now
+        ).run().catch(() => { });
+
+        return json({ ok: true, id: depId });
+      }
+
+      // 8a-2. Cloudflare D1 Pending Deposits Fetch (For Admin & Telegram Bot - Zero Firebase Quota)
+      if (path === "/api/deposits/pending" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId
+          FROM deposits d
+          LEFT JOIN user_wallets u ON d.uid = u.uid
+          WHERE d.status = 'pending'
+          ORDER BY d.createdAt DESC LIMIT 50
+        `).all();
+        return json({ ok: true, deposits: results || [] });
+      }
+
+      // 8a-2b. Cloudflare D1 All Deposits for Admin (Zero Firebase Quota)
+      if (path === "/api/admin/deposits" && request.method === "GET") {
+        const status = url.searchParams.get("status");
+        let queryStr = `SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId FROM deposits d LEFT JOIN user_wallets u ON d.uid = u.uid`;
+        const params = [];
+        if (status && status !== "all") {
+          queryStr += ` WHERE d.status = ?`;
+          params.push(status);
+        }
+        queryStr += ` ORDER BY d.createdAt DESC LIMIT 100`;
+        const { results } = await env.DB.prepare(queryStr).bind(...params).all();
+        return json({ ok: true, deposits: results || [] });
+      }
+
+      // 8a-3. Cloudflare D1 Deposit Reject
+      if (path === "/api/deposits/reject" && request.method === "POST") {
+        const body = await request.json();
+        const { id, trxId, reason } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        const rejectMsg = reason || "অ্যাডমিন প্যানেল থেকে ডিপোজিট বাতিল করা হয়েছে।";
+
+        await env.DB.prepare(`
+          UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ? OR trxId = ?
+        `).bind(rejectMsg, id || "none", cleanTrx || "none").run();
+
+        await env.DB.prepare(`
+          UPDATE transactions SET status = 'rejected' WHERE id = ? OR (kind = 'TOP-UP' AND info LIKE ?)
+        `).bind(id || "none", `%${cleanTrx}%`).run().catch(() => { });
+
+        return json({ ok: true });
+      }
+
+      // 8b. Cloudflare D1 Direct Deposit Approval (Zero Firebase Quota Used)
+      if (path === "/api/deposits/approve" && request.method === "POST") {
+        const body = await request.json();
+        let { depId, uid, email, trxId, amount, coins, method } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing trxId" }, 400);
+
+        let targetUid = (uid || "").trim();
+
+        // যদি UID না থাকে (যেমন টেলিগ্রাম বট থেকে ইমেইল পাঠানো হলে), ইমেইল দিয়ে UID স্বয়ংক্রিয়ভাবে বের করা
+        if (!targetUid && email) {
+          const uRow = await env.DB.prepare(`
+            SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1
+          `).bind(email.trim()).first();
+          if (uRow && uRow.uid) targetUid = uRow.uid;
+        }
+
+        if (!targetUid) return json({ ok: false, error: "User not found in Cloudflare D1 by UID or Email" }, 400);
+
+        const finalDepId = depId || `DEP-${cleanTrx}`;
+
+        // ০. চেক: এই TrxID অথবা ডিপোজিট ইতিমধ্যে ব্যবহৃত বা অ্যাপ্রুভড হয়েছে কিনা
+        const existingDep = await env.DB.prepare(`
+          SELECT status FROM deposits WHERE id = ? OR (trxId = ? AND status = 'approved') LIMIT 1
+        `).bind(finalDepId, cleanTrx).first();
+
+        if (existingDep && existingDep.status === 'approved') {
+          return json({ ok: true, alreadyApproved: true, message: "Deposit or TrxID is already processed" });
+        }
+
+        const addCoins = Number(coins) || Math.floor(Number(amount) / 7) || 3;
+        const now = Date.now();
+
+        // ১. Lock TrxID in D1
+        await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, targetUid, Number(amount) || 0, now).run();
+
+        // ২. Credit Wallet in D1
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(targetUid).first();
+        let curReal = Number(w ? w.realBalance : 0);
+        let curBonus = Number(w ? w.bonusBalance : 0);
+        let newReal = Math.round((curReal + addCoins + Number.EPSILON) * 100) / 100;
+        let newTotal = Math.round((newReal + curBonus + Number.EPSILON) * 100) / 100;
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, updatedAt)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.realBalance,
+            updatedAt = excluded.updatedAt
+        `).bind(targetUid, newTotal, newReal, curBonus, now).run();
+
+        // ৩. Update / Insert Deposit Record in D1
+        await env.DB.prepare(`
+          INSERT INTO deposits (id, uid, method, amount, coins, trxId, status, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+        `).bind(finalDepId, targetUid, method || "bKash", Number(amount) || 0, addCoins, cleanTrx, now).run();
+
+        // ৪. Insert or Update Transactions Table (আসল পেন্ডিং আইডি বা TrxID ম্যাচ করে approved করা)
+        await env.DB.prepare(`
+          UPDATE transactions SET status = 'approved' WHERE id = ? OR (kind = 'TOP-UP' AND info LIKE ?)
+        `).bind(finalDepId, `%${cleanTrx}%`).run().catch(() => { });
+
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'approved', ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', amount = excluded.amount
+        `).bind(
+          finalDepId,
+          targetUid,
+          `Wallet Top-up (${method || 'bKash'})`,
+          `Top-up: ${method || 'bKash'}`,
+          `${method || 'bKash'} • ${cleanTrx}`,
+          Number(amount) || 0,
+          now
+        ).run().catch(() => { });
+
+        return json({ ok: true, balance: newTotal, realBalance: newReal, coinsCredited: addCoins, uid: targetUid });
+      }
+
+      // 8b-1b. Check Single Deposit Status on Cloudflare D1
+      if (path === "/api/deposits/status" && request.method === "GET") {
+        const id = url.searchParams.get("id") || "";
+        const trx = (url.searchParams.get("trxId") || "").trim().toUpperCase();
+        let dep = null;
+        if (id) {
+          dep = await env.DB.prepare(`SELECT * FROM deposits WHERE id = ? LIMIT 1`).bind(id).first();
+        }
+        if (!dep && trx) {
+          dep = await env.DB.prepare(`SELECT * FROM deposits WHERE trxId = ? LIMIT 1`).bind(trx).first();
+        }
+        if (!dep && (id || trx)) {
+          const txRow = await env.DB.prepare(`SELECT * FROM transactions WHERE id = ? OR info LIKE ? LIMIT 1`).bind(id || "none", `%${trx || id}%`).first();
+          if (txRow) dep = txRow;
+        }
+        if (!dep) return json({ ok: false, error: "Not found" }, 404);
+        return json({ ok: true, deposit: dep });
+      }
+
+      // 8b-2. Direct Set User Balance & Dual Balance in Cloudflare D1
+      if (path === "/api/wallet/set-balance" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, balance, realBalance, bonusBalance, loyaltyStars } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        let curReal = Number(w ? w.realBalance : 0);
+        let curBonus = Number(w ? w.bonusBalance : 0);
+
+        let newReal = realBalance !== undefined ? Number(realBalance) : (balance !== undefined ? Number(balance) : curReal);
+        let newBonus = bonusBalance !== undefined ? Number(bonusBalance) : (balance !== undefined ? 0 : curBonus);
+        let newTotal = Math.round((newReal + newBonus + Number.EPSILON) * 100) / 100;
+        let newStars = loyaltyStars !== undefined ? Number(loyaltyStars) : Number(w ? w.loyaltyStars : 0);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.realBalance,
+            bonusBalance = excluded.bonusBalance,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newTotal, newReal, newBonus, newStars, Date.now()).run();
+
+        return json({ ok: true, balance: newTotal, realBalance: newReal, bonusBalance: newBonus, loyaltyStars: newStars });
+      }
+
+      // 8b-3. Find User by UID or Email in Cloudflare D1
+      if (path === "/api/user/find" && request.method === "GET") {
+        const q = (url.searchParams.get("q") || "").trim();
+        if (!q) return json({ ok: false, error: "Missing query" }, 400);
+
+        const row = await env.DB.prepare(`
+          SELECT * FROM user_wallets 
+          WHERE uid = ? OR email = ? OR uid LIKE ? OR email LIKE ?
+          LIMIT 1
+        `).bind(q, q, `%${q}%`, `%${q}%`).first();
+
+        if (!row) return json({ ok: false, error: "User not found in Cloudflare D1" }, 404);
+        return json({ ok: true, user: row });
+      }
+
+      // 8b-4. Ban / Unban User in Cloudflare D1
+      if (path === "/api/user/ban" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, banned, banReason } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        const banVal = (banned === true || banned === 1 || banned === "1") ? 1 : 0;
+        const reason = banReason !== undefined ? String(banReason).trim() : (banVal === 1 ? 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।' : '');
+        try {
+          await env.DB.prepare(`
+            UPDATE user_wallets SET banned = ?, banReason = ?, updatedAt = ? WHERE uid = ?
+          `).bind(banVal, reason, Date.now(), uid).run();
+        } catch (e) {
+          try {
+            await env.DB.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run();
+            await env.DB.prepare(`
+              UPDATE user_wallets SET banned = ?, banReason = ?, updatedAt = ? WHERE uid = ?
+            `).bind(banVal, reason, Date.now(), uid).run();
+          } catch (alterErr) {
+            console.error("Ban update error:", alterErr);
+          }
+        }
+
+        return json({ ok: true, banned: banVal === 1, banReason: reason });
+      }
+
+      // 8c. Paginated Users from Cloudflare D1 (Sorted by Balance Highest to Lowest)
+      if (path === "/api/users/list" && request.method === "GET") {
+        const limitCount = parseInt(url.searchParams.get("limit") || "20", 10);
+        const offsetCount = parseInt(url.searchParams.get("offset") || "0", 10);
+        const search = (url.searchParams.get("search") || "").trim();
+
+        let queryStr = `SELECT * FROM user_wallets`;
+        const params = [];
+
+        if (search) {
+          queryStr += ` WHERE uid LIKE ? OR email LIKE ? OR name LIKE ?`;
+          params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        // সর্বোচ্চ ব্যালেন্সের ইউজাররা সবার উপরে থাকবে (বেশি থেকে কম)
+        queryStr += ` ORDER BY balance DESC, updatedAt DESC LIMIT ? OFFSET ?`;
+        params.push(limitCount, offsetCount);
+
+        const { results } = await env.DB.prepare(queryStr).bind(...params).all();
+        const totalRow = await env.DB.prepare(`SELECT COUNT(*) as total, SUM(balance) as totalBal FROM user_wallets`).first();
+
+        return json({
+          ok: true,
+          users: results || [],
+          total: totalRow ? totalRow.total : 0,
+          totalBalance: totalRow ? (totalRow.totalBal || 0) : 0
+        });
+      }
+
+      // 8d. Realtime Dashboard Stats from Cloudflare D1
+      if (path === "/api/admin/stats" && request.method === "GET") {
+        const uStats = await env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first();
+        const dStats = await env.DB.prepare(`SELECT COUNT(*) as pendingDeposits, SUM(amount) as totalApprovedDeposit FROM deposits WHERE status = 'approved'`).first();
+        const pendDep = await env.DB.prepare(`SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'`).first();
+        const oStats = await env.DB.prepare(`SELECT COUNT(*) as pendingOrders FROM orders WHERE status = 'pending'`).first();
+        const compOrd = await env.DB.prepare(`SELECT COUNT(*) as completedOrders, SUM(amount) as totalRevenue FROM orders WHERE status = 'completed'`).first();
+
+        return json({
+          ok: true,
+          totalUsers: uStats ? uStats.totalUsers : 0,
+          totalUserBalance: uStats ? (Math.round((uStats.totalBalance || 0) * 100) / 100) : 0,
+          pendingDeposits: pendDep ? pendDep.count : 0,
+          totalApprovedDeposit: dStats ? (dStats.totalApprovedDeposit || 0) : 0,
+          pendingOrders: oStats ? oStats.pendingOrders : 0,
+          completedOrders: compOrd ? compOrd.completedOrders : 0,
+          totalRevenue: compOrd ? (compOrd.totalRevenue || 0) : 0
+        });
+      }
+
+      // 8e. Telegram Bot Superfast Leaderboard (Runs in 15ms from Cloudflare D1)
+      if (path === "/api/bot/leaderboard" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT id, COALESCE(NULLIF(name, ''), username, 'User') as name, username, referralCount, refBalance 
+          FROM tg_bot_users 
+          WHERE referralCount > 0 
+          ORDER BY referralCount DESC, updatedAt DESC 
+          LIMIT 10
+        `).all();
+
+        return json({ ok: true, leaderboard: results || [] });
+      }
+
+      // 8g. Telegram Bot User Sync & Ref Balance in Cloudflare D1
+      if (path === "/api/bot/user" && request.method === "GET") {
+        const id = url.searchParams.get("id");
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        let row = await env.DB.prepare(`SELECT * FROM tg_bot_users WHERE id = ?`).bind(id).first();
+        if (!row) {
+          row = { id, name: "User", username: "", referralCount: 0, refBalance: 0, isVerified: 0, inviterId: "" };
+        }
+        return json({ ok: true, user: row });
+      }
+
+      if (path === "/api/bot/user/update" && request.method === "POST") {
+        const body = await request.json();
+        const { id, name, username, inviterId, phone, websiteUid, isVerified, addRefCount, addRefBalance, resetRefBalance, referralCount, refBalance } = body;
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        let u = await env.DB.prepare(`SELECT * FROM tg_bot_users WHERE id = ?`).bind(id).first();
+        let curCount = Number(u ? u.referralCount : 0);
+        let curBal = Number(u ? u.refBalance : 0);
+
+        let newCount = referralCount !== undefined ? Number(referralCount) : (addRefCount ? (curCount + Number(addRefCount)) : curCount);
+        let newBal = refBalance !== undefined ? Number(refBalance) : (resetRefBalance ? 0 : (addRefBalance ? Math.round((curBal + Number(addRefBalance) + Number.EPSILON) * 100) / 100 : curBal));
+        let ver = isVerified !== undefined ? (isVerified ? 1 : 0) : Number(u ? u.isVerified : 0);
+        let pVal = phone || (u ? (u.phone || '') : '');
+        let wVal = websiteUid || (u ? (u.websiteUid || '') : '');
+
+        await env.DB.prepare(`
+          INSERT INTO tg_bot_users (id, name, username, phone, websiteUid, inviterId, isVerified, referralCount, refBalance, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = CASE WHEN excluded.name != '' AND excluded.name != 'User' THEN excluded.name ELSE tg_bot_users.name END,
+            username = CASE WHEN excluded.username != '' THEN excluded.username ELSE tg_bot_users.username END,
+            phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE tg_bot_users.phone END,
+            websiteUid = CASE WHEN excluded.websiteUid != '' THEN excluded.websiteUid ELSE tg_bot_users.websiteUid END,
+            inviterId = CASE WHEN tg_bot_users.inviterId = '' OR tg_bot_users.inviterId IS NULL THEN excluded.inviterId ELSE tg_bot_users.inviterId END,
+            isVerified = CASE WHEN excluded.isVerified = 1 THEN 1 ELSE tg_bot_users.isVerified END,
+            referralCount = excluded.referralCount,
+            refBalance = excluded.refBalance,
+            updatedAt = excluded.updatedAt
+        `).bind(id, name || "User", username || "", pVal, wVal, inviterId || "", ver, newCount, newBal, Date.now()).run();
+
+        return json({ ok: true, referralCount: newCount, refBalance: newBal });
+      }
+
+      // 8h. Reset All Bot Referrals (Admin Security Action)
+      if (path === "/api/bot/reset-all-referrals" && request.method === "POST") {
+        await env.DB.prepare(`UPDATE tg_bot_users SET referralCount = 0, refBalance = 0, isVerified = 0`).run();
+        return json({ ok: true, message: "All bot referrals reset in Cloudflare D1" });
+      }
+
+      // 9. ৬০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
+      if (path === "/api/cleanup") {
+        await autoPruneOldTransactions(env.DB);
+        return json({ ok: true, message: "Pruned non-pending transactions older than 60 days" });
+      }
+
+      return json({ ok: false, error: "Endpoint not found" }, 404);
+    } catch (err) {
+      return json({ ok: false, error: err.message }, 500);
+    }
+  },
+};

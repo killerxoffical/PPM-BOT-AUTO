@@ -4251,6 +4251,9 @@
                 }
             }
             if (window.renderAdminScreen) renderAdminScreen(id);
+            if (id === 'scrDep' || id === 'scrOrd') {
+                if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
+            }
             if (id === 'scrExt' && window.renderExtensionScreen) window.renderExtensionScreen();
             if (id === 'scrCfg' && window.setCfgTab) {
                 const curTab = (document.querySelector('.cfg-tab.active') || {}).dataset?.cfgtab || 'all';
@@ -4919,25 +4922,27 @@
 
             function syncMergedDeposits() {
                 const map = new Map();
-                (S._cfDeposits || []).forEach(d => map.set(d.id, d));
-                (S._fbDeposits || []).forEach(d => {
+                (S._fbDeposits || []).forEach(d => map.set(d.id, d));
+                (S._cfDeposits || []).forEach(d => {
                     const existing = map.get(d.id);
                     if (!existing) map.set(d.id, d);
-                    else map.set(d.id, { ...existing, ...d });
+                    else map.set(d.id, { ...existing, ...d }); // Cloudflare D1 Authority for Pending!
                 });
                 S.deposits = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
             }
+            window.syncMergedDeposits = syncMergedDeposits;
 
             function syncMergedOrders() {
                 const map = new Map();
-                (S._cfOrders || []).forEach(o => map.set(o.id, o));
-                (S._fbOrders || []).forEach(o => {
+                (S._fbOrders || []).forEach(o => map.set(o.id, o));
+                (S._cfOrders || []).forEach(o => {
                     const existing = map.get(o.id);
                     if (!existing) map.set(o.id, o);
-                    else map.set(o.id, { ...existing, ...o });
+                    else map.set(o.id, { ...existing, ...o }); // Cloudflare D1 Authority for Pending!
                 });
                 S.orders = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
             }
+            window.syncMergedOrders = syncMergedOrders;
 
             const liveCols = [
                 ['deposits', 100, v => { S._fbDeposits = v; syncMergedDeposits(); }],
@@ -4989,6 +4994,7 @@
                             createdAt: d.createdAt ? new Date(d.createdAt) : new Date()
                         }));
                         syncMergedDeposits();
+                        if (CURRENT === 'scrDep' && typeof renderDeposits === 'function') renderDeposits();
                     }
                     if (ordRes && ordRes.ok && Array.isArray(ordRes.orders)) {
                         S._cfOrders = ordRes.orders.map(o => ({
@@ -5008,17 +5014,18 @@
                             createdAt: o.createdAt ? new Date(o.createdAt) : new Date()
                         }));
                         syncMergedOrders();
+                        if (CURRENT === 'scrOrd' && typeof renderOrders === 'function') renderOrders();
                     }
                     mergeVirtualUsers();
                     updateStats();
-                    scheduleRender();
                 } catch (e) {
                     console.warn('[CF Pending Sync Warn]:', e);
                 }
             }
+            window.fetchCloudflarePendingData = fetchCloudflarePendingData;
             fetchCloudflarePendingData();
             if (window._cfPendingTimer) clearInterval(window._cfPendingTimer);
-            window._cfPendingTimer = setInterval(fetchCloudflarePendingData, 20000);
+            window._cfPendingTimer = setInterval(fetchCloudflarePendingData, 15000);
 
             loadHeavyCollectionsOnce();
             liveOn = true;
@@ -5026,9 +5033,10 @@
 
         async function loadAll() {
             try { updateStats(); } catch (e) { }
+            if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
+            if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
             if (liveOn) {
                 try { renderAdminScreen(CURRENT); } catch (e) { }
-                if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
                 toast('Data refreshed ✓');
                 return;
             }
@@ -6593,6 +6601,7 @@
             const box = document.getElementById('adminDeposits');
             if (!box) return;
             const f = S.f.scrDep;
+            if (typeof syncMergedDeposits === 'function') syncMergedDeposits();
             const list = S.deposits.filter(d => f === 'all' || d.status === f);
             box.innerHTML = tbl(['User', 'Details & TrxID', 'Timeline & Latency', 'Amount', 'Status', 'Actions'], list.map(d => {
                 const subTime = d.submittedAt ? fmtDate(d.submittedAt) : fmtDate(d.createdAt);
@@ -7046,6 +7055,7 @@
             const box = document.getElementById('adminOrders');
             if (!box) return;
             const f = S.f.scrOrd;
+            if (typeof syncMergedOrders === 'function') syncMergedOrders();
             const list = S.orders.filter(d => f === 'all' || d.status === f);
             box.innerHTML = tbl(['Game & Gamer Tag', 'Credentials', 'Live Message to User', 'User / TG', 'Fee & Balance Audit', 'Status', 'Action'], list.map(d => {
                 const u = (S.users || []).find(x => x.id === d.uid) || {};
