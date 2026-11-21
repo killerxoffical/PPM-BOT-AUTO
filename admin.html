@@ -1889,9 +1889,9 @@
                     </div>
                 </div>
                 <button onclick="loadAll()"
-                    class="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl cursor-pointer flex-shrink-0 flex items-center gap-2 shadow-sm transition-all active:scale-95">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Refresh
-                        Data</span>
+                    class="text-xs font-extrabold bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:brightness-110 text-white px-3.5 py-2.5 rounded-lg cursor-pointer flex-shrink-0 flex items-center gap-1.5 shadow-sm border border-emerald-500 transition-all active:scale-95"
+                    title="Refresh all live data from server and cloud">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i><span>🔄 Refresh Data</span>
                 </button>
 
                 <button onclick="lockAdmin()"
@@ -2272,8 +2272,8 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrDep" class="flex gap-1.5 overflow-x-auto"></div>
                                 <button onclick="fetchCloudflarePendingData(); toast('Deposits Refreshed ✓');"
-                                    class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 px-3 py-1.5 text-xs shadow-xs">
-                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
                             </div>
                         </div>
@@ -2304,8 +2304,8 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrOrd" class="flex gap-1.5 overflow-x-auto"></div>
                                 <button onclick="fetchCloudflarePendingData(); toast('Orders Refreshed ✓');"
-                                    class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 px-3 py-1.5 text-xs shadow-xs">
-                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
                             </div>
                         </div>
@@ -2358,8 +2358,8 @@
                                     class="btn bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700">Give
                                     Reward</button>
                                 <button id="btnUsrRefresh" onclick="resetUserPagination()"
-                                    class="btn bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold flex items-center gap-1.5"><i
-                                        data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh 10</button>
+                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-extrabold flex items-center gap-1.5 rounded-lg border border-emerald-500 shadow-sm"><i
+                                        data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh 10</button>
                             </div>
                         </div>
 
@@ -6564,7 +6564,7 @@
                 return '<button class="fl' + (o[0] === cur ? ' on' : '') + '" onclick="setFilter(\'' + screenId + '\',\'' + o[0] + '\')">' + o[1] + badge + '</button>';
             }).join('');
         }
-        window.setFilter = (screenId, v) => { S.f[screenId] = v; renderAdminScreen(screenId); };
+        window.setFilter = (screenId, v) => { S.f[screenId] = v; if (screenId === 'scrTx') _txOffset = 0; renderAdminScreen(screenId); };
 
         /* ---------- 1. HOME ---------- */
         function renderHome() {
@@ -7795,6 +7795,26 @@
             if (c === 'EXCHANGE') return 'exchange';
             return 'code';
         }
+        /* ---------- 7. TRANSACTIONS (PAGINATED 10 PER PAGE) ---------- */
+        let _txOffset = 0;
+        const _txLimit = 10;
+
+        window.nextTxPage = () => {
+            _txOffset += _txLimit;
+            renderTransactions();
+        };
+
+        window.prevTxPage = () => {
+            _txOffset = Math.max(0, _txOffset - _txLimit);
+            renderTransactions();
+        };
+
+        window.resetTxPagination = () => {
+            _txOffset = 0;
+            renderTransactions();
+            toast('Transactions Refreshed ✓');
+        };
+
         function renderTransactions() {
             paintFilters('scrTx');
             const box = document.getElementById('adminTx');
@@ -7822,6 +7842,7 @@
             const totLine = (f === 'all')
                 ? list.length + ' entries <span class="text-slate-400">(Top-up BDT • Task/Reward Coins • Withdraw/Sell Pts • Buy Coins)</span>'
                 : list.length + ' entries &middot; Total ' + (f === 'topup' ? money(sum(list)) : f === 'withdraw' || f === 'sell' ? (sum(list) + ' Pts') : coins(sum(list)));
+            
             // coin source summary (upore choto cards)
             const srcDaily = sum(R.filter(d => redeemKind(d.code) === 'daily'));
             const srcRef = sum(R.filter(d => redeemKind(d.code) === 'referral'));
@@ -7830,12 +7851,48 @@
             const srcTopup = (S.deposits || []).filter(d => d.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0);
             const kindPill = { topup: 'st-pending', task: 'st-paid', code: 'st-completed', daily: 'st-completed', referral: 'st-open', exchange: 'st-open', withdraw: 'st-rejected', sell: 'st-pending', buy: 'st-paid' };
             const kindUnit = (k, v) => k === 'topup' ? money(v) : (k === 'withdraw' || k === 'sell') ? (Number(v || 0) + ' Pts') : coins(v);
+            
+            // 10 PER PAGE PAGINATION
+            const totalTx = list.length;
+            const totalPages = Math.ceil(totalTx / _txLimit) || 1;
+            if (_txOffset >= totalTx && totalTx > 0) {
+                _txOffset = Math.max(0, (totalPages - 1) * _txLimit);
+            }
+            const pageItems = list.slice(_txOffset, _txOffset + _txLimit);
+            const startIdx = totalTx > 0 ? (_txOffset + 1) : 0;
+            const endIdx = Math.min(_txOffset + _txLimit, totalTx);
+            const hasPrev = _txOffset > 0;
+            const hasNext = (_txOffset + _txLimit) < totalTx;
+            const curPage = Math.floor(_txOffset / _txLimit) + 1;
+
+            const paginationBar = `
+                <div class="flex items-center justify-between flex-wrap gap-3 mt-4 pt-3 border-t border-slate-200">
+                    <div class="text-xs font-bold text-slate-600 flex items-center gap-2">
+                        <span>Showing <strong class="text-slate-900">${startIdx} - ${endIdx}</strong> of <strong class="text-indigo-700">${totalTx}</strong> entries</span>
+                        <button onclick="resetTxPagination()" class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-black text-[11px] px-2.5 py-1 rounded-md shadow-xs border border-emerald-500 flex items-center gap-1 cursor-pointer" title="Refresh transactions (10 per page)">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> 🔄 Refresh 10
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="prevTxPage()" ${hasPrev ? '' : 'disabled'} class="btn px-3 py-1.5 text-xs font-bold ${hasPrev ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 cursor-pointer shadow-xs' : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'}">
+                            ← Previous
+                        </button>
+                        <span class="text-xs font-black px-2.5 py-1 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                            Page ${curPage} of ${totalPages}
+                        </span>
+                        <button onclick="nextTxPage()" ${hasNext ? '' : 'disabled'} class="btn px-3 py-1.5 text-xs font-bold ${hasNext ? 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs' : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'}">
+                            Next →
+                        </button>
+                    </div>
+                </div>
+            `;
+
             box.innerHTML = '<div class="grid grid-cols-2 lg:grid-cols-5 gap-2 pb-3">'
                 + [['Top-up In (BDT)', money(srcTopup)], ['Daily Bonus', coins(srcDaily)], ['Referral', coins(srcRef)], ['Exchange', coins(srcEx)], ['Promo Code', coins(srcCode)]]
                     .map(c => '<div class="glass-subtle px-3 py-2 border border-slate-200"><p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">' + c[0] + '</p><p class="text-sm font-black text-slate-900">' + c[1] + '</p></div>').join('')
                 + '</div>'
                 + '<p class="text-xs font-bold text-slate-500 pb-2.5">' + totLine + '</p>'
-                + tbl(['Type', 'Title', 'User', 'Previous Bal', 'Date', 'Amount', 'Status'], list.slice(0, 300).map(d => {
+                + tbl(['Type', 'Title', 'User', 'Previous Bal', 'Date', 'Amount', 'Status'], pageItems.map(d => {
                     const prevBalText = d.previousBalance !== undefined && d.previousBalance !== null
                         ? `<span class="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">${d.previousBalance} c</span>`
                         : `<span class="text-slate-400 font-mono text-[10.5px]">—</span>`;
@@ -7848,7 +7905,9 @@
                     + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(d.createdAt) + '</td>'
                     + '<td class="text-right font-extrabold text-slate-900 whitespace-nowrap">' + kindUnit(d.kind, d.amount) + '</td>'
                     + '<td>' + pill(d.status) + '</td></tr>';
-                }), 760);
+                }), 760)
+                + paginationBar;
+
             if (window.lucide) lucide.createIcons();
         }
 
