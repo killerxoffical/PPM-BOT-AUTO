@@ -7680,7 +7680,7 @@
 
         function maskEmail(email) {
             const e = (email || '').toString().trim();
-            if (!e || !e.includes('@')) return 'user+++@gmail.com';
+            if (!e || !e.includes('@')) return 'use+++@gmail.com';
             const at = e.indexOf('@');
             const u = e.slice(0, at);
             const d = e.slice(at + 1) || 'gmail.com';
@@ -7688,6 +7688,18 @@
             return `${p}+++@${d}`;
         }
         window.maskEmail = maskEmail;
+
+        function maskProfileName(name) {
+            const n = (name || "").toString().trim();
+            if (!n || n === "—" || n === "---" || n.toLowerCase() === "user" || n.toLowerCase() === "direct portal" || n.toLowerCase() === "not given" || n.toLowerCase() === "play gamer") {
+                return "---";
+            }
+            const clean = n.replace(/^Gamer_/i, "").replace(/[^a-zA-Z0-9_\-\s]/g, "").trim();
+            if (!clean) return "---";
+            if (clean.length <= 2) return clean + "+++";
+            return clean.slice(0, 3) + "+++";
+        }
+        window.maskProfileName = maskProfileName;
 
         function markOrderAsRefunded(orderId) {
             if (!orderId) return;
@@ -7713,14 +7725,24 @@
         }
         window.isOrderRefunded = isOrderRefunded;
 
-        async function sendTelegramMsg(chatId, text) {
+        async function sendTelegramMsg(chatId, text, replyMarkup = null) {
             if (!chatId || !text) return;
             const tok = ((window.ppfb && window.ppfb.config && window.ppfb.config.botToken) || '').toString().trim() || TG_BOT_TOKEN;
             try {
+                const payload = { chat_id: chatId, text: text, parse_mode: 'HTML' };
+                if (chatId === '@ppmododderlog' || chatId === ORDER_LOG_CHANNEL) {
+                    payload.reply_markup = {
+                        inline_keyboard: [
+                            [{ text: "🌐 Visit Website (ppmods.netlify.app)", url: "https://ppmods.netlify.app/" }]
+                        ]
+                    };
+                } else if (replyMarkup) {
+                    payload.reply_markup = replyMarkup;
+                }
                 await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' })
+                    body: JSON.stringify(payload)
                 });
             } catch (e) { console.warn('TG send error:', e); }
         }
@@ -10276,7 +10298,7 @@
                         const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
                         const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
                             `🎮 <b>Game:</b> ${gameName}\n` +
-                            `👤 <b>Play Gamer:</b> ${(window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName || 'Play Gamer'}\n` +
+                            `👤 <b>Play Gamer:</b> ${maskProfileName((window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName)}\n` +
                             `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
                             `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
                             `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
@@ -10552,7 +10574,7 @@
                     const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
                     const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
                         `🎮 <b>Game:</b> ${gameName}\n` +
-                        `👤 <b>Play Gamer:</b> ${(window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName || 'Play Gamer'}\n` +
+                        `👤 <b>Play Gamer:</b> ${maskProfileName((window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName)}\n` +
                         `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
                         `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
@@ -10778,10 +10800,12 @@
                     // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড কমপ্লিট লগ পাঠানো
                     if (typeof sendTelegramMsg === 'function') {
                         const elapsedSec = isRetry ? 2 : 1;
-                        const gamerDisplay = (data && data.account_name) || accName || 'Play Gamer';
+                        const rawGamer = (data && data.account_name) || accName || '';
+                        const gamerDisplay = maskProfileName(rawGamer);
+                        const cleanGameName = (srv.title || curGame || 'Task').replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
                         const pubChannelMsg =
                             `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
-                            `🎮 <b>Game:</b> ${srv.title || curGame}\n` +
+                            `🎮 <b>Game:</b> ${cleanGameName}\n` +
                             `👤 <b>Play Gamer:</b> ${gamerDisplay}\n` +
                             `📧 <b>Email:</b> <code>${maskEmail(acc.email)}</code>\n` +
                             `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +

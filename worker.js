@@ -5795,7 +5795,7 @@ function generateRealisticFakeLog() {
     const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
     const maskedEmail = `${snip}+++@gmail.com`;
     const elapsed = Math.floor(Math.random() * 3) + 1;
-    const ordId = "ORD-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+    const ordId = "ORD-" + (Date.now() - Math.floor(Math.random() * 15000));
     const coinsDeducted = Math.random() < 0.8 ? 2 : 3;
 
     // ২০% অর্ডারে প্রোফাইল নাম থাকে না ('---'), আর ৮০% অর্ডারে রিয়েল গেমার ট্যাগ মাস্ক হয়ে দেখায় (যেমন 'Sha+++', 'Ful+++')
