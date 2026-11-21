@@ -10077,7 +10077,26 @@
                     const balAfterRef = balBeforeRef + refundCoins;
                     const origBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
                         ? window._currentOrderMeta.beforeBalance
-                        : balAfterRef;
+                        : (balBeforeRef + refundCoins);
+
+                    // Render PP Server অডিট হিস্টোরিতে রিফান্ড ইভেন্ট পাঠানো
+                    fetch('https://pp-mod-auto-quest.onrender.com/api/portal/record-refund', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_uid: curUid,
+                            order_id: orderId,
+                            game_title: gameName,
+                            account_name: uName,
+                            email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || '',
+                            server_code: (window._serverConnectedAccount && window._serverConnectedAccount.code) || '',
+                            coins_refunded: refundCoins,
+                            balance_before: origBal,
+                            balance_deducted: balBeforeRef,
+                            balance_after: balAfterRef,
+                            reason: customReason || 'Order Cancelled & 100% Refunded to Wallet'
+                        })
+                    }).catch(() => {});
 
                     const alertMsg = `🪙 <b>TASK ORDER REFUNDED!</b>\n\n` +
                         `🎮 <b>Game:</b> ${gameName}\n` +
@@ -10085,8 +10104,8 @@
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `📋 <b>Reason:</b> ${customReason || 'Game not active on portal'}\n\n` +
                         `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
-                        `▫️ অর্ডার করার আগের ব্যালেন্স: <b>${origBal} Coins</b>\n` +
-                        `▫️ কয়েন কাটার পর ব্যালেন্স ছিল: <b>${balBeforeRef} Coins</b>\n` +
+                        `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${origBal} Coins</b>\n` +
+                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${refundCoins} Coins</b> (ব্যালেন্স ছিল: <b>${balBeforeRef} Coins</b>)\n` +
                         `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundCoins} Coins</b>\n` +
                         `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n` +
                         `✅ <b>Status:</b> 100% REFUNDED TO WALLET`;
@@ -10278,6 +10297,12 @@
                 const webUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : (localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || 'Web User');
                 const accName = (acc.profile && acc.profile.display_name) || (acc.email ? acc.email.split('@')[0] : 'Play Gamer');
 
+                const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
+                    ? window._currentOrderMeta.beforeBalance
+                    : (window.ppfb ? (Number(window.ppfb.balance || 0) + getTaskCoinCost()) : '—');
+                const taskCost = getTaskCoinCost();
+                const curBal = (window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—';
+
                 const payload = {
                     game_id: srv.game_id || srv.id,
                     sync_code: acc.code || '',
@@ -10288,7 +10313,10 @@
                     user_uid: webUid,
                     order_id: orderId || '',
                     account_name: accName,
-                    source: 'Web App'
+                    source: 'Web App',
+                    coins_cost: taskCost,
+                    balance_before: prevBal,
+                    balance_after: curBal
                 };
 
                 let res = null;
