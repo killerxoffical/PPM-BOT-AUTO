@@ -7,9 +7,11 @@
     <title>PP MOD - Admin Executive Panel</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts Inter -->
+    <!-- Google Fonts: Plus Jakarta Sans (Server Admin Console) & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -1420,6 +1422,251 @@
                 display: none !important;
             }
         }
+    
+        /* ======================================================================
+           SERVER ADMIN CONSOLE (EXECUTIVE LIGHT ENTERPRISE) UI/UX THEME
+           Directly aligned with achievement_unlocker/templates/index.html
+           Crisp 8px / 6px / 4px corners • Plus Jakarta Sans • #f4f6fa Canvas
+           ====================================================================== */
+
+        :root {
+            --bg-body: #f4f6fa;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-subtle: #f8fafc;
+            --bg-card-hover: #f1f5f9;
+            --border-color: #e2e8f0;
+            --border-focus: #4f46e5;
+            --accent-green: #059669;
+            --accent-green-hover: #047857;
+            --accent-green-subtle: rgba(5, 150, 105, 0.08);
+            --accent-green-glow: rgba(5, 150, 105, 0.2);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+            --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06);
+            --radius-xl: 8px;
+            --radius-lg: 6px;
+            --radius-md: 4px;
+            --radius-sm: 3px;
+        }
+
+        /* 1. Global Typography & Background */
+        *, *::before, *::after {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+
+        .font-mono, font-mono, code, pre, .mono {
+            font-family: 'JetBrains Mono', monospace !important;
+        }
+
+        html, body {
+            background-color: #f4f6fa !important;
+            color: #0f172a !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 2. Crisp Rectangular Boxes (Eliminate Bubbly 20px-24px Curves) */
+        .glass,
+        .card,
+        .ascreen > div,
+        .users-table-card,
+        .guide-side-card,
+        .vps-config-card,
+        .rounded-3xl,
+        .rounded-2xl,
+        .rounded-xl,
+        .metric-card,
+        .tile-card {
+            border-radius: 8px !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+        }
+
+        .glass:hover, .card:hover {
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06) !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        .glass-subtle,
+        .rounded-lg,
+        .rounded-md {
+            border-radius: 6px !important;
+        }
+
+        /* 3. Inputs, Selects, Buttons, Tabs (Crisp 6px) */
+        input:not([type="checkbox"]):not([type="radio"]),
+        select,
+        textarea {
+            border-radius: 6px !important;
+            border: 1px solid #e2e8f0 !important;
+            background: #ffffff !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-size: 13px !important;
+            color: #0f172a !important;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+
+        input:not([type="checkbox"]):not([type="radio"]):focus,
+        select:focus,
+        textarea:focus {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12) !important;
+            outline: none !important;
+        }
+
+        .btn,
+        button.btn,
+        button:not(.rounded-full):not(.ord-move):not(.btn-code-close) {
+            border-radius: 6px !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-weight: 700 !important;
+            font-size: 12.5px !important;
+            transition: all 0.15s ease !important;
+        }
+
+        /* 4. Top Search Bar & Header */
+        header,
+        .top-header-bar,
+        .main-top-bar {
+            border-radius: 8px !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        #topSearchInput {
+            border-radius: 6px !important;
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            font-size: 13px !important;
+        }
+
+        #topSearchInput:focus {
+            background: #ffffff !important;
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12) !important;
+        }
+
+        /* 5. Sidebar Navigation (Crisp 6px items, Enterprise styling) */
+        #sideBar {
+            background: #ffffff !important;
+            border-right: 1px solid #e2e8f0 !important;
+            box-shadow: none !important;
+        }
+
+        .sgroup {
+            font-size: 10.5px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.6px !important;
+            text-transform: uppercase !important;
+            color: #94a3b8 !important;
+            margin-top: 14px !important;
+            margin-bottom: 4px !important;
+            padding-left: 12px !important;
+        }
+
+        .snav {
+            border-radius: 6px !important;
+            padding: 9px 12px !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #475569 !important;
+            transition: all 0.15s ease !important;
+            border: 1px solid transparent !important;
+        }
+
+        .snav:hover {
+            background: #f8fafc !important;
+            color: #0f172a !important;
+        }
+
+        .snav.on {
+            background: rgba(79, 70, 229, 0.08) !important;
+            color: #4f46e5 !important;
+            border: 1px solid rgba(79, 70, 229, 0.22) !important;
+            font-weight: 700 !important;
+            box-shadow: none !important;
+        }
+
+        /* 6. Filter Tabs (Pending, Approved, Rejected, All) */
+        #filterRow button,
+        .tab-btn,
+        .filter-btn,
+        .catalog-filter-pill {
+            border-radius: 6px !important;
+            padding: 6px 14px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            border: 1px solid #e2e8f0 !important;
+            transition: all 0.15s ease !important;
+        }
+
+        #filterRow button.on,
+        .tab-btn.active,
+        .catalog-filter-pill.active {
+            background: #4f46e5 !important;
+            color: #ffffff !important;
+            border-color: #4f46e5 !important;
+            box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25) !important;
+        }
+
+        /* 7. Tables Matching Server Admin (Serviced Accounts style) */
+        .dtable-wrap {
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+            background: #ffffff !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+            overflow-x: auto !important;
+        }
+
+        .dtable {
+            border-collapse: collapse !important;
+            width: 100% !important;
+            font-size: 13px !important;
+        }
+
+        .dtable th {
+            background: #f8fafc !important;
+            color: #64748b !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.6px !important;
+            padding: 13px 16px !important;
+            border-bottom: 2px solid #e2e8f0 !important;
+            white-space: nowrap !important;
+        }
+
+        .dtable td {
+            padding: 14px 16px !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+            color: #0f172a !important;
+            vertical-align: middle !important;
+            line-height: 1.45 !important;
+        }
+
+        .dtable tbody tr {
+            transition: background 0.15s ease !important;
+        }
+
+        .dtable tbody tr:hover {
+            background: #f8fafc !important;
+        }
+
+        /* 8. Crisp Status Badges */
+        .nbadge,
+        .badge,
+        .badge-status {
+            border-radius: 4px !important;
+            font-size: 10.5px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.2px !important;
+        }
+
     </style>
 </head>
 
@@ -8487,6 +8734,76 @@
             r.readAsDataURL(f);
         };
 
+        
+        /* ======================================================================
+           PUBLIC PORTAL LIVE SERVICE MATCHER & BADGE ENGINE
+           Matches Admin Offers against configured Public Portal Services
+           ====================================================================== */
+        const PORTAL_KNOWN_SERVICES = [
+            "8 Ball Pool", "Angry Birds 2", "Arknights: Endfield", "Best Fiends - Match 3 Puzzles",
+            "Dice Dreams™️", "Disney Solitaire", "Domino Dreams™", "Evony: The King's Return",
+            "Food Hunt: Pixel Puzzle", "Free Fire MAX", "Gossip Harbor®: Merge & Story", "Hay Day",
+            "Lords Mobile: Kingdom Wars", "Marvel Contest of Champions", "Pokémon Masters EX",
+            "Pokémon TCG Pocket", "Summoners War", "Triple Match 3D", "War Machines：Tanks Battle Game",
+            "Yalla Ludo - Ludo&Jackaroo"
+        ];
+
+        window._portalServices = [];
+        async function fetchPortalServicesForAdmin() {
+            try {
+                const res = await fetch("https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=" + Date.now()).catch(() => null);
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (data && data.ok && Array.isArray(data.services) && data.services.length > 0) {
+                        window._portalServices = data.services;
+                        if (CURRENT === 'scrOf' && typeof renderOffers === 'function') {
+                            renderOffers();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Portal services fetch err:', e);
+            }
+        }
+        window.fetchPortalServicesForAdmin = fetchPortalServicesForAdmin;
+        // Immediate fetch on panel load
+        setTimeout(() => { fetchPortalServicesForAdmin(); }, 500);
+
+        function normalizePortalGameName(str) {
+            if (!str) return '';
+            return String(str)
+                .toLowerCase()
+                .replace(/\(.*?\)/g, '')
+                .replace(/[:：\-–].*$/, '')
+                .replace(/[™®©️]/g, '')
+                .replace(/[^a-z0-9]/g, '');
+        }
+
+        function isOfferInPublicPortal(offerName) {
+            if (!offerName) return null;
+            const onorm = normalizePortalGameName(offerName);
+            if (!onorm) return null;
+
+            // 1. Check live fetched portal services first
+            if (window._portalServices && window._portalServices.length > 0) {
+                for (const s of window._portalServices) {
+                    const title = s.title || s.name || '';
+                    const pnorm = normalizePortalGameName(title);
+                    if (onorm === pnorm) return s;
+                    if (onorm.length >= 4 && pnorm.length >= 4 && (onorm.includes(pnorm) || pnorm.includes(onorm))) return s;
+                }
+            }
+
+            // 2. Fallback to static verified services catalog
+            for (const name of PORTAL_KNOWN_SERVICES) {
+                const pnorm = normalizePortalGameName(name);
+                if (onorm === pnorm) return { title: name };
+                if (onorm.length >= 4 && pnorm.length >= 4 && (onorm.includes(pnorm) || pnorm.includes(onorm))) return { title: name };
+            }
+            return null;
+        }
+        window.isOfferInPublicPortal = isOfferInPublicPortal;
+
         function renderOffers() {
             const box = document.getElementById('adminOffers');
             if (!box) return;
@@ -8504,8 +8821,16 @@
                     + (o._seed ? '' : ' draggable="true" ondragstart="offerDragStart(event,\'' + o.id + '\')" ondragover="offerDragOver(event)" ondragleave="this.classList.remove(\'drag-over\')" ondrop="offerDrop(event,\'' + o.id + '\')" ondragend="offerDragEnd()"')
                     + '>'
                     + '<td style="width:44px">' + (o._seed ? '<span class="text-slate-300 font-black">·</span>' : '<span class="drag-handle" data-handle="' + o.id + '" title="Tene dhorun"><i data-lucide="grip-vertical"></i></span>') + '</td>'
-                    + '<td><div class="flex items-center gap-2.5">' + (o.logo ? '<img src="' + o.logo.replace(/"/g, '&quot;') + '" style="width:48px;height:48px;border-radius:12px;object-fit:cover;flex-shrink:0;background:#f1f5f9;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)" loading="lazy" onerror="this.style.display=\'none\'">' : '<span class="thumb-letter">' + esc(((o.name || '?').charAt(0) || '?').toUpperCase()) + '</span>') + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[170px]">' + esc(o.name || '') + '</p>'
-                    + '<p class="text-[10px] text-slate-400 font-mono truncate max-w-[170px]">' + esc(String(o.logo || '').slice(0, 46)) + '</p></div></div></td>'
+                    + '<td>' + (() => {
+                        const portalMatch = isOfferInPublicPortal(o.name);
+                        const portalBadge = portalMatch
+                            ? '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs" title="Connected to Public Portal: ' + esc(portalMatch.title || o.name) + '"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 🌐 PUBLIC PORTAL</span>'
+                            : '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-slate-100 text-slate-400 border border-slate-200" title="Not in Public Portal"><span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span> Not in Portal</span>';
+                        return '<div class="flex items-center gap-2.5">'
+                            + (o.logo ? '<img src="' + o.logo.replace(/"/g, '&quot;') + '" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;background:#f1f5f9;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)" loading="lazy" onerror="this.style.display=\'none\'">' : '<span class="thumb-letter" style="border-radius:6px">' + esc(((o.name || '?').charAt(0) || '?').toUpperCase()) + '</span>')
+                            + '<div class="min-w-0"><div class="flex items-center gap-2 flex-wrap"><p class="font-bold text-slate-900 truncate max-w-[180px]">' + esc(o.name || '') + '</p>' + portalBadge + '</div>'
+                            + '<p class="text-[10px] text-slate-400 font-mono truncate max-w-[180px] mt-0.5">' + esc(String(o.logo || '').slice(0, 46)) + '</p></div></div>';
+                    })() + '</td>'
                     + '<td class="font-black text-amber-600">' + esc(o.points) + '</td>'
                     + '<td><div class="flex items-center gap-1.5"><span class="text-slate-500 font-black text-xs min-w-[20px] text-center">' + (Number(o.order) || (idx + 1)) + '</span>'
                     + (o._seed ? '' : '<span class="flex flex-col gap-1"><button class="ord-move" onclick="event.stopPropagation();moveOffer(\'' + o.id + '\',-1)" title="Upore nin"><i data-lucide="chevron-up"></i></button><button class="ord-move" onclick="event.stopPropagation();moveOffer(\'' + o.id + '\',1)" title="Niche nin"><i data-lucide="chevron-down"></i></button></span>')
