@@ -9860,11 +9860,11 @@
             if (unlockBtn) unlockBtn.style.display = 'none';
 
             try {
-                // ১. PP Server এ কোড ভ্যালিডেশন ও প্লেয়ার প্রোফাইল ফেচ
+                // ১. PP Server এ কোড ভ্যালিডেশন ও প্লেয়ার প্রোফাইল ফেচ (Fresh Live Check)
                 const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code })
+                    body: JSON.stringify({ code: code, refresh: true })
                 });
                 const data = await res.json();
 
@@ -9966,44 +9966,100 @@
                 const sData = await sRes.json();
                 const services = (sData && sData.ok && Array.isArray(sData.services)) ? sData.services : [];
 
-                // গেমের নাম থেকে (50), (All), স্পেশাল ক্যারেক্টার ও কোলন পরিষ্কার করা
-                const clean = s => (s || '').toString().toLowerCase().replace(/™|®|©|：|:|-|_/g, ' ').replace(/[^a-z0-9]/g, '');
+                // স্মার্ট গেম নাম নরম্যালাইজার ও ফাজি ম্যাচার
+                const normGame = (str) => {
+                    if (!str) return { all: '', main: '', words: [], mainWords: [] };
+                    let s = str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    s = s.replace(/\s*[\(\[][^\)\]]*[\)\]]/gi, ''); // (50), (All) মুছে ফেলা
+                    const parts = s.split(/[:：\-_–—]/);
+                    const mainPart = (parts[0] || '').trim();
+                    const cleanAll = s.replace(/[^a-z0-9]/g, '');
+                    const cleanMain = mainPart.replace(/[^a-z0-9]/g, '');
+                    const words = (s.match(/[a-z0-9]+/g) || []).filter(w => w.length > 1);
+                    const mainWords = (mainPart.match(/[a-z0-9]+/g) || []).filter(w => w.length > 1);
+                    return { all: cleanAll, main: cleanMain, words, mainWords };
+                };
+
                 const rawGame = (gameTitle || window._payGame || '').toString();
-                const strippedGame = rawGame.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*$/gi, '').trim();
-                const cleanGame = clean(strippedGame);
+                const qNorm = normGame(rawGame);
 
                 const ALIASES = {
                     'heyday': 'hayday',
                     'hayday': 'heyday',
                     'mobilelegus': 'mobilelegends',
-                    'pokemonmasters': 'pokmonmastersex',
-                    'pokemontcg': 'pokmontcgpocket',
-                    'farmheroes': 'farmheroessaga',
+                    'pokemonmasters': 'pokemonmastersex',
+                    'pokemontcg': 'pokemontcgpocket',
                     'warmachines': 'warmachinestanksbattlegame',
-                    'yallaludo': 'yallaludoludojackaroo',
                     'lordsmobile': 'lordsmobilekingdomwars',
                     'dominodreams': 'dominodreams',
                     'dicedreams': 'dicedreams'
                 };
-                const aliasGame = ALIASES[cleanGame] || cleanGame;
+                const aliasKey = ALIASES[qNorm.main] || ALIASES[qNorm.all] || '';
 
                 let matched = null;
-                // ১. হুবহু টাইটেল, আইডি বা প্যাকেজ ম্যাচ
-                for (const s of services) {
-                    const cs = clean(s.title);
-                    const cp = clean(s.package);
-                    const ci = clean(s.game_id || s.id);
 
-                    if (ci === cleanGame || cp === cleanGame || cs === cleanGame || cs === aliasGame) {
+                // ধাপ ১: হুবহু আইডি, প্যাকেজ বা ফুল টাইটেল ম্যাচ
+                for (const s of services) {
+                    const sId = (s.game_id || s.id || '').toString().toLowerCase().trim();
+                    const sPkg = (s.package || '').toString().toLowerCase().trim();
+                    const sNorm = normGame(s.title);
+
+                    if (sId === qNorm.all || sPkg === qNorm.all || sNorm.all === qNorm.all || sNorm.main === qNorm.main || (aliasKey && sNorm.all === aliasKey)) {
                         matched = s;
                         break;
                     }
                 }
-                // ২. সাবস্ট্রিং বা আংশিক ম্যাচ (Dice Dreams, Lords Mobile, War Machines ইত্যাদি)
-                if (!matched && cleanGame.length >= 3) {
+
+                // ধাপ ২: মেইন টাইটেল ম্যাচ (যেমন War Machines, Lords Mobile, Best Fiends, Gossip Harbor)
+                if (!matched && qNorm.main.length >= 3) {
                     for (const s of services) {
-                        const cs = clean(s.title);
-                        if (cs && (cs.includes(cleanGame) || cleanGame.includes(cs) || (aliasGame && cs.includes(aliasGame)))) {
+                        const sNorm = normGame(s.title);
+                        if (sNorm.main === qNorm.main || sNorm.all === qNorm.main || qNorm.all === sNorm.main) {
+                            matched = s;
+                            break;
+                        }
+                    }
+                }
+
+                // ধাপ ৩: সাবস্ট্রিং কনটেইনমেন্ট (Query inside Title or Title inside Query)
+                if (!matched && qNorm.main.length >= 4) {
+                    for (const s of services) {
+                        const sNorm = normGame(s.title);
+                        if (sNorm.all.includes(qNorm.main) || qNorm.all.includes(sNorm.main)) {
+                            matched = s;
+                            break;
+                        }
+                    }
+                }
+
+                // ধাপ ৪: টোকেন ওয়ার্ড সাবসেট ম্যাচ (যেমন কোয়েরির সব শব্দ টাইটেলে আছে কি না)
+                if (!matched && qNorm.mainWords.length > 0) {
+                    for (const s of services) {
+                        const sNorm = normGame(s.title);
+                        const allPresent = qNorm.mainWords.every(w => sNorm.words.includes(w));
+                        if (allPresent) {
+                            matched = s;
+                            break;
+                        }
+                    }
+                }
+
+                // ধাপ ৫: ফাজি সিমিলেটি রেশিও (যেমন ছোটখাটো টাইপো হলেও নির্ভুল ধরা)
+                if (!matched && qNorm.main.length >= 4) {
+                    const simRatio = (s1, s2) => {
+                        if (!s1 || !s2) return 0;
+                        let longer = s1.length >= s2.length ? s1 : s2;
+                        let shorter = s1.length < s2.length ? s1 : s2;
+                        if (longer.length === 0) return 1.0;
+                        let matchCount = 0;
+                        for (let ch of shorter) {
+                            if (longer.includes(ch)) matchCount++;
+                        }
+                        return matchCount / longer.length;
+                    };
+                    for (const s of services) {
+                        const sNorm = normGame(s.title);
+                        if (simRatio(qNorm.main, sNorm.main) >= 0.80) {
                             matched = s;
                             break;
                         }
@@ -10633,6 +10689,25 @@
                         });
                     } catch (cfErr) {
                         console.warn('CF order update error:', cfErr);
+                    }
+
+                    // ⭐ Loyalty Star +1 বৃদ্ধি (Cloudflare D1 + Firebase + UI - Instant Reward)
+                    try {
+                        if (!window.ppfb) window.ppfb = {};
+                        window.ppfb.loyaltyStars = Math.min(10, (Number(window.ppfb.loyaltyStars) || 0) + 1);
+                        if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
+                        await fetch(`${CF_API}/api/wallet/credit`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid: webUid, loyaltyStarsInc: 1 })
+                        }).catch(e => console.warn('Credit star err:', e));
+                        if (window.FB && window.FB.db) {
+                            window.FB.updateDoc(window.FB.doc(window.FB.db, 'users', webUid), {
+                                loyaltyStars: window.ppfb.loyaltyStars
+                            }).catch(() => {});
+                        }
+                    } catch (starErr) {
+                        console.warn('Loyalty star increment err:', starErr);
                     }
 
                     if (window.FB && window.FB.db) {

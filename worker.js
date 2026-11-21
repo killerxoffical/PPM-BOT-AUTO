@@ -265,35 +265,9 @@ app.post("/api/gateway/toggle-auto", async (req, res) => {
     }
 });
 
-// ---------------- CREATE RESELLER ACCOUNT API ----------------
+// ---------------- CREATE RESELLER ACCOUNT API (DEPRECATED & DISABLED) ----------------
 app.post("/api/admin/create-reseller", async (req, res) => {
-    const { email, password, name } = req.body;
-    if (!email || !password || password.length < 6) {
-        return res.status(400).json({ ok: false, error: "সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন" });
-    }
-    try {
-        const userRecord = await admin.auth().createUser({
-            email: email.trim().toLowerCase(),
-            password: password.trim(),
-            displayName: (name || "PP Reseller").trim()
-        });
-
-        await db.collection("users").doc(userRecord.uid).set({
-            uid: userRecord.uid,
-            name: (name || "PP Reseller").trim(),
-            email: email.trim().toLowerCase(),
-            isReseller: true,
-            role: "reseller",
-            balance: 0,
-            playPoints: 0,
-            pendingPoints: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        return res.json({ ok: true, message: "রিসেলার একাউন্ট সফলভাবে তৈরি হয়েছে!", uid: userRecord.uid });
-    } catch (err) {
-        return res.status(500).json({ ok: false, error: err.message || "রিসেলার তৈরি ব্যর্থ হয়েছে" });
-    }
+    return res.status(403).json({ ok: false, error: "Reseller creation has been permanently disabled." });
 });
 
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
@@ -3057,10 +3031,16 @@ userNotifyBot.on("message", async (msg) => {
 
         let searchUid = null;
         if (isFromAdmin) {
-            if (!text.startsWith("/") && text.length >= 10 && !text.includes(" ") && !text.includes("\n")) {
-                searchUid = text;
-            } else if (text.startsWith("/user ")) {
-                searchUid = text.replace("/user ", "").trim();
+            const rawCmd = (text || "").trim();
+            if (rawCmd === "/find" || rawCmd === "/user" || rawCmd === "/search") {
+                return await userNotifyBot.sendMessage(msg.chat.id,
+                    `🔍 <b>ইউজার সার্চ গাইড:</b>\n\nইউজারের <b>UID</b>, <b>ইমেইল</b>, বা <b>ফোন নম্বর</b> লিখে সার্চ করুন।\n\n💡 <i>কমান্ড ফরম্যাট:</i>\n• <code>/find user@gmail.com</code>\n• <code>/find 6gIkjLQ0b2W3...</code>\n• <code>/find 01700000000</code>\n\nঅথবা সরাসরি শুধু UID বা ইমেইল মেসেজ হিসেবে পাঠালেও ইউজার ডিটেইলস চলে আসবে।`,
+                    { parse_mode: "HTML" }
+                );
+            } else if (/^\/(find|user|search)\s+/i.test(rawCmd)) {
+                searchUid = rawCmd.replace(/^\/(find|user|search)\s+/i, "").trim();
+            } else if (!rawCmd.startsWith("/") && (rawCmd.includes("@") || rawCmd.length >= 8) && !rawCmd.includes(" ") && !rawCmd.includes("\n")) {
+                searchUid = rawCmd;
             }
         }
 
@@ -3078,39 +3058,83 @@ userNotifyBot.on("message", async (msg) => {
                     }
                 } catch (e) {}
 
-                // ১. সবার আগে Cloudflare D1 এ ইউজার সার্চ
-                const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
-                const cfData = await cfRes.json();
+                // ১. সবার আগে Cloudflare D1 এ দ্রুততম ইউজার সার্চ (UID, Email, Phone)
+                let foundUser = null;
+                try {
+                    const cfRes = await cfFetch(`${CF_API}/api/user/find?q=${encodeURIComponent(searchUid)}`);
+                    const cfData = await cfRes.json();
+                    if (cfData && cfData.ok && cfData.user) {
+                        foundUser = cfData.user;
+                    }
+                } catch (cfErr) {
+                    console.warn("[CF User Search Warn]:", cfErr);
+                }
 
-                if (cfData && cfData.ok && cfData.user) {
-                    const u = cfData.user;
-                    if (!userPhone && u.tgChatId) {
-                        const tDoc = await db.collection("tg_bot_users").doc(u.tgChatId.toString()).get().catch(() => null);
+                if (foundUser) {
+                    if (!userPhone && foundUser.tgChatId) {
+                        const tDoc = await db.collection("tg_bot_users").doc(foundUser.tgChatId.toString()).get().catch(() => null);
                         if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
                     }
-                    const card = buildUserAdminCard(u.uid, u, userPhone);
+                    const card = buildUserAdminCard(foundUser.uid, foundUser, userPhone);
                     return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
                         parse_mode: "HTML", 
                         reply_markup: card.reply_markup 
                     });
                 }
 
-                // ২. ক্লাউডফ্লেয়ারে না পেলে ফায়ারস্টোর ফলব্যাক
-                const uDoc = await db.collection("users").doc(searchUid).get();
-                if (uDoc.exists) {
-                    const uData = uDoc.data();
+                // ২. ক্লাউডফ্লেয়ারে সরাসরি না পেলে ফায়ারস্টোর মাল্টি-ফিল্ড ফলব্যাক (UID, Email, Phone)
+                let uData = null;
+                let finalUid = searchUid;
+
+                // ২ক. সরাসরি UID ডকুমেন্ট হিসেবে চেক
+                try {
+                    const uDoc = await db.collection("users").doc(searchUid).get();
+                    if (uDoc.exists) {
+                        uData = uDoc.data();
+                        finalUid = uDoc.id;
+                    }
+                } catch (e) {}
+
+                // ২খ. ইমেইল দিয়ে ফায়ারস্টোরে কোয়েরি
+                if (!uData && searchUid.includes("@")) {
+                    try {
+                        const emailSnap = await db.collection("users").where("email", "==", searchUid.toLowerCase().trim()).limit(1).get();
+                        if (!emailSnap.empty) {
+                            uData = emailSnap.docs[0].data();
+                            finalUid = emailSnap.docs[0].id;
+                        }
+                    } catch (e) {}
+                }
+
+                // ২গ. ফোন নম্বর বা টেলিগ্রাম আইডি দিয়ে সার্চ
+                if (!uData && /^[0-9+]+$/.test(searchUid)) {
+                    try {
+                        const phoneSnap = await db.collection("tg_bot_users").where("phone", "==", searchUid.trim()).limit(1).get();
+                        if (!phoneSnap.empty) {
+                            const pData = phoneSnap.docs[0].data();
+                            userPhone = pData.phone || "";
+                            if (pData.websiteUid) {
+                                finalUid = pData.websiteUid;
+                                const docSnap = await db.collection("users").doc(finalUid).get();
+                                if (docSnap.exists) uData = docSnap.data();
+                            }
+                        }
+                    } catch (e) {}
+                }
+
+                if (uData) {
                     if (!userPhone && uData.tgChatId) {
                         const tDoc = await db.collection("tg_bot_users").doc(uData.tgChatId.toString()).get().catch(() => null);
                         if (tDoc && tDoc.exists) userPhone = tDoc.data().phone || "";
                     }
-                    const card = buildUserAdminCard(searchUid, uData, userPhone);
+                    const card = buildUserAdminCard(finalUid, uData, userPhone);
                     return await userNotifyBot.sendMessage(msg.chat.id, card.text, { 
                         parse_mode: "HTML", 
                         reply_markup: card.reply_markup 
                     });
                 } else {
                     return await userNotifyBot.sendMessage(msg.chat.id, 
-                        `❌ <code>${searchUid}</code> এই ইমেইল বা UID দিয়ে কোনো ইউজার পাওয়া যায়নি!`, 
+                        `❌ <code>${searchUid}</code> এই UID, ইমেইল বা ফোন নম্বর দিয়ে কোনো ইউজার পাওয়া যায়নি!\n\n💡 নিশ্চিত হয়ে আবার লিখুন: <code>/find user@gmail.com</code>`, 
                         { parse_mode: "HTML" }
                     );
                 }

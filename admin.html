@@ -1433,9 +1433,9 @@
             <div class="login-header p-8 pb-6 text-center">
                 <div
                     class="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg mb-4 bg-white border border-slate-200 overflow-hidden">
-                    <img src="https://i.logos-download.com/101056/33083-s2560-a061b8868652552e6d7a5ad796ea5ac9.png/Google_Play_Points_Logo_2019-s2560.png"
+                    <img src="brand_logo.png"
                         alt="PP" class="w-full h-full object-contain"
-                        onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
+                        onerror="this.onerror=null;this.src='pp_logo.png'">
                 </div>
                 <h2 class="text-slate-900 text-2xl font-extrabold tracking-tight">Admin Executive</h2>
                 <p class="text-[12px] text-indigo-600 font-semibold mt-1">PP MOD &middot; Full Business Suite</p>
@@ -1480,9 +1480,9 @@
                 <div class="flex items-center gap-3">
                     <div
                         class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-slate-200 overflow-hidden">
-                        <img src="https://i.logos-download.com/101056/33083-s2560-a061b8868652552e6d7a5ad796ea5ac9.png/Google_Play_Points_Logo_2019-s2560.png"
+                        <img src="brand_logo.png"
                             alt="PP" class="w-full h-full object-contain"
-                            onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
+                            onerror="this.onerror=null;this.src='pp_logo.png'">
                     </div>
                     <div>
                         <p class="text-sm font-extrabold text-slate-900 leading-tight">PP MOD</p>
@@ -2069,18 +2069,7 @@
 
                 <!-- ===== 8. USERS ===== -->
                 <div id="scrUsr" class="ascreen hidden space-y-4">
-                    <!-- Create Reseller Account Box -->
-                    <div class="glass p-4 sm:p-6 border-2 border-amber-200 bg-amber-50/20 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs shadow-xs">👑</span>
-                                <div>
-                                    <h3 class="text-sm font-black text-slate-900">Create Reseller Account</h3>
-                                    <p class="text-[11px] text-slate-500 font-semibold">রিসেলাররা কয়েন প্রতি ১ টাকা কমে
-                                        পাবে এবং শুধু Quest, Store ও Card Gen এক্সেস পাবে।</p>
-                                </div>
-                            </div>
+                    <!-- Reseller Creation Removed -->
                             <span
                                 class="text-[10px] font-black px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full">Reseller
                                 Portal</span>
@@ -4973,12 +4962,12 @@
                 }
             });
 
-            // Cloudflare D1-এর পেন্ডিং ডিপোজিট ও পেন্ডিং অর্ডার রিয়েল সিঙ্ক (Zero Firebase Quota)
+            // Cloudflare D1-এর সম্পূর্ণ ডিপোজিট ও অর্ডার রিয়েল সিঙ্ক (Zero Firebase Quota & Real D1 Authority)
             async function fetchCloudflarePendingData() {
                 try {
                     const [depRes, ordRes] = await Promise.all([
-                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/deposits/pending?_t=" + Date.now()).then(r => r.json()).catch(() => null),
-                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/orders/pending?_t=" + Date.now()).then(r => r.json()).catch(() => null)
+                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/deposits?_t=" + Date.now()).then(r => r.json()).catch(() => null),
+                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?_t=" + Date.now()).then(r => r.json()).catch(() => null)
                     ]);
                     if (depRes && depRes.ok && Array.isArray(depRes.deposits)) {
                         S._cfDeposits = depRes.deposits.map(d => ({
@@ -4991,7 +4980,8 @@
                             coins: Number(d.coins) || 0,
                             trxId: d.trxId || '',
                             status: d.status || 'pending',
-                            createdAt: d.createdAt ? new Date(d.createdAt) : new Date()
+                            adminMsg: d.adminMsg || '',
+                            createdAt: d.createdAt ? new Date(Number(d.createdAt) || d.createdAt) : new Date()
                         }));
                         syncMergedDeposits();
                         if (CURRENT === 'scrDep' && typeof renderDeposits === 'function') renderDeposits();
@@ -5011,7 +5001,7 @@
                             adminMsg: o.adminMsg || '',
                             gamerName: o.gamerName || '',
                             userTgId: o.userTgId || '',
-                            createdAt: o.createdAt ? new Date(o.createdAt) : new Date()
+                            createdAt: o.createdAt ? new Date(Number(o.createdAt) || o.createdAt) : new Date()
                         }));
                         syncMergedOrders();
                         if (CURRENT === 'scrOrd' && typeof renderOrders === 'function') renderOrders();
@@ -5082,7 +5072,9 @@
                             if (d.completedOrders !== undefined) set('statCompOrd', d.completedOrders);
                             if (d.totalRevenue !== undefined) set('statRev', coins(d.totalRevenue));
                             if (d.totalApprovedDeposit !== undefined) set('statTotalDep', money(d.totalApprovedDeposit));
-                            [['depCount', d.pendingDeposits || 0], ['ordCount', d.pendingOrders || 0]].forEach(p => {
+                            const realPDep = (S.deposits || []).filter(x => x.status === 'pending').length;
+                            const realPOrd = (S.orders || []).filter(x => x.status === 'pending' || x.status === 'paid').length;
+                            [['depCount', realPDep], ['ordCount', realPOrd]].forEach(p => {
                                 document.querySelectorAll('.' + p[0]).forEach(el => { el.textContent = p[1]; el.style.display = p[1] > 0 ? '' : 'none'; });
                             });
                         }
@@ -6306,9 +6298,17 @@
             const box = document.getElementById('flt_' + screenId);
             if (!box) return;
             const cur = S.f[screenId];
-            box.innerHTML = FILTERS[screenId].map(o =>
-                '<button class="fl' + (o[0] === cur ? ' on' : '') + '" onclick="setFilter(\'' + screenId + '\',\'' + o[0] + '\')">' + o[1] + '</button>'
-            ).join('');
+            box.innerHTML = (FILTERS[screenId] || []).map(o => {
+                let badge = '';
+                if (screenId === 'scrDep') {
+                    const count = o[0] === 'all' ? (S.deposits || []).length : (S.deposits || []).filter(d => d.status === o[0]).length;
+                    badge = ' <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ' + (o[0] === cur ? 'bg-white/30 text-white' : 'bg-slate-200 text-slate-700') + '">' + count + '</span>';
+                } else if (screenId === 'scrOrd') {
+                    const count = o[0] === 'all' ? (S.orders || []).length : (S.orders || []).filter(d => d.status === o[0]).length;
+                    badge = ' <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ' + (o[0] === cur ? 'bg-white/30 text-white' : 'bg-slate-200 text-slate-700') + '">' + count + '</span>';
+                }
+                return '<button class="fl' + (o[0] === cur ? ' on' : '') + '" onclick="setFilter(\'' + screenId + '\',\'' + o[0] + '\')">' + o[1] + badge + '</button>';
+            }).join('');
         }
         window.setFilter = (screenId, v) => { S.f[screenId] = v; renderAdminScreen(screenId); };
 
@@ -7590,40 +7590,7 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        window.submitCreateReseller = async (btn) => {
-            const name = (document.getElementById('resellerName').value || '').trim();
-            const email = (document.getElementById('resellerEmail').value || '').trim();
-            const pass = (document.getElementById('resellerPass').value || '').trim();
-
-            if (!email || !pass || pass.length < 6) {
-                toast('সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন');
-                return;
-            }
-
-            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pay-spinner"></span> Creating...'; }
-            try {
-                const res = await fetch("https://ppm-bot-auto.onrender.com/api/admin/create-reseller", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password: pass, name })
-                });
-                const data = await res.json();
-                if (data.ok) {
-                    toast('🎉 রিসেলার একাউন্ট তৈরি সফল হয়েছে!');
-                    document.getElementById('resellerName').value = '';
-                    document.getElementById('resellerEmail').value = '';
-                    document.getElementById('resellerPass').value = '';
-                    logIt('create_reseller', email);
-                    loadAll();
-                } else {
-                    toast('ব্যর্থ: ' + (data.error || 'Error'));
-                }
-            } catch (e) {
-                toast('সার্ভার এরর: ' + e.message);
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="user-plus" class="w-4 h-4"></i> Create Reseller Account'; if (window.lucide) lucide.createIcons(); }
-            }
-        };
+        /* Reseller creation disabled */
 
         /* ---------- 8. USERS (CLOUDFLARE D1 PAGINATED - 20 PER PAGE) ---------- */
         let _usrOffset = 0;
