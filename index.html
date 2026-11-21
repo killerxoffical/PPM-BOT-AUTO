@@ -7674,34 +7674,27 @@
         }
         window.maskEmail = maskEmail;
 
-        function getRefundedOrdersSet() {
-            try {
-                const raw = localStorage.getItem('pp_refunded_orders_v1') || '[]';
-                const arr = JSON.parse(raw);
-                return new Set(Array.isArray(arr) ? arr : []);
-            } catch(e) {
-                return new Set();
-            }
-        }
-        window.getRefundedOrdersSet = getRefundedOrdersSet;
-
         function markOrderAsRefunded(orderId) {
             if (!orderId) return;
             window._refundedOrdersMap = window._refundedOrdersMap || {};
             window._refundedOrdersMap[orderId] = true;
-            try {
-                const set = getRefundedOrdersSet();
-                set.add(orderId);
-                localStorage.setItem('pp_refunded_orders_v1', JSON.stringify(Array.from(set).slice(-300)));
-            } catch(e) {}
+            if (window._histItems && window._histItems[orderId]) {
+                window._histItems[orderId].status = 'refunded';
+            }
+            if (window._histItemsArr) {
+                const item = window._histItemsArr.find(x => x.id === orderId);
+                if (item) item.status = 'refunded';
+            }
+            if (typeof rebuildHist === 'function') rebuildHist();
         }
         window.markOrderAsRefunded = markOrderAsRefunded;
 
         function isOrderRefunded(orderId) {
             if (!orderId) return false;
             if (window._refundedOrdersMap && window._refundedOrdersMap[orderId]) return true;
-            const set = getRefundedOrdersSet();
-            return set.has(orderId);
+            const it = (window._histItems && window._histItems[orderId]) || null;
+            if (it && (it.status === 'refunded' || it.status === 'completed')) return true;
+            return false;
         }
         window.isOrderRefunded = isOrderRefunded;
 
@@ -17097,18 +17090,15 @@
                 safeFetch('orders', 20)
             ]);
 
-            // Cloudflare D1 ও Firestore এর অর্ডার মার্জ (রিফান্ডেড বা কমপ্লিটেড স্ট্যাটাস সর্বদা পেন্ডিংয়ের ওপর প্রাধান্য পাবে)
+            // Cloudflare D1 ও Firestore এর অর্ডার মার্জ (Cloudflare D1 বা Firestore যেখানেই রিফান্ড হোক, সেই ডাটাবেজ স্ট্যাটাস লক থাকবে)
             const orderMap = new Map();
-            const refOrdersSet = (typeof getRefundedOrdersSet === 'function') ? getRefundedOrdersSet() : new Set();
 
             cfHistory.filter(x => x.kind === 'TASK').forEach(cfo => {
-                const isCfoRef = (cfo.status === 'refunded') || refOrdersSet.has(cfo.id) || (window._refundedOrdersMap && window._refundedOrdersMap[cfo.id]);
-                if (isCfoRef) cfo.status = 'refunded';
                 orderMap.set(cfo.id, cfo);
             });
             (fbOrders || []).forEach(fbo => {
                 const existing = orderMap.get(fbo.id) || {};
-                const isRef = (existing.status === 'refunded') || (fbo.status === 'refunded') || refOrdersSet.has(fbo.id) || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]);
+                const isRef = (existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]);
                 const isComp = (existing.status === 'completed') || (fbo.status === 'completed');
                 const finalStatus = isRef ? 'refunded' : (isComp ? 'completed' : (fbo.status || existing.status || 'pending'));
 
