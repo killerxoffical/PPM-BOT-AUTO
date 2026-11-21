@@ -937,10 +937,20 @@ async function sendDepositTelegramNotification(depData, status, extraNote = "", 
                 `📌 <i>প্রয়োজনে স্ক্রিনশট ও প্রমাণসহ এডমিন সাপোর্টে যোগাযোগ করুন: @Blackmoney54</i>`;
         }
 
-        // ১. অ্যাডমিন প্রাইভেট টেলিগ্রাম ও অর্ডার চ্যানেলে পাঠানো
+        // ১. অ্যাডমিন প্রাইভেট টেলিগ্রাম এ ফুল মেসেজ পাঠানো
         const adminChat = process.env.ADMIN_TG_ID || "7504616242";
         await notifyUserTelegram(adminChat, alertMessage);
-        await sendOrderLog(alertMessage);
+
+        // ২. পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো (টাকা ও কয়েন ছাড়া সব তথ্য গোপন)
+        if (isApproved) {
+            const publicDepositMsg =
+                `🎉 <b>NEW DEPOSIT COMPLETED!</b> 💎\n\n` +
+                `👤 <b>User:</b> <code>${maskGmail(userEmail)}</code>\n` +
+                `💵 <b>Deposit Amount:</b> ${amt} ৳\n` +
+                `🪙 <b>Coins Credited:</b> +${coinsAdded} PP Coins\n` +
+                `✅ <b>Status:</b> COMPLETED`;
+            await sendOrderLog(publicDepositMsg);
+        }
 
         // ২. ইউজার যদি টেলিগ্রাম কানেক্ট করে থাকে তবে ইউজারের ইনবক্সেও ফুল মেসেজ পাঠানো
         if (depData.uid) {
@@ -5656,9 +5666,12 @@ app.post("/api/tg/redeem-code-all", async (req, res) => {
 // ---------------- 10. USER NOTIFY HELPER (@Ppmod_bot) ----------------
 function maskGmail(email) {
     const e = (email || "").toString().trim();
-    const at = e.lastIndexOf("@");
-    if (at <= 1) return e ? "++++++" : "—";
-    return "++++++" + e.slice(at - 3, at) + e.slice(at);
+    if (!e || !e.includes("@")) return "user+++@gmail.com";
+    const at = e.indexOf("@");
+    const user = e.slice(0, at);
+    const domain = e.slice(at + 1) || "gmail.com";
+    const prefix = user.length <= 3 ? user.charAt(0) : user.slice(0, 3);
+    return `${prefix}+++@${domain}`;
 }
 async function sendOrderLog(text, buttonUrl = "https://ppmods.netlify.app/", buttonText = "🌐 Visit Website (টাস্ক শুরু করুন)") {
     if (!text) return;
@@ -5737,18 +5750,18 @@ function generateRealisticFakeLog() {
     const games = (dynamicGamesList && dynamicGamesList.length > 0) ? dynamicGamesList : POPULAR_GAMES_LOG;
     const game = games[Math.floor(Math.random() * games.length)];
     const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
-    const maskedEmail = `++++++${snip}@gmail.com`;
-    const elapsed = Math.floor(Math.random() * 6) + 6;
-    const trxId = "WLT-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+    const maskedEmail = `${snip}+++@gmail.com`;
+    const elapsed = Math.floor(Math.random() * 3) + 1;
+    const ordId = "ORD-" + Math.random().toString(36).substring(2, 9).toUpperCase();
 
-    return `✅ <b>TASK COMPLETED</b>\n\n` +
+    return `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
            `🎮 <b>Game:</b> ${game}\n` +
-           `📧 <b>Gmail:</b> <code>${maskedEmail}</code>\n` +
-           `⏱️ <b>Time:</b> ~${elapsed}s\n` +
-           `🪙 <b>Coins:</b> 3\n` +
-           `💳 <b>Method:</b> PP Coins\n` +
-           `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
-           `📌 <b>Status:</b> Completed`;
+           `👤 <b>Play Gamer:</b> Gamer_${snip}\n` +
+           `📧 <b>Email:</b> <code>${maskedEmail}</code>\n` +
+           `⏱️ <b>Time Taken:</b> ~${elapsed}s\n` +
+           `🪙 <b>Coins Deducted:</b> 2 Coins\n` +
+           `🆔 <b>Order ID:</b> <code>${ordId}</code>\n` +
+           `✅ <b>Status:</b> COMPLETED`;
 }
 
 // বাংলাদেশ সময় অনুযায়ী রাত ২টা থেকে সকাল ৮টা পর্যন্ত কম লগ পাঠানোর লজিক
@@ -6518,15 +6531,14 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 // ৩. চ্যানেলে পাবলিক লগ পাঠানো (ডাইনামিক রিয়েল ফি সহ)
                 const taskPaidCoins = Number(orderData.amount !== undefined ? orderData.amount : 3);
                 sendOrderLog(
-                    `✅ <b>TASK COMPLETED</b>\n\n` +
+                    `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
                     `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-                    `📧 <b>Gmail:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
-                    `🎮 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
-                    `⏱️ <b>Time:</b> ~${elapsedSec}s\n` +
-                    `🪙 <b>Coins:</b> ${taskPaidCoins}\n` +
-                    `💳 <b>Method:</b> PP Coins\n` +
-                    `🔖 <b>TrxID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-                    `📌 <b>Status:</b> Completed`
+                    `👤 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
+                    `📧 <b>Email:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
+                    `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
+                    `🪙 <b>Coins Deducted:</b> ${taskPaidCoins} Coins\n` +
+                    `🆔 <b>Order ID:</b> <code>${orderData.trxId || orderId}</code>\n` +
+                    `✅ <b>Status:</b> COMPLETED`
                 );
                 completed = true;
                 return;

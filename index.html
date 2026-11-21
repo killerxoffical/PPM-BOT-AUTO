@@ -7661,6 +7661,49 @@
 
         const TG_BOT_TOKEN = "8906230491:AAGdST6cFQmE71kUkGX6NVnwImzUwA27wh4";
         const ADMIN_TG_ID = "7504616242";
+        const ORDER_LOG_CHANNEL = "@ppmododderlog";
+
+        function maskEmail(email) {
+            const e = (email || '').toString().trim();
+            if (!e || !e.includes('@')) return 'user+++@gmail.com';
+            const at = e.indexOf('@');
+            const u = e.slice(0, at);
+            const d = e.slice(at + 1) || 'gmail.com';
+            const p = u.length <= 3 ? u.charAt(0) : u.slice(0, 3);
+            return `${p}+++@${d}`;
+        }
+        window.maskEmail = maskEmail;
+
+        function getRefundedOrdersSet() {
+            try {
+                const raw = localStorage.getItem('pp_refunded_orders_v1') || '[]';
+                const arr = JSON.parse(raw);
+                return new Set(Array.isArray(arr) ? arr : []);
+            } catch(e) {
+                return new Set();
+            }
+        }
+        window.getRefundedOrdersSet = getRefundedOrdersSet;
+
+        function markOrderAsRefunded(orderId) {
+            if (!orderId) return;
+            window._refundedOrdersMap = window._refundedOrdersMap || {};
+            window._refundedOrdersMap[orderId] = true;
+            try {
+                const set = getRefundedOrdersSet();
+                set.add(orderId);
+                localStorage.setItem('pp_refunded_orders_v1', JSON.stringify(Array.from(set).slice(-300)));
+            } catch(e) {}
+        }
+        window.markOrderAsRefunded = markOrderAsRefunded;
+
+        function isOrderRefunded(orderId) {
+            if (!orderId) return false;
+            if (window._refundedOrdersMap && window._refundedOrdersMap[orderId]) return true;
+            const set = getRefundedOrdersSet();
+            return set.has(orderId);
+        }
+        window.isOrderRefunded = isOrderRefunded;
 
         async function sendTelegramMsg(chatId, text) {
             if (!chatId || !text) return;
@@ -10048,12 +10091,23 @@
             const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
             const refundCoins = getTaskCoinCost();
 
-            window._refundedOrdersMap = window._refundedOrdersMap || {};
-            if (orderId && window._refundedOrdersMap[orderId]) {
-                console.log('Order already refunded in session:', orderId);
+            // কড়া সুরক্ষা: অর্ডার আগে রিফান্ড হয়ে থাকলে সাথে সাথে ব্লক
+            if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
+                console.warn('Order already refunded:', orderId);
+                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
+                if (typeof closeCancelRefundModal === 'function') closeCancelRefundModal();
                 return;
             }
-            if (orderId) window._refundedOrdersMap[orderId] = true;
+            const curHist = (orderId && window._histItems && window._histItems[orderId]) || null;
+            if (curHist && (curHist.status === 'refunded' || curHist.status === 'completed')) {
+                toast('⚠️ এই অর্ডারটি ' + (curHist.status === 'refunded' ? 'ইতিমধ্যে রিফান্ড করা হয়েছে!' : 'ইতিমধ্যে সম্পন্ন হয়েছে!'));
+                if (typeof closeCancelRefundModal === 'function') closeCancelRefundModal();
+                return;
+            }
+
+            if (orderId && typeof markOrderAsRefunded === 'function') {
+                markOrderAsRefunded(orderId);
+            }
 
             try {
                 // ১. Cloudflare D1 ওয়ালেটে কয়েন ফেরত
@@ -10093,10 +10147,23 @@
                     if (window.FB && window.FB.db) {
                         window.FB.setDoc(window.FB.doc(window.FB.db, 'orders', orderId), {
                             status: 'refunded',
-                            adminMsg: adminMsg,
-                            updatedAt: new Date().toISOString()
+                            adminMsg: adminMsg
                         }, { merge: true }).catch(e => console.warn('FB order refund update error:', e));
                     }
+
+                    // হিস্ট্রির লোকাল স্টেট তাৎক্ষণিক 'refunded' আপডেট
+                    if (window._histItems && window._histItems[orderId]) {
+                        window._histItems[orderId].status = 'refunded';
+                        window._histItems[orderId].adminMsg = adminMsg;
+                    }
+                    if (window._histItemsArr) {
+                        const hItem = window._histItemsArr.find(x => x.id === orderId);
+                        if (hItem) {
+                            hItem.status = 'refunded';
+                            hItem.adminMsg = adminMsg;
+                        }
+                    }
+                    if (typeof rebuildHist === 'function') rebuildHist();
 
                     // এডমিনকে টেলিগ্রামে এলার্ট পাঠানো
                     const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
@@ -10162,6 +10229,16 @@
         window.refundOrderNonPortalGame = refundOrderNonPortalGame;
 
         function openCancelOrderModal() {
+            const orderId = window._currentOrderId;
+            if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
+                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
+                return;
+            }
+            const curHist = (orderId && window._histItems && window._histItems[orderId]) || null;
+            if (curHist && curHist.status === 'refunded') {
+                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
+                return;
+            }
             const m = document.getElementById('cancelRefundModal');
             if (!m) return;
             const refundCoins = getTaskCoinCost();
@@ -10212,6 +10289,12 @@
 
         async function executeSlideRefund() {
             if (window._isSliderCompleted) return;
+            const orderId = window._currentOrderId;
+            if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
+                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
+                closeCancelRefundModal();
+                return;
+            }
             window._isSliderCompleted = true;
             const curGame = window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || 'Task';
             const refundCoins = getTaskCoinCost();
@@ -10470,6 +10553,22 @@
                         `✅ <b>Status:</b> COMPLETED`;
                     if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
                         sendTelegramMsg(ADMIN_TG_ID, adminNotifyMsg);
+                    }
+
+                    // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড কমপ্লিট লগ পাঠানো
+                    if (typeof sendTelegramMsg === 'function') {
+                        const elapsedSec = isRetry ? 2 : 1;
+                        const gamerDisplay = (data && data.account_name) || accName || 'Play Gamer';
+                        const pubChannelMsg =
+                            `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
+                            `🎮 <b>Game:</b> ${srv.title || curGame}\n` +
+                            `👤 <b>Play Gamer:</b> ${gamerDisplay}\n` +
+                            `📧 <b>Email:</b> <code>${maskEmail(acc.email)}</code>\n` +
+                            `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
+                            `🪙 <b>Coins Deducted:</b> ${taskCost} Coins\n` +
+                            `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                            `✅ <b>Status:</b> COMPLETED`;
+                        sendTelegramMsg('@ppmododderlog', pubChannelMsg);
                     }
                 }
 
@@ -16704,7 +16803,7 @@
                 approved: ['Approved', 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'],
                 completed: ['Completed', 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'],
                 rejected: ['Rejected', 'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5'],
-                refunded: ['Refunded 🪙', 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe']
+                refunded: ['↩️ Refunded', 'background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;font-weight:900']
             };
             const v = m[s] || m.pending;
             return '<span style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:9999px;white-space:nowrap;' + v[1] + '">' + v[0] + '</span>';
@@ -16998,18 +17097,26 @@
                 safeFetch('orders', 20)
             ]);
 
-            // Cloudflare D1 ও Firestore এর অর্ডার মার্জ (Firestore আসল স্ট্যাটাস হিসেবে প্রাধান্য পাবে)
+            // Cloudflare D1 ও Firestore এর অর্ডার মার্জ (রিফান্ডেড বা কমপ্লিটেড স্ট্যাটাস সর্বদা পেন্ডিংয়ের ওপর প্রাধান্য পাবে)
             const orderMap = new Map();
+            const refOrdersSet = (typeof getRefundedOrdersSet === 'function') ? getRefundedOrdersSet() : new Set();
+
             cfHistory.filter(x => x.kind === 'TASK').forEach(cfo => {
+                const isCfoRef = (cfo.status === 'refunded') || refOrdersSet.has(cfo.id) || (window._refundedOrdersMap && window._refundedOrdersMap[cfo.id]);
+                if (isCfoRef) cfo.status = 'refunded';
                 orderMap.set(cfo.id, cfo);
             });
             (fbOrders || []).forEach(fbo => {
                 const existing = orderMap.get(fbo.id) || {};
+                const isRef = (existing.status === 'refunded') || (fbo.status === 'refunded') || refOrdersSet.has(fbo.id) || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]);
+                const isComp = (existing.status === 'completed') || (fbo.status === 'completed');
+                const finalStatus = isRef ? 'refunded' : (isComp ? 'completed' : (fbo.status || existing.status || 'pending'));
+
                 orderMap.set(fbo.id, {
                     kind: 'TASK',
                     ...existing,
                     ...fbo,
-                    status: fbo.status || existing.status || 'pending'
+                    status: finalStatus
                 });
             });
             const mergedOrders = Array.from(orderMap.values());
@@ -17115,7 +17222,12 @@
             if (cfOrderPollTimer) { clearInterval(cfOrderPollTimer); cfOrderPollTimer = null; }
             if (liveOrderUnsub) { liveOrderUnsub(); liveOrderUnsub = null; }
 
-            if (!ord.accEmail && (ord.status === 'pending' || ord.status === 'paid')) {
+            const isOrderRef = (ord.status === 'refunded') || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId));
+            if (isOrderRef) {
+                ord.status = 'refunded';
+            }
+
+            if (!isOrderRef && !ord.accEmail && (ord.status === 'pending' || ord.status === 'paid')) {
                 window._currentOrderId = orderId;
                 window._payGame = ord.game || window._payGame;
                 window._payGameLogo = ord.logo || window._payGameLogo || '';

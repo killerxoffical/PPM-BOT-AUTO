@@ -1,0 +1,318 @@
+rules_version = '2';
+
+// PP MOD — Firestore Security Rules (Seller Program included)
+// Copy-paste this into Firebase Console -> Firestore Database -> Rules -> Publish
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helper Functions ----------
+    function isAdmin() {
+      return request.auth != null
+        && (
+          request.auth.token.email == 'admin@gmail.com'
+          || request.auth.uid == 'admin'
+          || (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
+          || (request.auth.token.email != null && exists(/databases/$(database)/documents/admins/$(request.auth.token.email)))
+        );
+    }
+
+    function isSelf(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isOwner() {
+      return request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    function callerBanned() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', false) == true;
+    }
+
+    // ---------- 1. App Configuration (Public Read, Admin Write) ----------
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- 2. Telegram Worker & Bots (Admin, Worker Dashboard & Server) ----------
+    match /tg_accounts/{accId} {
+      allow read, write: if true;
+    }
+    match /tg_auth_requests/{reqId} {
+      allow read, write: if true;
+    }
+    match /tg_autoreply/{uId} {
+      allow read, write: if true;
+    }
+    match /tg_bot_users/{uId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ---------- 3. Users Collection ----------
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isAdmin() || (
+        isSelf(userId)
+        && request.resource.data.get('balance', 0) == 0
+        && request.resource.data.get('banned', false) != true
+      );
+      allow update: if isAdmin() 
+        || isSelfWithdraw(userId) 
+        || isSelfExchange(userId) 
+        || isSelfTaskPay(userId) 
+        || isSelfPointsClaim(userId) 
+        || isSelfProfile(userId) 
+        || isSelfRedeem(userId) 
+        || isSelfGenUnlock(userId)
+        || isSelfDealUpdate(userId)
+        || isSelfDailyBonus(userId)
+        || isSelfEarnReward(userId);
+      allow delete: if isAdmin();
+    }
+
+    function isSelfWithdraw(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playPoints'])
+        && request.resource.data.playPoints <= resource.data.get('playPoints', 0)
+        && request.resource.data.playPoints >= 0;
+    }
+
+    function isSelfExchange(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playPoints', 'pendingPoints', 'balance'])
+        && request.resource.data.balance > resource.data.get('balance', 0)
+        && request.resource.data.get('playPoints', 0) >= 0
+        && request.resource.data.get('pendingPoints', 0) >= 0;
+    }
+
+    function isSelfTaskPay(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['balance', 'realBalance', 'bonusBalance'])
+        && request.resource.data.get('balance', 0) >= 0;
+    }
+
+    function isSelfPointsClaim(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playPoints', 'pendingPoints']);
+    }
+
+    function isSelfProfile(userId) {
+      return isSelf(userId)
+        && request.resource.data.get('banned', false) == resource.data.get('banned', false)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['name', 'displayName', 'photo', 'avatar', 'refCode', 'referredBy', 'refCount', 'refEarned', 'lastSeen', 'redeemed', 'tgChatId', 'wdPin', 'lastBonusDay', 'lastBonusStreak', 'bonusBalance', 'balance', 'realBalance', 'customNameSet']);
+    }
+
+    function isSelfGenUnlock(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'genUntil'])
+        && request.resource.data.balance >= 0;
+    }
+
+    function isSelfRedeem(userId) {
+      return isSelf(userId)
+        && request.resource.data.lastRedeem is string
+        && !callerBanned();
+    }
+
+    function isSelfDealUpdate(userId) {
+      return isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['balance', 'realBalance', 'bonusBalance', 'dealsCreated', 'dealsJoined', 'dealsCompleted', 'dealsCancelled', 'playPoints'])
+        && request.resource.data.get('balance', 0) >= 0;
+    }
+
+    function isSelfDailyBonus(userId) {
+      return isSelf(userId)
+        && !callerBanned()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['bonusBalance', 'balance', 'lastBonusDay', 'lastBonusStreak']);
+    }
+
+    function isSelfEarnReward(userId) {
+      return isSelf(userId)
+        && !callerBanned()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['bonusBalance', 'balance', 'monthlyTasksCount', 'monthlyTasksMonth', 'completedEarnTasks']);
+    }
+
+    // ---------- 4. Task Orders ----------
+    match /orders/{orderId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin() || (
+        isOwner()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accEmail', 'accPass', 'userTgId', 'adminMsg', 'status', 'retryRequestedAt', 'botProcessing', 'submittedAt', 'updatedAt', 'isQid', 'loginMethod', 'syncCode', 'timeElapsed', 'retryCount', 'coinsCost', 'resubmittedAt', 'completedAt'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ---------- 5. Deposits ----------
+    match /deposits/{depositId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 6. Gateway SMS & TrxID Locks ----------
+    match /gateway_sms/{smsId} {
+      allow read, write: if false; // Server Admin SDK only
+    }
+    match /used_trx/{trxId} {
+      allow read: if true;
+      allow create: if !exists(/databases/$(database)/documents/used_trx/$(trxId));
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 7. Withdrawals ----------
+    match /withdrawals/{wId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.points > 0
+        && request.resource.data.amount >= 0
+        && !callerBanned();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isOwner() && resource.data.status != 'pending');
+    }
+
+    // ---------- 8. Pending Points ----------
+    match /pending_points/{pId} {
+      allow read: if isAdmin() || isOwner();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isOwner()
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'live'
+      );
+    }
+
+    // ---------- 9. Point Sell & Buy Account Orders & Star Deals ----------
+    match /point_sells/{sellId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+    match /account_orders/{orderId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+    match /star_deals/{dealId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 10. Store Packages & Offers ----------
+    match /store_items/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /offers/{offerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- 11. Redemptions History ----------
+    match /redemptions/{rId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if isAdmin() || (
+        request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && !callerBanned()
+        && (
+          request.resource.data.code == 'DAILY'
+          || request.resource.data.code == 'EXCHANGE'
+          || request.resource.data.code == 'REFERRAL'
+          || exists(/databases/$(database)/documents/codes/$(request.resource.data.code))
+        )
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 12. Codes & Referrals ----------
+    match /codes/{code} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used'])
+      );
+    }
+    match /refcodes/{code} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- 13. Admins & Logs ----------
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+    match /logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---------- 14. Support Tickets ----------
+    match /tickets/{tId} {
+      allow read: if isAdmin() || isOwner();
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && !callerBanned();
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 15. P2P Marketplace Deals & ADELL Rooms ----------
+    match /p2p_deals/{dealId} {
+      allow read: if true;
+      allow create: if request.auth != null
+          && request.resource.data.buyerUid == request.auth.uid
+          && request.resource.data.status == 'open';
+      allow update: if request.auth != null;
+      allow delete: if isAdmin() || (request.auth != null && resource.data.buyerUid == request.auth.uid && resource.data.status == 'open');
+    }
+
+    match /adell_rooms/{roomId} {
+      allow read, write: if true;
+      match /messages/{msgId} {
+        allow read, write: if true;
+      }
+    }
+
+    // ---------- 16. Earn Tasks System (Public Read, Admin Write) ----------
+    match /earn_tasks/{taskId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- 17. Transactions & User History ----------
+    match /transactions/{txId} {
+      allow read: if isAdmin() || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- 18. Seller Program ----------
+    match /sellers/{sellerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /seller_history/{histId} {
+      allow read: if isAdmin() || (request.auth != null && resource.data.sellerId == request.auth.uid);
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- Default Deny ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
