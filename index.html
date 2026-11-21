@@ -4251,15 +4251,6 @@
                     <p id="emailPassOffMsgText" class="text-xs text-rose-200 font-semibold max-w-xs leading-relaxed whitespace-pre-wrap">জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট QID ব্যবহার করুন।</p>
                 </div>
             </div>
-
-            <!-- Cancel Pending Order & Refund Button (Clearly styled in dark rose / red so users immediately recognize it) -->
-            <div class="pt-2 pb-2">
-                <button type="button" onclick="openCancelOrderModal()"
-                    class="w-full py-3.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 hover:text-rose-800 border-2 border-rose-300 hover:border-rose-400 font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-98">
-                    <i data-lucide="undo-2" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
-                    <span>অর্ডার বাতিল করে কয়েন ফেরত নিন (Instant Refund)</span>
-                </button>
-            </div>
         </main>
 
         <!-- SCREEN 3: SUCCESS & LIVE TRACKING RECEIPT -->
@@ -10039,26 +10030,25 @@
                     window._matchedPortalService = null;
                     if (unlockBtn) unlockBtn.style.display = 'none';
 
+                    // সার্ভারে গেম অন না থাকলে সাথে সাথে অটো-রিফান্ড কার্যকর করা
+                    const currentOrderCoins = getTaskCoinCost();
+                    refundOrderNonPortalGame(rawGame, 'Game not active on server portal');
+
                     questBox.innerHTML = `
                         <div class="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-left space-y-3 shadow-xs">
                             <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
                                 <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 flex-shrink-0"></i>
                                 <span class="text-sm font-black">গেমটি সার্ভারে অন/এক্টিভ নেই!</span>
                             </div>
-                            <div class="bg-white/95 p-3 rounded-xl border border-rose-200 text-xs font-semibold text-rose-950 space-y-1 leading-relaxed">
-                                <p>⚠️ গেমটি সার্ভার এডমিন অন করতে ভুলে গেছে, অনুগ্রহ করে এডমিনকে মেসেজ করে অন করতে বলুন।</p>
-                                <p class="text-[11px] text-slate-500">এডমিন অন করার পর নিচে <b>"সার্ভারে আবার চেক করুন"</b> বাটনে চাপলেই কাজ শুরু হবে।</p>
+                            <div class="bg-white/95 p-3 rounded-xl border border-rose-200 text-xs font-semibold text-rose-950 space-y-1.5 leading-relaxed">
+                                <p>⚠️ <b>গেমটি সার্ভার এডমিন অন করতে ভুলে গেছে</b>, তাই আপনার কাটা <b>${currentOrderCoins} PP Coins</b> সাথে সাথে আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে ফেরত (Auto-Refund) দেওয়া হয়েছে।</p>
+                                <p class="text-[11px] text-slate-500">অনুগ্রহ করে এডমিনকে মেসেজ করে অন করতে বলুন। এডমিন অন করার পর নিচে <b>"সার্ভারে আবার চেক করুন"</b> বাটনে চাপলেই আবার কাজ শুরু করতে পারবেন।</p>
                             </div>
                             <div class="flex gap-2 pt-1">
                                 <button type="button" onclick="checkGameInPublicPortal('${rawGame.replace(/'/g, "\\'")}')"
                                     class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 cursor-pointer">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                     <span>সার্ভারে আবার চেক করুন</span>
-                                </button>
-                                <button type="button" onclick="openCancelOrderModal()"
-                                    class="flex-1 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-extrabold border-2 border-rose-300 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer">
-                                    <i data-lucide="undo-2" class="w-3.5 h-3.5 text-rose-600"></i>
-                                    <span>কয়েন রিফান্ড নিন</span>
                                 </button>
                             </div>
                             <a href="https://t.me/Blackmoney54" target="_blank"
@@ -10087,14 +10077,10 @@
             // কড়া সুরক্ষা: অর্ডার আগে রিফান্ড হয়ে থাকলে সাথে সাথে ব্লক
             if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
                 console.warn('Order already refunded:', orderId);
-                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
-                if (typeof closeCancelRefundModal === 'function') closeCancelRefundModal();
                 return;
             }
             const curHist = (orderId && window._histItems && window._histItems[orderId]) || null;
             if (curHist && (curHist.status === 'refunded' || curHist.status === 'completed')) {
-                toast('⚠️ এই অর্ডারটি ' + (curHist.status === 'refunded' ? 'ইতিমধ্যে রিফান্ড করা হয়েছে!' : 'ইতিমধ্যে সম্পন্ন হয়েছে!'));
-                if (typeof closeCancelRefundModal === 'function') closeCancelRefundModal();
                 return;
             }
 
@@ -10161,11 +10147,13 @@
                     // এডমিনকে টেলিগ্রামে এলার্ট পাঠানো
                     const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
                     const uName = (cu && (cu.displayName || cu.name)) || 'User';
-                    const balBeforeRef = (window.ppfb && window.ppfb.balance !== undefined) ? Number(window.ppfb.balance) : 0;
-                    const balAfterRef = balBeforeRef + refundCoins;
-                    const origBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
-                        ? window._currentOrderMeta.beforeBalance
-                        : (balBeforeRef + refundCoins);
+
+                    const taskCost = Number(refundCoins) || 2;
+                    const beforeBalance = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance != null)
+                        ? Number(window._currentOrderMeta.beforeBalance)
+                        : (taskCost + ((window.ppfb && window.ppfb.balance) || 0));
+                    const balanceAfterDeduct = Math.max(0, Math.round((beforeBalance - taskCost) * 100) / 100);
+                    const balanceAfterRefund = Math.round((balanceAfterDeduct + taskCost) * 100) / 100;
 
                     // Render PP Server অডিট হিস্টোরিতে রিফান্ড ইভেন্ট পাঠানো
                     fetch('https://pp-mod-auto-quest.onrender.com/api/portal/record-refund', {
@@ -10178,27 +10166,40 @@
                             account_name: uName,
                             email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || '',
                             server_code: (window._serverConnectedAccount && window._serverConnectedAccount.code) || '',
-                            coins_refunded: refundCoins,
-                            balance_before: origBal,
-                            balance_deducted: balBeforeRef,
-                            balance_after: balAfterRef,
+                            coins_refunded: taskCost,
+                            balance_before: beforeBalance,
+                            balance_deducted: balanceAfterDeduct,
+                            balance_after: balanceAfterRefund,
                             reason: customReason || 'Order Cancelled & 100% Refunded to Wallet'
                         })
                     }).catch(() => {});
 
-                    const alertMsg = `🪙 <b>TASK ORDER REFUNDED!</b>\n\n` +
+                    const alertMsg = `🪙 <b>TASK ORDER AUTO-REFUNDED!</b>\n\n` +
                         `🎮 <b>Game:</b> ${gameName}\n` +
                         `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `📋 <b>Reason:</b> ${customReason || 'Game not active on portal'}\n\n` +
                         `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
-                        `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${origBal} Coins</b>\n` +
-                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${refundCoins} Coins</b> (ব্যালেন্স ছিল: <b>${balBeforeRef} Coins</b>)\n` +
-                        `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundCoins} Coins</b>\n` +
-                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n` +
-                        `✅ <b>Status:</b> 100% REFUNDED TO WALLET`;
+                        `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${beforeBalance} Coins</b>\n` +
+                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${taskCost} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balanceAfterDeduct} Coins</b>)\n` +
+                        `▫️ অটো-রিফান্ড যোগ হয়েছে: <b>+${taskCost} Coins</b>\n` +
+                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balanceAfterRefund} Coins</b>\n\n` +
+                        `✅ <b>Status:</b> 100% AUTO-REFUNDED TO WALLET`;
                     if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
                         sendTelegramMsg(ADMIN_TG_ID, alertMsg);
+                    }
+
+                    // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো
+                    if (typeof sendTelegramMsg === 'function') {
+                        const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
+                        const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
+                            `🎮 <b>Game:</b> ${gameName}\n` +
+                            `👤 <b>Play Gamer:</b> ${(window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName || 'Play Gamer'}\n` +
+                            `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
+                            `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
+                            `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                            `↩️ <b>Status:</b> REFUNDED (Auto-Refund)`;
+                        sendTelegramMsg('@ppmododderlog', pubMsg);
                     }
                 }
 
@@ -10222,28 +10223,10 @@
         window.refundOrderNonPortalGame = refundOrderNonPortalGame;
 
         function openCancelOrderModal() {
-            const orderId = window._currentOrderId;
-            if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
-                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
-                return;
-            }
-            const curHist = (orderId && window._histItems && window._histItems[orderId]) || null;
-            if (curHist && curHist.status === 'refunded') {
-                toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
-                return;
-            }
-            const m = document.getElementById('cancelRefundModal');
-            if (!m) return;
-            const refundCoins = getTaskCoinCost();
-            const coinEl = document.getElementById('cancelModalCoins');
-            if (coinEl) coinEl.textContent = `${refundCoins} PP Coins`;
-            m.style.display = 'flex';
-            document.body.classList.add('modal-open');
-            resetSlideConfirm();
-            setupSlideToConfirmEvents();
-            if (window.lucide) lucide.createIcons();
+            toast('⚠️ রিফান্ড সিস্টেম সম্পূর্ণ অটোমেটিক। সার্ভার কোনো সমস্যা পেলে স্বয়ংক্রিয়ভাবে কয়েন রিফান্ড হয়ে যাবে।');
         }
         window.openCancelOrderModal = openCancelOrderModal;
+        window.openCancelRefundModal = openCancelOrderModal;
         window.cancelPendingOrderAndRefund = openCancelOrderModal;
 
         function closeCancelRefundModal() {
@@ -10373,6 +10356,147 @@
             window.addEventListener('touchend', onEnd);
         }
 
+        async function autoRefundServerFailure(gameName, errorReason) {
+            const orderId = window._currentOrderId;
+            if (!orderId || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId))) return;
+            if (typeof markOrderAsRefunded === 'function') markOrderAsRefunded(orderId);
+
+            const refundCoins = getTaskCoinCost();
+            const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
+
+            try {
+                // ১. Cloudflare D1 ওয়ালেটে সাথে সাথে ক্রেডিট
+                if (curUid && curUid !== 'guest' && refundCoins > 0) {
+                    await fetch(`${CF_API}/api/wallet/credit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: curUid, coins: refundCoins, type: 'real' })
+                    }).catch(e => console.warn('Auto refund credit error:', e));
+
+                    if (window.FB && window.FB.db) {
+                        try {
+                            const newTotal = ((window.ppfb && window.ppfb.balance) || 0) + refundCoins;
+                            const newReal = ((window.ppfb && window.ppfb.realBalance) || 0) + refundCoins;
+                            window.FB.setDoc(window.FB.doc(window.FB.db, 'users', curUid), {
+                                balance: newTotal,
+                                realBalance: newReal
+                            }, { merge: true }).catch(() => {});
+                        } catch(e) {}
+                    }
+                }
+
+                const defaultMsg = `কোয়েস্ট আনলক সার্ভার ত্রুটির কারণে আপনার কাটা ${refundCoins} PP Coins স্বয়ংক্রিয়ভাবে ওয়ালেটে রিফান্ড করা হয়েছে।`;
+                const adminMsg = errorReason || defaultMsg;
+
+                // ২. Cloudflare D1 ও Firestore এ অর্ডার স্ট্যাটাস 'refunded' মার্ক করা
+                if (orderId) {
+                    await fetch(`${CF_API}/api/orders/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: orderId,
+                            status: 'refunded',
+                            adminMsg: adminMsg
+                        })
+                    }).catch(e => console.warn('Order status update error:', e));
+
+                    if (window.FB && window.FB.db) {
+                        window.FB.setDoc(window.FB.doc(window.FB.db, 'orders', orderId), {
+                            status: 'refunded',
+                            adminMsg: adminMsg
+                        }, { merge: true }).catch(e => console.warn('FB order refund update error:', e));
+                    }
+
+                    if (window._histItems && window._histItems[orderId]) {
+                        window._histItems[orderId].status = 'refunded';
+                        window._histItems[orderId].adminMsg = adminMsg;
+                    }
+                    if (window._histItemsArr) {
+                        const hItem = window._histItemsArr.find(x => x.id === orderId);
+                        if (hItem) {
+                            hItem.status = 'refunded';
+                            hItem.adminMsg = adminMsg;
+                        }
+                    }
+                    if (typeof rebuildHist === 'function') rebuildHist();
+                }
+
+                // ৩. সঠিক ব্যালেন্স অডিট হিসাব
+                const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
+                const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                const taskCost = Number(refundCoins) || 2;
+                const beforeBalance = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance != null)
+                    ? Number(window._currentOrderMeta.beforeBalance)
+                    : (taskCost + ((window.ppfb && window.ppfb.balance) || 0));
+                const balanceAfterDeduct = Math.max(0, Math.round((beforeBalance - taskCost) * 100) / 100);
+                const balanceAfterRefund = Math.round((balanceAfterDeduct + taskCost) * 100) / 100;
+
+                // Render PP Server অডিট হিস্টোরিতে রিফান্ড ইভেন্ট পাঠানো
+                fetch('https://pp-mod-auto-quest.onrender.com/api/portal/record-refund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_uid: curUid,
+                        order_id: orderId,
+                        game_title: gameName,
+                        account_name: uName,
+                        email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || '',
+                        server_code: (window._serverConnectedAccount && window._serverConnectedAccount.code) || '',
+                        coins_refunded: taskCost,
+                        balance_before: beforeBalance,
+                        balance_deducted: balanceAfterDeduct,
+                        balance_after: balanceAfterRefund,
+                        reason: errorReason || 'Server quest unlock failed — Auto-Refunded'
+                    })
+                }).catch(() => {});
+
+                const alertMsg = `🪙 <b>SERVER QUEST UNLOCK AUTO-REFUNDED!</b>\n\n` +
+                    `🎮 <b>Game:</b> ${gameName}\n` +
+                    `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                    `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                    `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
+                    `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
+                    `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${beforeBalance} Coins</b>\n` +
+                    `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${taskCost} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balanceAfterDeduct} Coins</b>)\n` +
+                    `▫️ অটো-রিফান্ড যোগ হয়েছে: <b>+${taskCost} Coins</b>\n` +
+                    `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balanceAfterRefund} Coins</b>\n\n` +
+                    `✅ <b>Status:</b> 100% AUTO-REFUNDED TO WALLET`;
+                if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                    sendTelegramMsg(ADMIN_TG_ID, alertMsg);
+                }
+
+                // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো
+                if (typeof sendTelegramMsg === 'function') {
+                    const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
+                    const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
+                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `👤 <b>Play Gamer:</b> ${(window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName || 'Play Gamer'}\n` +
+                        `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
+                        `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
+                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                        `↩️ <b>Status:</b> REFUNDED (Auto-Refund)`;
+                    sendTelegramMsg('@ppmododderlog', pubMsg);
+                }
+
+                // ইউজারের ব্যালেন্স UI রিয়েল টাইমে রিফ্রেশ
+                if (curUid) {
+                    fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(curUid)}`)
+                        .then(r => r.json())
+                        .then(wRes => {
+                            if (wRes && wRes.ok && wRes.wallet && window.setBalanceUI) {
+                                const w = wRes.wallet;
+                                window.setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            }
+                        }).catch(() => {});
+                }
+
+                toast(`🪙 ${taskCost} Coins সাথে সাথে আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে`);
+            } catch (rErr) {
+                console.error('autoRefundServerFailure error:', rErr);
+            }
+        }
+        window.autoRefundServerFailure = autoRefundServerFailure;
+
         async function executeServerQuestUnlock(isRetry = false) {
             const acc = window._serverConnectedAccount;
             const srv = window._matchedPortalService;
@@ -10457,6 +10581,10 @@
                         btn.disabled = false;
                         btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
                     }
+
+                    // ২য় বার ব্যর্থ হলে সাথে সাথে কয়েন অটো-রিফান্ড!
+                    await autoRefundServerFailure(srv.title || curGame, errMsg || 'Quest unlock failed');
+
                     const questBox = document.getElementById('serverGameQuestBox');
                     if (questBox) {
                         questBox.classList.remove('hidden');
@@ -10464,19 +10592,17 @@
                             <div class="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-left space-y-3 shadow-xs">
                                 <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
                                     <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
-                                    <span class="text-xs font-black">কোয়েস্ট আনলক করতে সমস্যা হচ্ছে!</span>
+                                    <span class="text-xs font-black">কোয়েস্ট আনলক করতে সমস্যা হয়েছে!</span>
                                 </div>
                                 <div class="bg-white/90 p-3 rounded-xl border border-rose-200 text-xs font-semibold text-rose-950 space-y-1.5 leading-relaxed">
-                                    <p>⚠️ <b>সমস্যা হচ্ছে, আবার চেষ্টা করুন।</b></p>
-                                    <p class="text-slate-700">না হলে <b>PPM SERVER</b> অ্যাপ থেকে আপনার ইমেইলটি <b>Remove</b> করে পুনরায় <b>Login</b> করে নতুন QID কোড দিন।</p>
+                                    <p>⚠️ <b>সমস্যা হচ্ছে, তাই আপনার কাটা কয়েন স্বয়ংক্রিয়ভাবে ওয়ালেটে ফেরত (Auto-Refund) করে দেওয়া হয়েছে।</b></p>
+                                    <p class="text-slate-700">PPM SERVER অ্যাপ থেকে আপনার ইমেইলটি <b>Remove</b> করে পুনরায় <b>Login</b> করে নতুন QID কোড দিন অথবা এডমিনকে মেসেজ দিন।</p>
                                 </div>
                                 <div class="flex gap-2 pt-1">
-                                    <button type="button" onclick="executeServerQuestUnlock(false)" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> আবার চেষ্টা করুন
-                                    </button>
-                                    <button type="button" onclick="openCancelOrderModal()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer">
-                                        <i data-lucide="coins" class="w-3.5 h-3.5"></i> কয়েন রিফান্ড নিন
-                                    </button>
+                                    <a href="https://t.me/Blackmoney54" target="_blank"
+                                        class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all text-center">
+                                        <i data-lucide="send" class="w-3.5 h-3.5"></i> এডমিন সাপোর্ট (@Blackmoney54)
+                                    </a>
                                 </div>
                             </div>`;
                         if (window.lucide) lucide.createIcons();
