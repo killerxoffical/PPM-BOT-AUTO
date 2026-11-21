@@ -4604,6 +4604,30 @@
                     class="w-[84px] h-[36px] flex items-center justify-center bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-black rounded-xl cursor-pointer flex-shrink-0 shadow-xs font-mono tracking-tight tabular-nums select-none">Claim</button>
             </div>
 
+            <!-- PPM SERVER Official App Download Card (Under Daily Claim) -->
+            <div
+                class="p-3 rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between gap-3 shadow-md">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div
+                        class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-inner flex-shrink-0">
+                        <i data-lucide="smartphone" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-xs font-black text-white tracking-tight">PPM SERVER App</span>
+                            <span
+                                class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-black uppercase">Official</span>
+                        </div>
+                        <p class="text-[10px] text-slate-300 font-semibold truncate mt-0.5">৬-ডিজিট QID ও অটো কোয়েস্টের জন্য</p>
+                    </div>
+                </div>
+                <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank"
+                    class="py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer whitespace-nowrap">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>Download</span>
+                </a>
+            </div>
+
             <!-- Rewards Access Button (Profile Screen) -->
             <button type="button" onclick="openRewardsScreen()"
                 class="w-full py-2.5 px-3.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 flex items-center justify-between text-slate-800 active:scale-[0.99] transition-all cursor-pointer shadow-2xs">
@@ -9681,9 +9705,11 @@
         function updatePpmApkDownloadUrl() {
             try {
                 const cfg = (window.ppfb && window.ppfb.config) ? window.ppfb.config : {};
-                const targetLink = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://t.me/Blackmoney54').toString().trim();
+                const targetLink = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk').toString().trim();
                 const btn = document.getElementById("btnDownloadPpmApk");
                 if (btn && targetLink) btn.href = targetLink;
+                const btnProfile = document.getElementById("btnDownloadPpmApkProfile");
+                if (btnProfile && targetLink) btnProfile.href = targetLink;
             } catch (e) {
                 // Keep safe fallback
             }
@@ -12038,9 +12064,10 @@
             const heroTg = document.getElementById('adminHeroLink');
             if (heroTg && (cfg.admin || '').toString().trim()) heroTg.href = cfg.admin;
             const ppmApkBtn = document.getElementById('btnDownloadPpmApk');
-            if (ppmApkBtn) {
-                ppmApkBtn.href = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://t.me/Blackmoney54').toString().trim();
-            }
+            const targetApk = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk').toString().trim();
+            if (ppmApkBtn) ppmApkBtn.href = targetApk;
+            const ppmProfileApkBtn = document.getElementById('btnDownloadPpmApkProfile');
+            if (ppmProfileApkBtn) ppmProfileApkBtn.href = targetApk;
             if (typeof window.applyCredMethodConfig === 'function') window.applyCredMethodConfig(cfg);
             const idBot = (cfg.idBot || 'https://t.me/userinfobot').toString().trim() || 'https://t.me/userinfobot';
             const nbBot = (cfg.notifyBot || 'https://t.me/Ppmod_bot').toString().trim() || 'https://t.me/Ppmod_bot';
