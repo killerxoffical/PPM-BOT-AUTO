@@ -8,6 +8,11 @@
     <meta name="adsbitvex-verify" content="wLKhVEPRQD94RxXsy9JPkHgj">
     <meta name="monetag" content="5eef1dda5924b5a2fe82e1346c3dde86">
     <title>PP MOD - VAREON Studio</title>
+    <!-- Brand Favicon & App Icon (Replaces Netlify default logo) -->
+    <link rel="icon" type="image/svg+xml" href="brand_logo.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="PPCOIN.png">
+    <link rel="shortcut icon" href="PPCOIN.png">
+    <link rel="apple-touch-icon" href="PPCOIN.png">
     <!-- Preload Splash Screen Image for Instant High-Priority Loading -->
     <link rel="preload" as="image" href="fb.png" fetchpriority="high">
     <link rel="preload" as="image" href="hd.png" fetchpriority="high">
@@ -24,6 +29,20 @@
                 }
             } catch (e) {}
         })();
+        window.closePopup = function() {
+            var m = document.getElementById('popModal');
+            if (m) m.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            try { document.querySelectorAll('.screen').forEach(function(s) { s.style.overflow = ''; }); } catch(e){}
+            try { if (typeof unlockScroll === 'function') unlockScroll(); } catch(e){}
+        };
+        window.closeBroadcast = function() {
+            var m = document.getElementById('bcModal');
+            if (m) m.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            try { document.querySelectorAll('.screen').forEach(function(s) { s.style.overflow = ''; }); } catch(e){}
+            try { if (typeof unlockScroll === 'function') unlockScroll(); } catch(e){}
+        };
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -3991,80 +4010,253 @@
                 class="bg-gradient-to-r from-amber-500 to-orange-500 p-4 rounded-2xl text-white shadow-sm flex items-center gap-3">
                 <img id="credGameLogo" class="w-11 h-11 rounded-xl object-cover bg-white/20 p-1 flex-shrink-0" alt="">
                 <div class="flex-1 min-w-0">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-100">Task Paid: 3 Coins</p>
+                    <p id="credFeeBadge" class="text-[10px] font-bold uppercase tracking-wider text-amber-100">Task Paid: 3 Coins</p>
                     <p id="credGameTitle" class="text-sm font-black truncate">—</p>
                 </div>
             </div>
 
-            <!-- Crucial 2FA Warning Card -->
-            <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-1 text-left">
-                <div class="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
-                    <i data-lucide="shield-alert" class="w-4 h-4 flex-shrink-0 text-amber-600"></i>
-                    <span>লগইন সংক্রান্ত জরুরি নোটিশ:</span>
-                </div>
-                <p class="text-[11px] text-amber-950 font-semibold leading-relaxed">
-                    👉 Gmail-এ <span class="font-extrabold text-amber-800">2-Step Verification (2FA)</span> চালু থাকলেও
-                    সমস্যা নেই। তবে অন থাকলে স্বয়ংক্রিয় সার্ভার লগইনে ফোনের নোটিফিকেশন কনফার্ম করতে হবে। দ্রুততম কাজের
-                    জন্য কাজ শেষ হওয়া পর্যন্ত 2FA অফ রাখাই উত্তম।
-                </p>
+            <!-- Credential Method Switcher (2 Options: Server Code vs Gmail & Pass) -->
+            <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                <button type="button" id="tabCredServerCode" onclick="switchCredMethod('server_code')"
+                    class="py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 bg-white text-indigo-700 shadow-sm cursor-pointer">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0"></i>
+                    <span>QID Code</span>
+                    <span id="tabBadgeServerCode" class="text-[9px] bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5">Fast</span>
+                </button>
+                <button type="button" id="tabCredEmailPass" onclick="switchCredMethod('email_pass')"
+                    class="py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer">
+                    <i data-lucide="mail" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                    <span>Gmail & Pass</span>
+                    <span id="tabBadgeEmailPass" class="text-[9px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5 hidden">Manual</span>
+                </button>
             </div>
 
-            <!-- Quest শর্ত Warning -->
-            <div class="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 space-y-1 text-left">
-                <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
-                    <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
-                    <span>গুরুত্বপূর্ণ শর্ত:</span>
-                </div>
-                <p class="text-[11px] text-rose-950 font-semibold leading-relaxed">
-                    👉 Gmail-এ Play Points <span class="font-extrabold">quest accept করা থাকতে হবে</span>। আগে গেম খেলে
-                    quest পূরণ করেছেন কিন্তু পয়েন্ট পাননি — এমন email দিলে কাজ হবে না এবং <span
-                        class="font-extrabold">balance refund হবে না</span>। অবশ্যই fresh quest account দেবেন।
-                </p>
-            </div>
+            <!-- OPTION 1: SERVER CODE (6-DIGIT SYNC) -->
+            <div id="credSectionServerCode" class="space-y-3.5 text-left relative min-h-[360px]">
 
-            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-left">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Play Store Gmail Address *</label>
-                    <input type="email" id="accEmail" placeholder="yourgmail@gmail.com"
-                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
+                <div id="serverCodeBlurWrap" class="space-y-3.5 transition-all duration-300">
+<!-- PPM SERVER Download APK Card (Admin Managed URL) -->
+                <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/40 rounded-2xl p-3.5 text-white shadow-md flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-inner flex-shrink-0">
+                            <i data-lucide="smartphone" class="w-5 h-5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-black text-white flex items-center gap-1.5 truncate">
+                                <span>PPM SERVER App</span>
+                                <span class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-extrabold uppercase">Official</span>
+                            </p>
+                            <p class="text-[10px] text-slate-300 font-medium truncate mt-0.5">৬-ডিজিট QID পেতে অ্যাপটি ডাউনলোড করুন</p>
+                        </div>
+                    </div>
+                    <a id="btnDownloadPpmApk" href="https://t.me/Blackmoney54" target="_blank"
+                        class="py-2.5 px-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-[11px] rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Download APK</span>
+                    </a>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Gmail Password *</label>
-                    <div class="relative">
-                        <input type="password" id="accPass" placeholder="Password দিন" autocomplete="new-password"
-                            class="w-full p-3 pr-11 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
-                        <button type="button" onclick="togglePass()" title="Show/Hide"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-500 active:scale-90 transition-all cursor-pointer">
-                            <span id="passEyeWrap"><i data-lucide="eye" class="w-4 h-4"></i></span>
+
+                <!-- Info Banner -->
+                <div class="bg-indigo-50/80 border-2 border-indigo-200 rounded-2xl p-3.5 space-y-1">
+                    <div class="flex items-center gap-2 text-indigo-900 font-extrabold text-xs">
+                        <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0 text-indigo-600"></i>
+                        <span>PPM SERVER QID পদ্ধতি:</span>
+                    </div>
+                    <p class="text-[11px] text-indigo-950 font-semibold leading-relaxed">
+                        👉 কোনো পাসওয়ার্ড ছাড়াই <span class="font-black text-indigo-700">PPM SERVER</span> অ্যাপ থেকে অ্যাকাউন্ট কানেক্ট করে শুধুমাত্র ৬-ডিজিটের QID দিন এবং ১ সেকেন্ডে ইনস্ট্যান্ট কোয়েস্ট আনলক করুন!
+                    </p>
+                </div>
+
+                <!-- Input Card -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">6-Digit QID *</label>
+                        <div class="flex items-stretch gap-2">
+                            <input type="text" id="serverSyncCodeInput" maxlength="6" inputmode="numeric" placeholder="QID (123456)"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6 && window.onServerCodeInputReady) window.onServerCodeInputReady();"
+                                onkeypress="if(event.key === 'Enter') { event.preventDefault(); connectWithServerCode(); }"
+                                class="w-full p-3 bg-slate-50 border-2 border-indigo-200 rounded-xl text-center text-xl font-black font-mono tracking-[0.25em] text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all">
+                            <button type="button" id="btnConnectServerCode" onclick="connectWithServerCode()"
+                                class="py-3 px-5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-extrabold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer">
+                                <i data-lucide="link" class="w-4 h-4"></i>
+                                <span>Connect</span>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-500 font-semibold mt-1.5 flex items-center gap-1">
+                            <i data-lucide="info" class="w-3 h-3 text-indigo-500 flex-shrink-0"></i>
+                            PPM SERVER অ্যাপে প্রাপ্ত ৬ সংখ্যার QID বসিয়ে Connect চাপুন।
+                        </p>
+                    </div>
+
+                    <!-- Connect Loading Spinner -->
+                    <div id="serverConnectLoading" class="hidden py-4 text-center space-y-2">
+                        <div class="inline-block w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs font-bold text-indigo-800 animate-pulse">সার্ভারে কানেক্ট ও প্রোফাইল যাচাই করা হচ্ছে...</p>
+                    </div>
+
+                    <!-- CONNECTED PROFILE CARD (Matching PP Mod • Quest Portal) -->
+                    <div id="serverProfileBox" class="hidden p-3.5 bg-slate-900 border-2 border-emerald-500/50 rounded-2xl text-white shadow space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-ping"></span>
+                                Google Account Connected
+                            </span>
+                            <button type="button" onclick="disconnectServerCode()"
+                                class="text-[10px] font-bold text-rose-300 hover:text-rose-200 flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-md cursor-pointer transition-all">
+                                <i data-lucide="x" class="w-3 h-3"></i> Disconnect
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <img id="serverAvatar" src="https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512"
+                                class="w-12 h-12 rounded-full border-2 border-emerald-400 object-cover bg-white/10 flex-shrink-0 shadow-sm" alt="Avatar">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <strong id="serverDisplayName" class="text-sm font-black text-white truncate">Connected Gamer</strong>
+                                    <span id="serverLevelBadge" class="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black px-1.5 py-0.5 rounded">LVL 1</span>
+                                </div>
+                                <p id="serverEmail" class="text-xs font-mono text-slate-300 truncate mt-0.5">user@gmail.com</p>
+                                <p id="serverXpText" class="text-[10px] font-mono font-bold text-cyan-300 mt-0.5">Ready for Quest Sync</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NO PROFILE WARNING (Play Games Profile Not Created) -->
+                    <div id="serverNoProfileBox" class="hidden p-4 bg-amber-950/90 border-2 border-amber-500/60 rounded-2xl text-white shadow space-y-3 text-left">
+                        <div class="flex items-center gap-2 text-amber-300 font-black text-xs border-b border-amber-500/30 pb-2">
+                            <i data-lucide="alert-circle" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+                            <span class="text-xs font-black">Google Play Games প্রোফাইল তৈরি করা নেই!</span>
+                        </div>
+                        <p class="text-[11px] text-amber-100 font-semibold leading-relaxed">
+                            আপনার এই গুগল অ্যাকাউন্টে এখনো Google Play Games প্রোফাইল তৈরি করা হয়নি। কোয়েস্ট সম্পন্ন করার জন্য একটি প্রোফাইল থাকা আবশ্যক।
+                        </p>
+                        <div class="bg-black/30 p-3 rounded-xl border border-amber-400/20 text-[11px] text-amber-200 space-y-1.5">
+                            <p class="font-bold text-amber-300 flex items-center gap-1.5">
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-amber-400"></i>
+                                কীভাবে প্রোফাইল তৈরি করবেন:
+                            </p>
+                            <p>১. ফোনে <b>Google Play Games</b> অ্যাপ ওপেন করুন (প্লে স্টোর থেকে নামিয়ে নিন)।</p>
+                            <p>২. এই ইমেইল দিয়ে সাইন-ইন করে একটি গেমার নাম দিয়ে প্রোফাইল ক্রিয়েট সম্পন্ন করুন।</p>
+                            <p>৩. এরপর PPM SERVER অ্যাপে অ্যাকাউন্টটি যুক্ত করে নতুন একটি <b>QID</b> বসিয়ে Connect চাপুন।</p>
+                        </div>
+                        <button type="button" onclick="disconnectServerCode()"
+                            class="w-full py-2 bg-amber-600/30 hover:bg-amber-600/40 border border-amber-500/40 text-amber-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> অন্য QID দিয়ে চেষ্টা করুন
                         </button>
                     </div>
+
+                    <!-- GAME STATUS / REFUND NOTICE (Dynamic) -->
+                    <div id="serverGameQuestBox" class="hidden"></div>
+
+                    <!-- Confirm Button -->
+                    <button type="button" id="btnConfirmServerUnlock" onclick="executeServerQuestUnlock()" style="display:none;"
+                        class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl shadow-md transition-all text-sm cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span>Confirm</span>
+                    </button>
                 </div>
-                <div>
-                    <div id="tgRowWrap">
-                        <div class="flex items-center justify-between flex-wrap gap-1 mb-1">
-                            <label class="text-xs font-bold text-slate-700">Your Telegram Chat ID <span
-                                    class="text-slate-400 font-semibold">(optional)</span></label>
-                            <a id="idBotLink" href="https://t.me/userinfobot" target="_blank"
-                                class="text-[10px] font-extrabold text-indigo-600 hover:underline flex items-center gap-0.5">
-                                <i data-lucide="bot" class="w-3 h-3"></i> <span id="idBotName">find chat id</span>
-                            </a>
-                        </div>
-                        <input type="text" id="accTgId" placeholder="e.g. 123456789 বা @username"
-                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-amber-500">
-                        <p class="text-[10px] text-slate-500 font-semibold mt-1.5 leading-snug">🔔 লাইভ অর্ডার আপডেট
-                            পেতে <a id="notifyBotLink" href="https://t.me/Ppmod_bot" target="_blank"
-                                class="text-indigo-600 font-extrabold hover:underline"><span
-                                    id="notifyBotName">@Ppmod_bot</span></a> নোটিফিকেশন সার্ভিসে যুক্ত থাকুন।</p>
+                </div>
+                <!-- OFF Overlay with Blur & Admin Notice -->
+                <div id="serverCodeOffOverlay" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-md rounded-2xl flex-col items-center justify-center p-6 text-center z-20 shadow-xl border border-white/10">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center mb-3 shadow-lg">
+                        <i data-lucide="shield-alert" class="w-6 h-6"></i>
                     </div>
-                    <p id="tgConnectedLine"
-                        class="hidden text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                        ✓ Telegram Connected: <span id="tgConnectedId" class="font-mono"></span> <span
-                            class="text-slate-500 font-semibold">(বদলাতে Profile › Connect Telegram)</span></p>
+                    <h4 class="text-white font-black text-sm mb-1.5">সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে</h4>
+                    <p id="serverCodeOffMsgText" class="text-xs text-amber-200 font-semibold max-w-xs leading-relaxed whitespace-pre-wrap">সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে Gmail ও Password পদ্ধতি ব্যবহার করুন।</p>
+                </div>
+            </div>
+
+            <!-- OPTION 2: GMAIL & PASSWORD (CLASSIC METHOD) -->
+            <div id="credSectionEmailPass" class="space-y-4 hidden relative min-h-[360px]">
+
+                <div id="emailPassBlurWrap" class="space-y-4 transition-all duration-300">
+<!-- Crucial 2FA Warning Card -->
+                <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-1 text-left">
+                    <div class="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
+                        <i data-lucide="shield-alert" class="w-4 h-4 flex-shrink-0 text-amber-600"></i>
+                        <span>লগইন সংক্রান্ত জরুরি নোটিশ:</span>
+                    </div>
+                    <p class="text-[11px] text-amber-950 font-semibold leading-relaxed">
+                        👉 Gmail-এ <span class="font-extrabold text-amber-800">2-Step Verification (2FA)</span> চালু থাকলেও
+                        সমস্যা নেই। তবে অন থাকলে স্বয়ংক্রিয় সার্ভার লগইনে ফোনের নোটিফিকেশন কনফার্ম করতে হবে। দ্রুততম কাজের
+                        জন্য কাজ শেষ হওয়া পর্যন্ত 2FA অফ রাখাই উত্তম।
+                    </p>
                 </div>
 
-                <button id="submitCredBtn" onclick="submitOrderCredentials()"
-                    class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl shadow-md transition-all text-sm cursor-pointer flex items-center justify-center gap-2 active:scale-98">
-                    <i data-lucide="send" class="w-4 h-4"></i> Submit
+                <!-- Quest শর্ত Warning -->
+                <div class="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 space-y-1 text-left">
+                    <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
+                        <span>গুরুত্বপূর্ণ শর্ত:</span>
+                    </div>
+                    <p class="text-[11px] text-rose-950 font-semibold leading-relaxed">
+                        👉 Gmail-এ Play Points <span class="font-extrabold">quest accept করা থাকতে হবে</span>। আগে গেম খেলে
+                        quest পূরণ করেছেন কিন্তু পয়েন্ট পাননি — এমন email দিলে কাজ হবে না এবং <span
+                            class="font-extrabold">balance refund হবে না</span>। অবশ্যই fresh quest account দেবেন।
+                    </p>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-left">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Play Store Gmail Address *</label>
+                        <input type="email" id="accEmail" placeholder="yourgmail@gmail.com"
+                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Gmail Password *</label>
+                        <div class="relative">
+                            <input type="password" id="accPass" placeholder="Password দিন" autocomplete="new-password"
+                                class="w-full p-3 pr-11 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
+                            <button type="button" onclick="togglePass()" title="Show/Hide"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-500 active:scale-90 transition-all cursor-pointer">
+                                <span id="passEyeWrap"><i data-lucide="eye" class="w-4 h-4"></i></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <div id="tgRowWrap">
+                            <div class="flex items-center justify-between flex-wrap gap-1 mb-1">
+                                <label class="text-xs font-bold text-slate-700">Your Telegram Chat ID <span
+                                        class="text-slate-400 font-semibold">(optional)</span></label>
+                                <a id="idBotLink" href="https://t.me/userinfobot" target="_blank"
+                                    class="text-[10px] font-extrabold text-indigo-600 hover:underline flex items-center gap-0.5">
+                                    <i data-lucide="bot" class="w-3 h-3"></i> <span id="idBotName">find chat id</span>
+                                </a>
+                            </div>
+                            <input type="text" id="accTgId" placeholder="e.g. 123456789 বা @username"
+                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-amber-500">
+                            <p class="text-[10px] text-slate-500 font-semibold mt-1.5 leading-snug">🔔 লাইভ অর্ডার আপডেট
+                                পেতে <a id="notifyBotLink" href="https://t.me/Ppmod_bot" target="_blank"
+                                    class="text-indigo-600 font-extrabold hover:underline"><span
+                                        id="notifyBotName">@Ppmod_bot</span></a> নোটিফিকেশন সার্ভিসে যুক্ত থাকুন।</p>
+                        </div>
+                        <p id="tgConnectedLine"
+                            class="hidden text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                            ✓ Telegram Connected: <span id="tgConnectedId" class="font-mono"></span> <span
+                                class="text-slate-500 font-semibold">(বদলাতে Profile › Connect Telegram)</span></p>
+                    </div>
+
+                    <button id="submitCredBtn" onclick="submitOrderCredentials()"
+                        class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl shadow-md transition-all text-sm cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                        <i data-lucide="send" class="w-4 h-4"></i> Submit
+                    </button>
+                </div>
+                </div>
+                <!-- OFF Overlay with Blur & Admin Notice -->
+                <div id="emailPassOffOverlay" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-md rounded-2xl flex-col items-center justify-center p-6 text-center z-20 shadow-xl border border-white/10">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mb-3 shadow-lg">
+                        <i data-lucide="lock" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-white font-black text-sm mb-1.5">জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে</h4>
+                    <p id="emailPassOffMsgText" class="text-xs text-rose-200 font-semibold max-w-xs leading-relaxed whitespace-pre-wrap">জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট QID ব্যবহার করুন।</p>
+                </div>
+            </div>
+
+            <!-- Cancel Pending Order & Refund Button -->
+            <div class="pt-1 pb-2">
+                <button type="button" onclick="openCancelOrderModal()"
+                    class="w-full py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                    <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+                    <span>অর্ডার বাতিল করে কয়েন ফেরত নিন</span>
                 </button>
             </div>
         </main>
@@ -4131,13 +4323,13 @@
                 <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
-                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-800 truncate">Cloud
+                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-800 whitespace-nowrap">Cloud
                             Processing Desk</span>
                     </div>
                     <div class="flex items-center gap-1.5 flex-shrink-0">
                         <span id="activeThreadBadge"
                             class="text-[9.5px] font-mono font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            ⚡ <span id="threadCountText">4 Threads</span>
+                            ⚡ <span id="threadCountText">1st Thread</span>
                         </span>
                         <span
                             class="text-[9.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">Live</span>
@@ -6229,7 +6421,7 @@
         </div>
     </div>
 
-    <div id="popModal" class="pop-overlay" style="display:none">
+    <div id="popModal" class="pop-overlay" style="display:none" onclick="if(event.target===this){ this.style.display='none'; document.body.classList.remove('modal-open'); try{unlockScroll();}catch(e){}; try{closePopup();}catch(e){} }">
         <div class="pop-card space-y-2">
             <img id="popImg" class="hidden w-full h-32 object-cover rounded-xl" alt=""
                 onerror="this.classList.add('hidden')">
@@ -6239,13 +6431,13 @@
             </div>
             <h3 id="popTitle" class="text-base font-extrabold text-slate-900"></h3>
             <p id="popMsg" class="text-xs text-slate-500 font-medium leading-relaxed"></p>
-            <button onclick="closePopup()"
+            <button type="button" onclick="document.getElementById('popModal').style.display='none'; document.body.classList.remove('modal-open'); try{unlockScroll();}catch(e){}; try{closePopup();}catch(e){}"
                 class="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer">OK</button>
         </div>
     </div>
 
     <!-- Broadcast popup (admin sent) -->
-    <div id="bcModal" class="pop-overlay" style="display:none">
+    <div id="bcModal" class="pop-overlay" style="display:none" onclick="if(event.target===this){ this.style.display='none'; document.body.classList.remove('modal-open'); try{unlockScroll();}catch(e){}; try{closeBroadcast();}catch(e){} }">
         <div class="pop-card space-y-2">
             <img id="bcImg" class="hidden w-full h-32 object-cover rounded-xl" alt=""
                 onerror="this.classList.add('hidden')">
@@ -6255,7 +6447,7 @@
             </div>
             <h3 id="bcTitle" class="text-base font-extrabold text-slate-900"></h3>
             <p id="bcMsg" class="text-xs text-slate-500 font-medium leading-relaxed whitespace-pre-wrap"></p>
-            <button onclick="closeBroadcast()"
+            <button type="button" onclick="document.getElementById('bcModal').style.display='none'; document.body.classList.remove('modal-open'); try{unlockScroll();}catch(e){}; try{closeBroadcast();}catch(e){}"
                 class="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer">OK</button>
         </div>
     </div>
@@ -6279,6 +6471,45 @@
             <button onclick="closeRedeem()"
                 class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer">OK,
                 Thanks!</button>
+        </div>
+    </div>
+
+    <!-- Premium Slide-To-Confirm Cancel & Refund Modal -->
+    <div id="cancelRefundModal" class="pop-overlay" style="display:none; z-index:99999;" onclick="if(event.target===this)closeCancelRefundModal()">
+        <div class="pop-card space-y-4 text-center max-w-sm w-full p-6 bg-white rounded-3xl shadow-2xl border border-slate-100">
+            <!-- Icon -->
+            <div class="mx-auto w-16 h-16 rounded-3xl flex items-center justify-center bg-rose-50 border-2 border-rose-200 text-rose-500 shadow-inner">
+                <i data-lucide="undo-2" class="w-8 h-8"></i>
+            </div>
+            
+            <div class="space-y-1">
+                <h3 class="text-lg font-black text-slate-900 tracking-tight">অর্ডার বাতিল ও কয়েন রিফান্ড</h3>
+                <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+                    আপনি কি নিশ্চিতভাবে এই অর্ডারটি বাতিল করতে চান? আপনার কাটা <span id="cancelModalCoins" class="font-black text-amber-600">২ PP Coins</span> সাথে সাথে আপনার ওয়ালেটে ফেরত দেওয়া হবে।
+                </p>
+            </div>
+
+            <!-- Slide To Confirm Slider Container -->
+            <div class="pt-2">
+                <div id="slideConfirmTrack" class="relative w-full h-14 bg-slate-100 border-2 border-slate-200/90 rounded-2xl flex items-center p-1 select-none overflow-hidden transition-all shadow-inner">
+                    <!-- Shimmering text inside track -->
+                    <div id="slideConfirmLabel" class="absolute inset-0 flex items-center justify-center pointer-events-none text-xs font-black text-slate-500 tracking-wide uppercase transition-opacity">
+                        <span>স্লাইড করে রিফান্ড নিন ❯❯❯</span>
+                    </div>
+                    <!-- Draggable Handle Thumb -->
+                    <div id="slideConfirmThumb" class="relative w-12 h-12 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 rounded-xl flex items-center justify-center text-white shadow-md cursor-grab active:cursor-grabbing touch-none z-10 select-none">
+                        <i id="slideThumbIcon" data-lucide="arrow-right" class="w-5 h-5 transition-transform pointer-events-none"></i>
+                    </div>
+                </div>
+                <p class="text-[10.5px] text-slate-400 font-bold mt-2 flex items-center justify-center gap-1">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i> ১ সেকেন্ডে ইনস্ট্যান্ট রিফান্ড ওয়ালেটে যোগ হবে
+                </p>
+            </div>
+
+            <button type="button" onclick="closeCancelRefundModal()"
+                class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition-all cursor-pointer">
+                না, ফিরে যান
+            </button>
         </div>
     </div>
 
@@ -9233,54 +9464,79 @@
             if (window.lucide) lucide.createIcons();
         }
         function openCredentialScreen(game, logo) {
-            const em = document.getElementById('accEmail');
-            const ps = document.getElementById('accPass');
-            const tg = document.getElementById('accTgId');
-            if (em) em.value = '';
-            if (ps) { ps.value = ''; ps.type = 'password'; }
-            if (tg) tg.value = '';
+            try {
+                const em = document.getElementById('accEmail');
+                const ps = document.getElementById('accPass');
+                const tg = document.getElementById('accTgId');
+                if (em) em.value = '';
+                if (ps) { ps.value = ''; ps.type = 'password'; }
+                if (tg) tg.value = '';
 
-            // পূর্বের যেকোনো ফেইল্ড বা প্রম্পট মেসেজ তাৎক্ষণিক পরিষ্কার করা
-            const msgBox = document.getElementById('adminLiveMsgText');
-            if (msgBox) {
-                msgBox.innerHTML = `
-                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-                        <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">সার্ভার আপনার কাজটি প্রসেস করছে। প্রয়োজনীয় আপডেট এখানে লাইভ প্রদর্শিত হবে।</p>
-                    </div>`;
-            }
-            const pw = document.getElementById('passEyeWrap');
-            if (pw) pw.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
-            if (window.lucide) lucide.createIcons();
-            const elGame = document.getElementById('credGameTitle');
-            const elLogo = document.getElementById('credGameLogo');
-            if (elGame) elGame.textContent = game || window._payGame || 'Selected Task';
-            if (elLogo) {
-                const finalLogo = logo || window._payGameLogo || window.PP_LOGO || '';
-                elLogo.src = finalLogo;
-                elLogo.style.display = '';
-            }
-            const feeBadge = document.querySelector('#screenCredentials p.text-\\[10px\\]');
-            if (feeBadge) feeBadge.textContent = `Task Paid: ${getTaskCoinCost()} Coins`;
-            const savedTg = ((window.ppfb && window.ppfb.tgChatId) || '').trim();
-            const row = document.getElementById('tgRowWrap');
-            const line = document.getElementById('tgConnectedLine');
-            if (savedTg) {
-                if (row) row.classList.add('hidden');
-                if (line) {
-                    line.classList.remove('hidden');
-                    document.getElementById('tgConnectedId').textContent = savedTg;
+                // পূর্বের সার্ভার কোড ও সেশন ক্লিন করা
+                if (typeof disconnectServerCode === 'function') disconnectServerCode();
+                let initialMethod = 'server_code';
+                const appCfg = (window.ppfb && window.ppfb.config) ? window.ppfb.config : {};
+                if (appCfg.serverCodeOn === false && appCfg.emailPassOn !== false) {
+                    initialMethod = 'email_pass';
                 }
-            } else {
-                if (row) row.classList.remove('hidden');
-                if (line) line.classList.add('hidden');
+                if (typeof switchCredMethod === 'function') switchCredMethod(initialMethod);
+                if (typeof applyCredMethodConfig === 'function') applyCredMethodConfig(appCfg);
+                if (typeof updatePpmApkDownloadUrl === 'function') updatePpmApkDownloadUrl();
+
+                // পূর্বের যেকোনো ফেইল্ড বা প্রম্পট মেসেজ তাৎক্ষণিক পরিষ্কার করা
+                const msgBox = document.getElementById('adminLiveMsgText');
+                if (msgBox) {
+                    msgBox.innerHTML = `
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
+                            <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">সার্ভার আপনার কাজটি প্রসেস করছে। প্রয়োজনীয় আপডেট এখানে লাইভ প্রদর্শিত হবে।</p>
+                        </div>`;
+                }
+                const pw = document.getElementById('passEyeWrap');
+                if (pw) pw.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
+                if (window.lucide) { try { lucide.createIcons(); } catch (e) {} }
+
+                const elGame = document.getElementById('credGameTitle');
+                const elLogo = document.getElementById('credGameLogo');
+                if (elGame) elGame.textContent = game || window._payGame || 'Selected Task';
+                if (elLogo) {
+                    const finalLogo = logo || window._payGameLogo || window.PP_LOGO || '';
+                    elLogo.src = finalLogo;
+                    elLogo.style.display = '';
+                }
+
+                const feeBadge = document.getElementById('credFeeBadge');
+                if (feeBadge) feeBadge.textContent = `Task Paid: ${getTaskCoinCost()} Coins`;
+
+                const savedTg = ((window.ppfb && window.ppfb.tgChatId) || '').trim();
+                const row = document.getElementById('tgRowWrap');
+                const line = document.getElementById('tgConnectedLine');
+                if (savedTg) {
+                    if (row) row.classList.add('hidden');
+                    if (line) {
+                        line.classList.remove('hidden');
+                        const elTg = document.getElementById('tgConnectedId');
+                        if (elTg) elTg.textContent = savedTg;
+                    }
+                } else {
+                    if (row) row.classList.remove('hidden');
+                    if (line) line.classList.add('hidden');
+                }
+                const scr = document.getElementById('screenCredentials');
+                if (scr) scr.scrollTop = 0;
+            } catch (err) {
+                console.warn('Error in openCredentialScreen:', err);
             }
-            const scr = document.getElementById('screenCredentials');
-            if (scr) scr.scrollTop = 0;
             showScreen('screenCredentials');
-            if (window.lucide) lucide.createIcons();
+            if (window.lucide) {
+                try { lucide.createIcons(); } catch (e) {}
+            }
         }
 
         async function submitOrderCredentials() {
+            if (window.ppfb && window.ppfb.config && window.ppfb.config.emailPassOn === false) {
+                toast(window.ppfb.config.emailPassOffMsg || 'জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে।');
+                return;
+            }
             const email = (document.getElementById('accEmail').value || '').trim().replace(/\s+/g, '');
             const pass = (document.getElementById('accPass').value || '').trim();
             const tgSaved = ((window.ppfb && window.ppfb.tgChatId) || '').trim();
@@ -9391,6 +9647,815 @@
                 if (window.lucide) lucide.createIcons();
             }
         }
+
+        // ==========================================
+        // PPM SERVER APK DOWNLOAD URL (Admin Controlled via Firebase)
+        function updatePpmApkDownloadUrl() {
+            try {
+                const cfg = (window.ppfb && window.ppfb.config) ? window.ppfb.config : {};
+                const targetLink = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://t.me/Blackmoney54').toString().trim();
+                const btn = document.getElementById("btnDownloadPpmApk");
+                if (btn && targetLink) btn.href = targetLink;
+            } catch (e) {
+                // Keep safe fallback
+            }
+        }
+        window.updatePpmApkDownloadUrl = updatePpmApkDownloadUrl;
+        window.refreshPpmApkDownloadUrl = updatePpmApkDownloadUrl;
+        setTimeout(updatePpmApkDownloadUrl, 500);
+
+        // PP MOD SERVER CODE & QUEST PORTAL SYNC
+        // ==========================================
+        window._serverConnectedAccount = null;
+        window._matchedPortalService = null;
+        window._activeCredMethod = 'server_code';
+        window._refundedOrdersMap = window._refundedOrdersMap || {};
+
+        function switchCredMethod(method) {
+            window._activeCredMethod = method;
+            const tabServer = document.getElementById('tabCredServerCode');
+            const tabEmail = document.getElementById('tabCredEmailPass');
+            const secServer = document.getElementById('credSectionServerCode');
+            const secEmail = document.getElementById('credSectionEmailPass');
+
+            if (method === 'server_code') {
+                if (tabServer) {
+                    tabServer.className = 'py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 bg-white text-indigo-700 shadow-sm cursor-pointer';
+                }
+                if (tabEmail) {
+                    tabEmail.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer';
+                }
+                if (secServer) secServer.classList.remove('hidden');
+                if (secEmail) secEmail.classList.add('hidden');
+            } else {
+                if (tabServer) {
+                    tabServer.className = 'py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer';
+                }
+                if (tabEmail) {
+                    tabEmail.className = 'py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 bg-white text-emerald-700 shadow-sm cursor-pointer';
+                }
+                if (secServer) secServer.classList.add('hidden');
+                if (secEmail) secEmail.classList.remove('hidden');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+        window.switchCredMethod = switchCredMethod;
+
+        // --- Task Credential Methods Blur & Overlay Logic ---
+        function applyCredMethodConfig(cfg) {
+            const c = cfg || ((window.ppfb && window.ppfb.config) ? window.ppfb.config : {});
+            const scOn = c.serverCodeOn !== false;
+            const epOn = c.emailPassOn !== false;
+            const scOffMsg = c.serverCodeOffMsg || 'সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে Gmail ও Password পদ্ধতি ব্যবহার করুন।';
+            const epOffMsg = c.emailPassOffMsg || 'জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট QID ব্যবহার করুন।';
+
+            // Server code section UI
+            const scWrap = document.getElementById('serverCodeBlurWrap');
+            const scOverlay = document.getElementById('serverCodeOffOverlay');
+            const scMsgEl = document.getElementById('serverCodeOffMsgText');
+            if (scWrap && scOverlay) {
+                if (scOn) {
+                    scWrap.classList.remove('blur-[3px]', 'pointer-events-none', 'opacity-40', 'select-none');
+                    scOverlay.classList.add('hidden');
+                    scOverlay.classList.remove('flex');
+                } else {
+                    scWrap.classList.add('blur-[3px]', 'pointer-events-none', 'opacity-40', 'select-none');
+                    scOverlay.classList.remove('hidden');
+                    scOverlay.classList.add('flex');
+                    if (scMsgEl) scMsgEl.textContent = scOffMsg;
+                }
+            }
+
+            // Email Pass section UI
+            const epWrap = document.getElementById('emailPassBlurWrap');
+            const epOverlay = document.getElementById('emailPassOffOverlay');
+            const epMsgEl = document.getElementById('emailPassOffMsgText');
+            if (epWrap && epOverlay) {
+                if (epOn) {
+                    epWrap.classList.remove('blur-[3px]', 'pointer-events-none', 'opacity-40', 'select-none');
+                    epOverlay.classList.add('hidden');
+                    epOverlay.classList.remove('flex');
+                } else {
+                    epWrap.classList.add('blur-[3px]', 'pointer-events-none', 'opacity-40', 'select-none');
+                    epOverlay.classList.remove('hidden');
+                    epOverlay.classList.add('flex');
+                    if (epMsgEl) epMsgEl.textContent = epOffMsg;
+                }
+            }
+
+            // Update tab badges
+            const scBadge = document.getElementById('tabBadgeServerCode');
+            if (scBadge) {
+                scBadge.textContent = scOn ? 'Fast' : 'Off';
+                scBadge.className = scOn
+                    ? 'text-[9px] bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5'
+                    : 'text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5';
+            }
+            const epBadge = document.getElementById('tabBadgeEmailPass');
+            if (epBadge) {
+                epBadge.textContent = epOn ? 'Manual' : 'Off';
+                epBadge.className = epOn
+                    ? 'text-[9px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5'
+                    : 'text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5';
+                if (!epOn) epBadge.classList.remove('hidden');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+        window.applyCredMethodConfig = applyCredMethodConfig;
+
+
+        function onServerCodeInputReady() {
+            const inp = document.getElementById('serverSyncCodeInput');
+            if (inp && inp.value && inp.value.length === 6) {
+                const btn = document.getElementById('btnConnectServerCode');
+                if (btn) btn.classList.add('ring-2', 'ring-indigo-400');
+            }
+        }
+        window.onServerCodeInputReady = onServerCodeInputReady;
+
+        function disconnectServerCode() {
+            window._serverConnectedAccount = null;
+            window._matchedPortalService = null;
+            const profileBox = document.getElementById('serverProfileBox');
+            if (profileBox) profileBox.classList.add('hidden');
+            const noProfileBox = document.getElementById('serverNoProfileBox');
+            if (noProfileBox) noProfileBox.classList.add('hidden');
+            const questBox = document.getElementById('serverGameQuestBox');
+            if (questBox) {
+                questBox.classList.add('hidden');
+                questBox.innerHTML = '';
+            }
+            const unlockBtn = document.getElementById('btnConfirmServerUnlock');
+            if (unlockBtn) unlockBtn.style.display = 'none';
+            const codeInput = document.getElementById('serverSyncCodeInput');
+            if (codeInput) {
+                codeInput.value = '';
+                codeInput.disabled = false;
+            }
+            const btnConnect = document.getElementById('btnConnectServerCode');
+            if (btnConnect) {
+                btnConnect.disabled = false;
+                btnConnect.innerHTML = '<i data-lucide="link" class="w-4 h-4"></i> <span>Connect</span>';
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+        window.disconnectServerCode = disconnectServerCode;
+
+        async function connectWithServerCode() {
+            if (window.ppfb && window.ppfb.config && window.ppfb.config.serverCodeOn === false) {
+                toast(window.ppfb.config.serverCodeOffMsg || 'QID পদ্ধতি সাময়িকভাবে বন্ধ আছে।');
+                return;
+            }
+            const input = document.getElementById('serverSyncCodeInput');
+            const code = (input ? input.value : '').trim().replace(/[^0-9]/g, '');
+            if (!code || code.length !== 6) {
+                toast('দয়া করে সঠিক ৬-সংখ্যার QID দিন!');
+                if (input) input.focus();
+                return;
+            }
+
+            const btn = document.getElementById('btnConnectServerCode');
+            const loader = document.getElementById('serverConnectLoading');
+            const profileBox = document.getElementById('serverProfileBox');
+            const noProfileBox = document.getElementById('serverNoProfileBox');
+            const questBox = document.getElementById('serverGameQuestBox');
+            const unlockBtn = document.getElementById('btnConfirmServerUnlock');
+
+            if (btn) btn.disabled = true;
+            if (loader) loader.classList.remove('hidden');
+            if (profileBox) profileBox.classList.add('hidden');
+            if (noProfileBox) noProfileBox.classList.add('hidden');
+            if (questBox) {
+                questBox.classList.add('hidden');
+                questBox.innerHTML = '';
+            }
+            if (unlockBtn) unlockBtn.style.display = 'none';
+
+            try {
+                // ১. PP Server এ কোড ভ্যালিডেশন ও প্লেয়ার প্রোফাইল ফেচ
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await res.json();
+
+                if (!data || !data.ok) {
+                    if (loader) loader.classList.add('hidden');
+                    if (btn) btn.disabled = false;
+                    toast(data && data.error ? data.error : 'QID পাওয়া যায়নি বা মেয়াদ শেষ হয়ে গেছে।');
+                    return;
+                }
+
+                // কানেকশন ডেটা
+                const prof = data.profile || {};
+                const hasProfile = (data.has_profile !== false) && (prof.has_profile !== false) && !!prof.display_name;
+
+                window._serverConnectedAccount = {
+                    code: code,
+                    email: data.email,
+                    master_token: data.master_token,
+                    access_token: data.access_token || '',
+                    android_id: data.android_id || '',
+                    profile: prof,
+                    has_profile: hasProfile
+                };
+
+                // ২. যদি গুগল প্লে গেমস প্রোফাইল তৈরি করা না থাকে
+                if (!hasProfile) {
+                    if (loader) loader.classList.add('hidden');
+                    if (profileBox) profileBox.classList.add('hidden');
+                    if (noProfileBox) noProfileBox.classList.remove('hidden');
+                    if (questBox) {
+                        questBox.classList.add('hidden');
+                        questBox.innerHTML = '';
+                    }
+                    if (unlockBtn) unlockBtn.style.display = 'none';
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4 text-amber-300"></i> No Profile';
+                    }
+                    return;
+                }
+
+                if (noProfileBox) noProfileBox.classList.add('hidden');
+
+                // ৩. প্রোফাইল ইনফো দেখানো
+                const dName = document.getElementById('serverDisplayName');
+                const dLvl = document.getElementById('serverLevelBadge');
+                const dEmail = document.getElementById('serverEmail');
+                const dXp = document.getElementById('serverXpText');
+                const dAvatar = document.getElementById('serverAvatar');
+
+                if (dName) dName.textContent = prof.display_name || data.email.split('@')[0] || 'Connected Gamer';
+                if (dLvl) dLvl.textContent = `LVL ${prof.current_level || 1}`;
+                if (dEmail) dEmail.textContent = data.email || 'Connected';
+                if (dXp) dXp.textContent = (prof.current_xp !== undefined && prof.current_xp !== null) ? `${Number(prof.current_xp).toLocaleString()} XP` : '0 XP';
+                if (dAvatar) {
+                    dAvatar.src = prof.avatar_url || 'https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512';
+                }
+
+                if (loader) loader.classList.add('hidden');
+                if (profileBox) profileBox.classList.remove('hidden');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-emerald-300"></i> Connected';
+                }
+
+                // ৪. চেক করা নির্বাচিত গেমটি সার্ভারে আছে কিনা
+                const curGame = (window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '').trim();
+                await checkGameInPublicPortal(curGame);
+
+            } catch (err) {
+                console.error('Portal connect error:', err);
+                if (loader) loader.classList.add('hidden');
+                if (btn) btn.disabled = false;
+                toast('সার্ভারের সাথে যোগাযোগ করতে সমস্যা হয়েছে: ' + (err.message || 'Error'));
+            } finally {
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+        window.connectWithServerCode = connectWithServerCode;
+
+        async function checkGameInPublicPortal(gameTitle) {
+            const questBox = document.getElementById('serverGameQuestBox');
+            const unlockBtn = document.getElementById('btnConfirmServerUnlock');
+            if (!questBox) return;
+
+            questBox.innerHTML = `
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-1">
+                    <div class="inline-block w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-[11px] font-bold text-slate-600">সার্ভারে গেমটি যাচাই করা হচ্ছে...</p>
+                </div>`;
+            questBox.classList.remove('hidden');
+
+            try {
+                const sRes = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/services');
+                const sData = await sRes.json();
+                const services = (sData && sData.ok && Array.isArray(sData.services)) ? sData.services : [];
+
+                const clean = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+                const cleanGame = clean(gameTitle);
+
+                let matched = null;
+                // ১. হুবহু টাইটেল, আইডি বা প্যাকেজ ম্যাচ
+                for (const s of services) {
+                    if (clean(s.title) === cleanGame || clean(s.package) === cleanGame || clean(s.game_id) === cleanGame || clean(s.id) === cleanGame) {
+                        matched = s;
+                        break;
+                    }
+                }
+                // ২. সাবস্ট্রিং বা আংশিক ম্যাচ (যেমন Dice Dreams™️, 8 Ball Pool)
+                if (!matched && cleanGame) {
+                    for (const s of services) {
+                        const cs = clean(s.title);
+                        if (cs && (cs.includes(cleanGame) || cleanGame.includes(cs))) {
+                            matched = s;
+                            break;
+                        }
+                    }
+                }
+
+                // ৩. যদি গেমটি সার্ভারে অ্যাক্টিভ থাকে এবং কোয়েস্ট কনফিগার করা থাকে
+                if (matched && matched.selected_quest_ids && matched.selected_quest_ids.length > 0) {
+                    window._matchedPortalService = matched;
+                    questBox.innerHTML = `
+                        <div class="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-center space-y-1">
+                            <p class="text-xs text-emerald-900 font-extrabold flex items-center justify-center gap-1.5">
+                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+                                <span>সবকিছু ঠিক থাকলে নিচের কনফার্ম বাটনে চাপুন।</span>
+                            </p>
+                        </div>`;
+                    if (unlockBtn) {
+                        unlockBtn.style.display = 'flex';
+                        unlockBtn.disabled = false;
+                        unlockBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
+                    }
+                } else {
+                    // ৪. গেমটি সার্ভারে অন/এক্টিভ নেই -> রিফান্ড নোটিশ ও স্বয়ংক্রিয় কয়েন রিফান্ড
+                    window._matchedPortalService = null;
+                    if (unlockBtn) unlockBtn.style.display = 'none';
+
+                    const refundCoins = getTaskCoinCost();
+                    questBox.innerHTML = `
+                        <div class="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-left space-y-3">
+                            <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                                <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 flex-shrink-0"></i>
+                                <span class="text-sm font-black">গেমটি সার্ভারে অন/এক্টিভ নেই!</span>
+                            </div>
+                            <p class="text-xs text-rose-950 font-semibold leading-relaxed">
+                                গেমটি সার্ভার এডমিন অন করতে ভুলে গেছে, অনুগ্রহ করে এডমিনকে মেসেজ করে অন করতে বলুন।
+                            </p>
+                            <div class="p-3 bg-white/95 border border-emerald-300 rounded-xl flex items-center gap-2.5 shadow-sm">
+                                <i data-lucide="check-check" class="w-5 h-5 text-emerald-600 flex-shrink-0"></i>
+                                <div>
+                                    <p class="text-xs font-black text-emerald-900">🪙 কয়েন স্বয়ংক্রিয় রিফান্ড সম্পন্ন!</p>
+                                    <p class="text-[11px] text-emerald-700 font-semibold leading-snug">আপনার কাটা <b>${refundCoins} PP Coins</b> সাথে সাথে আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।</p>
+                                </div>
+                            </div>
+                            <a href="https://t.me/Blackmoney54" target="_blank"
+                                class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow transition-all active:scale-95 cursor-pointer">
+                                <i data-lucide="send" class="w-4 h-4"></i> এডমিনকে জানান (@Blackmoney54)
+                            </a>
+                        </div>`;
+
+                    // স্বয়ংক্রিয় রিফান্ড এক্সিকিউট
+                    await refundOrderNonPortalGame(gameTitle);
+                }
+            } catch (err) {
+                console.error('checkGameInPublicPortal err:', err);
+                questBox.innerHTML = `
+                    <div class="p-3 bg-amber-50 border border-amber-300 rounded-xl text-left text-xs font-bold text-amber-900">
+                        ⚠️ সার্ভার থেকে গেম সার্ভিস লোড করা যায়নি: ${err.message}
+                    </div>`;
+            } finally {
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+        window.checkGameInPublicPortal = checkGameInPublicPortal;
+
+        async function refundOrderNonPortalGame(gameName, customReason = null) {
+            const orderId = window._currentOrderId;
+            const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
+            const refundCoins = getTaskCoinCost();
+
+            window._refundedOrdersMap = window._refundedOrdersMap || {};
+            if (orderId && window._refundedOrdersMap[orderId]) {
+                console.log('Order already refunded in session:', orderId);
+                return;
+            }
+            if (orderId) window._refundedOrdersMap[orderId] = true;
+
+            try {
+                // ১. Cloudflare D1 ওয়ালেটে কয়েন ফেরত
+                if (curUid && curUid !== 'guest' && refundCoins > 0) {
+                    await fetch(`${CF_API}/api/wallet/credit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: curUid, coins: refundCoins, type: 'real' })
+                    }).catch(e => console.warn('Refund credit error:', e));
+
+                    if (window.FB && window.FB.db) {
+                        try {
+                            const newTotal = ((window.ppfb && window.ppfb.balance) || 0) + refundCoins;
+                            const newReal = ((window.ppfb && window.ppfb.realBalance) || 0) + refundCoins;
+                            window.FB.setDoc(window.FB.doc(window.FB.db, 'users', curUid), {
+                                balance: newTotal,
+                                realBalance: newReal
+                            }, { merge: true }).catch(() => {});
+                        } catch(e) {}
+                    }
+                }
+
+                // ২. অর্ডার স্ট্যাটাস 'refunded' মার্ক করা
+                if (orderId) {
+                    const defaultMsg = `গেমটি সার্ভার এডমিন অন করতে ভুলে গেছে, অনুগ্রহ করে এডমিনকে মেসেজ করে অন করতে বলুন।\n\n🪙 আপনার কাটা ${refundCoins} PP Coins সাথে সাথে ওয়ালেটে রিফান্ড করা হয়েছে।`;
+                    const adminMsg = customReason || defaultMsg;
+                    await fetch(`${CF_API}/api/orders/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: orderId,
+                            status: 'refunded',
+                            adminMsg: adminMsg
+                        })
+                    }).catch(e => console.warn('Order status update error:', e));
+
+                    if (window.FB && window.FB.db) {
+                        window.FB.setDoc(window.FB.doc(window.FB.db, 'orders', orderId), {
+                            status: 'refunded',
+                            adminMsg: adminMsg,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true }).catch(e => console.warn('FB order refund update error:', e));
+                    }
+
+                    // এডমিনকে টেলিগ্রামে এলার্ট পাঠানো
+                    const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
+                    const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                    const balBeforeRef = (window.ppfb && window.ppfb.balance !== undefined) ? Number(window.ppfb.balance) : 0;
+                    const balAfterRef = balBeforeRef + refundCoins;
+                    const origBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
+                        ? window._currentOrderMeta.beforeBalance
+                        : balAfterRef;
+
+                    const alertMsg = `🪙 <b>TASK ORDER REFUNDED!</b>\n\n` +
+                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                        `📋 <b>Reason:</b> ${customReason || 'Game not active on portal'}\n\n` +
+                        `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
+                        `▫️ অর্ডার করার আগের ব্যালেন্স: <b>${origBal} Coins</b>\n` +
+                        `▫️ কয়েন কাটার পর ব্যালেন্স ছিল: <b>${balBeforeRef} Coins</b>\n` +
+                        `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundCoins} Coins</b>\n` +
+                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n` +
+                        `✅ <b>Status:</b> 100% REFUNDED TO WALLET`;
+                    if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                        sendTelegramMsg(ADMIN_TG_ID, alertMsg);
+                    }
+                }
+
+                // ৩. ইউজারের ব্যালেন্স UI রিয়েল টাইমে রিফ্রেশ
+                if (curUid) {
+                    fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(curUid)}`)
+                        .then(r => r.json())
+                        .then(wRes => {
+                            if (wRes && wRes.ok && wRes.wallet && window.setBalanceUI) {
+                                const w = wRes.wallet;
+                                window.setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            }
+                        }).catch(() => {});
+                }
+
+                toast(`🪙 ${refundCoins} Coins সাথে সাথে আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে`);
+            } catch (rErr) {
+                console.error('refundOrderNonPortalGame error:', rErr);
+            }
+        }
+        window.refundOrderNonPortalGame = refundOrderNonPortalGame;
+
+        function openCancelOrderModal() {
+            const m = document.getElementById('cancelRefundModal');
+            if (!m) return;
+            const refundCoins = getTaskCoinCost();
+            const coinEl = document.getElementById('cancelModalCoins');
+            if (coinEl) coinEl.textContent = `${refundCoins} PP Coins`;
+            m.style.display = 'flex';
+            document.body.classList.add('modal-open');
+            resetSlideConfirm();
+            setupSlideToConfirmEvents();
+            if (window.lucide) lucide.createIcons();
+        }
+        window.openCancelOrderModal = openCancelOrderModal;
+        window.cancelPendingOrderAndRefund = openCancelOrderModal;
+
+        function closeCancelRefundModal() {
+            const m = document.getElementById('cancelRefundModal');
+            if (m) m.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            resetSlideConfirm();
+        }
+        window.closeCancelRefundModal = closeCancelRefundModal;
+
+        function resetSlideConfirm() {
+            const thumb = document.getElementById('slideConfirmThumb');
+            const label = document.getElementById('slideConfirmLabel');
+            const track = document.getElementById('slideConfirmTrack');
+            const icon = document.getElementById('slideThumbIcon');
+            if (thumb) {
+                thumb.style.transition = 'transform 0.25s ease, background-color 0.25s ease';
+                thumb.style.transform = 'translateX(0px)';
+                thumb.className = 'relative w-12 h-12 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 rounded-xl flex items-center justify-center text-white shadow-md cursor-grab active:cursor-grabbing touch-none z-10 select-none';
+                setTimeout(() => { if (thumb) thumb.style.transition = ''; }, 260);
+            }
+            if (label) {
+                label.style.opacity = '1';
+                label.innerHTML = '<span>স্লাইড করে রিফান্ড নিন ❯❯❯</span>';
+            }
+            if (track) {
+                track.style.borderColor = '';
+                track.style.backgroundColor = '';
+            }
+            if (icon) {
+                icon.setAttribute('data-lucide', 'arrow-right');
+                if (window.lucide) lucide.createIcons();
+            }
+            window._isSliderCompleted = false;
+        }
+
+        async function executeSlideRefund() {
+            if (window._isSliderCompleted) return;
+            window._isSliderCompleted = true;
+            const curGame = window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || 'Task';
+            const refundCoins = getTaskCoinCost();
+
+            const thumb = document.getElementById('slideConfirmThumb');
+            const label = document.getElementById('slideConfirmLabel');
+            if (thumb) {
+                thumb.className = 'relative w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-md touch-none z-10 select-none';
+                thumb.innerHTML = '<i data-lucide="check" class="w-6 h-6"></i>';
+            }
+            if (label) {
+                label.style.opacity = '1';
+                label.innerHTML = '<span class="text-emerald-700 font-black">রিফান্ড সম্পন্ন হচ্ছে...</span>';
+            }
+            if (window.lucide) lucide.createIcons();
+
+            showAppLoader('কয়েন রিফান্ড প্রসেস হচ্ছে...');
+            try {
+                const cancelReason = `ইউজার নিজে স্লাইড করে অর্ডার বাতিল ও রিফান্ড নিয়েছেন।\n\n🪙 আপনার কাটা ${refundCoins} PP Coins সাথে সাথে ওয়ালেটে ফেরত দেওয়া হয়েছে।`;
+                await refundOrderNonPortalGame(curGame, cancelReason);
+                if (window.playChime) try { window.playChime(); } catch(e) {}
+            } finally {
+                hideAppLoader();
+                closeCancelRefundModal();
+                showScreen('screenGameSelect');
+            }
+        }
+        window.executeSlideRefund = executeSlideRefund;
+
+        function setupSlideToConfirmEvents() {
+            const track = document.getElementById('slideConfirmTrack');
+            const thumb = document.getElementById('slideConfirmThumb');
+            const label = document.getElementById('slideConfirmLabel');
+            if (!track || !thumb || track._slideEventsAttached) return;
+            track._slideEventsAttached = true;
+
+            let isDragging = false;
+            let startX = 0;
+            let currentX = 0;
+
+            const onStart = (e) => {
+                if (window._isSliderCompleted) return;
+                isDragging = true;
+                startX = (e.touches ? e.touches[0].clientX : e.clientX);
+                thumb.style.transition = 'none';
+            };
+
+            const onMove = (e) => {
+                if (!isDragging || window._isSliderCompleted) return;
+                const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+                const maxSlide = Math.max(0, track.offsetWidth - thumb.offsetWidth - 8);
+                const diff = Math.max(0, Math.min(clientX - startX, maxSlide));
+                currentX = diff;
+                thumb.style.transform = `translateX(${diff}px)`;
+                if (label && maxSlide > 0) {
+                    label.style.opacity = String(Math.max(0, 1 - (diff / (maxSlide * 0.7))));
+                }
+            };
+
+            const onEnd = () => {
+                if (!isDragging || window._isSliderCompleted) return;
+                isDragging = false;
+                const maxSlide = Math.max(0, track.offsetWidth - thumb.offsetWidth - 8);
+                if (maxSlide > 0 && currentX >= maxSlide * 0.75) {
+                    thumb.style.transition = 'transform 0.15s ease';
+                    thumb.style.transform = `translateX(${maxSlide}px)`;
+                    executeSlideRefund();
+                } else {
+                    thumb.style.transition = 'transform 0.25s ease';
+                    thumb.style.transform = 'translateX(0px)';
+                    if (label) label.style.opacity = '1';
+                    setTimeout(() => { if (thumb) thumb.style.transition = ''; }, 260);
+                }
+                currentX = 0;
+            };
+
+            thumb.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+
+            thumb.addEventListener('touchstart', onStart, { passive: true });
+            window.addEventListener('touchmove', onMove, { passive: true });
+            window.addEventListener('touchend', onEnd);
+        }
+
+        async function executeServerQuestUnlock(isRetry = false) {
+            const acc = window._serverConnectedAccount;
+            const srv = window._matchedPortalService;
+            const orderId = window._currentOrderId;
+            const curGame = window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '';
+
+            if (!acc || (!acc.master_token && !acc.code)) {
+                toast('দয়া করে প্রথমে ৬-ডিজিট QID দিয়ে কানেক্ট করুন!');
+                return;
+            }
+            if (!srv) {
+                toast('সার্ভারে এই গেমটি সক্রিয় নেই!');
+                return;
+            }
+
+            const btn = document.getElementById('btnConfirmServerUnlock');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = isRetry 
+                    ? `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>Google সার্ভারে ভেরিফাই হচ্ছে... (২য় চেষ্টা)</span>`
+                    : `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>প্রসেসিং হচ্ছে...</span>`;
+            }
+
+            try {
+                // সার্ভারে নির্দিষ্ট আনলক এন্ডপয়েন্ট কল করা
+                const webUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : (localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || 'Web User');
+                const accName = (acc.profile && acc.profile.display_name) || (acc.email ? acc.email.split('@')[0] : 'Play Gamer');
+
+                const payload = {
+                    game_id: srv.game_id || srv.id,
+                    sync_code: acc.code || '',
+                    email: acc.email || '',
+                    master_token: acc.master_token || '',
+                    android_id: acc.android_id || '',
+                    portal_service: true,
+                    user_uid: webUid,
+                    order_id: orderId || '',
+                    account_name: accName,
+                    source: 'Web App'
+                };
+
+                let res = null;
+                let data = null;
+                try {
+                    res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    data = await res.json();
+                } catch (fetchErr) {
+                    data = { ok: false, error: fetchErr.message };
+                }
+
+                if (!data || !data.ok) {
+                    const errMsg = data && data.error ? data.error : 'Server error';
+                    const isTransient = typeof errMsg === 'string' && (
+                        errMsg.includes('Third-Party') ||
+                        errMsg.includes('রেস্ট্রিক্টেড') ||
+                        errMsg.includes('UnauthorizedThirdPartyApiAccess') ||
+                        errMsg.includes('401') ||
+                        errMsg.includes('timed out')
+                    );
+                    if (isTransient && !isRetry) {
+                        if (btn) {
+                            btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>Google সার্ভারে ভেরিফাই হচ্ছে... (পুনরায় চেষ্টা করা হচ্ছে)</span>`;
+                        }
+                        await new Promise(r => setTimeout(r, 1500));
+                        return await executeServerQuestUnlock(true);
+                    }
+                    toast(`আনলক ব্যর্থ হয়েছে: ${errMsg}`);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
+                    }
+                    const questBox = document.getElementById('serverGameQuestBox');
+                    if (questBox) {
+                        questBox.classList.remove('hidden');
+                        questBox.innerHTML = `
+                            <div class="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-left space-y-3 shadow-xs">
+                                <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                                    <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
+                                    <span class="text-xs font-black">কোয়েস্ট আনলক করতে সমস্যা হচ্ছে!</span>
+                                </div>
+                                <div class="bg-white/90 p-3 rounded-xl border border-rose-200 text-xs font-semibold text-rose-950 space-y-1.5 leading-relaxed">
+                                    <p>⚠️ <b>সমস্যা হচ্ছে, আবার চেষ্টা করুন।</b></p>
+                                    <p class="text-slate-700">না হলে <b>PPM SERVER</b> অ্যাপ থেকে আপনার ইমেইলটি <b>Remove</b> করে পুনরায় <b>Login</b> করে নতুন QID কোড দিন।</p>
+                                </div>
+                                <div class="flex gap-2 pt-1">
+                                    <button type="button" onclick="executeServerQuestUnlock(false)" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer">
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> আবার চেষ্টা করুন
+                                    </button>
+                                    <button type="button" onclick="openCancelOrderModal()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer">
+                                        <i data-lucide="coins" class="w-3.5 h-3.5"></i> কয়েন রিফান্ড নিন
+                                    </button>
+                                </div>
+                            </div>`;
+                        if (window.lucide) lucide.createIcons();
+                    }
+                    return;
+                }
+
+                window._lastUnlockAttempts = isRetry ? 2 : 1;
+                const successMsg = `🎉 অভিনন্দন! আপনার "${srv.title}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!`;
+
+                // Cloudflare D1 এ অর্ডার completed আপডেট
+                if (orderId) {
+                    try {
+                        await fetch(`${CF_API}/api/orders/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                orderId: orderId,
+                                status: 'completed',
+                                accEmail: acc.email,
+                                isQid: true,
+                                loginMethod: 'qid',
+                                syncCode: acc.code || '',
+                                timeElapsed: isRetry ? 2 : 1,
+                                retryCount: isRetry ? 2 : 1,
+                                adminMsg: successMsg
+                            })
+                        });
+                    } catch (cfErr) {
+                        console.warn('CF order update error:', cfErr);
+                    }
+
+                    if (window.FB && window.FB.db) {
+                        window.FB.setDoc(window.FB.doc(window.FB.db, 'orders', orderId), {
+                            status: 'completed',
+                            accEmail: acc.email,
+                            isQid: true,
+                            loginMethod: 'qid',
+                            syncCode: acc.code || '',
+                            timeElapsed: isRetry ? 2 : 1,
+                            retryCount: isRetry ? 2 : 1,
+                            adminMsg: successMsg,
+                            completedAt: new Date()
+                        }, { merge: true }).catch(() => {});
+                    }
+
+                    // Admin TG Notification
+                    const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
+                    const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                    const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
+                        ? window._currentOrderMeta.beforeBalance
+                        : (window.ppfb ? (Number(window.ppfb.balance || 0) + getTaskCoinCost()) : '—');
+                    const taskCost = getTaskCoinCost();
+                    const curBal = (window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—';
+
+                    const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
+                        `🎮 <b>Game:</b> ${srv.title}\n` +
+                        `👤 <b>User:</b> ${uName} (<code>${acc.email}</code>)\n` +
+                        `🆔 <b>UID:</b> <code>${webUid}</code>\n` +
+                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                        `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
+                        `🎯 <b>Status:</b> Quest Unlocked (${isRetry ? '2nd Thread' : '1st Thread'})\n\n` +
+                        `💰 <b>BALANCE AUDIT:</b>\n` +
+                        `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
+                        `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>\n` +
+                        `▫️ বর্তমান ব্যালেন্স: <b>${curBal} Coins</b>\n\n` +
+                        `✅ <b>Status:</b> COMPLETED`;
+                    if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                        sendTelegramMsg(ADMIN_TG_ID, adminNotifyMsg);
+                    }
+                }
+
+                // Fill receipt and transition to screenSuccess
+                fillReceipt({
+                    title: 'Task Completed! 🎉',
+                    msg: successMsg,
+                    adminMsg: successMsg,
+                    game: srv.title || curGame,
+                    logo: window._payGameLogo || srv.icon_url,
+                    method: 'PP Coins',
+                    amount: getTaskCoinCost() + ' Coins',
+                    trx: orderId || 'PORTAL-SYNC',
+                    status: 'completed',
+                    isQid: true,
+                    retryCount: isRetry ? 2 : 1,
+                    timeElapsed: isRetry ? 2 : 1
+                });
+
+                if (window.trackLiveOrder && orderId) {
+                    window.trackLiveOrder(orderId);
+                }
+
+                if (window.fireConfetti) {
+                    try { window.fireConfetti(); } catch (e) {}
+                }
+                if (window.playChime) {
+                    try { window.playChime(); } catch (e) {}
+                }
+
+                showScreen('screenSuccess');
+            } catch (err) {
+                console.error('Server unlock error:', err);
+                toast(`আনলক প্রক্রিয়ায় ত্রুটি ঘটেছে: ${err.message}`);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        }
+        window.executeServerQuestUnlock = executeServerQuestUnlock;
+
 
         let liveDepositUnsub = null;
         let cfDepositPollTimer = null;
@@ -9631,19 +10696,52 @@
             }
         }
 
+        function cleanPaymentMethodName(m) {
+            if (!m) return 'PP Coins';
+            let s = String(m).trim();
+            if (s.toLowerCase().includes('pp coins') || s.toLowerCase().includes('server code')) return 'PP Coins';
+            return s.replace(/\s*\([^)]*\)/g, '').trim() || 'PP Coins';
+        }
+        window.cleanPaymentMethodName = cleanPaymentMethodName;
+
+        function formatUserFriendlyQuestMessage(rawMsg, gameTitle) {
+            if (!rawMsg) return '';
+            let msg = String(rawMsg);
+            if (/achievements?|অ্যাচিভমেন্ট|\+?\d+[\s,]*xp|সফলভাবে আনলক/i.test(msg)) {
+                const game = gameTitle || 'গেম';
+                return `🎉 অভিনন্দন! আপনার "${game}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!`;
+            }
+            msg = msg.replace(/achievements?/gi, 'কোয়েস্ট')
+                     .replace(/অ্যাচিভমেন্ট/gi, 'কোয়েস্ট')
+                     .replace(/\s*\(\+?\d+[\s,]*XP\)/gi, '')
+                     .replace(/\+?\d+[\s,]*XP/gi, '');
+            return msg;
+        }
+        window.formatUserFriendlyQuestMessage = formatUserFriendlyQuestMessage;
+
         // প্রিমিয়াম লাইভ কার্ড ও নিখুঁত টেক্সট রেন্ডারার
         function renderSmartDeskCard(ord) {
             if (!ord) return;
             updateReceiptStatus(ord.status, ord.adminMsg, ord);
             try { if (window.renderOrderTimeline) window.renderOrderTimeline(ord); } catch (e) { }
 
+            const rmEl = document.getElementById('receiptMethod');
+            if (rmEl && ord.method) rmEl.textContent = cleanPaymentMethodName(ord.method);
+
+            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.hasPassword));
+            const isQid = !hasPassword;
+
             const timeRow = document.getElementById('receiptTimeRow');
             const timeTxt = document.getElementById('receiptTimeText');
-            if (ord.timeElapsed !== undefined && ord.timeElapsed !== null && ord.timeElapsed > 0) {
+            if (isQid) {
+                const attempts = (ord && ord.retryCount) || window._lastUnlockAttempts || 1;
+                if (timeTxt) timeTxt.textContent = attempts > 1 ? '⏱ 2s' : '⏱ 1s';
+                if (timeRow) timeRow.classList.remove('hidden');
+            } else if (ord.timeElapsed !== undefined && ord.timeElapsed !== null && ord.timeElapsed > 0) {
                 if (timeTxt) timeTxt.textContent = '⏱ ' + ord.timeElapsed + 's';
                 if (timeRow) timeRow.classList.remove('hidden');
             } else if (ord.status === 'completed') {
-                if (timeTxt) timeTxt.textContent = '⏱ 6s';
+                if (timeTxt) timeTxt.textContent = '⏱ 4s';
                 if (timeRow) timeRow.classList.remove('hidden');
             } else {
                 if (timeRow) timeRow.classList.add('hidden');
@@ -9651,7 +10749,12 @@
 
             const tcEl = document.getElementById('threadCountText');
             if (tcEl) {
-                tcEl.textContent = ord.assignedWorker ? 'Active Thread' : '4 Threads';
+                if (isQid) {
+                    const attempts = (ord && ord.retryCount) || window._lastUnlockAttempts || 1;
+                    tcEl.textContent = attempts > 1 ? '2nd Thread' : '1st Thread';
+                } else {
+                    tcEl.textContent = ord.assignedWorker ? 'Active Thread' : '4 Threads';
+                }
             }
 
             const msgBox = document.getElementById('adminLiveMsgText');
@@ -10095,8 +11198,21 @@
                 if (msg) msg.textContent = 'সার্ভার একাউন্টে নিরাপদ লগইন প্রসেস করছে। অনুগ্রহ করে লাইভ থাকুন...';
             }
 
+            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.accPassword || ord.hasPassword));
+            const isQidOrder = !hasPassword || !!(
+                (ord && (ord.isQid || ord.loginMethod === 'server_code' || ord.loginMethod === 'qid' || ord.code || ord.syncCode || ord.serverCode || ord.qid)) ||
+                (ord && typeof ord.method === 'string' && (ord.method.includes('Server') || ord.method.includes('QID') || ord.method.includes('qid'))) ||
+                (window._serverConnectedAccount != null)
+            );
             const snBox = document.getElementById('safetyNoteBox');
-            if (snBox) snBox.classList.toggle('hidden', !isCompleted);
+            if (snBox) {
+                // Safety Note শুধুমাত্র তখনই দেখাবে যখন পাসওয়ার্ড দিয়ে সাবমিট করা হয়েছে (Gmail & Pass)
+                if (isCompleted && hasPassword && !isQidOrder) {
+                    snBox.classList.remove('hidden');
+                } else {
+                    snBox.classList.add('hidden');
+                }
+            }
             if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
         }
 
@@ -10120,22 +11236,37 @@
 
         function fillReceipt(o) {
             const isDep = o.kind === 'deposit';
+            const hasPassword = !!(o.hasPassword || o.accPass || o.pass || o.password || o.accPassword);
+            const isQid = !hasPassword || !!(o.isQid || (o.loginMethod === 'qid') || (o.method && (o.method.includes('Server') || o.method.includes('QID') || o.method.includes('qid'))) || (window._serverConnectedAccount != null));
             document.getElementById('successTitle').innerText = o.title;
             document.getElementById('successMsg').innerText = o.msg;
             document.getElementById('receiptGame').innerText = o.game;
             const rl = document.getElementById('receiptGameLogo');
             if (o.logo) { rl.src = o.logo; rl.style.display = ''; }
             else { rl.style.display = 'none'; }
-            document.getElementById('receiptMethod').innerText = o.method;
+            document.getElementById('receiptMethod').innerText = cleanPaymentMethodName(o.method);
             document.getElementById('receiptAmount').innerText = o.amount;
             document.getElementById('receiptTrx').innerText = o.trx;
 
             const msgBox = document.getElementById('adminLiveMsgText');
             if (msgBox) {
-                if (o.adminMsg) {
+                if (o.status === 'completed') {
+                    const gameName = o.game || 'গেম';
+                    msgBox.innerHTML = `
+                        <div class="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl text-left space-y-2 shadow-xs">
+                            <div class="flex items-center gap-2 text-emerald-800 pb-1.5 border-b border-emerald-200">
+                                <span class="text-lg">🎉</span>
+                                <span class="text-xs font-black uppercase tracking-wider">কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!</span>
+                            </div>
+                            <p class="text-xs font-bold text-emerald-950 leading-relaxed">
+                                🎉 অভিনন্দন! আপনার "${gameName}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!
+                            </p>
+                        </div>`;
+                } else if (o.adminMsg) {
+                    const formattedMsg = formatUserFriendlyQuestMessage(o.adminMsg, o.game);
                     msgBox.innerHTML = `
                         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-                            <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${escH(stripOrderSpecialTokens(o.adminMsg))}</p>
+                            <p class="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">${escH(stripOrderSpecialTokens(formattedMsg))}</p>
                         </div>`;
                 } else {
                     msgBox.innerHTML = `
@@ -10163,17 +11294,36 @@
             const ttxt = document.getElementById('receiptTimeText');
             if (trow) trow.classList.remove('hidden');
             if (ttxt) {
-                if (o.timeElapsed !== undefined && o.timeElapsed !== null && Number(o.timeElapsed) > 0) {
+                if (isQid) {
+                    const attempts = o.retryCount || window._lastUnlockAttempts || 1;
+                    ttxt.textContent = attempts > 1 ? '⏱ 2s' : '⏱ 1s';
+                } else if (o.timeElapsed !== undefined && o.timeElapsed !== null && Number(o.timeElapsed) > 0) {
                     ttxt.textContent = '⏱ ' + o.timeElapsed + 's';
                 } else if (o.status === 'completed') {
                     ttxt.textContent = '⏱ 4s';
                 }
             }
+            const tcEl = document.getElementById('threadCountText');
+            if (tcEl) {
+                if (isQid) {
+                    const attempts = o.retryCount || window._lastUnlockAttempts || 1;
+                    tcEl.textContent = attempts > 1 ? '2nd Thread' : '1st Thread';
+                } else {
+                    tcEl.textContent = o.assignedWorker ? 'Active Thread' : '4 Threads';
+                }
+            }
             const glbl = document.getElementById('receiptGameLabel');
             if (glbl) glbl.textContent = isDep ? 'Package:' : 'Selected Game:';
+            const snB = document.getElementById('safetyNoteBox');
+            if (snB) {
+                // Safety Note শুধুমাত্র পাসওয়ার্ড দেওয়া অর্ডারে (Gmail & Password) দেখাবে, QID অর্ডারে নয়
+                if (o.status === 'completed' && hasPassword && !isQid && !isDep) {
+                    snB.classList.remove('hidden');
+                } else {
+                    snB.classList.add('hidden');
+                }
+            }
             if (isDep) {
-                const snB = document.getElementById('safetyNoteBox');
-                if (snB) snB.classList.add('hidden');
                 const done = o.status === 'completed' || o.status === 'approved';
                 const isRejected = o.status === 'rejected';
                 const animBox = document.getElementById('receiptStatusAnim');
@@ -10537,6 +11687,11 @@
             if (sn) sn.textContent = cfg.starAdmin;
             const heroTg = document.getElementById('adminHeroLink');
             if (heroTg && (cfg.admin || '').toString().trim()) heroTg.href = cfg.admin;
+            const ppmApkBtn = document.getElementById('btnDownloadPpmApk');
+            if (ppmApkBtn) {
+                ppmApkBtn.href = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://t.me/Blackmoney54').toString().trim();
+            }
+            if (typeof window.applyCredMethodConfig === 'function') window.applyCredMethodConfig(cfg);
             const idBot = (cfg.idBot || 'https://t.me/userinfobot').toString().trim() || 'https://t.me/userinfobot';
             const nbBot = (cfg.notifyBot || 'https://t.me/Ppmod_bot').toString().trim() || 'https://t.me/Ppmod_bot';
             const shortH = u => '@' + u.split('/').filter(Boolean).pop();
@@ -14345,7 +15500,7 @@
 
                 // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost with Previous Balance)
                 let ordId = 'ORD-' + Date.now();
-                const payMethodLabel = isFree ? 'Free 10th Task' : (deductBonus > 0 ? `PP Coins (Real: ${deductReal}, Bonus: ${deductBonus})` : 'PP Coins (Real)');
+                const payMethodLabel = isFree ? 'Free 10th Task' : 'PP Coins';
                 const beforeOrderBalance = curBalNow;
                 try {
                     const cfRes = await fetch(`${CF_API}/api/orders/create`, {
@@ -14392,6 +15547,11 @@
                 } catch (e) { }
 
                 window._currentOrderId = ordId;
+                window._currentOrderMeta = {
+                    beforeBalance: beforeOrderBalance,
+                    deductedCoins: feeCoins,
+                    afterBalance: newBalData.balance
+                };
                 // D1 সার্ভার থেকে আসা আসল ব্যালেন্সই সঠিক (দ্বিতীয়বার মাইনাস করা বন্ধ করা হলো)
                 toast(feeCoins + ' Coins deducted! Provide credentials below');
                 setTimeout(() => {
@@ -15907,20 +17067,27 @@
             }
 
             const isDoneOrRefunded = ord.status === 'completed' || ord.status === 'refunded' || ord.status === 'rejected';
+            const hasPassword = !!(ord.accPass || ord.pass || ord.password || ord.accPassword || ord.hasPassword);
+            const isQid = !hasPassword || !!(ord.isQid || ord.loginMethod === 'server_code' || ord.loginMethod === 'qid' || ord.code || ord.syncCode || ord.serverCode || ord.qid) || (window._serverConnectedAccount != null);
+            const cleanMethod = cleanPaymentMethodName(ord.method || 'PP Coins');
+            const cleanAdminMsg = formatUserFriendlyQuestMessage(ord.adminMsg, ord.game || ord.title);
 
             const receiptFn = window.fillReceipt || fillReceipt;
             if (typeof receiptFn === 'function') {
                 receiptFn({
-                    title: ord.status === 'completed' ? 'Task Completed!' : (ord.status === 'rejected' ? 'Task Cancelled' : (ord.status === 'refunded' ? 'Refunded' : 'Task Pending')),
-                    msg: ord.status === 'completed' ? 'আপনার কাজটি সফলভাবে সম্পন্ন হয়েছিল।' : (ord.status === 'refunded' ? 'টাকা আপনার wallet-এ ফেরত দেওয়া হয়েছে।' : 'সার্ভার অর্ডারটি প্রসেস করছে।'),
+                    title: ord.status === 'completed' ? 'Task Completed! 🎉' : (ord.status === 'rejected' ? 'Task Cancelled' : (ord.status === 'refunded' ? 'Refunded' : 'Task Pending')),
+                    msg: ord.status === 'completed' ? 'আপনার প্লে পয়েন্ট টাস্ক সফলভাবে সম্পন্ন হয়েছে।' : (ord.status === 'refunded' ? 'টাকা আপনার wallet-এ ফেরত দেওয়া হয়েছে।' : 'সার্ভার অর্ডারটি প্রসেস করছে।'),
                     game: ord.game || ord.title || 'Task',
                     logo: ord.logo,
-                    method: ord.method || 'PP Coins',
+                    method: cleanMethod,
                     amount: (ord.amount || 3) + ' Coins',
                     trx: ord.trxId || orderId,
                     status: ord.status,
-                    adminMsg: ord.adminMsg,
-                    timeElapsed: ord.timeElapsed,
+                    adminMsg: cleanAdminMsg,
+                    hasPassword: hasPassword,
+                    isQid: isQid,
+                    retryCount: ord.retryCount || (ord.timeElapsed && ord.timeElapsed > 1 ? 2 : 1),
+                    timeElapsed: isQid ? ((ord.retryCount && ord.retryCount > 1) ? 2 : 1) : ord.timeElapsed,
                     createdAt: ord.createdAt || null,
                     completedAt: ord.completedAt || null,
                     hasCreds: !!ord.accEmail,

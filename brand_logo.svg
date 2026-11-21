@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2d3748"/><stop offset="100%" stop-color="#1a202c"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="goldLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <circle cx="64" cy="64" r="60" fill="url(#bg)" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Laurel wreath -->
+  <path d="M30 68 C 24 48, 40 28, 54 24" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+  <path d="M98 68 C 104 48, 88 28, 74 24" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+  <!-- Trophy Cup -->
+  <path d="M40 32 L88 32 C88 56 78 72 64 74 C50 72 40 56 40 32 Z" fill="url(#gold)" filter="url(#glow)"/>
+  <!-- Trophy Handles -->
+  <path d="M40 38 C28 38 28 54 42 58" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M88 38 C100 38 100 54 86 58" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/>
+  <!-- Trophy Stem & Base -->
+  <path d="M60 74 L68 74 L68 86 L60 86 Z" fill="url(#gold)"/>
+  <rect x="44" y="86" width="40" height="12" rx="4" fill="url(#gold)"/>
+  <rect x="48" y="98" width="32" height="6" rx="2" fill="#d97706"/>
+  <!-- Star on Cup -->
+  <path d="M64 42 L66.5 48 L73 48.5 L68 52.5 L69.5 59 L64 55.5 L58.5 59 L60 52.5 L55 48.5 L61.5 48 Z" fill="#ffffff"/>
+</svg>
