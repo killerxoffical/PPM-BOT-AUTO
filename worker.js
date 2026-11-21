@@ -5690,14 +5690,26 @@ app.post("/api/tg/redeem-code-all", async (req, res) => {
 // ---------------- 10. USER NOTIFY HELPER (@Ppmod_bot) ----------------
 function maskGmail(email) {
     const e = (email || "").toString().trim();
-    if (!e || !e.includes("@")) return "user+++@gmail.com";
+    if (!e || !e.includes("@")) return "use+++@gmail.com";
     const at = e.indexOf("@");
     const user = e.slice(0, at);
     const domain = e.slice(at + 1) || "gmail.com";
     const prefix = user.length <= 3 ? user.charAt(0) : user.slice(0, 3);
     return `${prefix}+++@${domain}`;
 }
-async function sendOrderLog(text, buttonUrl = "https://ppmods.netlify.app/", buttonText = "🌐 Visit Website (টাস্ক শুরু করুন)") {
+
+function maskProfileName(name) {
+    const n = (name || "").toString().trim();
+    if (!n || n === "—" || n === "---" || n.toLowerCase() === "user" || n.toLowerCase() === "direct portal" || n.toLowerCase() === "not given") {
+        return "---";
+    }
+    const clean = n.replace(/^Gamer_/i, "").replace(/[^a-zA-Z0-9_\-\s]/g, "").trim();
+    if (!clean) return "---";
+    if (clean.length <= 2) return clean + "+++";
+    return clean.slice(0, 3) + "+++";
+}
+
+async function sendOrderLog(text, buttonUrl = "https://ppmods.netlify.app/", buttonText = "🌐 Visit Website (ppmods.netlify.app)") {
     if (!text) return;
     try {
         await fetch(`https://api.telegram.org/bot${USER_NOTIFY_BOT_TOKEN}/sendMessage`, {
@@ -5733,12 +5745,18 @@ var isAutoFakeLogEnabled = true;
 })();
 
 const POPULAR_GAMES_LOG = [
-    "8ball pool (50)", "Angry birds 2 (50)", "Best Fiends (50)", "Dice dreams (50)",
-    "Domino dreams (50)", "Farm heroes (50)", "Hey day (All)", "Lords mobile (50)",
-    "Mobile legends (50)", "Summoners War (50)", "Fruit ninja (50)", "Zenless Zone Zero (50)",
-    "War machines (50)", "Yalla Ludo (50)"
+    "8 Ball Pool", "Angry Birds 2", "Best Fiends", "Dice Dreams",
+    "Domino Dreams", "Farm Heroes Saga", "Hay Day", "Lords Mobile",
+    "Mobile Legends: Bang Bang", "Summoners War", "Fruit Ninja", "Zenless Zone Zero",
+    "War Machines", "Yalla Ludo", "Arknights: Endfield", "Coin Master", "Monopoly GO!"
 ];
-const EMAIL_SNIPPETS = ["has", "rak", "tan", "784", "902", "sh", "joy", "fah", "321", "nah", "kab", "551", "al", "sak", "619", "mim"];
+const EMAIL_SNIPPETS = ["has", "rak", "tan", "784", "902", "sh", "joy", "fah", "321", "nah", "kab", "551", "al", "sak", "619", "mim", "ron", "tah", "abd", "ari"];
+const REALISTIC_GAMER_TAGS = [
+    "FullElucidation", "FactiousRecord", "ShadowHunter", "ApexPredator", "SkyWalker",
+    "PhoenixRise", "CyberGhost", "ThunderStrike", "FrostBite", "ViperStrike",
+    "NeonRider", "IronClad", "DarkKnight", "SilverWolf", "StormBringer",
+    "DragonSlayer", "BlazeRider", "TitanForce", "MysticMage", "GhostRider"
+];
 
 // ডাইনামিক গেম লিস্ট ক্যাশ (অ্যাডমিনের নতুন গেম স্বয়ংক্রিয়ভাবে লগে যোগ হবে)
 let dynamicGamesList = [...POPULAR_GAMES_LOG];
@@ -5752,8 +5770,8 @@ async function refreshDynamicGames() {
             snap.forEach(doc => {
                 const data = doc.data() || {};
                 if (data.active !== false && data.name) {
-                    const pts = (data.points !== undefined && data.points !== null && data.points !== "") ? data.points : 50;
-                    list.push(`${data.name} (${pts})`);
+                    const cleanTitle = data.name.replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
+                    list.push(cleanTitle);
                 }
             });
             if (list.length > 0) {
@@ -5772,18 +5790,27 @@ refreshDynamicGames();
 
 function generateRealisticFakeLog() {
     const games = (dynamicGamesList && dynamicGamesList.length > 0) ? dynamicGamesList : POPULAR_GAMES_LOG;
-    const game = games[Math.floor(Math.random() * games.length)];
+    const rawGame = games[Math.floor(Math.random() * games.length)];
+    const game = (rawGame || "8 Ball Pool").replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
     const snip = EMAIL_SNIPPETS[Math.floor(Math.random() * EMAIL_SNIPPETS.length)];
     const maskedEmail = `${snip}+++@gmail.com`;
     const elapsed = Math.floor(Math.random() * 3) + 1;
     const ordId = "ORD-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+    const coinsDeducted = Math.random() < 0.8 ? 2 : 3;
+
+    // ২০% অর্ডারে প্রোফাইল নাম থাকে না ('---'), আর ৮০% অর্ডারে রিয়েল গেমার ট্যাগ মাস্ক হয়ে দেখায় (যেমন 'Sha+++', 'Ful+++')
+    let gamerTag = "---";
+    if (Math.random() > 0.20) {
+        const rawTag = REALISTIC_GAMER_TAGS[Math.floor(Math.random() * REALISTIC_GAMER_TAGS.length)];
+        gamerTag = maskProfileName(rawTag);
+    }
 
     return `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
            `🎮 <b>Game:</b> ${game}\n` +
-           `👤 <b>Play Gamer:</b> Gamer_${snip}\n` +
+           `👤 <b>Play Gamer:</b> ${gamerTag}\n` +
            `📧 <b>Email:</b> <code>${maskedEmail}</code>\n` +
            `⏱️ <b>Time Taken:</b> ~${elapsed}s\n` +
-           `🪙 <b>Coins Deducted:</b> 2 Coins\n` +
+           `🪙 <b>Coins Deducted:</b> ${coinsDeducted} Coins\n` +
            `🆔 <b>Order ID:</b> <code>${ordId}</code>\n` +
            `✅ <b>Status:</b> COMPLETED`;
 }
@@ -6553,16 +6580,20 @@ async function processOrder(orderId, orderData, preAssignedWorker = null) {
                 userNotifyBot.sendMessage(adminTgChatId, adminAlertText, { parse_mode: "HTML" }).catch(() => {});
 
                 // ৩. চ্যানেলে পাবলিক লগ পাঠানো (ডাইনামিক রিয়েল ফি সহ)
-                const taskPaidCoins = Number(orderData.amount !== undefined ? orderData.amount : 3);
+                const taskPaidCoins = Number(orderData.amount !== undefined ? orderData.amount : 2);
+                const cleanGameName = (orderData.game || "Task").replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
+                const displayGamerName = maskProfileName(gamerName);
                 sendOrderLog(
                     `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
-                    `🎮 <b>Game:</b> ${orderData.game || "Task"}\n` +
-                    `👤 <b>Play Gamer:</b> ${(gamerName || "").trim() || "—"}\n` +
+                    `🎮 <b>Game:</b> ${cleanGameName}\n` +
+                    `👤 <b>Play Gamer:</b> ${displayGamerName}\n` +
                     `📧 <b>Email:</b> <code>${maskGmail(orderData.accEmail)}</code>\n` +
                     `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
                     `🪙 <b>Coins Deducted:</b> ${taskPaidCoins} Coins\n` +
                     `🆔 <b>Order ID:</b> <code>${orderData.trxId || orderId}</code>\n` +
-                    `✅ <b>Status:</b> COMPLETED`
+                    `✅ <b>Status:</b> COMPLETED`,
+                    "https://ppmods.netlify.app/",
+                    "🌐 Visit Website (ppmods.netlify.app)"
                 );
                 completed = true;
                 return;

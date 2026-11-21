@@ -555,6 +555,33 @@ export default {
         }
       }
 
+      // Cloudflare D1 Persistent Cloud Backup for Unlock / Serviced History Logs
+      if (path === "/api/cloud/unlock-history" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'unlock_history' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/unlock-history" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('unlock_history', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Unlock history permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
       // 1d-gw. PP Auto Payment Gateway Edge API
       if (path === "/api/gateway/sms" && request.method === "POST") {
         const secret = request.headers.get("x-gateway-secret") || "";
@@ -839,10 +866,11 @@ export default {
         let q = "SELECT * FROM orders";
         const params = [];
         if (status && status !== "all") {
-          q += " WHERE status = ?";
+          q += " WHERE status = ? ORDER BY createdAt DESC LIMIT 200";
           params.push(status);
+        } else {
+          q += " ORDER BY CASE WHEN status IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
         }
-        q += " ORDER BY createdAt DESC LIMIT 100";
         const { results } = await env.DB.prepare(q).bind(...params).all();
         return json({ ok: true, orders: results || [] });
       }
@@ -1034,10 +1062,11 @@ export default {
         let queryStr = `SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId FROM deposits d LEFT JOIN user_wallets u ON d.uid = u.uid`;
         const params = [];
         if (status && status !== "all") {
-          queryStr += ` WHERE d.status = ?`;
+          queryStr += ` WHERE d.status = ? ORDER BY d.createdAt DESC LIMIT 200`;
           params.push(status);
+        } else {
+          queryStr += ` ORDER BY CASE WHEN d.status = 'pending' THEN 0 ELSE 1 END, d.createdAt DESC LIMIT 200`;
         }
-        queryStr += ` ORDER BY d.createdAt DESC LIMIT 100`;
         const { results } = await env.DB.prepare(queryStr).bind(...params).all();
         return json({ ok: true, deposits: results || [] });
       }
