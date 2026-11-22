@@ -804,6 +804,36 @@ export default {
         let amount = Number(body.amount) || 0;
         let balance = Number(body.balance) || 0;
         let method = body.method || "bKash";
+
+        // Multi-signal payment method detection for Rocket, Nagad, bKash, Upay
+        const rawText = (message || "").toLowerCase();
+        const snd = (sender || "").toLowerCase();
+        if (snd.includes("rocket") || snd.includes("16216") || snd.includes("dbbl") || snd.includes("nexus") || snd.includes("dutch-bangla") ||
+            rawText.includes("nexuspay") || rawText.includes("nexus") || rawText.includes("bit.ly/nexuspay") ||
+            rawText.includes("rocket") || rawText.includes("রকেট") || rawText.includes("dbbl") || rawText.includes("16216") || rawText.includes("dutch-bangla") ||
+            rawText.includes("a/c:***") || rawText.includes("a/c:") || (rawText.includes("fee:tk") && (rawText.includes("txnid") || rawText.includes("balance"))) ||
+            /txnid[:\s]*\d{8,12}\b/i.test(rawText)) {
+          method = "Rocket";
+        } else if (snd.includes("nagad") || snd.includes("16167") || snd.includes("nagad-bd") ||
+                   rawText.includes("nagad") || rawText.includes("নগদ") ||
+                   (rawText.includes("ref:") && (rawText.includes("txnid") || rawText.includes("balance:"))) ||
+                   /txnid[:\s]*[A-Za-z0-9]{8}\b/i.test(rawText)) {
+          method = "Nagad";
+        } else if (snd.includes("upay") || snd.includes("16268") || snd.includes("ucb") ||
+                   rawText.includes("upay") || rawText.includes("উপায়") || rawText.includes("উপায়") || rawText.includes("16268") || rawText.includes("ucb")) {
+          method = "Upay";
+        } else if (snd.includes("bkash") || snd.includes("16247") ||
+                   rawText.includes("bkash") || rawText.includes("বিকাশ") || rawText.includes("16247") ||
+                   /trxid[:\s]*[A-Za-z0-9]{10}\b/i.test(rawText) || rawText.includes("trxid")) {
+          method = "bKash";
+        } else if (body.method && body.method !== "bKash") {
+          method = body.method;
+        } else if (trxId) {
+          const clean = trxId.replace(/[^A-Za-z0-9]/g, "");
+          if (/^\d{9,12}$/.test(clean)) method = "Rocket";
+          else if (clean.length === 8) method = "Nagad";
+          else if (clean.length === 10) method = "bKash";
+        }
         const now = Date.now();
         const timestamp = body.timestamp ? Number(body.timestamp) : now;
         const expiryCutoff = now - 30 * 60 * 1000;

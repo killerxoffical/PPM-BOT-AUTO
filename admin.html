@@ -2432,7 +2432,31 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="block text-[11px] font-black text-slate-700 mb-1">Paste Full SMS or Type TrxID *</label>
-                                    <textarea id="smartGwInput" rows="3" oninput="parseSmartGwInput(this.value)" placeholder="যেমন: bKash/Nagad থেকে আসা পুরো মেসেজটি এখানে পেস্ট করুন, অথবা সরাসরি TrxID লিখুন (যেমন: BL9X76K102)..." style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 10px 12px; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#4f46e5'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
+                                    <textarea id="smartGwInput" rows="3" oninput="parseSmartGwInput(this.value)" placeholder="যেমন: bKash/Nagad/Rocket থেকে আসা পুরো মেসেজটি এখানে পেস্ট করুন, অথবা সরাসরি TrxID লিখুন..." style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 10px 12px; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#4f46e5'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
+                                    
+                                    <!-- Method Selector Pills (Auto-selected with manual override) -->
+                                    <div class="flex items-center gap-1.5 pt-2 overflow-x-auto pb-0.5">
+                                        <span class="text-[11px] font-black text-slate-500 flex items-center gap-1 flex-shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                                            <span>পদ্ধতি:</span>
+                                        </span>
+                                        <button type="button" id="gwBtn_bKash" onclick="selectGwMethodManual('bKash')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                            <span>bKash</span>
+                                        </button>
+                                        <button type="button" id="gwBtn_Nagad" onclick="selectGwMethodManual('Nagad')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                            <span>Nagad</span>
+                                        </button>
+                                        <button type="button" id="gwBtn_Rocket" onclick="selectGwMethodManual('Rocket')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                            <span>Rocket</span>
+                                        </button>
+                                        <button type="button" id="gwBtn_Upay" onclick="selectGwMethodManual('Upay')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                            <span>Upay</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <!-- Live Smart Parser Output Card -->
@@ -7724,92 +7748,190 @@
             }
         };
 
-        // Smart SMS & Trx Parser
-        window.parseSmartGwInput = function(raw) {
-            const text = (raw || '').trim();
+        // Smart SMS & Trx Parser & Live Method Selector
+        let _userManualMethod = null;
+
+        window.updateGwMethodButtons = function(activeMethod) {
+            const mStyles = {
+                bKash: { border: '#f43f5e', bg: '#fff1f2', text: '#e11d48' },
+                Nagad: { border: '#f97316', bg: '#fff7ed', text: '#ea580c' },
+                Rocket: { border: '#8b5cf6', bg: '#f5f3ff', text: '#7c3aed' },
+                Upay: { border: '#0284c7', bg: '#f0f9ff', text: '#0369a1' }
+            };
+            ['bKash', 'Nagad', 'Rocket', 'Upay'].forEach(m => {
+                const btn = document.getElementById('gwBtn_' + m);
+                if (!btn) return;
+                if (m === activeMethod) {
+                    const st = mStyles[m] || mStyles.bKash;
+                    btn.style.borderColor = st.border;
+                    btn.style.background = st.bg;
+                    btn.style.color = st.text;
+                    btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.08)';
+                } else {
+                    btn.style.borderColor = '#cbd5e1';
+                    btn.style.background = '#f8fafc';
+                    btn.style.color = '#475569';
+                    btn.style.boxShadow = 'none';
+                }
+            });
+        };
+
+        window.selectGwMethodManual = function(m) {
+            _userManualMethod = m;
+            if (_smartParsed) {
+                _smartParsed.method = m;
+            }
+            updateGwMethodButtons(m);
+            renderGwSmartPreview();
+        };
+
+        window.renderGwSmartPreview = function() {
             const statusEl = document.getElementById('gwDetectStatus');
             const detailsEl = document.getElementById('gwDetectDetails');
-            if (!text) {
-                _smartParsed = { trxId: '', amount: 0, method: 'bKash', sender: '' };
-                if (statusEl) { statusEl.textContent = 'Waiting for input'; statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700'; }
-                if (detailsEl) { detailsEl.innerHTML = '💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।'; }
+            if (!_smartParsed || !_smartParsed.trxId) {
+                if (statusEl) {
+                    statusEl.textContent = 'TrxID Not Found';
+                    statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800';
+                }
+                if (detailsEl) {
+                    detailsEl.innerHTML = '<span style="color: #b45309; font-weight: 700; font-size: 11.5px;">⚠️ কোনো TrxID শনাক্ত করা যায়নি! সঠিক ট্রানজ্যাকশন আইডি অথবা পুরো মেসেজ পেস্ট করুন।</span>';
+                }
                 return;
             }
 
-            // 1. Detect Method
-            let method = 'bKash';
-            const lower = text.toLowerCase();
-            if (lower.includes('nagad') || lower.includes('নগদ')) method = 'Nagad';
-            else if (lower.includes('rocket') || lower.includes('16216') || lower.includes('রকেট')) method = 'Rocket';
-            else if (lower.includes('upay') || lower.includes('উপায়')) method = 'Upay';
-            else if (lower.includes('bkash') || lower.includes('বিকাশ')) method = 'bKash';
-
-            // 2. Extract TrxID
-            let trxId = '';
-            const trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i);
-            if (trxMatch) {
-                trxId = trxMatch[1].trim().toUpperCase();
-            } else {
-                const directMatch = text.match(/\b([A-Za-z0-9]{7,14})\b/);
-                if (directMatch) {
-                    trxId = directMatch[1].trim().toUpperCase();
-                }
+            if (statusEl) {
+                statusEl.textContent = '✓ Ready to Lock';
+                statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
             }
 
-            // 3. Extract Amount
-            let amount = 0;
-            const amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
-            if (amtMatch) {
-                amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, '')));
-            }
-
-            // 4. Extract Sender Phone
-            let sender = '';
-            const phoneMatch = text.match(/(?:from|Sender)[:\s]*(01[3-9]\d{8})/i);
-            if (phoneMatch) sender = phoneMatch[1];
-
-            _smartParsed = { trxId, amount, method, sender };
-
+            const method = _smartParsed.method || 'bKash';
             const methodLogos = {
                 bKash: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10',
                 Nagad: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10',
                 Rocket: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10',
                 Upay: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10'
             };
+            const logo = methodLogos[method] || methodLogos.bKash;
 
-            if (trxId) {
-                if (statusEl) {
-                    statusEl.textContent = '✓ Ready to Lock';
-                    statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
-                }
-                const logo = methodLogos[method] || methodLogos.bKash;
+            if (detailsEl) {
                 detailsEl.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: #ffffff; border: 1.5px solid #c7d2fe;">
                         <img src="${logo}" style="width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: #ffffff; border: 1px solid #e2e8f0; flex-shrink: 0;">
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-family: monospace; font-weight: 900; color: #0f172a; font-size: 13px;">${esc(trxId)}</span>
+                                <span style="font-family: monospace; font-weight: 900; color: #0f172a; font-size: 13px;">${esc(_smartParsed.trxId)}</span>
                                 <span style="padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; background: #e0e7ff; color: #4338ca;">${method}</span>
                             </div>
                             <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">
-                                ${amount > 0 ? `<span style="color: #d97706; font-weight: 900;">৳ ${amount}</span>` : 'TrxID detected'}
-                                ${sender ? ` • Sender: <span style="font-family: monospace; color: #334155;">${sender}</span>` : ''}
+                                ${_smartParsed.amount > 0 ? `<span style="color: #d97706; font-weight: 900;">৳ ${_smartParsed.amount}</span>` : 'TrxID detected'}
+                                ${_smartParsed.sender ? ` • Sender: <span style="font-family: monospace; color: #334155;">${_smartParsed.sender}</span>` : ''}
                             </div>
                         </div>
                     </div>
                 `;
-            } else {
-                if (statusEl) {
-                    statusEl.textContent = 'TrxID Not Found';
-                    statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800';
-                }
-                detailsEl.innerHTML = '<span style="color: #b45309; font-weight: 700; font-size: 11.5px;">⚠️ কোনো TrxID শনাক্ত করা যায়নি! অনুগ্রহ করে সঠিক ট্রানজ্যাকশন আইডি বা মেসেজ দিন।</span>';
             }
+        };
+
+        window.parseSmartGwInput = function(raw) {
+            const text = (raw || '').trim();
+            const statusEl = document.getElementById('gwDetectStatus');
+            const detailsEl = document.getElementById('gwDetectDetails');
+            if (!text) {
+                _smartParsed = { trxId: '', amount: 0, method: _userManualMethod || 'bKash', sender: '' };
+                if (statusEl) { statusEl.textContent = 'Waiting for input'; statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700'; }
+                if (detailsEl) { detailsEl.innerHTML = '💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।'; }
+                updateGwMethodButtons(_smartParsed.method);
+                return;
+            }
+
+            const lower = text.toLowerCase();
+
+            // 1. Multi-signal Payment Method Detection
+            let autoMethod = 'bKash';
+
+            // Rocket (DBBL / NexusPay)
+            if (lower.includes('nexuspay') || lower.includes('nexus') || lower.includes('bit.ly/nexuspay') ||
+                lower.includes('rocket') || lower.includes('রকেট') || lower.includes('dbbl') ||
+                lower.includes('16216') || lower.includes('dutch-bangla') ||
+                lower.includes('a/c:***') || lower.includes('a/c:') ||
+                (lower.includes('fee:tk') && (lower.includes('txnid') || lower.includes('balance'))) ||
+                /txnid[:\s]*\d{8,12}\b/i.test(text)) {
+                autoMethod = 'Rocket';
+            }
+            // Nagad (Ref: signature / 16167 / 8-char TxnID)
+            else if (lower.includes('nagad') || lower.includes('নগদ') || lower.includes('16167') || lower.includes('nagad-bd') ||
+                (lower.includes('ref:') && (lower.includes('txnid') || lower.includes('balance:'))) ||
+                /txnid[:\s]*[A-Za-z0-9]{8}\b/i.test(text)) {
+                autoMethod = 'Nagad';
+            }
+            // Upay (16268 / UCB)
+            else if (lower.includes('upay') || lower.includes('উপায়') || lower.includes('উপায়') || lower.includes('16268') || lower.includes('ucb')) {
+                autoMethod = 'Upay';
+            }
+            // bKash (16247 / TrxID)
+            else if (lower.includes('bkash') || lower.includes('বিকাশ') || lower.includes('16247') ||
+                /trxid[:\s]*[A-Za-z0-9]{10}\b/i.test(text) || lower.includes('trxid')) {
+                autoMethod = 'bKash';
+            }
+
+            // 2. Extract TrxID / TxnID (excluding 'Ref' to prevent matching customer reference note)
+            let trxId = '';
+            const trxMatch = text.match(/(?:TrxID|TxnID|TxnId|Txn_ID|Txn|Transaction ID|আইডি)[:\s]*([A-Za-z0-9]{7,16})/i);
+            if (trxMatch) {
+                trxId = trxMatch[1].trim().toUpperCase();
+            } else {
+                // Direct TrxID or alphanumeric word match
+                const words = text.match(/\b([A-Za-z0-9]{7,16})\b/g) || [];
+                for (const w of words) {
+                    const up = w.toUpperCase();
+                    if (!['SUCCESS', 'PAYMENT', 'BALANCE', 'DOWNLOAD', 'NEXUSPAY', 'RECEIVED', 'KADERI', 'NAGAD', 'BKASH', 'ROCKET', 'UPAY'].includes(up)) {
+                        trxId = up;
+                        break;
+                    }
+                }
+            }
+
+            // Fallback method detection by TrxID pattern if method still bKash and user hasn't overridden
+            if (autoMethod === 'bKash') {
+                const clean = (trxId || text).replace(/[^A-Za-z0-9]/g, '');
+                if (/^\d{9,12}$/.test(clean)) {
+                    autoMethod = 'Rocket';
+                } else if (clean.length === 8) {
+                    autoMethod = 'Nagad';
+                } else if (clean.length === 10) {
+                    autoMethod = 'bKash';
+                }
+            }
+
+            const method = _userManualMethod || autoMethod;
+
+            // 3. Extract Amount
+            let amount = 0;
+            const amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || 
+                             text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
+            if (amtMatch) {
+                amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, '')));
+            }
+
+            // 4. Extract Sender Phone / Account
+            let sender = '';
+            const phoneMatch = text.match(/(?:from|Sender)[:\s]*(01[3-9]\d{8})/i);
+            if (phoneMatch) {
+                sender = phoneMatch[1];
+            } else {
+                const acMatch = text.match(/(?:A\/C:?\s*\*+(\d{3,11}))/i);
+                if (acMatch) sender = 'A/C:***' + acMatch[1];
+            }
+
+            _smartParsed = { trxId, amount, method, sender };
+            updateGwMethodButtons(method);
+            renderGwSmartPreview();
         };
 
         window.openAdminAddTrxModal = function() {
             const m = document.getElementById('modalAdminAddTrx');
             if (!m) return;
+            _userManualMethod = null;
             const input = document.getElementById('smartGwInput');
             if (input) input.value = '';
             const uEl = document.getElementById('addGwUser');

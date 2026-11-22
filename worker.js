@@ -277,17 +277,67 @@ const activeTrxLocks = new Set(); // Anti-Race Condition Mutex Lock
 function parseSmsBody(sender, body) {
     if (!body) return null;
     let text = body.replace(/\n/g, " ");
+    let s = (sender || "").toLowerCase();
+    let t = text.toLowerCase();
     let method = "bKash", trxId = null, amount = null;
 
-    if (/nagad/i.test(sender) || /nagad/i.test(text)) method = "Nagad";
-    else if (/rocket|16216/i.test(sender) || /rocket/i.test(text)) method = "Rocket";
+    // 1. Multi-signal Payment Method Detection
+    // Rocket (DBBL / NexusPay)
+    if (s.includes("rocket") || s.includes("16216") || s.includes("dbbl") || s.includes("nexus") || s.includes("dutch-bangla") ||
+        t.includes("nexuspay") || t.includes("nexus") || t.includes("bit.ly/nexuspay") ||
+        t.includes("rocket") || t.includes("রকেট") || t.includes("dbbl") || t.includes("16216") || t.includes("dutch-bangla") ||
+        t.includes("a/c:***") || t.includes("a/c:") ||
+        (t.includes("fee:tk") && (t.includes("txnid") || t.includes("balance"))) ||
+        /txnid[:\s]*\d{8,12}\b/i.test(t)) {
+        method = "Rocket";
+    }
+    // Nagad (Ref: signature / 16167 / 8-char TxnID)
+    else if (s.includes("nagad") || s.includes("16167") || s.includes("nagad-bd") ||
+        t.includes("nagad") || t.includes("নগদ") ||
+        (t.includes("ref:") && (t.includes("txnid") || t.includes("balance:"))) ||
+        /txnid[:\s]*[A-Za-z0-9]{8}\b/i.test(t)) {
+        method = "Nagad";
+    }
+    // Upay (16268 / UCB)
+    else if (s.includes("upay") || s.includes("16268") || s.includes("ucb") ||
+        t.includes("upay") || t.includes("উপায়") || t.includes("উপায়") || t.includes("16268") || t.includes("ucb")) {
+        method = "Upay";
+    }
+    // bKash (16247 / TrxID)
+    else if (s.includes("bkash") || s.includes("16247") ||
+        t.includes("bkash") || t.includes("বিকাশ") || t.includes("16247") ||
+        /trxid[:\s]*[A-Za-z0-9]{10}\b/i.test(t) || t.includes("trxid")) {
+        method = "bKash";
+    }
 
-    // আধুনিক বিকাশ/নগদ/রকেট TrxID পার্সিং (সহজে সব ধরনের ফরম্যাট গ্রহণ করে)
-    let trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i) 
-                || text.match(/\b([A-Z0-9]{8,12})\b/i);
-    if (trxMatch) trxId = trxMatch[1].trim().toUpperCase();
+    // 2. Parse TrxID / TxnID (excluding 'Ref' to prevent matching customer reference note)
+    let trxMatch = text.match(/(?:TrxID|TxnID|TxnId|Txn_ID|Txn|Transaction ID|আইডি)[:\s]*([A-Za-z0-9]{7,16})/i);
+    if (trxMatch) {
+        trxId = trxMatch[1].trim().toUpperCase();
+    } else {
+        let words = text.match(/\b([A-Za-z0-9]{7,16})\b/g) || [];
+        for (let w of words) {
+            let up = w.toUpperCase();
+            if (!['SUCCESS', 'PAYMENT', 'BALANCE', 'DOWNLOAD', 'NEXUSPAY', 'RECEIVED', 'KADERI', 'NAGAD', 'BKASH', 'ROCKET', 'UPAY'].includes(up)) {
+                trxId = up;
+                break;
+            }
+        }
+    }
 
-    // টাকা পার্সিং (টাকা, Tk, BDT, Amount বা received ইত্যাদি সব হ্যান্ডেল করা)
+    // Fallback refinement by TrxID pattern if method still bKash
+    if (method === "bKash" && trxId) {
+        let clean = trxId.replace(/[^A-Za-z0-9]/g, "");
+        if (/^\d{9,12}$/.test(clean)) {
+            method = "Rocket";
+        } else if (clean.length === 8) {
+            method = "Nagad";
+        } else if (clean.length === 10) {
+            method = "bKash";
+        }
+    }
+
+    // 3. Amount parsing
     let amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i)
                 || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i)
                 || text.match(/(?:Tk|টাকা)\s*([\d,]+(?:\.\d+)?)/i);
