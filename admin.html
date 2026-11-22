@@ -9421,7 +9421,50 @@
             const dDaily = red.filter(d => isD(d.code)), dRef = red.filter(d => isR(d.code)),
                 dEx = red.filter(d => isE(d.code)), dCode = red.filter(d => !isD(d.code) && !isR(d.code) && !isE(d.code));
 
-            openSheet(
+            
+            // Fetch connected Google accounts from Cloud Vault
+            let vaultHtml = '';
+            try {
+                const vRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}`);
+                const vData = await vRes.json();
+                const vAccounts = (vData && vData.accounts) || [];
+                if (vAccounts.length > 0) {
+                    vaultHtml = `
+                        <div class="mt-4 p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/50 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                    <span>📱 Connected Google Accounts (${vAccounts.length})</span>
+                                </span>
+                                <button type="button" onclick="adminDeleteAllVaultAccounts('${uid}')" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; padding:3px 8px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">
+                                    🗑️ Delete All Accounts
+                                </button>
+                            </div>
+                            <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                ${vAccounts.map(acc => `
+                                    <div class="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-xs">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="font-bold text-slate-900 truncate">${esc(acc.email || 'No Email')}</span>
+                                                <span class="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">QID: ${esc(acc.code)}</span>
+                                            </div>
+                                            <div class="text-[10px] text-slate-500 font-medium mt-0.5">
+                                                <span>${acc.country || 'GLOBAL'}</span> • <span>${acc.points || 0} Points</span>
+                                                ${(acc.has_play_points === 0 || acc.play_points_status === 'not_enrolled') ? ' • <span class="text-rose-600 font-bold">Play Points নেই</span>' : ' • <span class="text-emerald-600 font-bold">Play Points Active</span>'}
+                                            </div>
+                                        </div>
+                                        <button type="button" onclick="adminDeleteVaultAccount('${acc.code}', '${uid}')" style="background:#fef2f2; color:#ef4444; border:none; padding:4px 6px; border-radius:6px; font-size:11px; cursor:pointer;" title="Delete this account">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (vErr) {
+                console.warn("Vault fetch error:", vErr);
+            }
+openSheet(
                 '<div class="flex items-center gap-3 pb-4 border-b border-slate-200">'
                 + thumb(u.photo || '', u.name).replace('class="thumb"', 'class="thumb" style="width:54px;height:54px"')
                 + '<div class="min-w-0 flex-1"><p class="text-base font-extrabold text-slate-900 truncate">' + esc(u.name || 'User') + '</p>'
@@ -12111,7 +12154,49 @@
         }
         window.deleteLicenseKey = deleteLicenseKey;
 
-    </script>
+    
+        window.adminDeleteAllVaultAccounts = async function(uid) {
+            if (!confirm('আপনি কি নিশ্চিত এই ইউজারের সব কানেক্টেড Google Account মুছে দিতে চান?')) return;
+            toast('অ্যাকাউন্টগুলো মোছা হচ্ছে...');
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/sync/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: uid })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast('✅ সব অ্যাকাউন্ট সফলভাবে মুছে ফেলা হয়েছে!');
+                    userSheet(uid);
+                } else {
+                    toast('❌ মুছতে সমস্যা হয়েছে');
+                }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+
+        window.adminDeleteVaultAccount = async function(code, uid) {
+            if (!confirm('আপনি কি এই অ্যাকাউন্টটি মুছে ফেলতে চান? (QID: ' + code + ')')) return;
+            toast('অ্যাকাউন্ট মোছা হচ্ছে...');
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/sync/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast('✅ অ্যাকাউন্ট মুছে ফেলা হয়েছে!');
+                    userSheet(uid);
+                } else {
+                    toast('❌ মুছতে সমস্যা হয়েছে');
+                }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+</script>
 </body>
 
 </html>

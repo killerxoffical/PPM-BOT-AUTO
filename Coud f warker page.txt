@@ -673,13 +673,17 @@ export default {
         const body = await request.json().catch(() => ({}));
         const code = (body.code || "").trim();
         const email = (body.email || "").trim().toLowerCase();
+        const uid = (body.uid || body.targetUid || "").trim();
+        if (uid) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+        }
         if (code) {
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE code = ?`).bind(code).run();
         }
         if (email) {
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run();
         }
-        return json({ ok: true, message: "Account permanently deleted from Cloud Vault" });
+        return json({ ok: true, message: "Account(s) permanently deleted from Cloud Vault" });
       }
 
       // Cloudflare D1 Persistent Cloud Backup for Games & Portal Services (Survives Render Redeploys)
