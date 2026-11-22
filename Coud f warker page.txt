@@ -1732,6 +1732,7 @@ export default {
           if (doubleCheck && doubleCheck.status === 'approved') {
             return json({ ok: true, alreadyApproved: true, message: "ডিপোজিট ইতিমধ্যে অ্যাপ্রুভড হয়েছে।" });
           }
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য কোনো ডিপোজিটে ব্যবহৃত বা লক করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
         }
 
         // ২. Atomic Status Update on Deposit (Preventing double balance credit)

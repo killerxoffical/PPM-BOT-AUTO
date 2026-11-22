@@ -15010,7 +15010,20 @@
             if (!clean) return { ok: false, error: 'TrxID din' };
             const isStars = (method === 'Telegram Stars');
             try {
-                // ১. পার্মানেন্ট ব্যবহৃত TrxID চেক
+                // ১. Cloudflare D1 Edge-এ TrxID পার্মানেন্ট লক ও ডুপ্লিকেট চেক (Instant Pre-check)
+                try {
+                    const cfCheck = await fetch(`${CF_API}/api/trx/check-lock`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ trxId: clean, uid: u.uid, amount: Number(amount) })
+                    });
+                    const cfCheckData = await cfCheck.json().catch(() => ({}));
+                    if (cfCheckData && !cfCheckData.ok && cfCheckData.duplicate) {
+                        return { ok: false, error: cfCheckData.error || '⚠️ এই ট্রানজ্যাকশন আইডি (TrxID) টি ইতিমধ্যে একবার ব্যবহার হয়ে গেছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।' };
+                    }
+                } catch (cfErr) { }
+
+                // ফায়ারস্টোর ব্যবহৃত TrxID চেক (Double redundancy)
                 const usedSnap = await _getDoc(_doc(db, 'used_trx', clean)).catch(() => null);
                 if (usedSnap && usedSnap.exists()) {
                     return { ok: false, error: '⚠️ এই ট্রানজ্যাকশন আইডি (TrxID) টি ইতিমধ্যে একবার ব্যবহার হয়ে গেছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।' };
