@@ -67,7 +67,6 @@ service cloud.firestore {
         || isSelfPointsClaim(userId) 
         || isSelfProfile(userId) 
         || isSelfRedeem(userId) 
-        || isSelfGenUnlock(userId)
         || isSelfDealUpdate(userId)
         || isSelfDailyBonus(userId)
         || isSelfEarnReward(userId);
@@ -105,12 +104,6 @@ service cloud.firestore {
         && request.resource.data.get('banned', false) == resource.data.get('banned', false)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasAny(['name', 'displayName', 'photo', 'avatar', 'refCode', 'referredBy', 'refCount', 'refEarned', 'lastSeen', 'redeemed', 'tgChatId', 'wdPin', 'lastBonusDay', 'lastBonusStreak', 'bonusBalance', 'balance', 'realBalance', 'customNameSet']);
-    }
-
-    function isSelfGenUnlock(userId) {
-      return isSelf(userId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'genUntil'])
-        && request.resource.data.balance >= 0;
     }
 
     function isSelfRedeem(userId) {
