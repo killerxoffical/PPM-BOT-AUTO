@@ -875,6 +875,55 @@
             animation: floatPopIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
+        
+        /* --- Animated SVGs (Maintenance Astronaut, Update UFO, No Game Planet) --- */
+        @keyframes planetFloat {
+            0%, 100% {
+                filter: drop-shadow(0 2px 5px rgba(99, 102, 241, 0.15));
+            }
+            50% {
+                filter: drop-shadow(0 4px 10px rgba(168, 85, 247, 0.28));
+            }
+        }
+        .no-game-planet-anim {
+            animation: planetFloat 2.4s ease-in-out infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .sel-empty-anim {
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.25s ease-out;
+        }
+        .sel-empty-anim:hover {
+            transform: scale(1.08);
+        }
+        .sel-empty-anim:active {
+            transform: scale(0.95);
+        }
+        @keyframes astroFloat {
+            0%, 100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-7px) rotate(1.5deg);
+            }
+        }
+        .maint-astro-anim {
+            animation: astroFloat 3.5s ease-in-out infinite;
+        }
+        @keyframes ufoPulse {
+            0%, 100% {
+                transform: translateY(0px) scale(1);
+            }
+            50% {
+                transform: translateY(-6px) scale(1.04);
+            }
+        }
+        .update-ufo-anim {
+            animation: ufoPulse 2.8s ease-in-out infinite;
+        }
+
         /* --- Selected Status Pill --- */
         .sel-pill {
             display: inline-flex;
@@ -2906,11 +2955,26 @@
             <!-- Full Width Rounded Game Deck -->
             <div
                 class="bg-white pt-3 px-2.5 pb-2 rounded-[2rem] border border-slate-200/80 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
-                <!-- Title & Status -->
-                <div class="flex items-center justify-between px-1.5 pb-2">
-                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700"
-                        id="totalGamesLabel">Available Games</span>
-                    <span id="selectedCount" class="sel-pill sel-empty">No game selected</span>
+                <!-- Search & Status Header -->
+                <div class="flex items-center justify-between gap-2 px-1 pb-2">
+                    <!-- Game Search Input with dynamic total game count -->
+                    <div class="relative flex-1 min-w-0">
+                        <div class="relative flex items-center">
+                            <i data-lucide="search" class="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none"></i>
+                            <input type="text" id="gameSearchInput"
+                                class="w-full pl-8 pr-7 py-1.5 text-xs font-semibold text-slate-800 placeholder-slate-400 bg-slate-100/90 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-amber-400 rounded-xl outline-none transition-all shadow-2xs"
+                                placeholder="Search games..."
+                                autocomplete="off" spellcheck="false"
+                                oninput="filterGames(this.value)">
+                            <button type="button" id="gameSearchClearBtn" onclick="clearGameSearch()"
+                                class="hidden absolute right-1.5 w-5 h-5 rounded-md hover:bg-slate-200/80 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all cursor-pointer"
+                                title="Clear search">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <span id="totalGamesLabel" class="hidden"></span>
+                    <span id="selectedCount" class="sel-empty-anim flex-shrink-0 inline-flex items-center justify-center transition-all" title="Select a game"><img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game"></span>
                 </div>
 
                 <div class="fit-grid !p-0.5" id="gameGrid">
@@ -3620,8 +3684,13 @@
 <!-- PPM SERVER Download APK Card (Admin Managed URL) -->
                 <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/40 rounded-2xl p-3.5 text-white shadow-md flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3 min-w-0">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-inner flex-shrink-0">
-                            <i data-lucide="smartphone" class="w-5 h-5"></i>
+                        <div class="w-10 h-10 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner flex-shrink-0 p-2">
+                            <svg class="w-full h-full flex-shrink-0" viewBox="0 0 512 512">
+                                <path fill="#4285F4" d="M32.5 13.5C21.8 25.1 16 42.5 16 64v384c0 21.5 5.8 38.9 16.5 50.5l2.6 2.6L256 280.2v-48.4L35.1 10.9l-2.6 2.6z"/>
+                                <path fill="#FFBB00" d="M336 360.2l-80-80v-48.4l80-80 1.9 1.1 94.6 53.7c27 15.3 27 40.5 0 55.9l-94.6 53.7-1.9 4z"/>
+                                <path fill="#EA4335" d="M256 280.2L35.1 501.1c8.8 9.3 23.3 10.4 39.5 1.2l261.4-148.5-80-73.6z"/>
+                                <path fill="#34A853" d="M256 231.8l80-73.6L74.6 9.7C58.4.5 43.9 1.6 35.1 10.9L256 231.8z"/>
+                            </svg>
                         </div>
                         <div class="min-w-0">
                             <p class="text-xs font-black text-white flex items-center gap-1.5 truncate">
@@ -4190,8 +4259,13 @@
                 class="p-3 rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between gap-3 shadow-md">
                 <div class="flex items-center gap-2.5 min-w-0">
                     <div
-                        class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-inner flex-shrink-0">
-                        <i data-lucide="smartphone" class="w-5 h-5"></i>
+                        class="w-9 h-9 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-inner flex-shrink-0 p-1.5">
+                        <svg class="w-full h-full flex-shrink-0" viewBox="0 0 512 512">
+                            <path fill="#4285F4" d="M32.5 13.5C21.8 25.1 16 42.5 16 64v384c0 21.5 5.8 38.9 16.5 50.5l2.6 2.6L256 280.2v-48.4L35.1 10.9l-2.6 2.6z"/>
+                            <path fill="#FFBB00" d="M336 360.2l-80-80v-48.4l80-80 1.9 1.1 94.6 53.7c27 15.3 27 40.5 0 55.9l-94.6 53.7-1.9 4z"/>
+                            <path fill="#EA4335" d="M256 280.2L35.1 501.1c8.8 9.3 23.3 10.4 39.5 1.2l261.4-148.5-80-73.6z"/>
+                            <path fill="#34A853" d="M256 231.8l80-73.6L74.6 9.7C58.4.5 43.9 1.6 35.1 10.9L256 231.8z"/>
+                        </svg>
                     </div>
                     <div class="min-w-0">
                         <div class="flex items-center gap-1.5 flex-wrap">
@@ -4209,16 +4283,6 @@
                     <span id="btnDownloadPpmApkProfileTxt">Download</span>
                 </a>
             </div>
-
-            <!-- Rewards Access Button (Profile Screen) -->
-            <button type="button" onclick="openRewardsScreen()"
-                class="w-full py-2.5 px-3.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 flex items-center justify-between text-slate-800 active:scale-[0.99] transition-all cursor-pointer shadow-2xs">
-                <div class="flex items-center gap-2.5">
-                    <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs">🏆</span>
-                    <span class="text-xs font-black text-slate-800 tracking-tight">Rewards &amp; Achievements</span>
-                </div>
-                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-            </button>
 
             <!-- Professional Native List (Clean Icons, Dark Dividers & Darker Arrows) -->
             <div class="space-y-0.5 pt-2">
@@ -4252,6 +4316,16 @@
                     <div class="flex items-center gap-3.5">
                         <i data-lucide="wallet" class="w-5 h-5 text-slate-700"></i>
                         <span class="text-sm font-black text-slate-800 tracking-tight">Wallet</span>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
+                </div>
+
+                <!-- 3. Rewards & Achievements (Positioned cleanly after Wallet) -->
+                <div onclick="openRewardsScreen()"
+                    class="flex items-center justify-between py-3.5 px-2 border-b border-slate-200/90 cursor-pointer hover:bg-slate-50/80 active:scale-[.99] transition-all select-none">
+                    <div class="flex items-center gap-3.5">
+                        <i data-lucide="trophy" class="w-5 h-5 text-slate-700"></i>
+                        <span class="text-sm font-black text-slate-800 tracking-tight">Rewards &amp; Achievements</span>
                     </div>
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                 </div>
@@ -5459,10 +5533,10 @@
                 <div class="relative z-10 flex items-center justify-between gap-2.5">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <span
-                            class="w-8 h-8 rounded-2xl bg-white/20 backdrop-blur-md border border-white/25 flex items-center justify-center text-base shadow-2xs flex-shrink-0">🏆</span>
+                            class="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-md border border-white/25 flex items-center justify-center text-base shadow-sm flex-shrink-0">🏆</span>
                         <div class="min-w-0">
                             <h3 class="text-base sm:text-lg font-black tracking-tight leading-tight text-white truncate">Monthly Leaderboard</h3>
-                            <p class="text-[10.5px] text-emerald-100/90 font-medium leading-tight truncate"><span id="ldrCurrentMonthBadge">চলতি মাস সিজন</span> • লাইভ পয়েন্ট</p>
+                            <p class="text-[11px] text-emerald-100/90 font-medium leading-tight truncate"><span id="ldrCurrentMonthBadge">চলতি মাস সিজন</span> • লাইভ পয়েন্ট</p>
                         </div>
                     </div>
                     <!-- User's Standing Pill directly in Top Hero Box -->
@@ -5482,7 +5556,7 @@
                     </div>
                     <button type="button" onclick="openPointsRulesModal()"
                         class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-[11px] font-black shadow-sm flex items-center gap-1.5 cursor-pointer transition-all flex-shrink-0">
-                        <i data-lucide="info" class="w-3 h-3"></i>
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i>
                         <span>পয়েন্ট নিয়ম</span>
                     </button>
                 </div>
@@ -5493,13 +5567,13 @@
         <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-2xl border border-slate-300/60"
             id="earnSectionTabs">
             <button type="button" id="tabEarnTasksBtn" onclick="switchEarnSection('tasks')"
-                class="py-2 text-xs font-black rounded-xl transition-all cursor-pointer text-center bg-white text-slate-900 shadow-2xs flex items-center justify-center gap-1.5">
+                class="py-2 text-xs font-black rounded-xl transition-all cursor-pointer text-center bg-white text-slate-900 shadow-sm flex items-center justify-center gap-1.5">
                 <span>⚡ All Tasks</span>
             </button>
             <button type="button" id="tabEarnLdrBtn" onclick="switchEarnSection('leaderboard')"
                 class="py-2 text-xs font-black rounded-xl transition-all cursor-pointer text-center text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5">
                 <span>🏆 Monthly Leaderboard</span>
-                <span class="px-1.5 py-0.2 bg-amber-400 text-slate-900 text-[9px] font-black rounded-full">TOP 1</span>
+                <span class="px-2 py-0.5 bg-amber-400 text-slate-900 text-[9px] font-black rounded-full">TOP 1</span>
             </button>
         </div>
 
@@ -5566,56 +5640,79 @@
                 </button>
             </div>
 
-            <!-- Top 3 Podium Container (Clean, Elegant, Zero Clutter) -->
-            <div id="ldrPodiumBox" class="hidden grid grid-cols-3 gap-2 items-end pt-2">
-                <!-- 2nd Place -->
+            <!-- Top 3 Podium Container (Clean, Elegant, Solid Proportions) -->
+            <div id="ldrPodiumBox" class="hidden grid grid-cols-3 gap-2 sm:gap-3 items-end pt-3 pb-1">
+                <!-- 2nd Place (Silver) -->
                 <div
-                    class="bg-gradient-to-b from-slate-50 via-white to-slate-50 p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-sm text-center space-y-1 flex flex-col items-center relative">
-                    <div class="relative">
-                        <span class="text-base absolute -top-3 left-1/2 -translate-x-1/2 filter drop-shadow">🥈</span>
-                        <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-slate-300 p-0.5 bg-slate-100 flex items-center justify-center font-black text-xs sm:text-sm text-slate-700 shadow-sm overflow-hidden"
+                    class="bg-gradient-to-b from-slate-50 via-white to-slate-100/80 p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-sm text-center flex flex-col items-center justify-between min-h-[145px] relative">
+                    <div class="relative mt-2">
+                        <span class="text-lg absolute -top-3.5 left-1/2 -translate-x-1/2 filter drop-shadow">🥈</span>
+                        <div class="w-12 h-12 rounded-full border-2 border-slate-300 p-0.5 bg-slate-100 flex items-center justify-center font-black text-sm text-slate-700 shadow-sm overflow-hidden"
                             id="ldrRank2Avatar">2</div>
                     </div>
-                    <p class="text-[11px] sm:text-xs font-black text-slate-800 truncate w-full" id="ldrRank2Name">Rank 2
-                    </p>
-                    <span
-                        class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] font-mono tabular-nums border border-slate-200"
-                        id="ldrRank2Tasks">0 Pts</span>
-                    <span class="text-[9px] font-bold text-slate-400 block">🥈 Rank 2</span>
+                    <div class="w-full min-w-0 space-y-1">
+                        <p class="text-[11px] sm:text-xs font-black text-slate-800 truncate w-full px-1" id="ldrRank2Name">Rank 2</p>
+                        <span
+                            class="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] font-mono tabular-nums border border-slate-200"
+                            id="ldrRank2Tasks">0 Pts</span>
+                    </div>
+                    <span class="text-[9px] font-black text-slate-500 uppercase tracking-wider block mt-0.5">🥈 Rank 2</span>
                 </div>
 
-                <!-- 1st Place (Center Podium) -->
+                <!-- 1st Place (Gold Champion, Center Podium) -->
                 <div
-                    class="bg-gradient-to-b from-amber-50 via-white to-emerald-50/30 p-3 sm:p-3.5 rounded-2xl border-2 border-amber-400 shadow-[0_10px_25px_-5px_rgba(245,158,11,0.25)] text-center space-y-1 flex flex-col items-center -translate-y-2 relative">
-                    <div class="relative">
+                    class="bg-gradient-to-b from-amber-50 via-white to-emerald-50/40 p-3 sm:p-3.5 rounded-2xl border-2 border-amber-400 shadow-[0_10px_25px_-5px_rgba(245,158,11,0.25)] text-center flex flex-col items-center justify-between min-h-[165px] -translate-y-2 relative">
+                    <div class="relative mt-2">
                         <span
-                            class="text-2xl absolute -top-4 sm:-top-5 left-1/2 -translate-x-1/2 filter drop-shadow">👑</span>
-                        <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-full border-2 border-amber-400 ring-2 ring-amber-300/60 ring-offset-2 p-0.5 bg-gradient-to-tr from-amber-100 to-yellow-100 flex items-center justify-center font-black text-sm sm:text-base text-amber-900 shadow-md overflow-hidden"
+                            class="text-2xl absolute -top-4.5 left-1/2 -translate-x-1/2 filter drop-shadow">👑</span>
+                        <div class="w-14 h-14 rounded-full border-2 border-amber-400 ring-2 ring-amber-300/60 ring-offset-2 p-0.5 bg-gradient-to-tr from-amber-100 to-yellow-100 flex items-center justify-center font-black text-base text-amber-900 shadow-md overflow-hidden"
                             id="ldrRank1Avatar">1</div>
                     </div>
-                    <p class="text-xs sm:text-sm font-black text-slate-900 truncate w-full" id="ldrRank1Name">Top Earner
-                    </p>
-                    <span
-                        class="px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[11px] font-mono tabular-nums shadow-xs"
-                        id="ldrRank1Tasks">0 Pts</span>
-                    <span class="text-[9px] font-black text-amber-700 uppercase tracking-wider block">🥇 Rank 1 • 🏆 ১০ Coins Prize</span>
+                    <div class="w-full min-w-0 space-y-1">
+                        <p class="text-xs sm:text-sm font-black text-slate-900 truncate w-full px-1" id="ldrRank1Name">Top Earner</p>
+                        <span
+                            class="inline-block px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[11px] font-mono tabular-nums shadow-xs"
+                            id="ldrRank1Tasks">0 Pts</span>
+                    </div>
+                    <div class="mt-0.5">
+                        <span class="text-[9px] font-black text-amber-700 uppercase tracking-wider block leading-tight">🥇 Rank 1</span>
+                        <span class="text-[8.5px] font-extrabold text-emerald-700 block leading-tight">🏆 ১০ Coins</span>
+                    </div>
                 </div>
 
-                <!-- 3rd Place -->
+                <!-- 3rd Place (Bronze) -->
                 <div
-                    class="bg-gradient-to-b from-amber-50/20 via-white to-slate-50 p-2.5 sm:p-3 rounded-2xl border border-amber-200/70 shadow-sm text-center space-y-1 flex flex-col items-center relative">
-                    <div class="relative">
-                        <span class="text-base absolute -top-3 left-1/2 -translate-x-1/2 filter drop-shadow">🥉</span>
-                        <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-amber-600/40 p-0.5 bg-amber-50 flex items-center justify-center font-black text-xs sm:text-sm text-amber-800 shadow-sm overflow-hidden"
+                    class="bg-gradient-to-b from-amber-50/20 via-white to-slate-100/80 p-2.5 sm:p-3 rounded-2xl border border-amber-200/80 shadow-sm text-center flex flex-col items-center justify-between min-h-[145px] relative">
+                    <div class="relative mt-2">
+                        <span class="text-lg absolute -top-3.5 left-1/2 -translate-x-1/2 filter drop-shadow">🥉</span>
+                        <div class="w-12 h-12 rounded-full border-2 border-amber-600/40 p-0.5 bg-amber-50 flex items-center justify-center font-black text-sm text-amber-800 shadow-sm overflow-hidden"
                             id="ldrRank3Avatar">3</div>
                     </div>
-                    <p class="text-[11px] sm:text-xs font-black text-slate-800 truncate w-full" id="ldrRank3Name">Rank 3
-                    </p>
-                    <span
-                        class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] font-mono tabular-nums border border-slate-200"
-                        id="ldrRank3Tasks">0 Pts</span>
-                    <span class="text-[9px] font-bold text-amber-800 block">🥉 Rank 3</span>
+                    <div class="w-full min-w-0 space-y-1">
+                        <p class="text-[11px] sm:text-xs font-black text-slate-800 truncate w-full px-1" id="ldrRank3Name">Rank 3</p>
+                        <span
+                            class="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] font-mono tabular-nums border border-slate-200"
+                            id="ldrRank3Tasks">0 Pts</span>
+                    </div>
+                    <span class="text-[9px] font-black text-amber-800 uppercase tracking-wider block mt-0.5">🥉 Rank 3</span>
                 </div>
+            </div>
+
+            <!-- Current User Standing & Motivation Banner (Connected with JS) -->
+            <div id="ldrMyStatusCard"
+                class="hidden bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50/60 p-3 sm:p-3.5 rounded-2xl border border-emerald-200/80 shadow-sm flex items-center justify-between gap-3 select-none">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-sm flex-shrink-0"
+                        id="ldrMyRankPill">#--</div>
+                    <div class="min-w-0">
+                        <p class="text-xs font-black text-slate-900 leading-tight" id="ldrMyStatsTxt">0 Pts অর্জিত</p>
+                        <p class="text-[10.5px] font-semibold text-emerald-800 truncate mt-0.5" id="ldrMyAdviseTxt">টাস্ক সম্পন্ন করে পয়েন্ট বাড়ান!</p>
+                    </div>
+                </div>
+                <button type="button" onclick="switchEarnSection('tasks')"
+                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-[11px] rounded-xl shadow-xs transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer">
+                    <span>⚡ Earn</span>
+                </button>
             </div>
 
             <!-- Top 4 - 10 Ranked List Table Card (Strictly Top 10 Total, Clean Theme) -->
@@ -5964,15 +6061,27 @@
 
     <!-- Maintenance overlay -->
     <div id="maintOverlay" class="pop-overlay" style="display:none">
-        <div class="pop-card space-y-2">
-            <div
-                class="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center bg-amber-100 border border-amber-200">
-                <i data-lucide="wrench" class="w-5 h-5 text-amber-600"></i>
+        <div class="pop-card space-y-3.5 max-w-sm text-center">
+            <!-- Maintenance Astronaut Graphic (SVG 1) -->
+            <div class="w-36 h-36 sm:w-44 sm:h-44 mx-auto flex items-center justify-center select-none pointer-events-none">
+                <img src="svg_maintenance.svg" class="maint-astro-anim w-full h-full object-contain filter drop-shadow-md" alt="Under Maintenance">
             </div>
-            <h3 class="text-base font-extrabold text-slate-900">Under Maintenance</h3>
-            <p id="maintMsg" class="text-xs text-slate-500 font-medium leading-relaxed"></p>
+            <div>
+                <h3 class="text-lg font-black text-slate-900">রক্ষণাবেক্ষণ চলছে 🛠️</h3>
+                <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">App Under Maintenance</p>
+            </div>
+            <div class="p-3 bg-amber-50/90 border border-amber-200/80 rounded-2xl text-left space-y-1 shadow-2xs">
+                <p class="text-[10px] font-black uppercase text-amber-800 tracking-wider flex items-center gap-1">
+                    <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-600"></i> অ্যাডমিন নোটিশ (Notice)
+                </p>
+                <p id="maintMsg" class="text-xs font-semibold text-slate-700 leading-relaxed break-words">
+                    App ti maintenance e ache. Ektokhon porer janabo.
+                </p>
+            </div>
             <button onclick="location.reload()"
-                class="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer">Retry</button>
+                class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-slate-950 font-black rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Try Again)
+            </button>
         </div>
     </div>
 
@@ -6020,18 +6129,21 @@
 
     <!-- Force App Update Popup Modal (Cache Buster) -->
     <div id="updateNoticeModal" class="pop-overlay" style="display:none">
-        <div class="pop-card space-y-3 border-2 border-indigo-200">
-            <div
-                class="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-100 border border-indigo-200">
-                <i data-lucide="sparkles" class="w-8 h-8 text-indigo-600 animate-pulse"></i>
+        <div class="pop-card space-y-3.5 border-2 border-indigo-200 max-w-sm text-center">
+            <!-- Update Screen Animated Hero Graphic (UFO / Update SVG) -->
+            <div class="w-36 h-36 sm:w-44 sm:h-44 mx-auto flex items-center justify-center select-none pointer-events-none">
+                <img src="svg_update.svg" class="update-ufo-anim w-full h-full object-contain filter drop-shadow-md" alt="New Update">
             </div>
-            <h3 class="text-base font-extrabold text-slate-900">New Update Ready! 🎉</h3>
-            <p class="text-xs text-slate-600 font-semibold leading-relaxed">
-                PP MOD-এ নতুন ফিচার ও সিকিউরিটি আপডেট এসেছে। সেরা অভিজ্ঞতার জন্য এখনই রিফ্রেশ করে নিন।
+            <div>
+                <h3 class="text-base sm:text-lg font-black text-slate-900">New Update Ready! 🎉</h3>
+                <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">নতুন ভার্সন রিলিজ হয়েছে</p>
+            </div>
+            <p class="text-xs text-slate-600 font-semibold leading-relaxed px-1">
+                PP MOD-এ নতুন ফিচার ও দ্রুতগতির পারফরম্যান্স আপডেট এসেছে। সেরা অভিজ্ঞতার জন্য এখনই আপডেট করুন।
             </p>
             <button onclick="applyHardRefreshNow()"
-                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Update Now
+                class="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:scale-95 text-white font-black rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Update Now (আপডেট করুন)
             </button>
         </div>
     </div>
@@ -6877,7 +6989,8 @@
                 c.dataset.accent = ACCENTS[i % ACCENTS.length];
                 c.setAttribute('aria-pressed', 'false');
             });
-            document.getElementById('totalGamesLabel').innerText = `Games (${cards.length})`;
+            if (typeof updateGameCount === 'function') updateGameCount(cards.length);
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
 
             const killSplash = () => {
                 if (window._dismissSplash) { window._dismissSplash(); return; }
@@ -7020,6 +7133,69 @@
             }
         }
 
+        // --- Live Game Search & Filter System ---
+        window.updateGameCount = function (count) {
+            const num = (count !== undefined && count !== null) ? count : document.querySelectorAll('#gameGrid .game-card').length;
+            const inp = document.getElementById('gameSearchInput');
+            if (inp) {
+                inp.dataset.total = num;
+                if (!inp.value.trim()) {
+                    inp.placeholder = `Search ${num} games...`;
+                }
+            }
+            const lbl = document.getElementById('totalGamesLabel');
+            if (lbl) lbl.innerText = `Games (${num})`;
+        };
+
+        window.filterGames = function (query) {
+            const q = (query || '').trim().toLowerCase();
+            const cards = document.querySelectorAll('#gameGrid .game-card');
+            const clearBtn = document.getElementById('gameSearchClearBtn');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', q.length === 0);
+            }
+            let visibleCount = 0;
+            cards.forEach(card => {
+                const nameEl = card.querySelector('.g-name');
+                const name = nameEl ? nameEl.textContent.toLowerCase() : card.textContent.toLowerCase();
+                if (!q || name.includes(q)) {
+                    card.style.display = '';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // Empty state feedback inside grid
+            let emptyMsg = document.getElementById('gameSearchEmpty');
+            const grid = document.getElementById('gameGrid');
+            if (visibleCount === 0 && q.length > 0) {
+                if (!emptyMsg && grid) {
+                    emptyMsg = document.createElement('div');
+                    emptyMsg.id = 'gameSearchEmpty';
+                    emptyMsg.className = 'col-span-full py-8 text-center text-slate-400 select-none';
+                    emptyMsg.innerHTML = '<i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 text-slate-400 opacity-60"></i><p class="text-xs font-bold text-slate-600">কোনো গেম পাওয়া যায়নি</p><p class="text-[11px] text-slate-400 mt-0.5">অন্য নাম লিখে চেষ্টা করুন</p>';
+                    grid.appendChild(emptyMsg);
+                    if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+                } else if (emptyMsg) {
+                    emptyMsg.style.display = 'block';
+                }
+            } else if (emptyMsg) {
+                emptyMsg.style.display = 'none';
+            }
+        };
+
+        window.clearGameSearch = function () {
+            const inp = document.getElementById('gameSearchInput');
+            if (inp) {
+                inp.value = '';
+                const total = inp.dataset.total || document.querySelectorAll('#gameGrid .game-card').length;
+                inp.placeholder = `Search ${total} games...`;
+                inp.focus();
+            }
+            filterGames('');
+        };
+
         function selectGame(element, gameName) {
             if (!element) return;
 
@@ -7030,11 +7206,11 @@
                 element.classList.remove('is-selected');
                 element.setAttribute('aria-pressed', 'false');
 
-                // টপ পিল রিসেট
+                // টপ পিল রিসেট (শুধুমাত্র এনিমেশন থাকবে, কোনো টেক্সট নয়)
                 const pill = document.getElementById('selectedCount');
                 if (pill) {
-                    pill.className = 'sel-pill sel-empty';
-                    pill.textContent = "No game selected";
+                    pill.className = 'sel-empty-anim inline-flex items-center justify-center transition-all';
+                    pill.innerHTML = '<img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game">';
                 }
 
                 // নিচের বাটন হাইড
@@ -7059,11 +7235,10 @@
             element.classList.add('is-selected');
             element.setAttribute('aria-pressed', 'true');
 
-            // ১. টপ সিলেকশন পিল আপডেট
+            // ১. টপ সিলেকশন পিল আপডেট (এনিমেশনের স্থানে গেমের নাম আসবে)
             const pill = document.getElementById('selectedCount');
             if (pill) {
-                pill.classList.remove('sel-empty');
-                pill.classList.add('sel-active');
+                pill.className = 'sel-pill sel-active';
                 pill.innerHTML = '<span class="dot"></span><span class="truncate">' + escH(gameName) + '</span>';
             }
 
@@ -10733,9 +10908,8 @@
             selectedGameLogo = '';
             const pill = document.getElementById('selectedCount');
             if (pill) {
-                pill.classList.remove('sel-active');
-                pill.classList.add('sel-empty');
-                pill.innerText = "No game selected";
+                pill.className = 'sel-empty-anim inline-flex items-center justify-center transition-all';
+                pill.innerHTML = '<img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game">';
             }
             document.querySelectorAll('.game-card').forEach(card => {
                 card.classList.remove('is-selected');
@@ -10873,9 +11047,10 @@
             selectedGame = null;
             selectedGameLogo = '';
             const pill = document.getElementById('selectedCount');
-            pill.classList.remove('sel-active');
-            pill.classList.add('sel-empty');
-            pill.innerText = "No game selected";
+            if (pill) {
+                pill.className = 'sel-empty-anim inline-flex items-center justify-center transition-all';
+                pill.innerHTML = '<img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game">';
+            }
             const btn = document.getElementById('startBtn');
             const bar = document.getElementById('ctaBar');
             if (bar) bar.classList.add('hidden');
@@ -11123,8 +11298,11 @@
                     + lg + '<span class="g-name">' + escH(nm) + '</span>'
                     + '<span class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img src="' + PP_LOGO + '" class="w-3.5 h-3.5">' + escH(pts) + '</span></button>';
             }).join('');
-            const lbl = document.getElementById('totalGamesLabel');
-            if (lbl) lbl.innerText = 'Games (' + list.length + ')';
+            if (typeof updateGameCount === 'function') updateGameCount(list.length);
+            const sInp = document.getElementById('gameSearchInput');
+            if (sInp && sInp.value.trim() && typeof filterGames === 'function') {
+                filterGames(sInp.value);
+            }
             const sl = document.getElementById('offerSlider');
             if (sl) sl.innerHTML = list.map((o, i) => {
                 const nm = (o.name || '').toString();
@@ -14809,8 +14987,8 @@
             });
             const sp = document.getElementById('selectedGamePill');
             if (sp) {
-                sp.className = 'sel-pill sel-empty';
-                sp.innerHTML = '<span class="dot"></span><span>No game selected</span>';
+                sp.className = 'sel-empty-anim inline-flex items-center justify-center transition-all';
+                sp.innerHTML = '<img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game">';
             }
             const selTag = document.getElementById('selectedGameTag');
             if (selTag) selTag.textContent = 'None';
@@ -16633,8 +16811,8 @@
                     });
                     const spInit = document.getElementById('selectedGamePill');
                     if (spInit) {
-                        spInit.className = 'sel-pill sel-empty';
-                        spInit.innerHTML = '<span class="dot"></span><span>No game selected</span>';
+                        spInit.className = 'sel-empty-anim inline-flex items-center justify-center transition-all';
+                        spInit.innerHTML = '<img src="svg_no_game.svg?v=3" class="no-game-planet-anim h-[24px] sm:h-[26px] w-[82px] sm:w-[92px] object-contain" alt="Select Game">';
                     }
                     const selTagInit = document.getElementById('selectedGameTag');
                     if (selTagInit) selTagInit.textContent = 'None';
@@ -17278,12 +17456,13 @@
                 // Helper to format avatar
                 const renderAv = (u, ringColor, initialBg) => {
                     if (!u) {
-                        return `<div class="w-full h-full rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 font-black text-sm select-none">+</div>`;
+                        return `<div class="w-full h-full rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 font-black text-xs select-none">+</div>`;
                     }
+                    const initial = (u.name && u.name.charAt(0)) ? u.name.charAt(0).toUpperCase() : 'U';
                     if (u.photo) {
-                        return `<img src="${u.photo}" class="w-full h-full object-cover rounded-full" onerror="this.outerHTML='<div class=\\\'w-full h-full rounded-full ${initialBg} flex items-center justify-center font-black text-sm\\\'>${(u.name.charAt(0) || 'U').toUpperCase()}</div>'">`;
+                        return `<img src="${u.photo}" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"><div class="w-full h-full rounded-full ${initialBg} hidden items-center justify-center font-black text-sm select-none">${initial}</div>`;
                     }
-                    return `<div class="w-full h-full rounded-full ${initialBg} flex items-center justify-center font-black text-sm select-none">${(u.name.charAt(0) || 'U').toUpperCase()}</div>`;
+                    return `<div class="w-full h-full rounded-full ${initialBg} flex items-center justify-center font-black text-sm select-none">${initial}</div>`;
                 };
 
                 // Podium #1 (Crown Champion)
@@ -17339,9 +17518,10 @@
                     listContainer.innerHTML = restList.map((item, idx) => {
                         const rankNum = idx + 4;
                         const rankStr = String(rankNum).padStart(2, '0');
+                        const initial = (item.name && item.name.charAt(0)) ? item.name.charAt(0).toUpperCase() : 'U';
                         const avHtml = item.photo
-                            ? `<img src="${item.photo}" class="w-full h-full object-cover rounded-full">`
-                            : `<span class="text-[10px] font-bold text-slate-700">${item.name.charAt(0).toUpperCase()}</span>`;
+                            ? `<img src="${item.photo}" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"><span class="hidden w-full h-full rounded-full bg-slate-100 items-center justify-center text-[10px] font-bold text-slate-700">${initial}</span>`
+                            : `<span class="w-full h-full rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-700">${initial}</span>`;
                         return `
                             <div class="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-all select-none">
                                 <div class="flex items-center gap-3 min-w-0">
@@ -17412,6 +17592,7 @@
                 if (topRankBadge) topRankBadge.textContent = '#--';
                 if (topPointsBadge) topPointsBadge.textContent = '0';
             }
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
         };
 
         window.startEarnTask = (taskId) => {
