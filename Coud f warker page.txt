@@ -122,11 +122,30 @@ async function ensureTables(db) {
       email TEXT,
       token TEXT,
       country TEXT DEFAULT 'GLOBAL',
+      tier TEXT DEFAULT 'Gold',
+      points INTEGER DEFAULT 0,
+      balance TEXT DEFAULT '$0.00',
+      has_perk INTEGER DEFAULT 0,
+      claimed INTEGER DEFAULT 0,
+      last_claim_date TEXT DEFAULT '',
+      has_play_points INTEGER DEFAULT 1,
+      play_points_status TEXT DEFAULT 'active',
       status TEXT DEFAULT 'active',
+      android_id TEXT DEFAULT '46e14d2451d85c3f',
       createdAt INTEGER,
       updatedAt INTEGER
     )
   `).run().catch(() => { });
+
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN tier TEXT DEFAULT 'Gold';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN points INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN balance TEXT DEFAULT '$0.00';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN has_perk INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN claimed INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN last_claim_date TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN has_play_points INTEGER DEFAULT 1;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN play_points_status TEXT DEFAULT 'active';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN android_id TEXT DEFAULT '46e14d2451d85c3f';`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS gateway_sms (
@@ -137,9 +156,22 @@ async function ensureTables(db) {
       amount REAL,
       balance REAL DEFAULT 0,
       claimed INTEGER DEFAULT 0,
+      claimType TEXT DEFAULT 'none',
+      claimedByUid TEXT DEFAULT '',
+      claimedByName TEXT DEFAULT '',
+      claimedAt INTEGER DEFAULT 0,
+      coinsAdded INTEGER DEFAULT 0,
+      adminMsg TEXT DEFAULT '',
       receivedAt INTEGER
     )
   `).run().catch(() => { });
+
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN claimType TEXT DEFAULT 'none';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN claimedByUid TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN claimedByName TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN claimedAt INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN coinsAdded INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE gateway_sms ADD COLUMN adminMsg TEXT DEFAULT '';`).run(); } catch (e) { }
 
   try {
     await db.prepare(`ALTER TABLE tg_bot_users ADD COLUMN phone TEXT DEFAULT '';`).run();
@@ -209,13 +241,23 @@ export default {
 
       // 1a. TrxID Duplicate Check & Lock (Edge Lock against duplicate abuse with Amount Guard)
       if (path === "/api/trx/check-lock" && request.method === "POST") {
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
         const trxId = (body.trxId || "").trim().toUpperCase();
         const uid = body.uid || "";
         const amount = Number(body.amount) || 0;
         if (!trxId) return json({ ok: false, error: "Missing trxId" }, 400);
 
-        // শুধুমাত্র ইতিমধ্যে অ্যাপ্রুভড হওয়া TrxID ডুপ্লিকেট হিসেবে চিহ্নিত হবে
+        // ১. Check used_trx table
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        if (usedTrx) {
+          return json({
+            ok: false,
+            duplicate: true,
+            error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার বা ভেরিফাই করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।"
+          }, 400);
+        }
+
+        // ২. Check already approved deposit
         const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(trxId).first();
         if (approvedDep) {
           return json({
@@ -223,6 +265,32 @@ export default {
             duplicate: true,
             error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।"
           }, 400);
+        }
+
+        // ৩. Check if locked or claimed in gateway_sms
+        const smsRow = await env.DB.prepare(`SELECT claimed, claimType FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        if (smsRow && (smsRow.claimed === 1 || smsRow.claimType === 'admin' || smsRow.claimType === 'user')) {
+          const isAdm = smsRow.claimType === 'admin';
+          return json({
+            ok: false,
+            duplicate: true,
+            error: isAdm ? "⚠️ এই ট্রানজ্যাকশন আইডিটি অ্যাডমিন কর্তৃক লক করা হয়েছে।" : "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!"
+          }, 400);
+        }
+
+        // ৪. If lockNow is requested, atomically reserve it
+        if (body.lockNow === true && uid) {
+          const lockRes = await env.DB.prepare(`
+            INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(trxId) DO NOTHING
+          `).bind(trxId, uid, amount, Date.now()).run();
+          if (!lockRes || lockRes.meta?.changes === 0) {
+            return json({
+              ok: false,
+              duplicate: true,
+              error: "⚠️ এই TrxID বর্তমানে অন্য একটি রিকোয়েস্টে ব্যবহৃত হয়েছে!"
+            }, 400);
+          }
         }
 
         return json({ ok: true, duplicate: false, verifiedAmount: amount });
@@ -365,6 +433,7 @@ export default {
         let code = (body.code || "").trim();
         let country = (body.country || "GLOBAL").trim();
         let uid = (body.uid || "").trim();
+        let android_id = (body.android_id || "").trim() || "46e14d2451d85c3f";
 
         if (!token && !code) {
           return json({ ok: false, error: "Token or code required" }, 400);
@@ -374,7 +443,7 @@ export default {
         if (token && !token.startsWith("aas_et/") && !token.startsWith("oauth2rt_1/")) {
           try {
             const cleanTok = token.includes("oauth_token=") ? (token.match(/oauth_token=([a-zA-Z0-9_\-]+)/)?.[1] || token.replace("oauth_token=", "")) : token;
-            const androidId = (body.android_id || "46e14d2451000000").trim();
+            const androidId = android_id || "46e14d2451d85c3f";
             const postBody = new URLSearchParams({
               Email: email && email.includes("@") ? email : "",
               Token: cleanTok,
@@ -408,58 +477,195 @@ export default {
           } catch(e) {}
         }
 
-        // CRITICAL REQUIREMENT: If this email was previously added, delete any old entries for this email
-        // so that a fresh new code is always assigned and never reuses stale/old codes!
-        if (email && email.includes("@")) {
-          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run().catch(() => {});
+        // Retrieve existing record if code or email already exists to preserve fields
+        let existing = null;
+        if (code) {
+          existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first().catch(() => null);
+        }
+        if (!existing && email && email.includes("@")) {
+          existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).first().catch(() => null);
         }
 
-        // Generate a fresh new 6-digit sync code
+        if (country === "GB") country = "UK";
+        const tier = body.tier ? body.tier.toString().trim() : (existing?.tier || "Gold");
+        const points = (body.points !== undefined && body.points !== null) ? parseInt(body.points, 10) : (existing?.points || 0);
+        const balance = body.balance ? body.balance.toString().trim() : (existing?.balance || "$0.00");
+        const has_perk = (body.has_perk !== undefined) ? (body.has_perk ? 1 : 0) : (existing?.has_perk || 0);
+        const claimed = (body.claimed !== undefined) ? (body.claimed ? 1 : 0) : (existing?.claimed || 0);
+        const last_claim_date = body.last_claim_date || existing?.last_claim_date || "";
+        const has_play_points = (body.has_play_points !== undefined) ? (body.has_play_points ? 1 : 0) : (existing?.has_play_points !== undefined ? existing.has_play_points : 1);
+        const play_points_status = body.play_points_status || existing?.play_points_status || "active";
+
+        if (!token && existing?.token) {
+          token = existing.token;
+        }
+
         if (!code || code.length !== 6) {
-          code = String(Math.floor(100000 + Math.random() * 900000));
+          code = existing?.code || String(Math.floor(100000 + Math.random() * 900000));
         }
 
-        const id = body.id || `VAULT-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        const id = existing?.id || body.id || `VAULT-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        const finalAndroidId = (body.android_id || existing?.android_id || android_id || "").trim() || "46e14d2451d85c3f";
 
         await env.DB.prepare(`
-          INSERT INTO pp_sync_vault (id, uid, code, email, token, country, status, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+          INSERT INTO pp_sync_vault (id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
           ON CONFLICT(code) DO UPDATE SET
             uid = excluded.uid,
             email = excluded.email,
             token = excluded.token,
             country = excluded.country,
+            tier = excluded.tier,
+            points = excluded.points,
+            balance = excluded.balance,
+            has_perk = excluded.has_perk,
+            claimed = excluded.claimed,
+            last_claim_date = excluded.last_claim_date,
+            has_play_points = excluded.has_play_points,
+            play_points_status = excluded.play_points_status,
+            android_id = excluded.android_id,
             status = 'active',
             updatedAt = excluded.updatedAt
-        `).bind(id, uid, code, email, token, country, Date.now(), Date.now()).run();
+        `).bind(id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, finalAndroidId, existing?.createdAt || Date.now(), Date.now()).run();
 
-        return json({ ok: true, code, email, id, master_token: token, message: "Account saved to Cloud Vault with permanent Master Token" });
+        return json({ ok: true, code, email, id, master_token: token, android_id: finalAndroidId, country, tier, points, has_play_points, play_points_status, message: "Account saved to Cloud Vault with permanent Master Token" });
+      }
+
+      if (path === "/api/sync/update_country" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        const email = (body.email || "").trim().toLowerCase();
+        let country = (body.country || "GLOBAL").trim().toUpperCase();
+        if (country === "GB") country = "UK";
+        if (!code && !email) return json({ ok: false, error: "Missing code or email" }, 400);
+
+        if (code) {
+          await env.DB.prepare(`
+            UPDATE pp_sync_vault SET country = ?, updatedAt = ? WHERE code = ?
+          `).bind(country, Date.now(), code).run();
+        }
+        if (email) {
+          await env.DB.prepare(`
+            UPDATE pp_sync_vault SET country = ?, updatedAt = ? WHERE LOWER(email) = ?
+          `).bind(country, Date.now(), email).run();
+        }
+        return json({ ok: true, code, country, message: "Country updated in Cloudflare D1 persistent vault" });
+      }
+
+      if (path === "/api/sync/update" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        if (!code) return json({ ok: false, error: "Missing code" }, 400);
+
+        const existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first();
+        if (!existing) return json({ ok: false, error: "Account not found" }, 404);
+
+        let country = body.country ? body.country.toString().trim().toUpperCase() : existing.country;
+        if (country === "GB") country = "UK";
+        const tier = body.tier ? body.tier.toString().trim() : (existing.tier || "Gold");
+        const points = (body.points !== undefined && body.points !== null) ? parseInt(body.points, 10) : (existing.points || 0);
+        const balance = body.balance ? body.balance.toString().trim() : (existing.balance || "$0.00");
+        const has_perk = (body.has_perk !== undefined) ? (body.has_perk ? 1 : 0) : (existing.has_perk || 0);
+        const claimed = (body.claimed !== undefined) ? (body.claimed ? 1 : 0) : (existing.claimed || 0);
+        const last_claim_date = body.last_claim_date || existing.last_claim_date || "";
+        const has_play_points = (body.has_play_points !== undefined) ? (body.has_play_points ? 1 : 0) : (existing.has_play_points !== undefined ? existing.has_play_points : 1);
+        const play_points_status = body.play_points_status || existing.play_points_status || "active";
+
+        await env.DB.prepare(`
+          UPDATE pp_sync_vault SET
+            country = ?, tier = ?, points = ?, balance = ?, has_perk = ?,
+            claimed = ?, last_claim_date = ?, has_play_points = ?, play_points_status = ?,
+            updatedAt = ?
+          WHERE code = ?
+        `).bind(country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, Date.now(), code).run();
+
+        return json({ ok: true, code, message: "Account data updated in Cloudflare D1" });
+      }
+
+      if (path === "/api/perk/claim" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        if (!code) return json({ ok: false, error: "Missing code" }, 400);
+
+        const points = parseInt(body.points || 0, 10);
+        const tier = (body.tier || "Gold").toString().trim();
+        const bonus = parseInt(body.bonus || 10, 10);
+        const today = new Date().toISOString().slice(0, 10);
+
+        await env.DB.prepare(`
+          UPDATE pp_sync_vault SET
+            points = CASE WHEN ? > 0 THEN ? ELSE (points + ?) END,
+            tier = ?,
+            claimed = 1,
+            has_perk = 0,
+            last_claim_date = ?,
+            updatedAt = ?
+          WHERE code = ?
+        `).bind(points, points, bonus, tier, today, Date.now(), code).run();
+
+        return json({ ok: true, code, claimed: true, has_perk: false, points, message: "Weekly perk claimed & stored in Cloudflare D1" });
       }
 
       if (path === "/api/sync/accounts" && request.method === "GET") {
         const uid = (url.searchParams.get("uid") || "").trim();
-        let res;
-        if (uid) {
-          res = await env.DB.prepare(`
-            SELECT id, uid, code, email, token, country, status, createdAt, updatedAt FROM pp_sync_vault
-            WHERE (uid = ? OR uid = '') AND status = 'active'
-            ORDER BY createdAt DESC LIMIT 100
-          `).bind(uid).all();
-        } else {
-          res = await env.DB.prepare(`
-            SELECT id, uid, code, email, token, country, status, createdAt, updatedAt FROM pp_sync_vault
-            WHERE status = 'active'
-            ORDER BY createdAt DESC LIMIT 150
-          `).all();
+        const ownerEmail = (url.searchParams.get("owner_email") || url.searchParams.get("email") || "").trim().toLowerCase();
+
+        // STRICT PRIVACY GUARD: Never return accounts if neither uid nor owner_email is provided!
+        if (!uid && !ownerEmail) {
+          return json({ ok: true, accounts: [] });
         }
-        return json({ ok: true, accounts: res.results || [] });
+
+        let targetUid = uid;
+        if (!targetUid && ownerEmail) {
+          try {
+            const userRec = await env.DB.prepare("SELECT uid FROM pp_users WHERE LOWER(email) = ? LIMIT 1").bind(ownerEmail).first();
+            if (userRec && userRec.uid) {
+              targetUid = userRec.uid;
+            }
+          } catch (_) {}
+        }
+
+        let res;
+        if (targetUid) {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, createdAt, updatedAt FROM pp_sync_vault
+            WHERE uid = ? AND status = 'active'
+            ORDER BY createdAt DESC LIMIT 100
+          `).bind(targetUid).all();
+        } else if (ownerEmail) {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, createdAt, updatedAt FROM pp_sync_vault
+            WHERE LOWER(email) = ? AND status = 'active'
+            ORDER BY createdAt DESC LIMIT 100
+          `).bind(ownerEmail).all();
+        } else {
+          return json({ ok: true, accounts: [] });
+        }
+        const accounts = (res.results || []).map(r => ({
+          ...r,
+          country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+          android_id: r.android_id || "46e14d2451d85c3f",
+          has_perk: Boolean(r.has_perk),
+          claimed: Boolean(r.claimed),
+          has_play_points: r.has_play_points !== 0 && r.has_play_points !== false && String(r.tier).toLowerCase() !== 'none',
+          play_points_status: r.play_points_status || "active"
+        }));
+        return json({ ok: true, accounts });
       }
 
       if (path === "/api/sync/get" && request.method === "GET") {
         const code = url.searchParams.get("code") || "";
         if (!code) return json({ ok: false, error: "Missing code" }, 400);
-        const row = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first();
+        const row = await env.DB.prepare(`
+          SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
+        `).bind(code).first();
         if (!row) return json({ ok: false, error: "Code not found" }, 404);
+        row.country = (row.country && row.country !== "GLOBAL") ? row.country : "US";
+        row.android_id = row.android_id || "46e14d2451d85c3f";
+        row.has_perk = Boolean(row.has_perk);
+        row.claimed = Boolean(row.claimed);
+        row.has_play_points = row.has_play_points !== 0;
+        row.play_points_status = row.play_points_status || "active";
         return json({ ok: true, account: row });
       }
 
@@ -582,7 +788,7 @@ export default {
         }
       }
 
-      // 1d-gw. PP Auto Payment Gateway Edge API
+      // 1d-gw. PP Auto Payment Gateway Edge API (Professional Security + 30-Min Expiration Rule)
       if (path === "/api/gateway/sms" && request.method === "POST") {
         const secret = request.headers.get("x-gateway-secret") || "";
         const body = await request.json().catch(() => ({}));
@@ -598,7 +804,16 @@ export default {
         let amount = Number(body.amount) || 0;
         let balance = Number(body.balance) || 0;
         let method = body.method || "bKash";
-        const timestamp = body.timestamp || Date.now();
+        const now = Date.now();
+        const timestamp = body.timestamp ? Number(body.timestamp) : now;
+        const expiryCutoff = now - 30 * 60 * 1000;
+
+        // Auto-expire any existing unclaimed SMS older than 30 minutes in D1
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto expired: 30 minutes elapsed without user claim'
+          WHERE (claimed = 0 OR claimType IS NULL OR claimType = 'none') AND receivedAt < ?
+        `).bind(expiryCutoff).run().catch(() => {});
 
         // Fallback parse
         if (!trxId && message) {
@@ -614,15 +829,21 @@ export default {
           return json({ ok: true, matched: false, message: "Ignored (non-payment SMS or missing TrxID/amount)" });
         }
 
+        // Is this incoming SMS already older than 30 minutes?
+        const isIncomingExpired = (timestamp < expiryCutoff);
+        const initClaimed = isIncomingExpired ? 1 : 0;
+        const initClaimType = isIncomingExpired ? 'time_expired' : 'none';
+        const initAdminMsg = isIncomingExpired ? 'Auto Expired (30+ min old SMS)' : '';
+
         // Store SMS in gateway_sms
         await env.DB.prepare(`
-          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, receivedAt)
-          VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, claimType, adminMsg, receivedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(trxId) DO UPDATE SET
             amount = excluded.amount,
             balance = excluded.balance,
             receivedAt = excluded.receivedAt
-        `).bind(trxId, sender, message, method, amount, balance, timestamp).run();
+        `).bind(trxId, sender, message, method, amount, balance, initClaimed, initClaimType, initAdminMsg, timestamp).run();
 
         // 1. Check if TrxID already used in used_trx or approved deposit
         const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(trxId).first();
@@ -632,42 +853,55 @@ export default {
           return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
         }
 
+        if (isIncomingExpired) {
+          return json({ ok: true, matched: true, autoApproved: false, expired: true, message: "SMS saved but marked expired (>30 mins old)" });
+        }
+
         // 2. Check for a pending deposit matching this TrxID
         const pendingDep = await env.DB.prepare(`SELECT * FROM deposits WHERE trxId = ? AND status = 'pending' ORDER BY createdAt DESC LIMIT 1`).bind(trxId).first();
 
         if (pendingDep) {
-          // Verify time window (within 10 minutes)
-          const depTime = pendingDep.createdAt || Date.now();
-          if (Math.abs(Date.now() - depTime) > 10 * 60 * 1000) {
-            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ সময়সীমা পার হয়ে গেছে! ৫-১০ মিনিটের মধ্যে সাবমিট করুন।' WHERE id = ?`).bind(pendingDep.id).run();
-            return json({ ok: false, error: "Deposit submission expired" }, 400);
+          // Strict 30-minute validation
+          const depTime = pendingDep.createdAt || now;
+          if (Math.abs(now - depTime) > 30 * 60 * 1000 || Math.abs(now - timestamp) > 30 * 60 * 1000) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ সময়সীমা পার হয়ে গেছে! টাকা পাঠানোর ৩০ মিনিটের মধ্যে সাবমিট করতে হবে।' WHERE id = ?`).bind(pendingDep.id).run();
+            await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1, claimType = 'time_expired', adminMsg = 'Expired (>30m)' WHERE trxId = ?`).bind(trxId).run();
+            return json({ ok: false, error: "Deposit submission expired (>30m)" }, 400);
           }
 
           // Verify exact amount
           if (Number(pendingDep.amount) === amount) {
             const coinRate = 7;
-            const coinsToAdd = pendingDep.coins || Math.round(amount * coinRate);
+            const coinsToAdd = pendingDep.coins || Math.max(1, Math.floor(amount / coinRate));
 
-            // Add coins to user wallet
+            // Atomic Lock: insert into used_trx first!
+            const lockRes = await env.DB.prepare(`
+              INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+              ON CONFLICT(trxId) DO NOTHING
+            `).bind(trxId, pendingDep.uid, amount, now).run();
+
+            if (!lockRes || lockRes.meta?.changes === 0) {
+              return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য ডিভাইস বা অ্যাকাউন্টে ব্যবহার করা হয়েছে!" }, 400);
+            }
+
+            // Add coins & points to user wallet
             await env.DB.prepare(`
               UPDATE user_wallets 
               SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
               WHERE uid = ?
-            `).bind(coinsToAdd, coinsToAdd, Math.round(amount), Date.now(), pendingDep.uid).run();
+            `).bind(coinsToAdd, coinsToAdd, Math.round(amount), now, pendingDep.uid).run();
 
             // Mark deposit approved
             await env.DB.prepare(`
-              UPDATE deposits SET status = 'approved', adminMsg = 'Auto Verified & Approved by PP Gateway', coins = ?, amount = ? WHERE id = ?
+              UPDATE deposits SET status = 'approved', adminMsg = 'Auto Verified & Approved by PP Gateway', coins = ?, amount = ? WHERE id = ? AND status != 'approved'
             `).bind(coinsToAdd, amount, pendingDep.id).run();
 
-            // Record in used_trx to permanently lock against reuse
+            // Mark claimed in gateway_sms with full audit details
             await env.DB.prepare(`
-              INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
-              ON CONFLICT(trxId) DO NOTHING
-            `).bind(trxId, pendingDep.uid, amount, Date.now()).run();
-
-            // Mark claimed in gateway_sms
-            await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1 WHERE trxId = ?`).bind(trxId).run();
+              UPDATE gateway_sms 
+              SET claimed = 1, claimType = 'user', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?
+              WHERE trxId = ?
+            `).bind(pendingDep.uid, pendingDep.name || pendingDep.email || 'User', now, coinsToAdd, trxId).run();
 
             return json({ ok: true, matched: true, autoApproved: true, depId: pendingDep.id, amount, coinsAdded: coinsToAdd });
           } else {
@@ -683,11 +917,345 @@ export default {
         return json({ ok: true, matched: true, autoApproved: false, message: "Payment SMS recorded in Cloudflare D1, awaiting user submission" });
       }
 
+      // 1d-verify. PP Auto Payment Gateway Verify Deposit (Edge Instant Verification, Concurrency Mutex & 30-Min Expiration Rule)
+      if (path === "/api/gateway/verify-deposit" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { depId, trxId, amount, uid, email, name } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing TrxID" }, 400);
+
+        const now = Date.now();
+        const cutoff30m = now - 30 * 60 * 1000;
+        const userAmt = Math.round(Number(amount) || 0);
+
+        // 1. Check if TrxID already used in used_trx or approved deposit
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(cleanTrx).first();
+        if (usedTrx || approvedDep) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার বা ভেরিফাই করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        // 2. Fetch SMS record from gateway_sms
+        const smsRow = await env.DB.prepare(`SELECT * FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+
+        // If no SMS yet
+        if (!smsRow) {
+          return json({
+            ok: true,
+            autoApproved: false,
+            pending: true,
+            message: "⏳ পেমেন্ট এসএমএস সার্ভারে আসার অপেক্ষা চলছে... ফোনে এসএমএস আসার সাথে সাথে কয়েন যোগ হবে।"
+          });
+        }
+
+        const smsTime = Number(smsRow.receivedAt) || now;
+
+        // 3. Strict 30-minute validation
+        if (now - smsTime > 30 * 60 * 1000 || smsRow.claimType === 'time_expired') {
+          await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto Expired (>30m)' WHERE trxId = ?`).bind(cleanTrx).run().catch(() => {});
+          if (depId) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণযোগ্য নয়।' WHERE id = ?`).bind(depId).run().catch(() => {});
+          }
+          return json({ ok: false, error: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণ করা হয় না।" }, 400);
+        }
+
+        // 4. Check if SMS already claimed or admin locked
+        if (smsRow.claimed === 1 || smsRow.claimType === 'user' || smsRow.claimType === 'admin') {
+          if (smsRow.claimType === 'admin') {
+            return json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি অ্যাডমিন কর্তৃক ভেরিফাই/লক করা হয়েছে।" }, 400);
+          }
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        // 5. Verify exact amount
+        const realSmsAmt = Math.round(Number(smsRow.amount) || 0);
+        if (realSmsAmt !== userAmt) {
+          const mismatchMsg = `❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${realSmsAmt} BDT কিন্তু সাবমিট করেছেন ${userAmt} BDT`;
+          if (depId) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ?`).bind(mismatchMsg, depId).run().catch(() => {});
+          }
+          return json({ ok: false, error: mismatchMsg }, 400);
+        }
+
+        // 6. Target UID resolution
+        let targetUid = uid;
+        if (!targetUid && depId) {
+          const dRow = await env.DB.prepare(`SELECT uid FROM deposits WHERE id = ? LIMIT 1`).bind(depId).first();
+          if (dRow) targetUid = dRow.uid;
+        }
+        if (!targetUid && email) {
+          const uRow = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1`).bind(email.trim()).first();
+          if (uRow) targetUid = uRow.uid;
+        }
+        if (!targetUid) {
+          return json({ ok: false, error: "Missing user UID for crediting" }, 400);
+        }
+
+        // 7. ATOMIC LOCK: Insert into used_trx FIRST!
+        const lockRes = await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, targetUid, realSmsAmt, now).run();
+
+        if (!lockRes || lockRes.meta?.changes === 0) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য ডিভাইস বা ট্যাবে ব্যবহার করা হয়েছে!" }, 400);
+        }
+
+        // 8. Calculate coins to add (Default rate 7 BDT = 1 Coin)
+        const coinRate = 7;
+        const coinsToAdd = Math.max(1, Math.floor(realSmsAmt / coinRate));
+
+        // 9. ATOMIC BALANCE CREDIT in user_wallets
+        await env.DB.prepare(`
+          UPDATE user_wallets 
+          SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+          WHERE uid = ?
+        `).bind(coinsToAdd, coinsToAdd, realSmsAmt, now, targetUid).run();
+
+        // 10. Update deposit status if depId exists
+        const finalDepId = depId || `DEP-${cleanTrx}`;
+        await env.DB.prepare(`
+          INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'Auto Verified by PP Gateway', ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins, amount = excluded.amount, adminMsg = 'Auto Verified by PP Gateway'
+        `).bind(finalDepId, targetUid, name || 'User', email || '', smsRow.method || 'bKash', realSmsAmt, coinsToAdd, cleanTrx, now).run().catch(() => {});
+
+        // 11. Update transactions history table
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'approved', ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', amount = excluded.amount
+        `).bind(
+          finalDepId,
+          targetUid,
+          `Wallet Top-up (${smsRow.method || 'bKash'})`,
+          `Top-up: ${smsRow.method || 'bKash'}`,
+          `${smsRow.method || 'bKash'} • ${cleanTrx}`,
+          realSmsAmt,
+          now
+        ).run().catch(() => {});
+
+        // 12. Mark claimed in gateway_sms with full audit trail
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'user', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?, adminMsg = 'Auto Claimed via Portal'
+          WHERE trxId = ?
+        `).bind(targetUid, name || email || 'User', now, coinsToAdd, cleanTrx).run();
+
+        return json({
+          ok: true,
+          autoApproved: true,
+          depId: finalDepId,
+          amount: realSmsAmt,
+          coinsAdded: coinsToAdd,
+          message: "পেমেন্ট সফলভাবে ভেরিফাই হয়েছে এবং ওয়ালেটে কয়েন যুক্ত হয়েছে!"
+        });
+      }
+
+      // 1d-recent. Gateway SMS Recent List & 30-Min Audit Stats
       if (path === "/api/gateway/recent" && request.method === "GET") {
+        const now = Date.now();
+        const cutoff30m = now - 30 * 60 * 1000;
+
+        // Auto-expire older than 30 mins
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto expired: 30 minutes elapsed'
+          WHERE (claimed = 0 OR claimType IS NULL OR claimType = 'none') AND receivedAt < ?
+        `).bind(cutoff30m).run().catch(() => {});
+
         const res = await env.DB.prepare(`
-          SELECT trxId, sender, method, amount, balance, claimed, receivedAt FROM gateway_sms ORDER BY receivedAt DESC LIMIT 50
+          SELECT trxId, sender, raw, method, amount, balance, claimed, claimType, claimedByUid, claimedByName, claimedAt, coinsAdded, adminMsg, receivedAt 
+          FROM gateway_sms 
+          ORDER BY receivedAt DESC 
+          LIMIT 100
         `).all();
-        return json({ ok: true, transactions: res.results || [] });
+
+        const list = res.results || [];
+        let last30MinTaka = 0, last30MinCount = 0;
+        let totalUserClaimedTaka = 0, totalUserClaimedCoins = 0, totalUserClaimedCount = 0;
+        let totalAdminClaimedTaka = 0, totalAdminClaimedCoins = 0, totalAdminClaimedCount = 0;
+        let totalExpiredTaka = 0, totalExpiredCount = 0;
+        let totalAllTaka = 0, totalAllCount = list.length;
+
+        list.forEach(item => {
+          const amt = Number(item.amount) || 0;
+          const coins = Number(item.coinsAdded) || Math.floor(amt / 7) || 0;
+          const rTime = Number(item.receivedAt) || 0;
+          totalAllTaka += amt;
+
+          if (rTime >= cutoff30m) {
+            last30MinTaka += amt;
+            last30MinCount++;
+          }
+
+          if (item.claimType === 'user' || (item.claimed === 1 && !item.claimType)) {
+            totalUserClaimedTaka += amt;
+            totalUserClaimedCoins += coins;
+            totalUserClaimedCount++;
+          } else if (item.claimType === 'admin') {
+            totalAdminClaimedTaka += amt;
+            totalAdminClaimedCoins += coins;
+            totalAdminClaimedCount++;
+          } else if (item.claimType === 'time_expired') {
+            totalExpiredTaka += amt;
+            totalExpiredCount++;
+          }
+        });
+
+        return json({
+          ok: true,
+          transactions: list,
+          list: list,
+          stats: {
+            last30MinTaka,
+            last30MinCount,
+            last30Taka: last30MinTaka,
+            last30Count: last30MinCount,
+            userClaimedTaka,
+            userClaimedCoins,
+            userClaimedCount,
+            adminClaimedTaka,
+            adminClaimedCoins,
+            adminClaimedCount,
+            timeExpiredTaka,
+            timeExpiredCount,
+            totalTaka: totalAllTaka,
+            totalCount: totalAllCount,
+            totalAllTaka,
+            totalAllCount,
+            serverTime: now
+          }
+        });
+      }
+
+      // 1d-claim. Admin Manual Claim Single SMS (Strictly valid within 30 min)
+      if (path === "/api/gateway/admin-claim" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { trxId, uid, targetUid, coins, adminName, adminEmail } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing trxId" }, 400);
+
+        const now = Date.now();
+        const cutoff30m = now - 30 * 60 * 1000;
+        const userUid = (targetUid || uid || "").trim();
+
+        const smsRow = await env.DB.prepare(`SELECT * FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+        if (!smsRow) return json({ ok: false, error: "SMS not found" }, 404);
+
+        if (smsRow.claimed === 1 || smsRow.claimType === 'user' || smsRow.claimType === 'admin') {
+          return json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি ইতিমধ্যে ক্লেইম বা লক করা হয়েছে!" }, 400);
+        }
+
+        const amt = Number(smsRow.amount) || 0;
+        const finalCoins = Number(coins) || Math.floor(amt / 7) || 3;
+
+        // Atomic Lock in used_trx
+        await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, userUid || 'admin_claim', amt, now).run();
+
+        // Mark claimed by admin
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'admin', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?, adminMsg = ?
+          WHERE trxId = ?
+        `).bind(userUid || 'admin', adminEmail || adminName || 'Admin', now, finalCoins, 'Admin Manual Claim', cleanTrx).run();
+
+        // If target user provided, credit wallet in D1
+        if (userUid && userUid !== 'admin' && userUid !== 'admin_claim') {
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(finalCoins, finalCoins, Math.round(amt), now, userUid).run();
+
+          // Create approved deposit record
+          await env.DB.prepare(`
+            INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+            VALUES (?, ?, 'User', '', ?, ?, ?, ?, 'approved', 'Admin Manual Claim', ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+          `).bind(`DEP-${cleanTrx}`, userUid, smsRow.method || 'bKash', amt, finalCoins, cleanTrx, now).run().catch(() => {});
+        }
+
+        return json({ ok: true, message: `TrxID ${cleanTrx} successfully claimed and locked by Admin!` });
+      }
+
+      // 1d-add. Admin Manual Add & Lock TrxID (Prevent User Exploits, Fraud & Double Balance)
+      if (path === "/api/gateway/admin-add-trx" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { trxId, amount, method, reason, targetUid, uid, coins, adminName, adminEmail } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "TrxID প্রদান করা বাধ্যতামূলক" }, 400);
+
+        const now = Date.now();
+        const amt = Number(amount) || 0;
+        const meth = method || "Manual";
+        const lockReason = (reason || "").trim() || "অ্যাডমিন কর্তৃক ট্রানজ্যাকশন আইডি লক করা হয়েছে";
+        const userUid = (targetUid || uid || "").trim();
+        const addCoins = Number(coins) || (amt > 0 ? Math.floor(amt / 7) : 0);
+
+        // 1. Lock in used_trx so NO user can EVER use it
+        await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO UPDATE SET amount = excluded.amount, usedAt = excluded.usedAt
+        `).bind(cleanTrx, userUid || 'admin_locked', amt, now).run();
+
+        // 2. Insert or update in gateway_sms with claimed = 1, claimType = 'admin'
+        await env.DB.prepare(`
+          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, claimType, claimedByUid, claimedByName, claimedAt, coinsAdded, adminMsg, receivedAt)
+          VALUES (?, 'Admin Action', ?, ?, ?, 0, 1, 'admin', ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(trxId) DO UPDATE SET
+            claimed = 1,
+            claimType = 'admin',
+            amount = excluded.amount,
+            method = excluded.method,
+            claimedByUid = excluded.claimedByUid,
+            claimedByName = excluded.claimedByName,
+            claimedAt = excluded.claimedAt,
+            coinsAdded = excluded.coinsAdded,
+            adminMsg = excluded.adminMsg
+        `).bind(
+          cleanTrx,
+          `Admin Manual Entry: ${lockReason}`,
+          meth,
+          amt,
+          userUid || 'admin',
+          adminEmail || adminName || 'Admin',
+          now,
+          addCoins,
+          lockReason,
+          now
+        ).run();
+
+        // 3. If target user specified, atomically credit wallet in D1
+        if (userUid && userUid !== 'admin' && userUid !== 'admin_locked' && addCoins > 0) {
+          // If userUid looks like an email, lookup real UID
+          let resolvedUid = userUid;
+          if (userUid.includes("@")) {
+            const uRow = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1`).bind(userUid.trim()).first();
+            if (uRow && uRow.uid) resolvedUid = uRow.uid;
+          }
+
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(addCoins, addCoins, Math.round(amt), now, resolvedUid).run();
+
+          // Create approved deposit record for audit trail
+          await env.DB.prepare(`
+            INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+            VALUES (?, ?, 'User', ?, ?, ?, ?, ?, 'approved', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+          `).bind(`DEP-${cleanTrx}`, resolvedUid, userUid.includes("@") ? userUid : '', meth, amt, addCoins, cleanTrx, `Admin Credited: ${lockReason}`, now).run().catch(() => {});
+        }
+
+        return json({
+          ok: true,
+          message: `TrxID ${cleanTrx} সফলভাবে লক করা হয়েছে! কোনো ইউজার আর এই ট্রানজ্যাকশনটি ব্যবহার করতে পারবে না।`
+        });
       }
 
       // 1e. Auto-Migrate Single User on Login
@@ -1116,42 +1684,59 @@ export default {
         `).bind(finalDepId, cleanTrx).first();
 
         if (existingDep && existingDep.status === 'approved') {
-          return json({ ok: true, alreadyApproved: true, message: "Deposit or TrxID is already processed" });
+          return json({ ok: true, alreadyApproved: true, message: "ডিপোজিট বা TrxID ইতিমধ্যে অ্যাপ্রুভড হয়েছে।" });
         }
 
         const addCoins = Number(coins) || Math.floor(Number(amount) / 7) || 3;
         const now = Date.now();
 
-        // ১. Lock TrxID in D1
-        await env.DB.prepare(`
+        // ১. Atomic Lock TrxID in used_trx (Race Condition & Multi-device Glitch Protection)
+        const lockRes = await env.DB.prepare(`
           INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
           ON CONFLICT(trxId) DO NOTHING
         `).bind(cleanTrx, targetUid, Number(amount) || 0, now).run();
 
-        // ২. Credit Wallet in D1
-        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(targetUid).first();
-        let curReal = Number(w ? w.realBalance : 0);
-        let curBonus = Number(w ? w.bonusBalance : 0);
-        let newReal = Math.round((curReal + addCoins + Number.EPSILON) * 100) / 100;
-        let newTotal = Math.round((newReal + curBonus + Number.EPSILON) * 100) / 100;
+        if (!lockRes || lockRes.meta?.changes === 0) {
+          // Double check if deposit already approved by parallel thread
+          const doubleCheck = await env.DB.prepare(`SELECT status FROM deposits WHERE id = ? OR (trxId = ? AND status = 'approved') LIMIT 1`).bind(finalDepId, cleanTrx).first();
+          if (doubleCheck && doubleCheck.status === 'approved') {
+            return json({ ok: true, alreadyApproved: true, message: "ডিপোজিট ইতিমধ্যে অ্যাপ্রুভড হয়েছে।" });
+          }
+        }
 
+        // ২. Atomic Status Update on Deposit (Preventing double balance credit)
+        const depUp = await env.DB.prepare(`
+          UPDATE deposits SET status = 'approved', coins = ?, amount = ?, adminMsg = 'Approved by Admin'
+          WHERE (id = ? OR trxId = ?) AND status != 'approved'
+        `).bind(addCoins, Number(amount) || 0, finalDepId, cleanTrx).run();
+
+        if (depUp.meta?.changes === 0) {
+          const chk = await env.DB.prepare(`SELECT status FROM deposits WHERE id = ? OR (trxId = ? AND status = 'approved') LIMIT 1`).bind(finalDepId, cleanTrx).first();
+          if (chk && chk.status === 'approved') {
+            return json({ ok: true, alreadyApproved: true, message: "ডিপোজিট ইতিমধ্যে অ্যাপ্রুভড হয়েছে।" });
+          }
+          await env.DB.prepare(`
+            INSERT INTO deposits (id, uid, method, amount, coins, trxId, status, adminMsg, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, 'approved', 'Approved by Admin', ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+          `).bind(finalDepId, targetUid, method || "bKash", Number(amount) || 0, addCoins, cleanTrx, now).run();
+        }
+
+        // ৩. Atomic Wallet Increment in Cloudflare D1 (Zero dirty read risk)
         await env.DB.prepare(`
-          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, updatedAt)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(uid) DO UPDATE SET
-            balance = excluded.balance,
-            realBalance = excluded.realBalance,
-            updatedAt = excluded.updatedAt
-        `).bind(targetUid, newTotal, newReal, curBonus, now).run();
+          UPDATE user_wallets 
+          SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+          WHERE uid = ?
+        `).bind(addCoins, addCoins, Math.round(Number(amount) || 0), now, targetUid).run();
 
-        // ৩. Update / Insert Deposit Record in D1
+        // ৪. Mark claimed in gateway_sms if matching SMS exists
         await env.DB.prepare(`
-          INSERT INTO deposits (id, uid, method, amount, coins, trxId, status, createdAt)
-          VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)
-          ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
-        `).bind(finalDepId, targetUid, method || "bKash", Number(amount) || 0, addCoins, cleanTrx, now).run();
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'admin', claimedByUid = ?, claimedAt = ?, coinsAdded = ?, adminMsg = 'Admin Approved'
+          WHERE trxId = ?
+        `).bind(targetUid, now, addCoins, cleanTrx).run().catch(() => {});
 
-        // ৪. Insert or Update Transactions Table (আসল পেন্ডিং আইডি বা TrxID ম্যাচ করে approved করা)
+        // ৫. Update / Insert Transactions History Record
         await env.DB.prepare(`
           UPDATE transactions SET status = 'approved' WHERE id = ? OR (kind = 'TOP-UP' AND info LIKE ?)
         `).bind(finalDepId, `%${cleanTrx}%`).run().catch(() => { });

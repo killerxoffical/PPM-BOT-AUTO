@@ -2003,425 +2003,6 @@
             }
         }
 
-        /* --- Card Generator 3D Flip & EMV Components --- */
-        .gen-hero {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.75rem;
-            padding: 1rem 1.05rem;
-            color: #fff;
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0284c7 100%);
-            border: 1px solid rgba(125, 211, 252, 0.25);
-            box-shadow: 0 14px 30px -16px rgba(2, 6, 23, 0.7);
-        }
-
-        .gen-hero::before {
-            content: "";
-            position: absolute;
-            left: -44px;
-            bottom: -64px;
-            width: 170px;
-            height: 170px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0) 70%);
-        }
-
-        .gen-hero::after {
-            content: "";
-            position: absolute;
-            right: -52px;
-            top: -52px;
-            width: 170px;
-            height: 170px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(52, 211, 153, 0.35), rgba(52, 211, 153, 0) 70%);
-        }
-
-        .gen-hero>* {
-            position: relative;
-            z-index: 1;
-        }
-
-        .gen-flip {
-            perspective: 900px;
-            position: relative;
-        }
-
-        .gen-flip-inner {
-            position: relative;
-            width: 100%;
-            height: 132px;
-            transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.3, 1.3, 0.5, 1);
-        }
-
-        .gen-flip.flipped .gen-flip-inner {
-            transform: rotateY(180deg);
-        }
-
-        .gen-face {
-            position: absolute;
-            inset: 0;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            border-radius: 1rem;
-            overflow: hidden;
-            padding: 0.75rem 0.9rem;
-            color: #fff;
-        }
-
-        .gen-face.front {
-            background: linear-gradient(115deg, #0b1226 0%, #1d4ed8 55%, #0ea5e9 115%);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -8px 18px rgba(0, 0, 0, 0.25), 0 10px 22px -12px rgba(14, 165, 233, 0.7);
-        }
-
-        .gen-face.front::before {
-            content: "";
-            position: absolute;
-            right: -34px;
-            top: -34px;
-            width: 130px;
-            height: 130px;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 70%);
-        }
-
-        .gen-face>* {
-            position: relative;
-            z-index: 1;
-        }
-
-        .gen-shine {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 70px;
-            z-index: 0;
-            background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.18), transparent);
-            animation: genShine 4s ease-in-out infinite;
-        }
-
-        @keyframes genShine {
-            0% {
-                left: -90px;
-            }
-
-            60%,
-            100% {
-                left: 110%;
-            }
-        }
-
-        .gen-chip {
-            width: 36px;
-            height: 27px;
-            border-radius: 6px;
-            flex-shrink: 0;
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(135deg, #fde68a, #d97706);
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-        }
-
-        .gen-chip::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(0, 0, 0, 0.28) 5px 6px),
-                repeating-linear-gradient(90deg, transparent 0 7px, rgba(0, 0, 0, 0.28) 7px 8px);
-        }
-
-        .gen-holo {
-            position: relative;
-            width: 44px;
-            height: 26px;
-            flex-shrink: 0;
-        }
-
-        .gen-holo span {
-            position: absolute;
-            top: 0;
-            width: 26px;
-            height: 26px;
-            border-radius: 9999px;
-            opacity: 0.9;
-        }
-
-        .gen-holo span:first-child {
-            left: 0;
-            background: rgba(239, 68, 68, 0.9);
-        }
-
-        .gen-holo span:last-child {
-            right: 0;
-            background: rgba(251, 191, 36, 0.9);
-        }
-
-        .gen-lbl {
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .gen-val {
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.06em;
-            color: #fff;
-        }
-
-        .gen-face.back {
-            transform: rotateY(180deg);
-            background: linear-gradient(120deg, #1e293b, #0f172a);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-        }
-
-        .gen-mag {
-            height: 28px;
-            background: rgba(0, 0, 0, 0.75);
-            border-radius: 4px;
-            margin: 2px -4px 8px;
-        }
-
-        .gen-sig {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 6px, #e2e8f0 6px, #e2e8f0 12px);
-            border-radius: 6px;
-            padding: 6px 10px;
-        }
-
-        .gen-sig span {
-            font-size: 9px;
-            font-style: italic;
-            font-weight: 600;
-            color: #64748b;
-        }
-
-        .gen-sig b {
-            font-family: ui-monospace, monospace;
-            font-size: 12px;
-            color: #0f172a;
-            background: #fff;
-            padding: 1px 8px;
-            border-radius: 4px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .gen-swap {
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            z-index: 5;
-            width: 34px;
-            height: 34px;
-            border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-
-        .gen-swap:active {
-            transform: scale(0.88) rotate(180deg);
-        }
-
-        .gen-swap.static {
-            position: static;
-            flex-shrink: 0;
-        }
-
-        .gctry {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 7px 6px;
-            border-radius: 12px;
-            background: #f8fafc;
-            border: 1.5px solid #e2e8f0;
-            font-size: 10px;
-            font-weight: 800;
-            color: #334155;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            min-width: 0;
-        }
-
-        .gctry .fl {
-            font-size: 15px;
-            flex-shrink: 0;
-        }
-
-        .gctry.on {
-            border-color: #f59e0b;
-            background: #fffbeb;
-            color: #92400e;
-            box-shadow: 0 4px 12px -6px rgba(245, 158, 11, 0.6);
-        }
-
-        .gctry:active {
-            transform: scale(0.94);
-        }
-
-        .gtab {
-            padding: 8px 4px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #bae6fd;
-            background: transparent;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .gtab.on {
-            background: #fff;
-            color: #0c4a6e;
-            box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.4);
-        }
-
-        .gtab:active {
-            transform: scale(0.96);
-        }
-
-        .gen-screen {
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 0.7rem;
-            overflow: hidden;
-        }
-
-        .gen-screen>* {
-            flex-shrink: 0;
-        }
-
-        #genMainBox {
-            flex: 1 1 auto;
-            min-height: 0;
-            overflow-y: auto;
-            display: block;
-        }
-
-        .gen-results {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            padding-bottom: 0.25rem;
-        }
-
-        .addr-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 8px 10px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-            transition: all 0.15s ease;
-        }
-
-        .addr-row:hover {
-            border-color: #cbd5e1;
-            background: #f8fafc;
-        }
-
-        .addr-row .k {
-            font-size: 9px;
-            font-weight: 800;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            width: 62px;
-            flex-shrink: 0;
-        }
-
-        .addr-row .v {
-            font-size: 11.5px;
-            font-weight: 700;
-            color: #0f172a;
-            font-family: ui-monospace, monospace;
-            text-align: right;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .addr-cp-btn {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #e2e8f0;
-            flex-shrink: 0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .addr-cp-btn:hover {
-            background: #e2e8f0;
-            color: #0f172a;
-        }
-
-        .addr-cp-btn:active {
-            transform: scale(0.9);
-        }
-
-        .addr-cp-btn.copied {
-            background: #ecfdf5;
-            color: #059669;
-            border-color: #a7f3d0;
-        }
-
-        #btnGenCards {
-            background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;
-            box-shadow: 0 12px 24px -10px rgba(14, 165, 233, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-        }
-
-        #btnGenCards:active:not(:disabled) {
-            transform: scale(0.97);
-        }
-
-        #btnGenCards:disabled {
-            background: #e2e8f0 !important;
-            color: #94a3b8 !important;
-            box-shadow: none !important;
-            cursor: not-allowed;
-        }
-
-        #btnGenUnlock {
-            background: linear-gradient(135deg, #f59e0b, #f97316) !important;
-            box-shadow: 0 12px 24px -10px rgba(249, 115, 22, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
-        }
-
-        #btnGenUnlock:active:not(:disabled) {
-            transform: scale(0.97);
-        }
-
-        #btnGenUnlock:disabled {
-            background: #e2e8f0 !important;
-            color: #94a3b8 !important;
-            box-shadow: none !important;
-            cursor: not-allowed;
-        }
-
         /* --- Avatar Picker --- */
         .av-item {
             padding: 3px;
@@ -3322,7 +2903,7 @@
                     class="bg-white text-amber-700 text-[11px] font-extrabold px-3 py-1.5 rounded-xl flex-shrink-0 cursor-pointer">Login</button>
             </div>
 
-            <!-- Full Width Rounded Game Deck (Matching Card Gen Layout) -->
+            <!-- Full Width Rounded Game Deck -->
             <div
                 class="bg-white pt-3 px-2.5 pb-2 rounded-[2rem] border border-slate-200/80 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
                 <!-- Title & Status -->
@@ -4050,7 +3631,7 @@
                             <p class="text-[10px] text-slate-300 font-medium truncate mt-0.5">৬-ডিজিট QID পেতে অ্যাপটি ডাউনলোড করুন</p>
                         </div>
                     </div>
-                    <a id="btnDownloadPpmApk" href="https://t.me/Blackmoney54" target="_blank"
+                    <a id="btnDownloadPpmApk" href="https://t.me/Blackmoney54" target="_blank" onclick="claimAppDownloadReward(event)"
                         class="py-2.5 px-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-[11px] rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>Download APK</span>
@@ -4617,14 +4198,15 @@
                             <span class="text-xs font-black text-white tracking-tight">PPM SERVER App</span>
                             <span
                                 class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-black uppercase">Official</span>
+                            <span id="appDownloadRewardBadge" class="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded hidden">+১ Point</span>
                         </div>
-                        <p class="text-[10px] text-slate-300 font-semibold truncate mt-0.5">৬-ডিজিট QID ও অটো কোয়েস্টের জন্য</p>
+                        <p id="appDownloadRewardDesc" class="text-[10px] text-slate-300 font-semibold truncate mt-0.5">প্রথম ডাউনলোডে পাবেন ফ্রি ১ পয়েন্ট 🎁</p>
                     </div>
                 </div>
-                <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank"
+                <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank" onclick="claimAppDownloadReward(event)"
                     class="py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer whitespace-nowrap">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                    <span>Download</span>
+                    <span id="btnDownloadPpmApkProfileTxt">Download</span>
                 </a>
             </div>
 
@@ -4674,21 +4256,6 @@
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                 </div>
 
-                <!-- Card & Address Generator (Moved from main nav) -->
-                <div onclick="navGo('gen')"
-                    class="flex items-center justify-between py-3.5 px-2 border-b border-slate-200/90 cursor-pointer hover:bg-slate-50/80 active:scale-[.99] transition-all select-none">
-                    <div class="flex items-center gap-3.5">
-                        <i data-lucide="credit-card" class="w-5 h-5 text-sky-600"></i>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-black text-slate-800 tracking-tight">Card &amp; Address
-                                Generator</span>
-                            <span
-                                class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-black text-[9px] uppercase tracking-wider">TOOL</span>
-                        </div>
-                    </div>
-                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
-                </div>
-
 
 
                 <!-- 4. My Orders & Full History -->
@@ -4731,7 +4298,7 @@
         </main>
 
         <!-- SCREEN: COMMUNITY & CUSTOM SERVICE PROMOTION -->
-        <main id="screenCommunity" class="screen hidden gen-screen space-y-3.5 pb-12">
+        <main id="screenCommunity" class="screen hidden space-y-3.5 pb-12 fit-scroll">
             <!-- Header with Back Button -->
             <div class="flex items-center gap-2.5">
                 <button onclick="showScreen('screenProfile')"
@@ -5840,174 +5407,6 @@
         </div>
     </main>
 
-    <!-- SCREEN: CARD GEN TOOL -->
-    <main id="screenGen" class="screen hidden gen-screen">
-        <section class="gen-hero">
-            <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                    <button onclick="navGo('profile')" title="Back to Profile"
-                        class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer transition-all active:scale-90">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                    </button>
-                    <div>
-                        <h2 class="text-lg font-extrabold tracking-tight">Card Generator</h2>
-                        <p id="genTabSub" class="text-[11px] text-sky-100/90 font-medium">কার্ড বানান</p>
-                    </div>
-                </div>
-                <button onclick="swapGenTab(event)" class="gen-swap static" title="Switch"><i
-                        data-lucide="arrow-left-right" class="w-4 h-4"></i></button>
-            </div>
-            <div class="grid grid-cols-2 gap-1.5 mt-3 p-1 rounded-xl border border-white/20" id="genTabBar"
-                style="background:rgba(255,255,255,.08)">
-                <button id="genTabCard" onclick="setGenTab('card')" class="gtab on">Card</button>
-                <button id="genTabAddr" onclick="setGenTab('addr')" class="gtab">Address</button>
-            </div>
-        </section>
-
-        <!-- Paid wall (paid mode + access নেই) -->
-        <div id="genPaywall"
-            class="hidden bg-white p-4 rounded-2xl border-2 border-amber-200 shadow-sm space-y-2.5 text-center">
-            <div
-                class="mx-auto w-11 h-11 rounded-2xl flex items-center justify-center bg-amber-100 border border-amber-200">
-                <i data-lucide="crown" class="w-5 h-5 text-amber-600"></i>
-            </div>
-            <h3 class="text-sm font-extrabold text-slate-900">Premium Generator</h3>
-            <p class="text-[11px] text-slate-500 font-semibold leading-relaxed">এই টুলটি এখন <span
-                    class="text-amber-700 font-extrabold">Paid</span> — আনলক করলে মেয়াদ শেষ না হওয়া পর্যন্ত আনলিমিটেড
-                কার্ড বানাতে পারবেন।</p>
-            <div class="flex items-center justify-center gap-2">
-                <span id="genPayPrice"
-                    class="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">0
-                    Coins</span>
-                <span class="text-slate-300 font-black">/</span>
-                <span id="genPayDays"
-                    class="text-xs font-black text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">0
-                    Days</span>
-            </div>
-            <button onclick="buyGenAccess()" id="btnGenUnlock"
-                class="w-full py-3.5 text-white font-extrabold rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2">
-                <i data-lucide="unlock" class="w-4 h-4"></i> <span id="btnGenUnlockTxt">Unlock Now</span>
-            </button>
-        </div>
-
-        <!-- Off state -->
-        <div id="genOffBox"
-            class="hidden bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2 text-center">
-            <div
-                class="mx-auto w-11 h-11 rounded-2xl flex items-center justify-center bg-slate-100 border border-slate-200">
-                <i data-lucide="power-off" class="w-5 h-5 text-slate-400"></i>
-            </div>
-            <h3 class="text-sm font-extrabold text-slate-900">Generator Off</h3>
-            <p id="genOffMsg" class="text-[11px] text-slate-500 font-semibold">কার্ড জেনারেটর এখন বন্ধ আছে। পরে আবার
-                চেষ্টা করুন।</p>
-        </div>
-
-        <div id="genMainBox" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-            <p id="genPaidLine"
-                class="hidden text-center text-[11px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5">
-            </p>
-            <div id="genCardView" class="space-y-3">
-                <!-- User Manual BIN, Month, Year & CVV Form -->
-                <div class="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5 text-left">
-                    <div>
-                        <div class="flex justify-between items-center mb-1">
-                            <label class="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">Enter BIN
-                                (Required) *</label>
-                            <span class="text-[9.5px] font-bold text-slate-400">Min 6 Digits</span>
-                        </div>
-                        <div class="relative">
-                            <input id="manualGenBin" type="text" inputmode="numeric" placeholder="e.g. 453590 বা 542821"
-                                maxlength="16"
-                                class="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-black text-slate-900 focus:outline-none focus:border-indigo-600 transition-all">
-                            <i data-lucide="credit-card"
-                                class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-                        </div>
-                    </div>
-
-                    <!-- Month, Year & CVV Selectors -->
-                    <div class="grid grid-cols-3 gap-2">
-                        <div>
-                            <label
-                                class="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Month</label>
-                            <select id="manualGenMonth"
-                                class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600">
-                                <option value="rnd">Random</option>
-                                <option value="01">01</option>
-                                <option value="02">02</option>
-                                <option value="03">03</option>
-                                <option value="04">04</option>
-                                <option value="05">05</option>
-                                <option value="06">06</option>
-                                <option value="07">07</option>
-                                <option value="08">08</option>
-                                <option value="09">09</option>
-                                <option value="10">10</option>
-                                <option value="11">11</option>
-                                <option value="12">12</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                class="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Year</label>
-                            <select id="manualGenYear"
-                                class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600">
-                                <option value="rnd">Random</option>
-                                <option value="2025">2025</option>
-                                <option value="2026">2026</option>
-                                <option value="2027">2027</option>
-                                <option value="2028">2028</option>
-                                <option value="2029">2029</option>
-                                <option value="2030">2030</option>
-                                <option value="2031">2031</option>
-                                <option value="2032">2032</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                class="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">CVV</label>
-                            <input id="manualGenCvv" type="text" inputmode="numeric" maxlength="4" placeholder="Rnd"
-                                class="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 text-center">
-                        </div>
-                    </div>
-
-                    <!-- Quantity Selector -->
-                    <div class="flex items-center justify-between pt-1">
-                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Quantity</span>
-                        <div class="flex gap-1.5" id="genQtyGroup">
-                            <button type="button" onclick="setGenQty(5)" data-qty="5"
-                                class="px-2.5 py-1 text-[11px] font-extrabold rounded-lg border border-slate-200 bg-white text-slate-700 cursor-pointer">5</button>
-                            <button type="button" onclick="setGenQty(10)" data-qty="10"
-                                class="px-2.5 py-1 text-[11px] font-extrabold rounded-lg border-2 border-indigo-600 bg-indigo-50 text-indigo-700 cursor-pointer">10</button>
-                            <button type="button" onclick="setGenQty(15)" data-qty="15"
-                                class="px-2.5 py-1 text-[11px] font-extrabold rounded-lg border border-slate-200 bg-white text-slate-700 cursor-pointer">15</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="genAddrView" class="hidden space-y-2">
-                <p class="text-[11px] font-extrabold text-slate-600">Country সিলেক্ট করুন</p>
-                <div id="genCountryGrid" class="grid grid-cols-3 gap-1.5"></div>
-            </div>
-            <button onclick="generateWebCards()" id="btnGenCards"
-                class="w-full py-3.5 hover:brightness-110 active:scale-98 text-white font-extrabold rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
-                <i data-lucide="zap" class="w-4 h-4"></i> <span id="btnGenTxt">Generate Cards</span>
-            </button>
-
-            <!-- Flash / Lottie Loading Animation Box -->
-            <div id="genLoaderBox" class="hidden py-8 flex flex-col items-center justify-center space-y-2">
-                <lottie-player src="https://lottie.host/41d6fc95-7f61-416c-b296-53a5836c22c2/BgBmgewgEu.json"
-                    background="transparent" speed="1.2" style="width: 100px; height: 100px;" autoplay
-                    loop></lottie-player>
-                <p class="text-xs font-extrabold text-slate-500 animate-pulse">Generating...</p>
-            </div>
-
-            <div id="genResultScroll" class="gen-results">
-                <div id="genCardResult" class="space-y-2"></div>
-                <div id="genAddrResult" class="space-y-2 hidden"></div>
-            </div>
-        </div>
-    </main>
-
     <!-- ==========================================
              SCREEN: EARN TASKS & MONTHLY LEADERBOARD
              ========================================== -->
@@ -6075,11 +5474,11 @@
                     </div>
                 </div>
 
-                <!-- 100 Taka Grand Prize Compact Strip (Row 2) -->
+                <!-- 10 Coins Top 1 Grand Prize Compact Strip (Row 2) -->
                 <div class="relative z-10 mt-3 pt-2.5 border-t border-white/20 flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/20 min-w-0">
                         <span class="text-sm flex-shrink-0">👑</span>
-                        <span class="text-xs font-black text-amber-300 truncate">১ম পুরষ্কার: ১০০ টাকা <span class="text-[10px] text-emerald-100 font-semibold">(৫০০+ পয়েন্টে)</span></span>
+                        <span class="text-xs font-black text-amber-300 truncate">১ম পুরষ্কার: ১০ কয়েন <span class="text-[10px] text-emerald-100 font-semibold">(টপ ১ ইউজার)</span></span>
                     </div>
                     <button type="button" onclick="openPointsRulesModal()"
                         class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-[11px] font-black shadow-sm flex items-center gap-1.5 cursor-pointer transition-all flex-shrink-0">
@@ -6199,7 +5598,7 @@
                     <span
                         class="px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[11px] font-mono tabular-nums shadow-xs"
                         id="ldrRank1Tasks">0 Pts</span>
-                    <span class="text-[9px] font-black text-amber-700 uppercase tracking-wider block">🥇 Rank 1</span>
+                    <span class="text-[9px] font-black text-amber-700 uppercase tracking-wider block">🥇 Rank 1 • 🏆 ১০ Coins Prize</span>
                 </div>
 
                 <!-- 3rd Place -->
@@ -6875,13 +6274,13 @@
                     <div class="flex items-center gap-2.5 min-w-0">
                         <span class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-base font-black shadow-sm flex-shrink-0">👑</span>
                         <div class="min-w-0">
-                            <p class="font-black text-slate-900 text-xs leading-tight">১ম পুরষ্কার: ১০০ টাকা ক্যাশ</p>
+                            <p class="font-black text-slate-900 text-xs leading-tight">১ম পুরষ্কার: ১০ কয়েন (Wallet Coins)</p>
                             <p class="text-[10px] text-emerald-800 font-semibold leading-normal mt-0.5">
-                                ৫০০+ পয়েন্ট নিয়ে ১ম স্থানে থাকলে পাবেন
+                                মাস শেষে ১ম স্থানে থাকলে ১০ কয়েন পাবেন (কোনো মিনিমাম পয়েন্ট লাগবে না)
                             </p>
                         </div>
                     </div>
-                    <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-mono font-black text-xs flex-shrink-0 shadow-2xs whitespace-nowrap">৳১০০</span>
+                    <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-mono font-black text-xs flex-shrink-0 shadow-2xs whitespace-nowrap">১০ Coins</span>
                 </div>
 
                 <!-- 2. Points List (Clean Full-width rows - Never breaks awkwardly on any screen) -->
@@ -6890,36 +6289,42 @@
                         <span class="font-bold text-slate-800 flex items-center gap-2 text-xs">
                             <span class="text-sm">💎</span> প্রতি ডিপোজিট
                         </span>
-                        <span class="font-mono font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs whitespace-nowrap">+১.০ Point</span>
+                        <span class="font-mono font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs whitespace-nowrap">প্রতি ১ কয়েনে +১.০ Pt</span>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
+                        <span class="font-bold text-slate-800 flex items-center gap-2 text-xs">
+                            <span class="text-sm">🎮</span> কোয়েস্ট সম্পন্ন
+                        </span>
+                        <span class="font-mono font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs whitespace-nowrap">+১.০ Point (+১ Star)</span>
                     </div>
 
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
                         <span class="font-bold text-slate-800 flex items-center gap-2 text-xs">
                             <span class="text-sm">⚡</span> প্রতি টাস্ক পূরণ
                         </span>
-                        <span class="font-mono font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs whitespace-nowrap">+১.০ Point</span>
+                        <span class="font-mono font-black text-teal-700 bg-teal-100/80 px-2.5 py-0.5 rounded-lg border border-teal-200 text-xs whitespace-nowrap">+০.৫ Point</span>
                     </div>
 
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
                         <span class="font-bold text-slate-800 flex items-center gap-2 text-xs">
-                            <span class="text-sm">📺</span> প্রতি ভিডিও / অ্যাড
+                            <span class="text-sm">🎁</span> ডেইলি ক্লেইম / বোনাস
                         </span>
                         <span class="font-mono font-black text-teal-700 bg-teal-100/80 px-2.5 py-0.5 rounded-lg border border-teal-200 text-xs whitespace-nowrap">+০.৫ Point</span>
                     </div>
 
                     <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
                         <span class="font-bold text-slate-800 flex items-center gap-2 text-xs">
-                            <span class="text-sm">🎁</span> অফার / কোয়েস্ট সম্পন্ন
+                            <span class="text-sm">📱</span> ১ম বার অ্যাপ ডাউনলোড
                         </span>
-                        <span class="font-mono font-black text-teal-700 bg-teal-100/80 px-2.5 py-0.5 rounded-lg border border-teal-200 text-xs whitespace-nowrap">+০.৫ Point</span>
+                        <span class="font-mono font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs whitespace-nowrap">+১.০ Point (একবারই)</span>
                     </div>
                 </div>
-
 
                 <!-- 4. Ranking Rule Note -->
                 <div class="p-2 bg-slate-50 rounded-xl border border-slate-200 text-center">
                     <p class="text-[10px] text-slate-500 font-medium leading-tight">
-                        🏅 সেরা টপ ১০ ইউজার প্রদর্শিত হবে • প্রতি মাসের ১ তারিখে রিসেট
+                        🏅 সেরা টপ ১০ ইউজার প্রদর্শিত হবে • প্রতি মাসের ১ তারিখে ১০ কয়েন পুরষ্কার ও নতুন সিজন রিসেট
                     </p>
                 </div>
             </div>
@@ -7748,7 +7153,7 @@
         }
 
         function showScreen(id) {
-            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenGen', 'screenEarn', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell', 'screenCommunity'].forEach(s => {
+            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenEarn', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell', 'screenCommunity'].forEach(s => {
                 const el = document.getElementById(s);
                 if (el) el.classList.toggle('hidden', s !== id);
             });
@@ -7770,7 +7175,7 @@
             if (id === 'screenP2P' && window.startP2PLive) { try { window.startP2PLive(); } catch (e) { } }
             if (id !== 'screenP2P' && window.stopP2PLive) { try { window.stopP2PLive(); } catch (e) { } }
             if (id !== 'screenSuccess' && window.liveSecTick) { try { clearInterval(window.liveSecTick); } catch (e) { } }
-            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenEarn: 'earn', screenGen: 'profile', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
+            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenEarn: 'earn', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
             if (window.paintNav) paintNav(navMap[id] || null);
             // Translation system removed per user request
         }
@@ -7795,11 +7200,6 @@
                 if (window.renderEarnUI) window.renderEarnUI();
                 return;
             }
-            if (tab === 'gen') {
-                showScreen('screenGen');
-                if (window.refreshGenUI) window.refreshGenUI();
-                return;
-            }
             if (tab === 'p2p') {
                 showScreen('screenP2P');
                 if (window.setP2PTab) window.setP2PTab('posts');
@@ -7816,172 +7216,7 @@
         window.payBack = payBack;
         window.showScreen = showScreen;
 
-        /* ===== CardGen state (BIN hidden, multi-BIN random, free/paid/off) ===== */
-        window._genBins = window._genBins || ['453590'];
-        window._genMode = window._genMode || 'free';
-        window._genPrice = window._genPrice || 0;
-        window._genDays = window._genDays || 7;
-        window._genOffMsg = window._genOffMsg || '';
-        function parseGenBins(v) {
-            let arr = [];
-            if (Array.isArray(v)) arr = v;
-            else if (typeof v === 'string') arr = v.split(/[\n,;\s]+/);
-            return arr.map(s => (s || '').toString().replace(/[^0-9]/g, '').trim()).filter(s => s.length >= 4).slice(0, 50);
-        }
-        function pickGenBin() {
-            const list = (window._genBins && window._genBins.length) ? window._genBins : ['453590'];
-            if (list.length === 1) return list[0];
-            return list[Math.floor(Math.random() * list.length)];
-        }
-        function hasGenAccess() {
-            if ((window._genMode || 'free') === 'free') return true;
-            if ((window._genMode || '') === 'off') return false;
-            const until = Number(window.ppfb && window.ppfb.genUntil) || 0;
-            return until > Date.now();
-        }
-        function genDaysLeft() {
-            const until = Number(window.ppfb && window.ppfb.genUntil) || 0;
-            if (!until || until <= Date.now()) return 0;
-            return Math.ceil((until - Date.now()) / 86400000);
-        }
-        window.refreshGenUI = () => {
-            const mode = (window._genMode || 'free').toString();
-            const addrOn = (window._addrGenEnabled !== false);
-            const curTab = window._genTab || 'card';
-
-            const wall = document.getElementById('genPaywall');
-            const offBox = document.getElementById('genOffBox');
-            const mainBox = document.getElementById('genMainBox');
-            const pp = document.getElementById('genPayPrice');
-            const pd = document.getElementById('genPayDays');
-            const ub = document.getElementById('btnGenUnlockTxt');
-            const pl = document.getElementById('genPaidLine');
-
-            if (pp) pp.textContent = (Number(window._genPrice) || 0) + ' Coins';
-            if (pd) pd.textContent = (Number(window._genDays) || 0) + ' Days';
-            if (ub) ub.textContent = 'Unlock for ' + (Number(window._genPrice) || 0) + ' Coins';
-
-            // ট্যাব ভিত্তিক স্বাধীন অফ-স্টেট চেকার
-            const isCardOff = (mode === 'off' && curTab === 'card');
-            const isAddrOff = (!addrOn && curTab === 'addr');
-
-            if (isCardOff || isAddrOff) {
-                if (wall) wall.classList.add('hidden');
-                if (mainBox) mainBox.classList.add('hidden');
-                if (offBox) offBox.classList.remove('hidden');
-                const om = document.getElementById('genOffMsg');
-                if (om) {
-                    om.textContent = isAddrOff
-                        ? ((window._addrOffMsg || '').trim() || 'অ্যাড্রেস জেনারেটর এখন বন্ধ আছে। পরে চেষ্টা করুন।')
-                        : ((window._genOffMsg || '').trim() || 'কার্ড জেনারেটর এখন বন্ধ আছে। পরে চেষ্টা করুন।');
-                }
-                return;
-            }
-            if (offBox) offBox.classList.add('hidden');
-            const bar = document.getElementById('genTabBar');
-            if (mode === 'paid' && !hasGenAccess()) {
-                if (wall) wall.classList.remove('hidden');
-                if (mainBox) mainBox.classList.remove('hidden');
-                if (bar) bar.classList.add('hidden');
-                setGenTab('addr');
-                const cv = document.getElementById('genCardView');
-                if (cv) cv.classList.add('hidden');
-                if (pl) pl.classList.add('hidden');
-            } else {
-                if (wall) wall.classList.add('hidden');
-                if (mainBox) mainBox.classList.remove('hidden');
-                if (bar) bar.classList.remove('hidden');
-                if (pl) {
-                    if (mode === 'paid') {
-                        const d = genDaysLeft();
-                        if (d > 0) { pl.textContent = 'মেয়াদ বাকি: ' + d + ' দিন'; pl.classList.remove('hidden'); }
-                        else pl.classList.add('hidden');
-                    } else pl.classList.add('hidden');
-                }
-            }
-            if (window.lucide) lucide.createIcons();
-        };
-        window.buyGenAccess = async () => {
-            if (!(window.ppfb && window.ppfb.user)) { toast('Please login first'); showScreen('screenLogin'); return; }
-            if (typeof window._buyGenAccessFb === 'function') { window._buyGenAccessFb(); return; }
-            toast('Loading, please wait...');
-        };
-        /* ===== Gen country + real address details (12 Play Points countries) ===== */
-        window._genCountry = window._genCountry || 'US';
-        function _gr(a) { return a[Math.floor(Math.random() * a.length)]; }
-        function _gn(mn, mx) { return Math.floor(Math.random() * (mx - mn + 1)) + mn; }
-        function _gch(s) { return s.charAt(Math.floor(Math.random() * s.length)); }
-        function _gz(fmt) { return fmt.replace(/#/g, () => _gn(0, 9)).replace(/@/g, () => _gch('ABCEFGHJKLMNPRSTVWXYZ')); }
-        const GEN_FN_EN = ['James', 'John', 'Robert', 'Michael', 'David', 'Emma', 'Olivia', 'Sophia', 'Ava', 'Mia'];
-        const GEN_LN_EN = ['Smith', 'Johnson', 'Brown', 'Taylor', 'Miller', 'Davis', 'Wilson', 'Moore', 'Anderson', 'Thomas'];
-        const GEN_FN_DE = ['Lukas', 'Felix', 'Jonas', 'Leon', 'Marie', 'Lena', 'Anna', 'Sophie', 'Max', 'Laura'];
-        const GEN_LN_DE = ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann'];
-        const GEN_FN_FR = ['Lucas', 'Hugo', 'Louis', 'Jules', 'Emma', 'Chloé', 'Léa', 'Manon', 'Nathan', 'Camille'];
-        const GEN_LN_FR = ['Martin', 'Bernard', 'Dubois', 'Laurent', 'Moreau', 'Simon', 'Michel', 'Garcia', 'David', 'Bertrand'];
-        const GEN_FN_JP = ['Haruto', 'Yuto', 'Sota', 'Ren', 'Hayato', 'Yui', 'Hina', 'Sakura', 'Aoi', 'Mei'];
-        const GEN_LN_JP = ['Sato', 'Suzuki', 'Takahashi', 'Tanaka', 'Watanabe', 'Yamamoto', 'Nakamura', 'Kobayashi', 'Ito', 'Kato'];
-        const GEN_FN_KR = ['Minjun', 'Seojun', 'Jiho', 'Yeonwoo', 'Seoa', 'Jian', 'Hana', 'Yuna', 'Doyun', 'Siu'];
-        const GEN_LN_KR = ['Kim', 'Lee', 'Park', 'Choi', 'Jung', 'Kang', 'Cho', 'Yoon', 'Shin', 'Han'];
-        const GEN_FN_ZH = ['Wei', 'Fang', 'Lei', 'Na', 'Min', 'Jing', 'Chao', 'Xin', 'Tao', 'Yan'];
-        const GEN_LN_ZH = ['Wang', 'Li', 'Zhang', 'Chen', 'Liu', 'Yang', 'Huang', 'Zhou', 'Wu', 'Xu'];
-        const GEN_FN_ES = ['Santiago', 'Mateo', 'Sebastián', 'Alejandro', 'Valentina', 'Sofía', 'Camila', 'Ximena', 'Diego', 'Luciana'];
-        const GEN_LN_ES = ['Hernández', 'García', 'Martínez', 'López', 'González', 'Pérez', 'Rodríguez', 'Sánchez', 'Ramírez', 'Cruz'];
-        const GEN_FN_PT = ['Lucas', 'Matheus', 'Pedro', 'Gabriel', 'Arthur', 'Ana', 'Julia', 'Beatriz', 'Mariana', 'Larissa'];
-        const GEN_LN_PT = ['Silva', 'Santos', 'Oliveira', 'Souza', 'Costa', 'Pereira', 'Almeida', 'Carvalho', 'Ferreira', 'Rodrigues'];
-        const GEN_COUNTRIES = [
-            // 0% Sales Tax States for Google Play (Oregon, Delaware, Alaska, Montana, New Hampshire)
-            { c: 'US', n: 'United States (Non-Tax)', f: '🇺🇸', rg: 'State', pair: 1, apt: 1, fn: GEN_FN_EN, ln: GEN_LN_EN, sts: ['Evergreen', 'Pine', 'Cedar', 'Cascade', 'Oak', 'Hawthorne', 'Willamette', 'Sunset'], suf: ['St', 'Ave', 'Blvd', 'Rd', 'Dr', 'Way'], cts: [['Portland', 'OR', '97201'], ['Salem', 'OR', '97301'], ['Eugene', 'OR', '97401'], ['Wilmington', 'DE', '19801'], ['Dover', 'DE', '19901'], ['Anchorage', 'AK', '99501'], ['Billings', 'MT', '59101'], ['Manchester', 'NH', '03101']], zip: function (c, r, x) { return x || '97201'; }, ph: '+1 (###) ###-####' },
-            { c: 'UK', n: 'United Kingdom', f: '🇬🇧', pair: 0, apt: 1, fn: GEN_FN_EN, ln: GEN_LN_EN, sts: ['High', 'Church', 'Mill', 'Park', 'Victoria', 'King', 'Station', 'Manor'], suf: ['Road', 'Street', 'Lane', 'Avenue', 'Close', 'Drive'], cts: ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow', 'Liverpool', 'Bristol', 'Sheffield'], zip: function () { return _gr(['SW1A', 'E1', 'EC2V', 'M1', 'B1', 'L1', 'G1', 'EH1', 'CF10', 'BT1']) + ' ' + _gn(1, 9) + _gch('ABCDEFGHJLNPQRSTUWXYZ') + _gch('ABCDEFGHJLNPQRSTUWXYZ'); }, ph: '+44 7### ######' },
-            { c: 'JP', n: 'Japan', f: '🇯🇵', rg: 'Ward', pair: 1, fn: GEN_FN_JP, ln: GEN_LN_JP, cts: [['Tokyo', 'Shibuya-ku'], ['Tokyo', 'Shinjuku-ku'], ['Osaka', 'Naniwa-ku'], ['Nagoya', 'Naka-ku'], ['Fukuoka', 'Hakata-ku'], ['Sapporo', 'Chuo-ku']], pre: function (c, w) { return _gn(1, 9) + '-' + _gn(1, 30) + '-' + _gn(1, 20) + ' ' + w; }, zip: '###-####', ph: '+81 90-####-####' },
-            { c: 'KR', n: 'South Korea', f: '🇰🇷', rg: 'District', pair: 1, fn: GEN_FN_KR, ln: GEN_LN_KR, cts: [['Seoul', 'Gangnam-gu'], ['Seoul', 'Mapo-gu'], ['Busan', 'Haeundae-gu'], ['Incheon', 'Yeonsu-gu'], ['Daegu', 'Suseong-gu']], pre: function () { return _gn(1, 200) + ' ' + _gr(['Teheran-ro', 'Gangnam-daero', 'World Cup-ro', 'Haeundae-ro', 'Central-ro']); }, zip: '0####', ph: '+82 10-####-####' },
-            { c: 'DE', n: 'Germany', f: '🇩🇪', pair: 1, fn: GEN_FN_DE, ln: GEN_LN_DE, cts: [['Berlin', '', '10115'], ['Munich', '', '80331'], ['Hamburg', '', '20095'], ['Cologne', '', '50667'], ['Frankfurt', '', '60311'], ['Stuttgart', '', '70173']], pre: function () { return _gr(['Berliner', 'Münchner', 'Haupt', 'Bahnhof', 'Garten', 'Schiller', 'Goethe', 'Linden']) + 'straße ' + _gn(1, 150); }, zip: function (c, r, x) { return x; }, ph: '+49 17# #######' },
-            { c: 'FR', n: 'France', f: '🇫🇷', pair: 1, fn: GEN_FN_FR, ln: GEN_LN_FR, cts: [['Paris', '', '75001'], ['Lyon', '', '69001'], ['Marseille', '', '13001'], ['Toulouse', '', '31000'], ['Nice', '', '06000'], ['Nantes', '', '44000']], pre: function () { return _gn(1, 180) + ' Rue ' + _gr(['Victor Hugo', 'de la Paix', 'du Moulin', 'des Fleurs', 'Pasteur', 'de la République']); }, zip: function (c, r, x) { return x; }, ph: '+33 6 ## ## ## ##' },
-            { c: 'AU', n: 'Australia', f: '🇦🇺', rg: 'State', pair: 1, apt: 1, fn: GEN_FN_EN, ln: GEN_LN_EN, sts: ['George', 'Pitt', 'King', 'Queen', 'Elizabeth', 'Murray', 'Collins', 'Flinders'], suf: ['St', 'Ave', 'Rd', 'Tce', 'Pl', 'Way'], cts: [['Sydney', 'NSW', '2000'], ['Melbourne', 'VIC', '3000'], ['Brisbane', 'QLD', '4000'], ['Perth', 'WA', '6000'], ['Adelaide', 'SA', '5000'], ['Canberra', 'ACT', '2600']], zip: function (c, r, x) { return x; }, ph: '+61 4## ### ###' },
-            { c: 'BR', n: 'Brazil', f: '🇧🇷', rg: 'UF', pair: 1, fn: GEN_FN_PT, ln: GEN_LN_PT, cts: [['São Paulo', 'SP', '01310'], ['Rio de Janeiro', 'RJ', '20040'], ['Belo Horizonte', 'MG', '30130'], ['Curitiba', 'PR', '80010'], ['Salvador', 'BA', '40020']], pre: function () { return 'Rua ' + _gr(['das Flores', 'XV de Novembro', 'Paulista', 'Augusta', 'do Comércio', 'Brasil']) + ', ' + _gn(10, 2900); }, zip: function (c, r, x) { return _gz(x + '-###'); }, ph: '+55 (##) 9####-####' },
-            { c: 'CA', n: 'Canada', f: '🇨🇦', rg: 'Province', pair: 1, apt: 1, fn: GEN_FN_EN, ln: GEN_LN_EN, sts: ['Maple', 'Oak', 'King', 'Queen', 'Main', 'Victoria', 'Church', 'Elm'], suf: ['St', 'Ave', 'Rd', 'Blvd', 'Dr', 'Way'], cts: [['Toronto', 'ON', 'M5H'], ['Vancouver', 'BC', 'V6B'], ['Montreal', 'QC', 'H2Y'], ['Calgary', 'AB', 'T2P'], ['Ottawa', 'ON', 'K1P']], zip: function (c, r, x) { return _gz(x + ' #@@'); }, ph: '+1 (###) ###-####' },
-            { c: 'TW', n: 'Taiwan', f: '🇹🇼', rg: 'District', pair: 1, fn: GEN_FN_ZH, ln: GEN_LN_ZH, cts: [['Taipei', 'Zhongzheng Dist.'], ['New Taipei', 'Banqiao Dist.'], ['Taichung', 'Xitun Dist.'], ['Kaohsiung', 'Lingya Dist.']], pre: function () { return 'No. ' + _gn(1, 300) + ', Sec. ' + _gn(1, 5) + ', ' + _gr(['Zhongxiao E.', 'Zhongshan N.', 'Minquan W.', 'Jianguo S.']) + ' Rd.'; }, zip: '###', ph: '+886 9##-###-###' },
-            { c: 'HK', n: 'Hong Kong', f: '🇭🇰', rg: 'Area', pair: 1, fn: GEN_FN_ZH, ln: GEN_LN_ZH, cts: [['Hong Kong', 'Central'], ['Hong Kong', 'Mong Kok'], ['Kowloon', 'Tsim Sha Tsui'], ['New Territories', 'Sha Tin']], pre: function () { return 'Flat ' + _gr(['A', 'B', 'C', 'D']) + ', ' + _gn(10, 45) + '/F, ' + _gr(['Man Hing', 'Golden Plaza', 'Harbour View', 'Kwong Wah']) + ' Bldg, ' + _gr(['Nathan Rd', 'Queens Rd', 'Des Voeux Rd', 'Hennessy Rd']); }, zip: '', ph: '+852 9### ####' },
-            { c: 'MX', n: 'Mexico', f: '🇲🇽', rg: 'Estado', pair: 1, fn: GEN_FN_ES, ln: GEN_LN_ES, cts: [['Ciudad de México', 'CDMX', '06600'], ['Guadalajara', 'JAL', '44100'], ['Monterrey', 'NL', '64000'], ['Puebla', 'PUE', '72000']], pre: function () { return 'Calle ' + _gr(['Juárez', 'Hidalgo', 'Morelos', 'Reforma', 'Insurgentes', 'Allende']) + ' ' + _gn(1, 500) + ', Col. ' + _gr(['Centro', 'Roma Norte', 'Condesa', 'Del Valle', 'Narvarte']); }, zip: function (c, r, x) { return x; }, ph: '+52 55 #### ####' }
-        ];
-        function genAddress(code) {
-            const G = GEN_COUNTRIES.find(x => x.c === code) || GEN_COUNTRIES[0];
-            const name = _gr(G.fn) + ' ' + _gr(G.ln);
-            let city = '', rg = '', extra = '';
-            if (G.pair) { const p = _gr(G.cts); city = p[0]; rg = p[1] || ''; extra = p[2] || ''; }
-            else city = _gr(G.cts);
-            let street = G.pre ? G.pre(city, rg, extra) : (_gn(10, 9999) + ' ' + _gr(G.sts) + ' ' + _gr(G.suf));
-            if (G.apt && Math.random() < 0.3) street += ', Apt ' + _gr(['A', 'B', 'C', 'D']) + _gn(1, 20);
-            const zip = (typeof G.zip === 'function') ? G.zip(city, rg, extra) : (G.zip ? _gz(G.zip) : '');
-            let phone = _gz(G.ph);
-            if (/^\+1 \(/.test(phone)) {
-                phone = phone.replace(/^(\+1 \()[01]/, function (m, p) { return p + _gn(2, 9); }).replace(/(\) )[01]/, function (m, p) { return p + _gn(2, 9); });
-            }
-            if (/^\+55 \(/.test(phone)) phone = phone.replace(/^(\+55 \()[01]/, function (m, p) { return p + _gn(2, 9); });
-            phone = phone.replace(/(90-|10-)0(\d{3}-\d{4}|\d{3})/, function (m, a, b) { return a + _gn(1, 9) + b; });
-            const rows = [['Name', name], ['Street', street], ['City', city]];
-            if (rg) rows.push([G.rg || 'Region', rg]);
-            if (zip) rows.push(['Postal', zip]);
-            rows.push(['Phone', phone]);
-            rows.push(['Country', G.n]);
-            return { flag: G.f, cname: G.n, rows: rows };
-        }
-        function renderGenCountries() {
-            const box = document.getElementById('genCountryGrid');
-            if (!box) return;
-            box.innerHTML = GEN_COUNTRIES.map(g => '<button type="button" onclick="selectGenCountry(\'' + g.c + '\')" data-gctry="' + g.c + '" class="gctry' + (window._genCountry === g.c ? ' on' : '') + '"><span class="fl">' + g.f + '</span><span class="truncate">' + g.n + '</span></button>').join('');
-        }
-        function selectGenCountry(code) {
-            window._genCountry = code;
-            document.querySelectorAll('[data-gctry]').forEach(b => b.classList.toggle('on', b.dataset.gctry === code));
-        }
-        function flipGenCard(e) {
-            if (e && e.stopPropagation) { try { e.stopPropagation(); } catch (_) { } }
-            const f = document.getElementById('genFlipCard');
-            if (f) f.classList.toggle('flipped');
-        }
-        renderGenCountries();
-        /* ===== Gen Card/Address tabs (exchange switches page) ===== */
-        window._genTab = window._genTab || 'card';
+        
         /* ===== Redeem Drawer 10s Auto-Close Logic ===== */
         let redeemCloseTimer = null;
         window.toggleRedeemDrawer = () => {
@@ -8013,234 +7248,7 @@
             if (icon) icon.style.transform = '';
         }
 
-        function setGenTab(t) {
-            window._genTab = t;
-            if (window.refreshGenUI) window.refreshGenUI();
-            const cv = document.getElementById('genCardView');
-            const av = document.getElementById('genAddrView');
-            if (cv) cv.classList.toggle('hidden', t !== 'card');
-            if (av) av.classList.toggle('hidden', t !== 'addr');
-            const cr = document.getElementById('genCardResult');
-            const ar = document.getElementById('genAddrResult');
-            if (cr) cr.classList.toggle('hidden', t !== 'card');
-            if (ar) ar.classList.toggle('hidden', t !== 'addr');
-            const tc = document.getElementById('genTabCard');
-            const ta = document.getElementById('genTabAddr');
-            if (tc) tc.classList.toggle('on', t === 'card');
-            if (ta) ta.classList.toggle('on', t === 'addr');
-            const sub = document.getElementById('genTabSub');
-            if (sub) sub.textContent = t === 'addr' ? '0% Non-Tax ঠিকানা বানান' : 'কার্ড বানান';
-            const bt = document.getElementById('btnGenTxt');
-            if (bt) bt.textContent = t === 'addr' ? 'Generate Non-Tax Address' : 'Generate Cards';
-        }
-        function swapGenTab(e) {
-            if (e && e.stopPropagation) { try { e.stopPropagation(); } catch (_) { } }
-            setGenTab((window._genTab || 'card') === 'card' ? 'addr' : 'card');
-        }
-        window._currentAddressObj = null;
-        window.copyFullAddress = function () {
-            if (!window._currentAddressObj) { toast('আগে ঠিকানা জেনারেট করুন'); return; }
-            const lines = window._currentAddressObj.rows.map(r => r[0] + ': ' + r[1]).join('\n');
-            copyText(lines, 'সম্পূর্ণ ঠিকানা কপি হয়েছে! 🎉');
-        };
-
-        window.copyAddrField = function (btn, val, label) {
-            if (!val) return;
-            copyText(val, label + ' কপি হয়েছে! ✓');
-            if (btn) {
-                btn.classList.add('copied');
-                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>';
-                if (window.lucide) lucide.createIcons();
-                setTimeout(() => {
-                    btn.classList.remove('copied');
-                    btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i>';
-                    if (window.lucide) lucide.createIcons();
-                }, 1500);
-            }
-        };
-
-        function genAddressOnly() {
-            const addr = genAddress(window._genCountry || 'US');
-            window._currentAddressObj = addr;
-            const box = document.getElementById('genAddrResult');
-            if (!box) return;
-
-            window._addrFieldValues = addr.rows.map(r => r[1]);
-
-            const rowsHtml = addr.rows.map((r, idx) => {
-                const safeVal = r[1].replace(/"/g, '&quot;');
-                const label = r[0];
-                return `<div class="addr-row">
-                    <span class="k">${label}</span>
-                    <span class="v select-all" title="${safeVal}">${safeVal}</span>
-                    <button type="button" onclick="copyAddrField(this, window._addrFieldValues[${idx}], '${label}')" class="addr-cp-btn" title="Copy ${label}">
-                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>`;
-            }).join('');
-
-            box.innerHTML = `
-                <div class="flex items-center justify-between gap-2 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-xs">
-                    <div class="flex items-center gap-1.5 pl-1">
-                        <span class="text-base">${addr.flag}</span>
-                        <span class="text-xs font-black text-emerald-950">${addr.cname} Non-Tax</span>
-                    </div>
-                    <button type="button" onclick="copyFullAddress()" class="flex items-center gap-1.5 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3 py-1.5 rounded-xl shadow-xs cursor-pointer transition-all">
-                        <i data-lucide="copy-check" class="w-3.5 h-3.5"></i> <span>Copy All</span>
-                    </button>
-                </div>
-                <div class="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-2.5 space-y-1.5">
-                    ${rowsHtml}
-                </div>`;
-
-            toast('নতুন Non-Tax ঠিকানা তৈরি হয়েছে! ✨');
-            const sc0 = document.getElementById('genMainBox');
-            if (sc0) sc0.scrollTop = 0;
-            if (window.lucide) lucide.createIcons();
-        }
-        let _currentGenQty = 10;
-        window.setGenQty = (q) => {
-            _currentGenQty = q;
-            document.querySelectorAll('#genQtyGroup button').forEach(b => {
-                const on = Number(b.dataset.qty) === q;
-                b.className = on
-                    ? 'px-2.5 py-1 text-[11px] font-extrabold rounded-lg border-2 border-indigo-600 bg-indigo-50 text-indigo-700 cursor-pointer'
-                    : 'px-2.5 py-1 text-[11px] font-extrabold rounded-lg border border-slate-200 bg-white text-slate-700 cursor-pointer';
-            });
-        };
-
-        // Standard Luhn Algorithm for Offline Valid Card Generation
-        function generateLuhnCard(binStr) {
-            let clean = (binStr || '').replace(/[^0-9]/g, '');
-            let length = 16;
-            let card = clean;
-            while (card.length < length - 1) {
-                card += Math.floor(Math.random() * 10);
-            }
-            // Luhn check digit
-            let sum = 0;
-            let alternate = true;
-            for (let i = card.length - 1; i >= 0; i--) {
-                let n = parseInt(card.charAt(i), 10);
-                if (alternate) {
-                    n *= 2;
-                    if (n > 9) n = (n % 10) + 1;
-                }
-                sum += n;
-                alternate = !alternate;
-            }
-            let checkDigit = (10 - (sum % 10)) % 10;
-            return card + checkDigit;
-        }
-
-        window.generateWebCards = async () => {
-            const curTab = window._genTab || 'card';
-
-            // ১. যদি ইউজার Address ট্যাবে থাকে -> শুধু Address ON কিনা চেক করবে
-            if (curTab === 'addr') {
-                if (window._addrGenEnabled === false) {
-                    toast((window._addrOffMsg || '').trim() || 'অ্যাড্রেস জেনারেটর এখন বন্ধ আছে');
-                    return;
-                }
-                genAddressOnly();
-                return;
-            }
-
-            // ২. অ্যাডমিন অন/অফ এবং পেইড চেক
-            const mode = (window._genMode || 'free').toString();
-            if (mode === 'off') {
-                toast((window._genOffMsg || '').trim() || 'কার্ড জেনারেটর এখন বন্ধ আছে');
-                return;
-            }
-            if (mode === 'paid' && !hasGenAccess()) {
-                toast('আগে Premium আনলক করুন');
-                if (window.refreshGenUI) window.refreshGenUI();
-                return;
-            }
-
-            // ৩. ইউজারের দেওয়া ম্যানুয়াল BIN নেওয়া
-            const binInput = (document.getElementById('manualGenBin') || {}).value || '';
-            const userBin = binInput.replace(/[^0-9]/g, '').trim();
-
-            if (!userBin || userBin.length < 6) {
-                toast('অনুগ্রহ করে কমপক্ষে ৬ ডিজিটের সঠিক BIN দিন!');
-                const inp = document.getElementById('manualGenBin');
-                if (inp) { inp.focus(); inp.style.borderColor = '#ef4444'; }
-                return;
-            }
-
-            const monthVal = (document.getElementById('manualGenMonth') || {}).value || 'rnd';
-            const yearVal = (document.getElementById('manualGenYear') || {}).value || 'rnd';
-            const customCvv = ((document.getElementById('manualGenCvv') || {}).value || '').replace(/[^0-9]/g, '').trim();
-
-            const btn = document.getElementById('btnGenCards');
-            const loader = document.getElementById('genLoaderBox');
-            const resBox = document.getElementById('genCardResult');
-
-            if (btn) btn.disabled = true;
-            if (loader) loader.classList.remove('hidden');
-            if (resBox) resBox.innerHTML = '';
-
-            try {
-                await new Promise(r => setTimeout(r, 600)); // Natural feeling delay
-
-                const count = _currentGenQty || 10;
-                const cards = [];
-
-                for (let i = 0; i < count; i++) {
-                    const cardNum = generateLuhnCard(userBin);
-
-                    let mm = monthVal;
-                    if (mm === 'rnd') mm = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
-
-                    let yyyy = yearVal;
-                    if (yyyy === 'rnd') yyyy = String(Math.floor(Math.random() * 7) + 2026);
-                    let yy = yyyy.slice(-2);
-
-                    let cvv = customCvv;
-                    if (!cvv || cvv.length < 3) cvv = String(Math.floor(Math.random() * 900) + 100);
-
-                    cards.push(`${cardNum}|${mm}|${yy}|${cvv}`);
-                }
-
-                if (loader) loader.classList.add('hidden');
-                const pb = document.getElementById('genPrevBrand');
-                const firstNum = (cards[0] || '').toString().replace(/[^0-9]/g, '');
-                if (pb) pb.textContent = /^4/.test(firstNum) ? 'VISA' : (/^5/.test(firstNum) ? 'MASTERCARD' : 'CARD');
-                const allTxt = cards.map(c => (c || '').toString().trim()).join('\n').replace(/'/g, "\\'");
-                if (resBox) {
-                    resBox.innerHTML = '<div class="flex items-center justify-between gap-2 pb-1">'
-                        + '<span class="text-xs font-extrabold text-slate-700">Fresh Cards (' + cards.length + ')</span>'
-                        + '<button onclick="copyText(\'' + allTxt + '\', \'সব কার্ড কপি হয়েছে!\')" class="text-[11px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200 px-3 py-1.5 rounded-xl cursor-pointer">Copy All</button>'
-                        + '</div>'
-                        + cards.map((c) => {
-                            const cc = (c || '').toString().trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                            const disp = (c || '').toString().trim();
-                            const brand = /^4/.test(disp.replace(/[^0-9]/g, '')) ? 'VISA' : /^5/.test(disp.replace(/[^0-9]/g, '')) ? 'MASTERCARD' : 'CARD';
-                            return `
-                    <div class="gen-cardrow flex items-center justify-between gap-1.5 p-2.5 rounded-xl">
-                        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.35)">
-                            <i data-lucide="credit-card" class="w-3.5 h-3.5 text-sky-300"></i>
-                        </div>
-                        <div class="flex-1 min-w-0 px-1">
-                            <p class="font-mono text-[10px] sm:text-xs font-bold text-white select-all tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none">${disp}</p>
-                            <p class="text-[8.5px] font-extrabold text-slate-400 tracking-wider">${brand} • CC</p>
-                        </div>
-                        <button onclick="copyText('${cc}', 'Card Copied!')" class="gen-copybtn flex-shrink-0">Copy</button>
-                    </div>`;
-                        }).join('');
-                }
-                toast('কার্ড রেডি!');
-                const sc1 = document.getElementById('genMainBox');
-                if (sc1) sc1.scrollTop = 0;
-            } catch (e) {
-                if (loader) loader.classList.add('hidden');
-                toast('জেনারেট করতে সমস্যা হয়েছে');
-            } finally {
-                if (btn) btn.disabled = false;
-            }
-            if (window.lucide) lucide.createIcons();
-        };
+        
         function paintNav(tab) {
             document.querySelectorAll('[data-navbtn]').forEach(b => {
                 const on = b.dataset.navbtn === tab;
@@ -9413,11 +8421,19 @@
                 return;
             }
 
-            // বাটনে জীবন্ত স্পিনার লোডিং চালু করা
+            if (window._isDepositSubmitting) {
+                toast('অনুগ্রহ করে অপেক্ষা করুন, আগের রিকোয়েস্টটি প্রসেস হচ্ছে...');
+                return;
+            }
+            window._isDepositSubmitting = true;
+
+            // বাটনে জীবন্ত স্পিনার লোডিং চালু করা (Anti-Glitch 2.5s Lock)
             const btn = document.getElementById('depositBtn');
-            const originalBtnText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="pay-spinner"></span> <span>পেমেন্ট যাচাই করা হচ্ছে (৩ সে)...</span>';
+            const originalBtnText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="pay-spinner"></span> <span>পেমেন্ট গেটওয়েতে সুরক্ষিত যাচাই চলছে...</span>';
+            }
 
             try {
                 const finalTrx = isStars ? (trxId.startsWith('@') ? trxId : '@' + trxId) : trxId.toUpperCase();
@@ -9438,17 +8454,23 @@
                     } catch (cfErr) { }
                 }
 
-                // ন্যাচারাল ৩ সেকেন্ড 3D লোডিং ফিডব্যাক
+                // সুরক্ষিত ২.৫ সেকেন্ড 3D ভেরিফিকেশন লোডিং
                 await new Promise(res => setTimeout(res, 2500));
 
                 const r = await window.ppfb.saveDeposit({ method: method, amount: amount, coins: coins, trxId: finalTrx });
 
-                // যদি TrxID ভুল, ব্যবহৃত বা SMS না পাওয়া যায় -> লাল পপআপ দেখাবে
+                // যদি TrxID ভুল, ব্যবহৃত, এক্সপায়ার বা SMS না পাওয়া যায় -> উপযুক্ত পপআপ দেখাবে
                 if (!r.ok) {
-                    showDepErrorModal(
-                        r.error.includes('ব্যবহৃত') ? '⚠️ ট্রানজ্যাকশন আইডি ব্যবহৃত!' : '❌ পেমেন্ট পাওয়া যায়নি!',
-                        r.error
-                    );
+                    let errTitle = '❌ পেমেন্ট যাচাই ব্যর্থ!';
+                    const errStr = (r.error || '').toString();
+                    if (errStr.includes('ব্যবহৃত') || errStr.includes('গ্রহণযোগ্য নয়')) {
+                        errTitle = '⚠️ ট্রানজ্যাকশন আইডি ব্যবহৃত!';
+                    } else if (errStr.includes('৩০ মিনিট') || errStr.includes('মেয়াদ') || errStr.includes('EXPIRED')) {
+                        errTitle = '⏳ ট্রানজ্যাকশনের মেয়াদ শেষ!';
+                    } else if (errStr.includes('ভেরিফাই করা হচ্ছে')) {
+                        errTitle = '⏳ ভেরিফিকেশন চলমান!';
+                    }
+                    showDepErrorModal(errTitle, r.error);
                     return;
                 }
 
@@ -9476,9 +8498,12 @@
 
                 document.getElementById('trxId').value = '';
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalBtnText;
-                if (window.lucide) lucide.createIcons();
+                window._isDepositSubmitting = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnText;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -9739,6 +8764,76 @@
         window.updatePpmApkDownloadUrl = updatePpmApkDownloadUrl;
         window.refreshPpmApkDownloadUrl = updatePpmApkDownloadUrl;
         setTimeout(updatePpmApkDownloadUrl, 500);
+
+        // PPM SERVER APP FIRST TIME DOWNLOAD REWARD (1 Point Strictly Once)
+        function updateAppDownloadUI(isClaimed) {
+            const badge = document.getElementById('appDownloadRewardBadge');
+            const desc = document.getElementById('appDownloadRewardDesc');
+            const btnTxt = document.getElementById('btnDownloadPpmApkProfileTxt');
+            if (isClaimed) {
+                if (badge) {
+                    badge.classList.remove('hidden');
+                    badge.className = 'text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-black';
+                    badge.textContent = '১ Pt Claimed ✓';
+                }
+                if (desc) desc.textContent = '৬-ডিজিট QID ও অটো কোয়েস্টের জন্য';
+                if (btnTxt) btnTxt.textContent = 'Download';
+            } else {
+                if (badge) {
+                    badge.classList.remove('hidden');
+                    badge.className = 'text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded';
+                    badge.textContent = '+১ Point';
+                }
+                if (desc) desc.textContent = 'প্রথম ডাউনলোডে পাবেন ফ্রি ১ পয়েন্ট 🎁';
+            }
+        }
+        window.updateAppDownloadUI = updateAppDownloadUI;
+
+        async function claimAppDownloadReward(e) {
+            try {
+                const u = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user);
+                if (!u || !u.uid) return;
+
+                // Check in-memory session flag
+                if (window.ppfb && window.ppfb.appDownloadRewarded) return;
+
+                if (!window.FB || !window.FB.db) return;
+                const uRef = window.FB.doc(window.FB.db, 'users', u.uid);
+                const uSnap = await window.FB.getDoc(uRef).catch(() => null);
+                if (!uSnap || !uSnap.exists()) return;
+
+                const ud = uSnap.data() || {};
+                if (ud.appDownloadRewarded) {
+                    if (window.ppfb) window.ppfb.appDownloadRewarded = true;
+                    updateAppDownloadUI(true);
+                    return;
+                }
+
+                // Strictly 1 time reward per account lifetime
+                if (window.ppfb) window.ppfb.appDownloadRewarded = true;
+                const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
+                const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
+                const newPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
+                if (window.ppfb) window.ppfb.monthlyPoints = newPts;
+
+                await window.FB.updateDoc(uRef, {
+                    appDownloadRewarded: true,
+                    appDownloadRewardedAt: new Date(),
+                    monthlyPoints: newPts,
+                    monthlyPointsMonth: curMonthKey
+                }).catch(() => {});
+
+                updateAppDownloadUI(true);
+                toast('🎉 অভিনন্দন! PPM SERVER অ্যাপ ডাউনলোডের জন্য ১ পয়েন্ট যুক্ত হয়েছে!');
+                if (typeof window.renderEarnLeaderboard === 'function') {
+                    window.renderEarnLeaderboard();
+                }
+            } catch (err) {
+                console.warn('claimAppDownloadReward err:', err);
+            }
+        }
+        window.claimAppDownloadReward = claimAppDownloadReward;
 
         // PP MOD SERVER CODE & QUEST PORTAL SYNC
         // ==========================================
@@ -10739,7 +9834,7 @@
                         console.warn('CF order update error:', cfErr);
                     }
 
-                    // ⭐ Loyalty Star +1 বৃদ্ধি (Cloudflare D1 + Firebase + UI - Instant Reward)
+                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি (Cloudflare D1 + Firebase + UI - Instant Reward)
                     try {
                         if (!window.ppfb) window.ppfb = {};
                         window.ppfb.loyaltyStars = Math.min(10, (Number(window.ppfb.loyaltyStars) || 0) + 1);
@@ -10749,13 +9844,30 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: webUid, loyaltyStarsInc: 1 })
                         }).catch(e => console.warn('Credit star err:', e));
+
                         if (window.FB && window.FB.db) {
+                            const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                            let userPts = 1.0;
+                            try {
+                                const uSnap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'users', webUid));
+                                if (uSnap.exists()) {
+                                    const ud = uSnap.data() || {};
+                                    const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
+                                    const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
+                                    userPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
+                                }
+                            } catch (e) {
+                                userPts = Math.round(((Number(window.ppfb.monthlyPoints) || 0) + 1.0 + Number.EPSILON) * 10) / 10;
+                            }
+                            window.ppfb.monthlyPoints = userPts;
                             window.FB.updateDoc(window.FB.doc(window.FB.db, 'users', webUid), {
-                                loyaltyStars: window.ppfb.loyaltyStars
+                                loyaltyStars: window.ppfb.loyaltyStars,
+                                monthlyPoints: userPts,
+                                monthlyPointsMonth: curMonthKey
                             }).catch(() => {});
                         }
                     } catch (starErr) {
-                        console.warn('Loyalty star increment err:', starErr);
+                        console.warn('Loyalty star & quest point increment err:', starErr);
                     }
 
                     if (window.FB && window.FB.db) {
@@ -11963,7 +11075,7 @@
             measurementId: "G-CN9LJ502BL"
         };
 
-        const DEFAULTS = { fee: 20, minDeposit: 20, coinRate: 7, pointRate: 0.6, pendingDays: 3, withdrawMin: 50, starRate: 6, starPack3: 18, starsEnabled: true, dailyBonus: 2, bonusEnabled: true, starAdmin: '@Blackmoney54', idBot: 'https://t.me/userinfobot', notifyBot: 'https://t.me/Ppmod_bot', botToken: '', bkash: '01647712206', nagad: '01647712206', rocket: '01647712206', admin: 'https://t.me/Blackmoney54', support: 'https://t.me/Blackmoney54', notice: '', maintenance: false, maintMsg: 'App ti maintenance e ache. Ektokhon porer janabo.', serviceOff: false, serviceMsg: 'Game service ekhon bondho ache. Pore abar try korun.', botMode: false, bins: ['453590'], activeBin: '453590', genMode: 'free', genPrice: 10, genDays: 7, genOffMsg: '', storeSellName: 'Sell Points', storeBuyName: 'Buy Account', storeSellOn: true, storeBuyOn: true };
+        const DEFAULTS = { fee: 20, minDeposit: 20, coinRate: 7, pointRate: 0.6, pendingDays: 3, withdrawMin: 50, starRate: 6, starPack3: 18, starsEnabled: true, dailyBonus: 2, bonusEnabled: true, starAdmin: '@Blackmoney54', idBot: 'https://t.me/userinfobot', notifyBot: 'https://t.me/Ppmod_bot', botToken: '', bkash: '01647712206', nagad: '01647712206', rocket: '01647712206', admin: 'https://t.me/Blackmoney54', support: 'https://t.me/Blackmoney54', notice: '', maintenance: false, maintMsg: 'App ti maintenance e ache. Ektokhon porer janabo.', serviceOff: false, serviceMsg: 'Game service ekhon bondho ache. Pore abar try korun.', botMode: false, storeSellName: 'Sell Points', storeBuyName: 'Buy Account', storeSellOn: true, storeBuyOn: true };
 
         window.ppfb = {
             config: { ...DEFAULTS },
@@ -12047,25 +11159,6 @@
             } catch (e) { console.warn('version check', e); }
             const cfg = { ...DEFAULTS, ...c };
             cfg.fee = Number(cfg.fee) || 3;
-            // Multi-BIN (new) + legacy activeBin fallback — BIN কখনো UI-তে দেখানো হবে না
-            let rawBins = cfg.bins;
-            if (!rawBins) rawBins = cfg.activeBins;
-            if (!rawBins && cfg.activeBin) rawBins = cfg.activeBin;
-            if (typeof window.parseGenBins === 'function') window._genBins = window.parseGenBins(rawBins);
-            else {
-                const s = Array.isArray(rawBins) ? rawBins.join(',') : (rawBins || '453590').toString();
-                window._genBins = s.split(/[\n,;\s]+/).map(x => x.replace(/[^0-9]/g, '').trim()).filter(x => x.length >= 4).slice(0, 50);
-            }
-            if (!window._genBins.length) window._genBins = ['453590'];
-            window._adminActiveBin = window._genBins[0];
-            window._genMode = (cfg.genMode || 'free').toString();
-            if (!['off', 'free', 'paid'].includes(window._genMode)) window._genMode = 'free';
-            window._genPrice = Math.max(0, Math.floor(Number(cfg.genPrice) || 0));
-            window._genDays = Math.max(1, Math.floor(Number(cfg.genDays) || 7));
-            window._genOffMsg = (cfg.genOffMsg || '').toString();
-            window._addrGenEnabled = (cfg.addrGenEnabled !== false);
-            window._addrOffMsg = (cfg.addrOffMsg || '').toString();
-            if (window.refreshGenUI) { try { window.refreshGenUI(); } catch (e) { } }
             cfg.coinRate = Number(cfg.coinRate) || 7;
             cfg.starRate = Number(cfg.starRate) || 6;
             if (cfg.starsEnabled === false || cfg.starsEnabled === 'false' || cfg.starsEnabled === 0) cfg.starsEnabled = false;
@@ -15432,84 +14525,20 @@
                     });
                     window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                    window.ppfb.appDownloadRewarded = !!(s.data().appDownloadRewarded);
+                    if (typeof updateAppDownloadUI === 'function') updateAppDownloadUI(window.ppfb.appDownloadRewarded);
                     window.ppfb.tgChatId = (s.data().tgChatId || '').toString().trim();
                     if (window.ppfb.tgChatId) {
                         try { localStorage.setItem('pp_cached_tg_' + u.uid, window.ppfb.tgChatId); } catch (e) { }
                     }
                     window.ppfb.avatar = (s.data().avatar || '').toString().trim();
                     if (window.paintAvatar) paintAvatar();
-
-                    // CardGen premium access (paid mode): users/{uid}.genUntil
-                    try {
-                        const g = s.data().genUntil;
-                        let ms = 0;
-                        if (g && typeof g.toMillis === 'function') ms = g.toMillis();
-                        else if (typeof g === 'number') ms = g;
-                        else if (typeof g === 'string' && g) ms = Date.parse(g) || 0;
-                        window.ppfb.genUntil = ms || 0;
-                    } catch (e) { window.ppfb.genUntil = 0; }
                     if (window.refreshTgConn) refreshTgConn();
-                    if (window.refreshGenUI) { try { window.refreshGenUI(); } catch (e) { } }
                     setProfileUI(u); // ফায়ারস্টোরে আইডি পাওয়া মাত্র সাথে সাথে প্রোফাইল রিফ্রেশ ও বাটন হাইড
                 }
             }, e => console.warn('balance listener:', e));
             setProfileUI(u);
         }
-
-        /* CardGen premium purchase (paid mode: X coins = Y days) */
-        window._buyGenAccessFb = async () => {
-            const u = auth && auth.currentUser;
-            if (!u || !db) { toast('Please login first'); return; }
-            const price = Math.max(0, Math.floor(Number(window._genPrice) || 0));
-            const days = Math.max(1, Math.floor(Number(window._genDays) || 7));
-            if (!price) { toast('Price সেট করা হয়নি'); return; }
-            const curUntil = Number(window.ppfb.genUntil) || 0;
-            if (curUntil > Date.now()) { toast('আপনার Premium আগেই চালু আছে'); return; }
-            const btn = document.getElementById('btnGenUnlock');
-            let orig = '';
-            if (btn) { btn.disabled = true; orig = btn.innerHTML; btn.innerHTML = '<span class="pay-spinner"></span><span>Processing...</span>'; }
-            try {
-                await _tx(db, async (t) => {
-                    const uref = _doc(db, 'users', u.uid);
-                    const us = await t.get(uref);
-                    if (!us.exists()) throw new Error('nouser');
-                    const ud = us.data() || {};
-                    const rBal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                    const bBal = Number(ud.bonusBalance || 0);
-                    if (rBal < price) throw new Error('insufficient_real');
-
-                    const newReal = rBal - price;
-                    const base = Math.max(Date.now(), Number((() => {
-                        const g = ud.genUntil;
-                        if (g && typeof g.toMillis === 'function') return g.toMillis();
-                        if (typeof g === 'number') return g;
-                        return 0;
-                    })()) || 0);
-                    t.update(uref, {
-                        realBalance: newReal,
-                        balance: newReal + bBal,
-                        genUntil: base + days * 86400000
-                    });
-                });
-                try {
-                    await _addDoc(_col(db, 'redemptions'), {
-                        uid: u.uid, name: u.displayName || 'User', email: u.email || '',
-                        code: 'GEN-UNLOCK', amount: -price, note: 'CardGen Premium ' + days + ' days',
-                        status: 'approved', createdAt: _ts(), expiresAt: new Date(Date.now() + 10 * 86400000)
-                    }).catch(() => { });
-                } catch (ign) { }
-                window.ppfb.genUntil = Date.now() + days * 86400000;
-                setBalanceUI(Math.max(0, (Number(window.ppfb.balance) || 0) - price), window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0);
-                toast(days + ' দিনের Premium চালু হয়েছে!');
-                if (window.refreshGenUI) window.refreshGenUI();
-                if (window.ppfb.ev) window.ppfb.ev('gen_unlock', { days: days });
-            } catch (e) {
-                console.warn(e);
-                toast(e && e.message === 'insufficient' ? 'Insufficient Coins — আগে Buy Coins করুন' : 'Unlock failed, আবার চেষ্টা করুন');
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = orig; if (window.lucide) lucide.createIcons(); }
-            }
-        };
 
         window.refreshTgConn = () => {
             const id = ((window.ppfb && window.ppfb.tgChatId) || '').trim();
@@ -16056,7 +15085,31 @@
                 const isAuto = (window.ppfb && window.ppfb.config && window.ppfb.config.autoDeposit !== false);
 
                 if (isAuto && !isStars) {
-                    // কেবল Auto ON থাকলেই ফোনের SMS চেক করবে
+                    // ১. Cloudflare D1 Edge-এ তাৎক্ষণিক ভেরিফিকেশন (0ms latency, zero cold starts)
+                    try {
+                        const cfVerifyRes = await fetch(`${CF_API}/api/gateway/verify-deposit`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                depId: targetDepId,
+                                trxId: clean,
+                                amount: Number(amount),
+                                uid: u.uid,
+                                email: u.email || '',
+                                name: u.displayName || 'User'
+                            })
+                        });
+                        const cfData = await cfVerifyRes.json();
+                        if (cfData && cfData.ok && cfData.autoApproved === true) {
+                            return { ok: true, depId: targetDepId, autoApproved: true, coinsAdded: cfData.coinsAdded };
+                        } else if (cfData && !cfData.ok) {
+                            return { ok: false, error: cfData.error || 'পেমেন্ট যাচাই ব্যর্থ হয়েছে! সঠিক TrxID দিন।' };
+                        }
+                    } catch (cfErr) {
+                        console.warn("CF Verify error:", cfErr);
+                    }
+
+                    // ২. ব্যাকআপ হিসেবে Render Server চেক
                     try {
                         const verifyRes = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/verify-deposit", {
                             method: "POST",
@@ -18024,6 +17077,95 @@
             if (window.lucide) lucide.createIcons();
         };
 
+        let _checkingLdrRollover = false;
+        async function checkMonthlyLeaderboardRollover() {
+            if (_checkingLdrRollover) return;
+            try {
+                if (!window.FB || !window.FB.db) return;
+                const now = new Date();
+                const curMonthKey = now.toISOString().slice(0, 7);
+                // Calculate previous month key
+                const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const prevMonthKey = prevDate.toISOString().slice(0, 7);
+
+                const seasonRef = window.FB.doc(window.FB.db, 'config', 'leaderboardSeason');
+                const seasonSnap = await window.FB.getDoc(seasonRef).catch(() => null);
+                const sData = seasonSnap && seasonSnap.exists() ? seasonSnap.data() : {};
+
+                // If already processed and rewarded for previous month, skip
+                if (sData.lastRewardedMonth === prevMonthKey) return;
+
+                _checkingLdrRollover = true;
+
+                // Query users to find previous month's Top 1
+                const snap = await window.FB.getDocs(window.FB.query(window.FB.collection(window.FB.db, 'users'), window.FB.limit(100))).catch(() => null);
+                if (!snap) return;
+
+                let topWinner = null;
+                snap.forEach(docSnap => {
+                    const d = docSnap.data();
+                    const mKey = d.monthlyPointsMonth || d.monthlyTasksMonth;
+                    if (mKey === prevMonthKey) {
+                        const pts = Number(d.monthlyPoints || 0);
+                        if (pts > 0 && (!topWinner || pts > topWinner.points)) {
+                            topWinner = {
+                                uid: docSnap.id,
+                                name: d.name || d.displayName || 'Top User',
+                                points: pts,
+                                bonusBalance: Number(d.bonusBalance || 0),
+                                balance: Number(d.balance || 0)
+                            };
+                        }
+                    }
+                });
+
+                if (topWinner && topWinner.uid) {
+                    // Award 10 Coins to Top 1 Winner
+                    await fetch(`${CF_API}/api/wallet/credit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: topWinner.uid, coins: 10, type: 'bonus' })
+                    }).catch(() => {});
+
+                    const newBonus = Math.round((topWinner.bonusBalance + 10 + Number.EPSILON) * 100) / 100;
+                    const newTotal = Math.round((topWinner.balance + 10 + Number.EPSILON) * 100) / 100;
+                    await window.FB.updateDoc(window.FB.doc(window.FB.db, 'users', topWinner.uid), {
+                        bonusBalance: newBonus,
+                        balance: newTotal
+                    }).catch(() => {});
+
+                    await window.FB.addDoc(window.FB.collection(window.FB.db, 'transactions'), {
+                        uid: topWinner.uid,
+                        type: 'leaderboard_top1_prize',
+                        amount: 10,
+                        title: 'লিডারবোর্ড ১ম পুরষ্কার (১০ কয়েন)',
+                        note: `${prevMonthKey} সিজনে শীর্ষ #১ স্থান অধিকার করায় ১০ কয়েন পুরষ্কার`,
+                        createdAt: new Date()
+                    }).catch(() => {});
+
+                    const myUid = (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || (window.ppfb && window.ppfb.user && window.ppfb.user.uid);
+                    if (myUid === topWinner.uid) {
+                        toast('🎉 অভিনন্দন! গত মাসের লিডারবোর্ডে ১ম স্থান অর্জন করায় আপনি ১০ কয়েন পুরষ্কার পেয়েছেন!');
+                    }
+                }
+
+                await window.FB.setDoc(seasonRef, {
+                    lastRewardedMonth: prevMonthKey,
+                    lastWinnerUid: topWinner ? topWinner.uid : 'none',
+                    lastWinnerName: topWinner ? topWinner.name : 'none',
+                    lastWinnerPoints: topWinner ? topWinner.points : 0,
+                    rewardedAt: new Date(),
+                    currentSeason: curMonthKey
+                }, { merge: true }).catch(() => {});
+
+            } catch (err) {
+                console.warn('checkMonthlyLeaderboardRollover error:', err);
+            } finally {
+                _checkingLdrRollover = false;
+            }
+        }
+        window.checkMonthlyLeaderboardRollover = checkMonthlyLeaderboardRollover;
+
         // Monthly Top Earning Leaderboard Render Engine (100% Real Firestore Data, 0% Fake)
         window.renderEarnLeaderboard = async () => {
             const listContainer = document.getElementById('ldrRankedListRows');
@@ -18052,6 +17194,9 @@
             const monthBadge = document.getElementById('ldrCurrentMonthBadge');
             if (monthBadge) monthBadge.textContent = `${getMonthNameBengali()} সিজন`;
 
+            // Check automatic end-of-month rollover and reward Top 1 winner (10 Coins)
+            checkMonthlyLeaderboardRollover();
+
             let usersList = [];
             try {
                 const q = _q(_col(db, 'users'), _limit(100));
@@ -18064,7 +17209,7 @@
                         if (d.monthlyPoints !== undefined) {
                             points = Number(d.monthlyPoints) || 0;
                         } else {
-                            points = Number(d.monthlyTasksCount) || 0;
+                            points = (Number(d.monthlyTasksCount) || 0) * 0.5;
                         }
                     }
 
@@ -18076,8 +17221,9 @@
                                 recentCount++;
                             }
                         });
-                        if (recentCount > points) {
-                            points = recentCount;
+                        const recentPoints = Math.round((recentCount * 0.5 + Number.EPSILON) * 10) / 10;
+                        if (recentPoints > points) {
+                            points = recentPoints;
                         }
                     }
 
@@ -18478,9 +17624,8 @@
                 }
                 firestoreMap[taskId] = now;
 
-                // Points calculation: 1.0 point for direct task, 0.5 for ad/quest
-                const isShortOrAd = (taskTitle && (taskTitle.toLowerCase().includes('ad') || taskTitle.toLowerCase().includes('video'))) || reward < 0.15;
-                const earnedPts = isShortOrAd ? 0.5 : 1.0;
+                // Points calculation: আর্ন টাস্কে ০.৫ পয়েন্ট (0.5 Pts per task)
+                const earnedPts = 0.5;
                 const newTotalPoints = Math.round((curPoints + earnedPts + Number.EPSILON) * 10) / 10;
 
                 // Update badge in header

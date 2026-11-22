@@ -1755,6 +1755,8 @@
             <button data-nav="scrDep" onclick="showAdminScreen('scrDep')" class="snav"><i data-lucide="wallet"
                     class="w-4 h-4"></i>Deposits <span class="nbadge depCount ml-auto"
                     style="display:none">0</span></button>
+            <button data-nav="scrGateway" onclick="showAdminScreen('scrGateway')" class="snav"><i data-lucide="radio"
+                    class="w-4 h-4 text-emerald-500"></i>SMS Gateway <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto" title="Gateway Active"></span></button>
             <button data-nav="scrOrd" onclick="showAdminScreen('scrOrd')" class="snav"><i data-lucide="package-check"
                     class="w-4 h-4"></i>Orders <span class="nbadge ordCount ml-auto"
                     style="display:none">0</span></button>
@@ -2286,6 +2288,193 @@
 
 
 
+                </div>
+
+                <!-- ===== 4b. SMS GATEWAY MONITOR & AUDIT SCREEN ===== -->
+                <div id="scrGateway" class="ascreen hidden space-y-4">
+                    <!-- Top Header Control Bar -->
+                    <div class="glass p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap border-2 border-emerald-100 bg-emerald-50/20 rounded-2xl">
+                        <div class="flex items-center gap-3">
+                            <div style="width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                                    <span>Professional Auto Payment SMS Gateway</span>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                                        30-Min Strict Expiry Active
+                                    </span>
+                                </h3>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">রিয়েল-টাইম SMS ভেরিফিকেশন, TrxID কনকারেন্সি লক ও ৩০-মিনিট এক্সপায়ারেশন অডিট</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                                <span class="text-[11px] font-bold text-slate-600">Auto Deposit:</span>
+                                <span id="gwAutoDepStatus" class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">ON</span>
+                                <button type="button" onclick="toggleAutoDeposit(); setTimeout(() => renderGatewayScreen(false), 300);" class="text-[10px] font-black underline text-indigo-600 hover:text-indigo-800 cursor-pointer">Toggle</button>
+                            </div>
+                            <button type="button" onclick="openAdminAddTrxModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; border: none; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+                                <span>+ Add / Lock TrxID</span>
+                            </button>
+                            <button type="button" onclick="renderGatewayScreen(true)" style="background: #ffffff; color: #1e293b; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                                <span>Live Refresh</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 5 Metric Summary Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div class="glass p-3.5 rounded-2xl border-2 border-indigo-200 bg-indigo-50/40">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-900">🕒 Last 30 Min</span>
+                                <span class="text-xs">⚡</span>
+                            </div>
+                            <h3 id="gwStatLast30Taka" class="text-lg font-black text-indigo-950 mt-1">৳0</h3>
+                            <p id="gwStatLast30Count" class="text-[10px] font-bold text-indigo-700 mt-0.5">0 SMS Received</p>
+                        </div>
+
+                        <div class="glass p-3.5 rounded-2xl border-2 border-emerald-200 bg-emerald-50/40">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-900">👤 User Claimed</span>
+                                <span class="text-xs">✓</span>
+                            </div>
+                            <h3 id="gwStatUserTaka" class="text-lg font-black text-emerald-950 mt-1">৳0</h3>
+                            <p id="gwStatUserCoins" class="text-[10px] font-bold text-emerald-700 mt-0.5">🪙 0 Coins (0 Trx)</p>
+                        </div>
+
+                        <div class="glass p-3.5 rounded-2xl border-2 border-blue-200 bg-blue-50/40">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-blue-900">🛡️ Admin Claimed</span>
+                                <span class="text-xs">👑</span>
+                            </div>
+                            <h3 id="gwStatAdminTaka" class="text-lg font-black text-blue-950 mt-1">৳0</h3>
+                            <p id="gwStatAdminCoins" class="text-[10px] font-bold text-blue-700 mt-0.5">🪙 0 Coins (0 Trx)</p>
+                        </div>
+
+                        <div class="glass p-3.5 rounded-2xl border-2 border-rose-200 bg-rose-50/40">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-rose-900">⏳ Time Expired</span>
+                                <span class="text-xs">🔒</span>
+                            </div>
+                            <h3 id="gwStatExpiredTaka" class="text-lg font-black text-rose-950 mt-1">৳0</h3>
+                            <p id="gwStatExpiredCount" class="text-[10px] font-bold text-rose-700 mt-0.5">0 Trx Locked (>30m)</p>
+                        </div>
+
+                        <div class="glass p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50/60 col-span-2 lg:col-span-1">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-700">💰 Total Processed</span>
+                                <span class="text-xs">📊</span>
+                            </div>
+                            <h3 id="gwStatTotalTaka" class="text-lg font-black text-slate-900 mt-1">৳0</h3>
+                            <p id="gwStatTotalCount" class="text-[10px] font-bold text-slate-500 mt-0.5">0 Total SMS Recorded</p>
+                        </div>
+                    </div>
+
+                    <!-- Filter Tabs & Quick Search -->
+                    <div class="glass p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+                        <div class="flex items-center gap-1.5 flex-wrap" id="gwFilterGroup">
+                            <button type="button" onclick="setGwFilter('all')" data-gwf="all" class="gw-tab" style="background: #059669; color: #ffffff; border: none; font-weight: 800; padding: 6px 12px; border-radius: 12px; font-size: 11.5px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">📋 All Records</button>
+                            <button type="button" onclick="setGwFilter('last30')" data-gwf="last30" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🕒 Last 30 Minutes</button>
+                            <button type="button" onclick="setGwFilter('user')" data-gwf="user" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">👤 User Claimed</button>
+                            <button type="button" onclick="setGwFilter('admin')" data-gwf="admin" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🛡️ Admin Claimed</button>
+                            <button type="button" onclick="setGwFilter('time_expired')" data-gwf="time_expired" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">⏳ Time Expired (30m+)</button>
+                            <button type="button" onclick="setGwFilter('waiting')" data-gwf="waiting" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🟡 Waiting Claim</button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input id="gwSearchInput" oninput="filterGwTableSearch()" placeholder="Search TrxID, sender, amount..." class="fld text-xs font-bold py-1.5 px-3 w-48 sm:w-64" style="border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff;">
+                        </div>
+                    </div>
+
+                    <!-- SMS Table Container -->
+                    <div class="glass p-4 sm:p-5 space-y-3">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-slate-400 font-extrabold uppercase text-[10px]">
+                                        <th class="py-2.5 px-3">Method &amp; Sender</th>
+                                        <th class="py-2.5 px-3">TrxID</th>
+                                        <th class="py-2.5 px-3">Amount (৳)</th>
+                                        <th class="py-2.5 px-3">Coins</th>
+                                        <th class="py-2.5 px-3">Received Time</th>
+                                        <th class="py-2.5 px-3">Status &amp; Claim Details</th>
+                                        <th class="py-2.5 px-3 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gwSmsTableBody" class="divide-y divide-slate-100 font-semibold text-slate-800">
+                                    <tr>
+                                        <td colspan="7" class="py-8 text-center text-slate-400 font-bold">লোড হচ্ছে...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Modal: Smart Admin TrxID Lock & Filter -->
+                    <div id="modalAdminAddTrx" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);">
+                        <div class="glass w-full max-w-lg p-5 sm:p-6 bg-white rounded-3xl border-2 border-indigo-200 shadow-2xl space-y-4">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-black text-slate-900">Smart TrxID Lock &amp; Filter</h3>
+                                        <p class="text-[11px] text-slate-500 font-medium">ফোনের সম্পূর্ণ SMS পেস্ট করুন অথবা সরাসরি TrxID দিন</p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="closeAdminAddTrxModal()" style="width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; color: #475569; border: none; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-[11px] font-black text-slate-700 mb-1">Paste Full SMS or Type TrxID *</label>
+                                    <textarea id="smartGwInput" rows="3" oninput="parseSmartGwInput(this.value)" placeholder="যেমন: bKash/Nagad থেকে আসা পুরো মেসেজটি এখানে পেস্ট করুন, অথবা সরাসরি TrxID লিখুন (যেমন: BL9X76K102)..." style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 10px 12px; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#4f46e5'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
+                                </div>
+
+                                <!-- Live Smart Parser Output Card -->
+                                <div id="gwSmartPreview" class="p-3.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[11px] font-black text-indigo-950 flex items-center gap-1.5">
+                                            <span>✨ Auto Detection Preview</span>
+                                        </span>
+                                        <span id="gwDetectStatus" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">Waiting for input</span>
+                                    </div>
+                                    <div id="gwDetectDetails" class="text-xs text-slate-500 font-medium">
+                                        💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।
+                                    </div>
+                                </div>
+
+                                <!-- Optional Credit User -->
+                                <div class="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
+                                    <div class="flex items-center justify-between cursor-pointer" onclick="toggleGwUserCreditField()">
+                                        <label class="text-[11px] font-black text-slate-700 cursor-pointer flex items-center gap-1">
+                                            <span>👤 Credit User Wallet? (Optional)</span>
+                                        </label>
+                                        <span id="gwCreditToggleTxt" class="text-[10.5px] font-bold text-indigo-600 underline">Show</span>
+                                    </div>
+                                    <div id="gwUserCreditWrap" class="hidden space-y-2 pt-1 border-t border-slate-200/60">
+                                        <input id="addGwUser" placeholder="User UID or Email (optional)" class="fld font-medium text-xs py-1.5 px-3 w-full bg-white" style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
+                                        <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                                            <span>Coins to credit:</span>
+                                            <input id="addGwCoins" type="number" placeholder="Auto (৳/7)" class="fld font-bold text-xs py-1 px-2 w-28 bg-white text-right" style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                                <button type="button" onclick="closeAdminAddTrxModal()" style="background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; font-weight: 800; font-size: 12px; padding: 8px 16px; border-radius: 12px; cursor: pointer;">Cancel</button>
+                                <button type="button" onclick="submitSmartLockTrx()" id="btnSubmitAddGwTrx" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; font-weight: 800; font-size: 12px; padding: 8px 18px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    <span>Lock TrxID Now</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ===== 5. ORDERS ===== -->
@@ -2851,11 +3040,35 @@
                         </div>
                     </div>
 
-
-
-
-
-                    <!-- Create / Edit Task Card -->
+                    <!-- Monthly Leaderboard & Top 1 Reward Control (10 Coins) -->
+                    <div class="glass p-4 sm:p-5 space-y-3.5 border-2 border-amber-300 bg-amber-50/40 rounded-2xl">
+                        <div class="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-amber-200/80">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">👑</span>
+                                <div>
+                                    <h4 class="text-sm font-black text-slate-900 leading-tight">Monthly Leaderboard &amp; Top 1 Prize (10 Coins)</h4>
+                                    <p class="text-[10px] text-amber-900 font-semibold mt-0.5">১ম স্থান অধিকারী পাবেন ১০ কয়েন (কোনো মিনিমাম পয়েন্টের শর্ত নেই)</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="loadLeaderboardAdminStatus()"
+                                    class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-amber-300 text-slate-800 text-xs font-black shadow-2xs transition-all cursor-pointer">
+                                    🔄 Refresh Top 1
+                                </button>
+                                <button type="button" onclick="awardTop1AndResetSeasonAdmin()"
+                                    class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer flex items-center gap-1.5">
+                                    <span>🎁 Award 10 Coins &amp; Reset Season</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="adminLdrTop1InfoBox" class="p-3 bg-white/90 rounded-xl border border-amber-200 text-xs text-slate-700">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <span class="font-bold text-slate-500">চলতি সিজন: <strong id="adminLdrSeasonKey" class="text-slate-900 font-mono font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">শীর্ষ #১ ইউজার: <strong id="adminLdrTop1User" class="text-amber-800 font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">পয়েন্ট: <strong id="adminLdrTop1Pts" class="text-emerald-700 font-mono font-black tabular-nums">0 Pts</strong></span>
+                            </div>
+                        </div>
+                    </div>
                     <div id="earnTaskFormCard" class="glass p-4 sm:p-6 space-y-4">
                         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                             <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
@@ -3270,7 +3483,6 @@
                                             <option value="screenStore">🛍️ Store (প্লে পয়েন্ট স্টোর)</option>
                                             <option value="screenP2P">🤝 P2P Deals (মার্কেটপ্লেস)</option>
                                             <option value="screenTopup">💰 Wallet / Add Money (টপ-আপ)</option>
-                                            <option value="screenGen">💳 Card Gen (কার্ড জেনারেটর)</option>
                                             <option value="screenRewards">🎁 Rewards & Redeem</option>
                                             <option value="screenRefer">👥 Refer & Earn</option>
                                         </select>
@@ -3547,56 +3759,6 @@
                             <button onclick="saveBots(this)"
                                 class="btn bg-sky-600 hover:bg-sky-700 text-white font-bold w-full py-2.5 mt-3 btn-save-premium">Save
                                 Bots</button>
-                        </div>
-
-                        <div class="glass p-4 sm:p-6 space-y-3" data-cfgsec="bots">
-                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-sky-600 mb-2">💳 Card
-                                Generator Control (BIN Hidden)</h4>
-                            <p class="text-[11px] text-slate-500 font-semibold mb-2">BIN ইউজারকে দেখানো হয় না — শুধু
-                                কার্ড পায়। একাধিক BIN দিলে প্রতিবার র‍্যান্ডম একটা থেকে বানাবে, ১টা দিলে ওটা দিয়েই
-                                বানাবে।</p>
-                            <div><label class="lbl">BIN List (কমা বা নতুন লাইনে আলাদা — যেমন: 453590, 542821,
-                                    376245)</label><textarea id="cfgGenBins" rows="2" placeholder="453590, 542821"
-                                    class="fld font-mono"></textarea></div>
-                            <div class="mt-3"><label class="lbl">Generator Mode</label>
-                                <div class="grid grid-cols-3 gap-2" id="genModeBtns">
-                                    <button type="button" onclick="setGenMode('off')" data-genmode="off"
-                                        class="fl text-center">OFF</button>
-                                    <button type="button" onclick="setGenMode('free')" data-genmode="free"
-                                        class="fl text-center">FREE</button>
-                                    <button type="button" onclick="setGenMode('paid')" data-genmode="paid"
-                                        class="fl text-center">PAID</button>
-                                </div>
-                            </div>
-                            <div id="genPaidBox" class="grid grid-cols-2 gap-3 mt-3">
-                                <div><label class="lbl">Price (Coins)</label><input id="cfgGenPrice" type="number"
-                                        min="0" placeholder="10" class="fld font-mono"></div>
-                                <div><label class="lbl">Validity (Days)</label><input id="cfgGenDays" type="number"
-                                        min="1" placeholder="7" class="fld font-mono"></div>
-                            </div>
-                            <div class="mt-3"><label class="lbl">OFF Message (কার্ড বন্ধ থাকলে ইউজার যা
-                                    দেখবে)</label><input id="cfgGenOffMsg" placeholder="কার্ড জেনারেটর এখন বন্ধ আছে..."
-                                    class="fld"></div>
-
-                            <!-- Address Generator Independent Control -->
-                            <div class="mt-4 pt-3 border-t border-slate-100">
-                                <div class="flex items-center justify-between mb-2">
-                                    <div>
-                                        <h5 class="text-xs font-black text-slate-800">🏠 Address Generator Control (পৃথক
-                                            সুইচ)</h5>
-                                        <p class="text-[10px] text-slate-500 font-semibold">শুধু ফেক অ্যাড্রেস জেনারেশন
-                                            ফিচারটি আলাদা চালু বা বন্ধ করুন</p>
-                                    </div>
-                                    <button type="button" id="cfgAddrStatusBtn" onclick="toggleAddrGenStatus()"
-                                        class="btn px-3 py-1 bg-emerald-600 text-white font-black text-xs rounded-xl shadow-2xs">ON</button>
-                                </div>
-                                <div><label class="lbl">Address OFF Message</label><input id="cfgAddrOffMsg"
-                                        placeholder="অ্যাড্রেস জেনারেটর সাময়িকভাবে বন্ধ আছে..." class="fld"></div>
-                            </div>
-
-                            <button onclick="saveGenSettings(this)"
-                                class="btn bg-sky-600 hover:bg-sky-700 text-white font-bold w-full py-2.5 mt-3 btn-save-premium">Save
-                                Generator Settings</button>
                         </div>
 
                         <div class="glass p-4 sm:p-6 space-y-3" data-cfgsec="links">
@@ -4388,6 +4550,7 @@
             scrAnl: ['Analytics', 'Growth trends, top tasks & payment distributions'],
             scrRep: ['Reports', 'Custom date summaries & CSV export suite'],
             scrDep: ['Deposits', 'Approve or reject pending wallet top-ups'],
+            scrGateway: ['SMS Gateway', 'Live payment SMS monitoring, TrxID locks & 30-min auto expiration audit'],
             scrOrd: ['Orders', 'Tasks queue, credentials & fulfillment'],
             scrTx: ['Transactions', 'Consolidated financial movements ledger'],
             scrUsr: ['Users', 'Balance control, ban status & activity sheets'],
@@ -4475,6 +4638,7 @@
                 scrOrd: 'Search orders by ID, email, game, status...',
                 scrTx: 'Search transactions by TrxID, method, amount...',
                 scrDep: 'Search deposits by TrxID, user, method...',
+                scrGateway: 'Search gateway SMS by TrxID, sender, amount, user...',
                 scrWd: 'Search withdrawals by account, method, user...',
                 scrStore: 'Search store listings...',
                 scrP2P: 'Search P2P marketplace deals...',
@@ -4496,6 +4660,21 @@
             if (window.renderAdminScreen) renderAdminScreen(id);
             if (id === 'scrDep' || id === 'scrOrd') {
                 if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
+            }
+            if (id === 'scrGateway') {
+                if (typeof _gwPollTimer !== 'undefined' && !_gwPollTimer) {
+                    _gwPollTimer = setInterval(() => {
+                        if (CURRENT === 'scrGateway' && window.renderGatewayScreen) {
+                            renderGatewayScreen(false);
+                        } else if (_gwPollTimer) {
+                            clearInterval(_gwPollTimer);
+                            _gwPollTimer = null;
+                        }
+                    }, 15000);
+                }
+            } else if (typeof _gwPollTimer !== 'undefined' && _gwPollTimer) {
+                clearInterval(_gwPollTimer);
+                _gwPollTimer = null;
             }
             if (id === 'scrExt' && window.renderExtensionScreen) window.renderExtensionScreen();
             if (id === 'scrCfg' && window.setCfgTab) {
@@ -4706,7 +4885,6 @@
             group: 'https://t.me/googleplaypointhack', notice: '', popupTitle: '', popupMsg: '', popupImage: '', popupUntil: '', bcImage: '',
             maintenance: false, maintMsg: 'App is under scheduled maintenance. Will resume shortly.',
             serviceOff: false, serviceMsg: 'Game service ekhon bondho ache. Pore abar try korun.',
-            bins: ['453590'], activeBin: '453590', genMode: 'free', genPrice: 10, genDays: 7, genOffMsg: '',
             homeBanners: [
                 {
                     id: 'b_default',
@@ -5396,7 +5574,7 @@
         /* ---------- Screen Dispatcher ---------- */
         function renderAdminScreen(id) {
             ({
-                scrHome: renderHome, scrAnl: renderAnalytics, scrRep: renderReports, scrDep: renderDeposits,
+                scrHome: renderHome, scrAnl: renderAnalytics, scrRep: renderReports, scrDep: renderDeposits, scrGateway: renderGatewayScreen,
                 scrOrd: renderOrders, scrTx: renderTransactions, scrUsr: renderUsers,
                 scrOf: renderOffers, scrEarn: renderEarnTasks, scrStore: renderStoreAdmin, scrP2P: renderP2PAdmin, scrCode: renderCodes, scrExt: renderExtensionScreen, scrBc: renderBroadcast, scrTg: renderSendTg,
                 scrAdm: renderAdmins, scrLog: renderLogs, scrCfg: renderSettings
@@ -7057,14 +7235,16 @@
                             const newTotal = newReal + curBonus;
                             const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                             const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || Number(ud.monthlyTasksCount) || 0) : 0;
+                            const depPoints = Math.max(1, Math.floor(coinsToAdd));
                             await setDoc(uRef, {
                                 realBalance: newReal,
                                 balance: newTotal,
-                                monthlyPoints: Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10,
+                                monthlyPoints: Math.round((curPts + depPoints + Number.EPSILON) * 10) / 10,
                                 monthlyPointsMonth: curMonthKey,
                                 monthlyDepositsCount: ((mKey === curMonthKey) ? (Number(ud.monthlyDepositsCount) || 0) : 0) + 1
                             }, { merge: true });
                         } else {
+                            const depPoints = Math.max(1, Math.floor(coinsToAdd));
                             await setDoc(uRef, {
                                 uid: targetDep.uid,
                                 name: targetDep.name || 'User',
@@ -7072,7 +7252,7 @@
                                 balance: coinsToAdd,
                                 realBalance: coinsToAdd,
                                 bonusBalance: 0,
-                                monthlyPoints: 1.0,
+                                monthlyPoints: depPoints,
                                 monthlyPointsMonth: curMonthKey,
                                 monthlyDepositsCount: 1,
                                 createdAt: serverTimestamp()
@@ -7307,6 +7487,480 @@
             } catch (e) { toast('Message send fail'); }
         };
 
+        /* ---------- 4b. SMS GATEWAY MONITOR & AUDIT ---------- */
+        let _gwFilter = 'all';
+        let _gwRawList = [];
+        let _gwPollTimer = null;
+        let _smartParsed = { trxId: '', amount: 0, method: 'bKash', sender: '' };
+
+        window.setGwFilter = function(f) {
+            _gwFilter = f || 'all';
+            const group = document.getElementById('gwFilterGroup');
+            if (group) {
+                group.querySelectorAll('.gw-tab').forEach(b => {
+                    const active = b.dataset.gwf === _gwFilter;
+                    if (active) {
+                        b.style.cssText = 'background: #059669 !important; color: #ffffff !important; border: none !important; font-weight: 800; padding: 6px 12px; border-radius: 12px; font-size: 11.5px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);';
+                    } else {
+                        b.style.cssText = 'background: #ffffff !important; color: #334155 !important; border: 1.5px solid #e2e8f0 !important; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;';
+                    }
+                });
+            }
+            renderGwTable();
+        };
+
+        window.filterGwTableSearch = function() {
+            renderGwTable();
+        };
+
+        function renderGwTable() {
+            const tbody = document.getElementById('gwSmsTableBody');
+            if (!tbody) return;
+            const now = Date.now();
+            const cutoff30m = now - 30 * 60 * 1000;
+            const query = (document.getElementById('gwSearchInput')?.value || '').trim().toLowerCase();
+
+            let list = (_gwRawList || []).filter(item => {
+                const recAt = Number(item.receivedAt) || 0;
+                const isWithin30 = recAt >= cutoff30m;
+                const isClaimed = !!item.claimed;
+                const cType = item.claimType || 'none';
+
+                if (_gwFilter === 'last30') return isWithin30;
+                if (_gwFilter === 'user') return cType === 'user';
+                if (_gwFilter === 'admin') return cType === 'admin';
+                if (_gwFilter === 'time_expired') return cType === 'time_expired' || (!isClaimed && !isWithin30);
+                if (_gwFilter === 'waiting') return !isClaimed && cType !== 'time_expired' && isWithin30;
+                return true; // 'all'
+            });
+
+            if (query) {
+                list = list.filter(item => {
+                    const str = `${item.trxId || ''} ${item.sender || ''} ${item.amount || ''} ${item.method || ''} ${item.claimedByName || ''} ${item.claimedByUid || ''} ${item.adminMsg || ''}`.toLowerCase();
+                    return str.includes(query);
+                });
+            }
+
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-400 font-bold">কোনো SMS রেকর্ড পাওয়া যায়নি</td></tr>';
+                return;
+            }
+
+            const methodBadges = {
+                bkash: '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-pink-50 border border-pink-200"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10" class="w-5 h-5 rounded object-contain bg-white shadow-2xs" alt="bKash"><span class="text-[11px] font-black text-pink-700">bKash</span></div>',
+                nagad: '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-orange-50 border border-orange-200"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10" class="w-5 h-5 rounded object-contain bg-white shadow-2xs" alt="Nagad"><span class="text-[11px] font-black text-orange-700">Nagad</span></div>',
+                rocket: '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10" class="w-5 h-5 rounded object-contain bg-white shadow-2xs" alt="Rocket"><span class="text-[11px] font-black text-purple-700">Rocket</span></div>',
+                upay: '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10" class="w-5 h-5 rounded object-contain bg-white shadow-2xs" alt="Upay"><span class="text-[11px] font-black text-blue-700">Upay</span></div>',
+                stars: '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdPCmrOZ_l_0GpI-SBCGPyk25IwEQIhWyFMp5Ey11xog&s=10" class="w-5 h-5 rounded object-contain bg-white shadow-2xs" alt="Stars"><span class="text-[11px] font-black text-amber-700">Stars</span></div>'
+            };
+
+            tbody.innerHTML = list.map(item => {
+                const recAt = Number(item.receivedAt) || 0;
+                const isWithin30 = recAt >= cutoff30m;
+                const isClaimed = !!item.claimed;
+                const cType = item.claimType || (isClaimed ? 'user' : (isWithin30 ? 'none' : 'time_expired'));
+                const mKey = (item.method || '').toLowerCase();
+                const mBadge = methodBadges[mKey] || `<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-black">${esc(item.method || 'SMS')}</div>`;
+                const amount = Number(item.amount) || 0;
+                const rate = Number((S.cfg && S.cfg.coinRate) || 7);
+                const coins = Number(item.coinsAdded) || Math.max(1, Math.floor(amount / rate));
+
+                // Time countdown calculation
+                let timeBadge = '';
+                if (!isClaimed && isWithin30 && cType !== 'time_expired') {
+                    const remMs = Math.max(0, 30 * 60 * 1000 - (now - recAt));
+                    const remMin = Math.floor(remMs / 60000);
+                    const remSec = Math.floor((remMs % 60000) / 1000);
+                    timeBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>${remMin}m ${remSec}s বাকি</span>`;
+                } else if (cType === 'time_expired' || (!isClaimed && !isWithin30)) {
+                    timeBadge = `<span class="inline-block text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-1">⏳ ৩০ মিনিট মেয়াদ শেষ</span>`;
+                } else {
+                    timeBadge = `<span class="text-[10px] text-slate-400 font-medium mt-1 block">ক্লেইম সম্পন্ন</span>`;
+                }
+
+                // Claim detail badge
+                let statusBadge = '';
+                if (cType === 'user') {
+                    statusBadge = `<div><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">✓ User Claimed</span><div class="text-[10px] text-slate-500 font-mono mt-0.5 truncate max-w-[150px]">${esc(item.claimedByName || item.claimedByUid || 'User')}</div></div>`;
+                } else if (cType === 'admin') {
+                    statusBadge = `<div><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">🛡️ Admin Claimed</span><div class="text-[10px] text-blue-700 font-medium mt-0.5 truncate max-w-[150px]">${esc(item.adminMsg || item.claimedByUid || 'Admin')}</div></div>`;
+                } else if (cType === 'time_expired' || (!isClaimed && !isWithin30)) {
+                    statusBadge = `<div><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">🔒 Time Expired</span><div class="text-[10px] text-rose-500 font-medium mt-0.5">৩০ মি. পার হওয়ায় TrxID লক</div></div>`;
+                } else {
+                    statusBadge = `<div><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">🟡 Waiting Claim</span><div class="text-[10px] text-amber-600 font-medium mt-0.5">ইউজারের ডিপোজিটের অপেক্ষায়</div></div>`;
+                }
+
+                // Action button
+                let actionBtn = '';
+                if (!isClaimed && isWithin30 && cType !== 'time_expired') {
+                    actionBtn = `<button type="button" onclick="adminClaimGatewayTrx('${escJS(item.trxId)}', ${amount})" style="background: #4f46e5; color: #ffffff !important; border: none; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">Admin Claim</button>`;
+                } else {
+                    actionBtn = `<span style="font-size: 11px; font-weight: 700; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked</span>`;
+                }
+
+                return `<tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="py-2.5 px-3">
+                        <div class="flex items-center gap-2">
+                            ${mBadge}
+                            <span class="text-[11px] font-mono text-slate-600 truncate max-w-[110px]">${esc(item.sender || 'Unknown')}</span>
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-3">
+                        <div class="cpline flex items-center gap-1">
+                            <span class="font-mono font-black text-slate-900 select-all tracking-tight">${esc(item.trxId || '')}</span>
+                            ${cpBtn(item.trxId, 'Copy TrxID')}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-3 font-extrabold text-amber-600 whitespace-nowrap">৳${amount}</td>
+                    <td class="py-2.5 px-3 font-extrabold text-indigo-600 whitespace-nowrap">🪙 ${coins}</td>
+                    <td class="py-2.5 px-3">
+                        <div class="text-[10.5px] font-mono text-slate-600">${fmtDate(recAt)}</div>
+                        ${timeBadge}
+                    </td>
+                    <td class="py-2.5 px-3">${statusBadge}</td>
+                    <td class="py-2.5 px-3 text-right whitespace-nowrap">${actionBtn}</td>
+                </tr>`;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        window.renderGatewayScreen = async function(forceToast) {
+            // Auto Deposit Switch Status
+            const adEl = document.getElementById('gwAutoDepStatus');
+            if (adEl) {
+                const isEn = S.cfg && S.cfg.autoDeposit !== false;
+                adEl.textContent = isEn ? 'ON' : 'OFF';
+                adEl.className = isEn ? 'text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800' : 'text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-800';
+            }
+
+            try {
+                let data = null;
+                // 1. Try Cloudflare Worker Endpoint
+                try {
+                    const cfRes = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/recent?_t=" + Date.now());
+                    if (cfRes.ok) {
+                        data = await cfRes.json();
+                    }
+                } catch (cfErr) { }
+
+                // 2. Try Render Server Endpoint fallback
+                if (!data || !data.ok) {
+                    try {
+                        const rnRes = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/recent?_t=" + Date.now());
+                        if (rnRes.ok) {
+                            data = await rnRes.json();
+                        }
+                    } catch (rnErr) { }
+                }
+
+                // 3. Fallback to Firestore if needed
+                if (!data || !data.ok) {
+                    try {
+                        const snap = await getDocs(query(collection(db, 'gateway_sms'), orderBy('receivedAt', 'desc'), limit(100)));
+                        const list = [];
+                        snap.forEach(docSnap => {
+                            list.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        data = { ok: true, transactions: list };
+                    } catch (fsErr) { }
+                }
+
+                if (data && data.ok) {
+                    const rawList = data.transactions || data.list || [];
+                    _gwRawList = rawList;
+
+                    const now = Date.now();
+                    const cutoff30m = now - 30 * 60 * 1000;
+                    let last30Count = 0, last30Taka = 0;
+                    let userClaimedCount = 0, userClaimedTaka = 0, userClaimedCoins = 0;
+                    let adminClaimedCount = 0, adminClaimedTaka = 0, adminClaimedCoins = 0;
+                    let timeExpiredCount = 0, timeExpiredTaka = 0;
+                    let totalTaka = 0;
+
+                    rawList.forEach(item => {
+                        const amt = Number(item.amount) || 0;
+                        const coins = Number(item.coinsAdded) || Math.max(1, Math.floor(amt / 7));
+                        const rTime = Number(item.receivedAt) || 0;
+                        totalTaka += amt;
+                        if (rTime >= cutoff30m) {
+                            last30Count++;
+                            last30Taka += amt;
+                        }
+                        if (item.claimType === 'user') {
+                            userClaimedCount++;
+                            userClaimedTaka += amt;
+                            userClaimedCoins += coins;
+                        } else if (item.claimType === 'admin') {
+                            adminClaimedCount++;
+                            adminClaimedTaka += amt;
+                            adminClaimedCoins += coins;
+                        } else if (item.claimType === 'time_expired' || (!item.claimed && rTime < cutoff30m)) {
+                            timeExpiredCount++;
+                            timeExpiredTaka += amt;
+                        }
+                    });
+
+                    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                    setTxt('gwStatLast30Taka', '৳' + last30Taka);
+                    setTxt('gwStatLast30Count', `${last30Count} SMS Received`);
+                    setTxt('gwStatUserTaka', '৳' + userClaimedTaka);
+                    setTxt('gwStatUserCoins', `🪙 ${userClaimedCoins} Coins (${userClaimedCount} Trx)`);
+                    setTxt('gwStatAdminTaka', '৳' + adminClaimedTaka);
+                    setTxt('gwStatAdminCoins', `🪙 ${adminClaimedCoins} Coins (${adminClaimedCount} Trx)`);
+                    setTxt('gwStatExpiredTaka', '৳' + timeExpiredTaka);
+                    setTxt('gwStatExpiredCount', `${timeExpiredCount} Trx Locked (>30m)`);
+                    setTxt('gwStatTotalTaka', '৳' + totalTaka);
+                    setTxt('gwStatTotalCount', `${rawList.length} Total SMS Recorded`);
+
+                    renderGwTable();
+                    if (forceToast) toast('SMS Gateway ডাটা রিফ্রেশ হয়েছে ✓');
+                } else {
+                    renderGwTable();
+                }
+            } catch (e) {
+                console.error('renderGatewayScreen error:', e);
+                renderGwTable();
+            }
+        };
+
+        // Smart SMS & Trx Parser
+        window.parseSmartGwInput = function(raw) {
+            const text = (raw || '').trim();
+            const statusEl = document.getElementById('gwDetectStatus');
+            const detailsEl = document.getElementById('gwDetectDetails');
+            if (!text) {
+                _smartParsed = { trxId: '', amount: 0, method: 'bKash', sender: '' };
+                if (statusEl) { statusEl.textContent = 'Waiting for input'; statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700'; }
+                if (detailsEl) { detailsEl.innerHTML = '💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।'; }
+                return;
+            }
+
+            // 1. Detect Method
+            let method = 'bKash';
+            const lower = text.toLowerCase();
+            if (lower.includes('nagad') || lower.includes('নগদ')) method = 'Nagad';
+            else if (lower.includes('rocket') || lower.includes('16216') || lower.includes('রকেট')) method = 'Rocket';
+            else if (lower.includes('upay') || lower.includes('উপায়')) method = 'Upay';
+            else if (lower.includes('bkash') || lower.includes('বিকাশ')) method = 'bKash';
+
+            // 2. Extract TrxID
+            let trxId = '';
+            const trxMatch = text.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i);
+            if (trxMatch) {
+                trxId = trxMatch[1].trim().toUpperCase();
+            } else {
+                const directMatch = text.match(/\b([A-Za-z0-9]{7,14})\b/);
+                if (directMatch) {
+                    trxId = directMatch[1].trim().toUpperCase();
+                }
+            }
+
+            // 3. Extract Amount
+            let amount = 0;
+            const amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
+            if (amtMatch) {
+                amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, '')));
+            }
+
+            // 4. Extract Sender Phone
+            let sender = '';
+            const phoneMatch = text.match(/(?:from|Sender)[:\s]*(01[3-9]\d{8})/i);
+            if (phoneMatch) sender = phoneMatch[1];
+
+            _smartParsed = { trxId, amount, method, sender };
+
+            const methodLogos = {
+                bKash: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10',
+                Nagad: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10',
+                Rocket: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10',
+                Upay: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10'
+            };
+
+            if (trxId) {
+                if (statusEl) {
+                    statusEl.textContent = '✓ Ready to Lock';
+                    statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+                }
+                const logo = methodLogos[method] || methodLogos.bKash;
+                detailsEl.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: #ffffff; border: 1.5px solid #c7d2fe;">
+                        <img src="${logo}" style="width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: #ffffff; border: 1px solid #e2e8f0; flex-shrink: 0;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-family: monospace; font-weight: 900; color: #0f172a; font-size: 13px;">${esc(trxId)}</span>
+                                <span style="padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; background: #e0e7ff; color: #4338ca;">${method}</span>
+                            </div>
+                            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">
+                                ${amount > 0 ? `<span style="color: #d97706; font-weight: 900;">৳ ${amount}</span>` : 'TrxID detected'}
+                                ${sender ? ` • Sender: <span style="font-family: monospace; color: #334155;">${sender}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                if (statusEl) {
+                    statusEl.textContent = 'TrxID Not Found';
+                    statusEl.className = 'text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800';
+                }
+                detailsEl.innerHTML = '<span style="color: #b45309; font-weight: 700; font-size: 11.5px;">⚠️ কোনো TrxID শনাক্ত করা যায়নি! অনুগ্রহ করে সঠিক ট্রানজ্যাকশন আইডি বা মেসেজ দিন।</span>';
+            }
+        };
+
+        window.openAdminAddTrxModal = function() {
+            const m = document.getElementById('modalAdminAddTrx');
+            if (!m) return;
+            const input = document.getElementById('smartGwInput');
+            if (input) input.value = '';
+            const uEl = document.getElementById('addGwUser');
+            if (uEl) uEl.value = '';
+            const cEl = document.getElementById('addGwCoins');
+            if (cEl) cEl.value = '';
+            parseSmartGwInput('');
+            m.classList.remove('hidden');
+            setTimeout(() => input?.focus(), 100);
+        };
+
+        window.closeAdminAddTrxModal = function() {
+            const m = document.getElementById('modalAdminAddTrx');
+            if (m) m.classList.add('hidden');
+        };
+
+        window.toggleGwUserCreditField = function() {
+            const wrap = document.getElementById('gwUserCreditWrap');
+            const txt = document.getElementById('gwCreditToggleTxt');
+            if (!wrap) return;
+            const isHidden = wrap.classList.contains('hidden');
+            if (isHidden) {
+                wrap.classList.remove('hidden');
+                if (txt) txt.textContent = 'Hide';
+            } else {
+                wrap.classList.add('hidden');
+                if (txt) txt.textContent = 'Show';
+            }
+        };
+
+        window.submitSmartLockTrx = async function() {
+            const cleanTrx = (_smartParsed.trxId || document.getElementById('smartGwInput')?.value || '').trim().toUpperCase();
+            if (!cleanTrx) {
+                alert('অনুগ্রহ করে Transaction ID (TrxID) লিখুন অথবা মেসেজ পেস্ট করুন!');
+                document.getElementById('smartGwInput')?.focus();
+                return;
+            }
+
+            const amount = _smartParsed.amount || 0;
+            const method = _smartParsed.method || 'Manual';
+            const targetUser = (document.getElementById('addGwUser')?.value || '').trim();
+            const coinsVal = document.getElementById('addGwCoins')?.value;
+            const coins = coinsVal ? Number(coinsVal) : (amount > 0 ? Math.floor(amount / 7) : 0);
+            const adminEmail = (auth.currentUser && auth.currentUser.email) || 'Admin';
+
+            const btn = document.getElementById('btnSubmitAddGwTrx');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>লক করা হচ্ছে...</span>';
+            }
+
+            toast('লক প্রসেস করা হচ্ছে...');
+
+            try {
+                let res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-add-trx", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        trxId: cleanTrx,
+                        amount: amount,
+                        method: method,
+                        reason: 'Admin Locked via Smart Filter',
+                        targetUid: targetUser,
+                        coins: coins,
+                        adminEmail: adminEmail
+                    })
+                });
+                let data = await res.json().catch(() => ({}));
+
+                if (!data.ok) {
+                    // Try Render fallback
+                    res = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/admin-add-trx", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            trxId: cleanTrx,
+                            amount: amount,
+                            method: method,
+                            reason: 'Admin Locked via Smart Filter',
+                            targetUid: targetUser,
+                            coins: coins,
+                            adminEmail: adminEmail
+                        })
+                    });
+                    data = await res.json().catch(() => ({}));
+                }
+
+                if (data.ok) {
+                    toast(data.message || `✅ TrxID ${cleanTrx} সফলভাবে লক করা হয়েছে!`);
+                    closeAdminAddTrxModal();
+                    renderGatewayScreen(false);
+                    if (typeof loadAll === 'function') loadAll();
+                } else {
+                    alert('⚠️ এরর: ' + (data.error || 'TrxID lock failed'));
+                }
+            } catch (err) {
+                alert('❌ সার্ভার এরর: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> <span>Lock TrxID Now</span>';
+                }
+            }
+        };
+
+        window.adminClaimGatewayTrx = async function(trxId, amount) {
+            if (!trxId) return;
+            const targetUid = prompt(`🛡️ অ্যাডমিন TrxID ক্লেইম\nTrxID: ${trxId}\nAmount: ৳${amount}\n\nযে ইউজারের অ্যাকাউন্টে কয়েন যোগ করতে চান তার UID বা Email দিন (খালি রাখলে শুধু TrxID টি অ্যাডমিন ক্লেইম হিসেবে লক হবে, কোনো ইউজারে কয়েন যোগ হবে না):`, '');
+            if (targetUid === null) return; // user cancelled
+
+            const adminEmail = (auth.currentUser && auth.currentUser.email) || 'Admin';
+            toast('Processing Admin Claim...');
+
+            try {
+                let res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-claim", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        trxId: trxId.trim().toUpperCase(),
+                        adminEmail: adminEmail,
+                        targetUid: targetUid.trim()
+                    })
+                });
+                let data = await res.json().catch(() => ({}));
+
+                if (!data.ok) {
+                    // Try render fallback
+                    res = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/admin-claim", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            trxId: trxId.trim().toUpperCase(),
+                            adminEmail: adminEmail,
+                            targetUid: targetUid.trim()
+                        })
+                    });
+                    data = await res.json().catch(() => ({}));
+                }
+
+                if (data.ok) {
+                    toast(data.message || `✅ TrxID ${trxId} অ্যাডমিন ক্লেইম সম্পন্ন হয়েছে!`);
+                    renderGatewayScreen(false);
+                    if (typeof loadAll === 'function') loadAll();
+                } else {
+                    toast('⚠️ ' + (data.error || 'Admin claim failed'));
+                }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+
         /* ---------- 5. ORDERS ---------- */
         function renderOrders() {
             if (typeof syncMergedOrders === 'function') syncMergedOrders();
@@ -7410,7 +8064,7 @@
                     adminMsg: 'অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉'
                 }).catch(() => { });
 
-                // ৩. টাস্ক সম্পন্ন হওয়ার পরই স্টার আপডেট (+1 Star রিয়েল ব্যালেন্সে, আর ১০ম ফ্রি হলে রিসেট)
+                // ৩. টাস্ক সম্পন্ন হওয়ার পরই স্টার ও মাসিক লিডারবোর্ড পয়েন্ট আপডেট (+1 Star, +1.0 Point)
                 if (ord && ord.uid && ord.uid !== 'guest') {
                     const isFreeAdm = !!ord.isFreeTask || Number(ord.amount) === 0;
                     const paidRealAdm = Number(ord.paidWithReal !== undefined ? ord.paidWithReal : (ord.amount || 3));
@@ -7426,6 +8080,26 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: ord.uid, loyaltyStarsInc: 1 })
                         }).catch(() => { });
+                    }
+
+                    // Leaderboard Monthly Points (+1.0 point per completed quest)
+                    try {
+                        const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                        const uRef = doc(db, 'users', ord.uid);
+                        getDoc(uRef).then((uSnap) => {
+                            if (uSnap.exists()) {
+                                const ud = uSnap.data() || {};
+                                const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
+                                const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
+                                const newPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
+                                setDoc(uRef, {
+                                    monthlyPoints: newPts,
+                                    monthlyPointsMonth: curMonthKey
+                                }, { merge: true }).catch(() => {});
+                            }
+                        }).catch(() => {});
+                    } catch (ptErr) {
+                        console.warn('[DELIVER ORDER POINTS ERR]:', ptErr);
                     }
                 }
 
@@ -9574,9 +10248,123 @@
             await saveEarnTaskOrder(sorted);
         };
 
+        let _adminTop1User = null;
+        async function loadLeaderboardAdminStatus() {
+            try {
+                const seasonBadge = document.getElementById('adminLdrSeasonKey');
+                const userBadge = document.getElementById('adminLdrTop1User');
+                const ptsBadge = document.getElementById('adminLdrTop1Pts');
+                if (!seasonBadge) return;
+
+                const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                seasonBadge.textContent = curMonthKey;
+
+                // Query users to find current top 1
+                const snap = await getDocs(query(collection(db, 'users'), limit(100))).catch(() => null);
+                if (!snap) return;
+
+                let topUser = null;
+                snap.forEach(dSnap => {
+                    const d = dSnap.data() || {};
+                    const mKey = d.monthlyPointsMonth || d.monthlyTasksMonth;
+                    if (mKey === curMonthKey) {
+                        const pts = Number(d.monthlyPoints || 0);
+                        if (pts > 0 && (!topUser || pts > topUser.points)) {
+                            topUser = {
+                                uid: dSnap.id,
+                                name: d.name || d.displayName || d.email || 'User',
+                                email: d.email || '',
+                                points: pts,
+                                balance: Number(d.balance || 0),
+                                bonusBalance: Number(d.bonusBalance || 0)
+                            };
+                        }
+                    }
+                });
+
+                _adminTop1User = topUser;
+                if (topUser) {
+                    userBadge.textContent = `${topUser.name} (${topUser.uid.slice(0, 8)}...)`;
+                    ptsBadge.textContent = `${topUser.points} Pts`;
+                } else {
+                    userBadge.textContent = 'কেউ নেই (0 Users)';
+                    ptsBadge.textContent = '0 Pts';
+                }
+            } catch (e) {
+                console.warn('loadLeaderboardAdminStatus error:', e);
+            }
+        }
+        window.loadLeaderboardAdminStatus = loadLeaderboardAdminStatus;
+
+        async function awardTop1AndResetSeasonAdmin() {
+            if (!needAdmin()) return;
+            try {
+                await loadLeaderboardAdminStatus();
+                if (!_adminTop1User || !_adminTop1User.uid || _adminTop1User.points <= 0) {
+                    alert('বর্তমান সিজনে কোনো শীর্ষ ইউজার পাওয়া যায়নি যার পয়েন্ট ০ এর চেয়ে বেশি!');
+                    return;
+                }
+
+                const u = _adminTop1User;
+                if (!confirm(`আপনি কি শীর্ষ #১ ইউজারকে ১০ কয়েন পুরষ্কার দিতে চান এবং লিডারবোর্ড সিজন রিসেট করতে চান?\n\n👑 ইউজার: ${u.name}\n⭐ পয়েন্ট: ${u.points} Pts\n🎁 পুরষ্কার: 10 PP Coins (Bonus Wallet)`)) {
+                    return;
+                }
+
+                // 1. Credit 10 Coins via Cloudflare API
+                await fetch(`${CF_API}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, coins: 10, type: 'bonus' })
+                }).catch(() => null);
+
+                // 2. Update Firestore user balance
+                const newBonus = Math.round((u.bonusBalance + 10 + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((u.balance + 10 + Number.EPSILON) * 100) / 100;
+                await setDoc(doc(db, 'users', u.uid), {
+                    bonusBalance: newBonus,
+                    balance: newTotal
+                }, { merge: true }).catch(() => {});
+
+                // 3. Log transaction
+                const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                await addDoc(collection(db, 'transactions'), {
+                    uid: u.uid,
+                    type: 'leaderboard_top1_prize',
+                    amount: 10,
+                    title: 'লিডারবোর্ড ১ম পুরষ্কার (১০ কয়েন)',
+                    note: `${curMonthKey} সিজনে শীর্ষ #১ স্থান অধিকার করায় ১০ কয়েন পুরষ্কার (Admin Awarded)`,
+                    createdAt: serverTimestamp()
+                }).catch(() => {});
+
+                // 4. Update season record
+                const nextMonth = new Date();
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                const nextMonthKey = nextMonth.toISOString().slice(0, 7);
+
+                await setDoc(doc(db, 'config', 'leaderboardSeason'), {
+                    lastRewardedMonth: curMonthKey,
+                    lastWinnerUid: u.uid,
+                    lastWinnerName: u.name,
+                    lastWinnerPoints: u.points,
+                    rewardedAt: serverTimestamp(),
+                    currentSeason: nextMonthKey
+                }, { merge: true }).catch(() => {});
+
+                toast(`🎉 সফল! ${u.name} কে ১০ কয়েন পুরষ্কার দেওয়া হয়েছে!`);
+                logIt('leaderboard_top1_reward', `${u.name} awarded 10 coins (${u.points} pts)`);
+                await loadLeaderboardAdminStatus();
+
+            } catch (err) {
+                console.error('awardTop1AndResetSeasonAdmin error:', err);
+                toast('পুরষ্কার প্রদান ব্যর্থ হয়েছে: ' + (err.message || ''));
+            }
+        }
+        window.awardTop1AndResetSeasonAdmin = awardTop1AndResetSeasonAdmin;
+
         function renderEarnTasks() {
             const box = document.getElementById('adminEarnTasksList');
             if (!box) return;
+            loadLeaderboardAdminStatus();
 
             const list = (S.earn_tasks || []).slice().sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             const countBadge = document.getElementById('earnTasksCount');
@@ -10494,22 +11282,10 @@
             set('cfgPopupUntil', toLocalInput(c.popupUntil || ''));
             set('cfgMaintMsg', c.maintMsg || DEFAULTS.maintMsg);
             set('cfgServiceMsg', c.serviceMsg || DEFAULTS.serviceMsg);
-            // CardGen: multi-BIN + mode/price/days
-            try {
-                let bins = c.bins || c.activeBins || c.activeBin || DEFAULTS.bins;
-                if (Array.isArray(bins)) bins = bins.join(', ');
-                set('cfgGenBins', bins);
-            } catch (e) { }
-            set('cfgGenPrice', (c.genPrice !== undefined && c.genPrice !== null) ? c.genPrice : 10);
-            set('cfgGenDays', (c.genDays !== undefined && c.genDays !== null) ? c.genDays : 7);
-            set('cfgGenOffMsg', c.genOffMsg || '');
-            set('cfgAddrOffMsg', c.addrOffMsg || '');
             set('cfgStoreSellName', c.storeSellName || 'Sell Points');
             set('cfgStoreBuyName', c.storeBuyName || 'Buy Account');
             { const s = document.getElementById('cfgStoreSellOn'); if (s) s.checked = c.storeSellOn !== false; }
             { const s = document.getElementById('cfgStoreBuyOn'); if (s) s.checked = c.storeBuyOn !== false; }
-            if (window.syncAddrGenBtn) syncAddrGenBtn(c.addrGenEnabled !== false);
-            if (window.syncGenModeBtns) syncGenModeBtns(c.genMode || 'free');
             syncBotModeBtn();
             syncMaintButtons();
             syncServiceBtn();
@@ -10744,51 +11520,6 @@
             notifyBot: txtId('cfgNotifyBot') || 'https://t.me/Ppmod_bot',
             botToken: txtId('cfgBotToken')
         }, 'Bots saved!');
-        window.saveActiveBin = (b) => secSave(b, {
-            activeBin: txtId('cfgActiveBin') || '453590'
-        }, 'Active BIN saved!');
-        function syncGenModeBtns(mode) {
-            document.querySelectorAll('#genModeBtns [data-genmode]').forEach(el => {
-                el.classList.toggle('on', el.dataset.genmode === mode);
-            });
-            const box = document.getElementById('genPaidBox');
-            if (box) box.style.display = (mode === 'paid') ? '' : 'none';
-        }
-        window.syncGenModeBtns = syncGenModeBtns;
-        window.setGenMode = (m) => { syncGenModeBtns(m); };
-        let isAddrGenActive = true;
-        function syncAddrGenBtn(on) {
-            isAddrGenActive = on;
-            const b = document.getElementById('cfgAddrStatusBtn');
-            if (b) {
-                b.textContent = on ? 'ON' : 'OFF';
-                b.className = 'btn px-3 py-1 font-black text-xs rounded-xl shadow-2xs ' + (on ? 'bg-emerald-600 text-white' : 'bg-rose-100 text-rose-700 border border-rose-300');
-            }
-        }
-        window.syncAddrGenBtn = syncAddrGenBtn;
-
-        window.toggleAddrGenStatus = () => {
-            syncAddrGenBtn(!isAddrGenActive);
-        };
-
-        window.saveGenSettings = (b) => {
-            const raw = ((document.getElementById('cfgGenBins') || {}).value || '').trim();
-            const bins = raw.split(/[\n,;\s]+/).map(s => s.replace(/[^0-9]/g, '').trim()).filter(s => s.length >= 4).slice(0, 50);
-            if (!bins.length) { toast('কমপক্ষে ১টি সঠিক BIN দিন'); return; }
-            const onBtn = document.querySelector('#genModeBtns .fl.on');
-            const mode = onBtn ? onBtn.dataset.genmode : ((S.cfg.genMode || 'free').toString());
-            const price = Math.max(0, Math.floor(Number((document.getElementById('cfgGenPrice') || {}).value) || 0));
-            const days = Math.max(1, Math.floor(Number((document.getElementById('cfgGenDays') || {}).value) || 7));
-            const offMsg = txtId('cfgGenOffMsg');
-            const addrOffMsg = txtId('cfgAddrOffMsg');
-            return secSave(b, {
-                bins: bins, activeBins: bins, activeBin: bins[0],
-                genMode: ['off', 'free', 'paid'].includes(mode) ? mode : 'free',
-                genPrice: price, genDays: days, genOffMsg: offMsg,
-                addrGenEnabled: isAddrGenActive,
-                addrOffMsg: addrOffMsg
-            }, 'Card & Address Generator settings saved!');
-        };
 
         window.saveLinks = (b) => secSave(b, {
             admin: txtId('cfgAdmin'), support: txtId('cfgSupport'), group: txtId('cfgGroup'), notice: txtId('cfgNotice'), ppmServerApk: txtId('cfgPpmServerApk')

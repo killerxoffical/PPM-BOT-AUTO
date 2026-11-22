@@ -272,6 +272,7 @@ app.post("/api/admin/create-reseller", async (req, res) => {
 
 // ---------------- SMS GATEWAY PARSER & AUTO APPROVAL ----------------
 const GATEWAY_SECRET = process.env.GATEWAY_SECRET || "PPMOD_GATEWAY_SEC_2025";
+const activeTrxLocks = new Set(); // Anti-Race Condition Mutex Lock
 
 function parseSmsBody(sender, body) {
     if (!body) return null;
@@ -616,7 +617,7 @@ app.post("/api/p2p/release", async (req, res) => {
     }
 });
 
-// Android App SMS Receiver Webhook
+// Android App SMS Receiver Webhook (30-Minute Expiration Rule + Professional Security)
 app.post("/api/gateway/sms", async (req, res) => {
     const secret = req.headers["x-gateway-secret"] || req.body.secret;
     if (secret !== GATEWAY_SECRET) {
@@ -632,6 +633,10 @@ app.post("/api/gateway/sms", async (req, res) => {
     }
 
     const cleanTrx = parsed.trxId.toUpperCase();
+    const now = Date.now();
+    const smsTime = timestamp ? Number(timestamp) : now;
+    const cutoff30m = now - 30 * 60 * 1000;
+    const isExpired = (smsTime < cutoff30m);
 
     try {
         await db.collection("gateway_sms").doc(cleanTrx).set({
@@ -640,9 +645,25 @@ app.post("/api/gateway/sms", async (req, res) => {
             method: parsed.method,
             trxId: cleanTrx,
             amount: parsed.amount,
-            claimed: false,
+            claimed: isExpired,
+            claimType: isExpired ? 'time_expired' : 'none',
+            adminMsg: isExpired ? 'Auto Expired (>30 min old SMS)' : '',
             receivedAt: timestamp ? new Date(timestamp) : admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+
+        // Auto-expire existing old unclaimed SMS in Firestore
+        try {
+            const oldSnap = await db.collection("gateway_sms")
+                .where("claimed", "==", false)
+                .where("receivedAt", "<", new Date(cutoff30m))
+                .limit(25)
+                .get();
+            const b = db.batch();
+            oldSnap.forEach(d => {
+                b.update(d.ref, { claimed: true, claimType: 'time_expired', adminMsg: 'Auto Expired (30+ min)' });
+            });
+            if (!oldSnap.empty) await b.commit();
+        } catch (e) {}
 
         const cfgSnap = await db.collection("config").doc("app").get();
         const cfg = cfgSnap.exists ? cfgSnap.data() : {};
@@ -652,10 +673,13 @@ app.post("/api/gateway/sms", async (req, res) => {
             return res.json({ ok: true, matched: true, autoApproved: false, note: "Auto-deposit is OFF by Admin" });
         }
 
-        // Auto Gateway OFF থাকা অবস্থায় কোনো পেন্ডিং ভেরিফাই হবে না
         const autoDepStartTime = cfg.autoDepositTurnedOnAt ? cfg.autoDepositTurnedOnAt.toMillis() : 0;
         if (timestamp && autoDepStartTime && timestamp < autoDepStartTime) {
             return res.json({ ok: true, matched: true, autoApproved: false, note: "Ignored: SMS arrived before Auto Gateway was turned ON" });
+        }
+
+        if (isExpired) {
+            return res.json({ ok: true, matched: true, autoApproved: false, expired: true, message: "SMS saved but marked expired (>30 mins old)" });
         }
 
         const depQuery = await db.collection("deposits")
@@ -668,16 +692,20 @@ app.post("/api/gateway/sms", async (req, res) => {
             const depDoc = depQuery.docs[0];
             const depData = depDoc.data();
 
-            const now = Date.now();
             const depTime = depData.createdAt && depData.createdAt.toMillis ? depData.createdAt.toMillis() : now;
-            const smsTime = timestamp || now;
 
-            if (Math.abs(now - smsTime) > 5 * 60 * 1000 || Math.abs(now - depTime) > 5 * 60 * 1000) {
+            // 30 minute strict window
+            if (Math.abs(now - smsTime) > 30 * 60 * 1000 || Math.abs(now - depTime) > 30 * 60 * 1000) {
                 await db.collection("deposits").doc(depDoc.id).update({
                     status: "rejected",
-                    adminMsg: "❌ ৫ মিনিটের বেশি সময় পার হয়ে গেছে! সময়মতো সাবমিট করুন।"
+                    adminMsg: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণ করা হয় না।"
                 });
-                return res.json({ ok: false, error: "EXPIRED: ৫ মিনিটের বেশি সময় পার হয়ে গেছে!" });
+                await db.collection("gateway_sms").doc(cleanTrx).update({
+                    claimed: true,
+                    claimType: 'time_expired',
+                    adminMsg: 'Auto Expired: 30 minutes elapsed'
+                });
+                return res.json({ ok: false, error: "EXPIRED: ৩০ মিনিটের বেশি সময় পার হয়ে গেছে!" });
             }
 
             if (Number(depData.amount) === Number(parsed.amount)) {
@@ -697,15 +725,21 @@ app.post("/api/gateway/sms", async (req, res) => {
     }
 });
 
-// ইউজার সাইটে সাবমিট করলে ফোনের আসল SMS ভেরিফাই করার এন্ডপয়েন্ট
+// ইউজার সাইটে সাবমিট করলে ফোনের আসল SMS ভেরিফাই করার এন্ডপয়েন্ট (Anti-Race Mutex Lock + 30-Min Expiry)
 app.post("/api/gateway/verify-deposit", async (req, res) => {
     const { depId, trxId, amount } = req.body;
     if (!depId || !trxId) return res.status(400).json({ ok: false, error: "Missing data" });
 
     const cleanTrx = trxId.toUpperCase().trim();
 
+    // ১. Concurrency / Multi-Device Glitch Mutex Lock
+    if (activeTrxLocks.has(cleanTrx)) {
+        return res.status(409).json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশন আইডিটি বর্তমানে অন্য একটি রিকোয়েস্টে ভেরিফাই করা হচ্ছে! অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।" });
+    }
+    activeTrxLocks.add(cleanTrx);
+
     try {
-        // ১. আগে থেকেই TrxID ব্যবহৃত হয়েছে কিনা চেক
+        // ২. আগে থেকেই TrxID ব্যবহৃত হয়েছে কিনা চেক
         const usedCheck = await db.collection("used_trx").doc(cleanTrx).get();
         if (usedCheck.exists) {
             return res.status(400).json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" });
@@ -725,7 +759,6 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
         }
 
         if (!smsDoc.exists) {
-            // নেটওয়ার্ক দেরির কারণে এসএমএস দেরিতে পৌঁছালে ভুলবশত সাথে সাথে রিজেক্ট না করা
             await db.collection("deposits").doc(depId).update({
                 adminMsg: "⏳ পেমেন্ট ভেরিফাই করা হচ্ছে... এসএমএস সার্ভারে আসার অপেক্ষা চলছে।"
             }).catch(() => {});
@@ -741,15 +774,32 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
         const smsTime = smsData.receivedAt && smsData.receivedAt.toMillis ? smsData.receivedAt.toMillis() : Date.now();
         const now = Date.now();
 
-        if (now - smsTime > 5 * 60 * 1000) {
+        // ৩. ৩০ মিনিটের মেয়াদ যাচাই (30-Minute Expiration Rule)
+        if (now - smsTime > 30 * 60 * 1000) {
             await db.collection("deposits").doc(depId).update({
                 status: "rejected",
-                adminMsg: "❌ টাকা পাঠানোর ৫ মিনিটের মধ্যে সাবমিট করেননি!"
+                adminMsg: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন আর গ্রহণ করা হবে না।"
             });
-            return res.json({ ok: false, error: "টাকা পাঠানোর ৫ মিনিট পার হয়ে গেছে! পুনরায় চেষ্টা করুন।" });
+            await db.collection("gateway_sms").doc(cleanTrx).update({
+                claimed: true,
+                claimType: 'time_expired',
+                adminMsg: 'Auto Expired (>30m)'
+            });
+            return res.json({ ok: false, error: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন আর গ্রহণ করা হবে না।" });
         }
 
-        // TrxID + টাকার অংকের কঠোর যাচাই (ইউজার বেশি বা কম টাকা লিখে যাতে কয়েন হাতিয়ে নিতে না পারে)
+        // ৪. ইতিমধ্যে অন্য কেউ ক্লেইম করেছে কিনা চেক
+        if (smsData.claimed === true) {
+            if (smsData.claimType === 'time_expired') {
+                return res.json({ ok: false, error: "❌ এই ট্রানজ্যাকশনটির ৩০ মিনিট মেয়াদ শেষ হয়ে গেছে! এটি আর ব্যবহার করা যাবে না।" });
+            } else if (smsData.claimType === 'admin') {
+                return res.json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি অ্যাডমিন কর্তৃক ভেরিফাই/ক্লেইম করা হয়েছে।" });
+            } else {
+                return res.json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" });
+            }
+        }
+
+        // ৫. TrxID + টাকার অংকের কঠোর যাচাই
         const realSmsAmount = Math.round(Number(smsData.amount));
         const userClaimedAmount = Math.round(Number(amount));
 
@@ -761,7 +811,6 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
                 rejectedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            // ব্যবহারকারী এবং অ্যাডমিনকে সাথে সাথে রিজেক্টের পূর্ণাঙ্গ রিপোর্ট পাঠানো
             const depDoc = await db.collection("deposits").doc(depId).get();
             const dData = depDoc.exists ? depDoc.data() : { uid: "", method: "bKash" };
             await sendDepositTelegramNotification(dData, "rejected", failReason, userClaimedAmount, 0);
@@ -772,6 +821,218 @@ app.post("/api/gateway/verify-deposit", async (req, res) => {
         const depDoc = await db.collection("deposits").doc(depId).get();
         await approveDepositSafe(depId, depDoc.data(), realSmsAmount, cfg.coinRate || 7);
         return res.json({ ok: true, autoApproved: true, message: "Approved successfully!" });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    } finally {
+        activeTrxLocks.delete(cleanTrx);
+    }
+});
+
+// গেটওয়ে রিয়েল-টাইম হিস্ট্রি ও অডিট রিপোর্ট (Last 30 Min & All Claims Statistics)
+app.get("/api/gateway/recent", async (req, res) => {
+    try {
+        const now = Date.now();
+        const cutoff30m = now - 30 * 60 * 1000;
+
+        const snap = await db.collection("gateway_sms")
+            .orderBy("receivedAt", "desc")
+            .limit(100)
+            .get();
+
+        const list = [];
+        let last30MinTaka = 0, last30MinCount = 0;
+        let totalUserClaimedTaka = 0, totalUserClaimedCoins = 0, totalUserClaimedCount = 0;
+        let totalAdminClaimedTaka = 0, totalAdminClaimedCoins = 0, totalAdminClaimedCount = 0;
+        let totalExpiredTaka = 0, totalExpiredCount = 0;
+        let totalAllTaka = 0;
+
+        snap.forEach(d => {
+            const data = d.data();
+            const amt = Number(data.amount) || 0;
+            const rTime = data.receivedAt && data.receivedAt.toMillis ? data.receivedAt.toMillis() : (typeof data.receivedAt === 'number' ? data.receivedAt : now);
+            const isExp = (!data.claimed || data.claimType === 'none') && (rTime < cutoff30m);
+            const claimType = isExp ? 'time_expired' : (data.claimType || (data.claimed ? 'user' : 'none'));
+            const claimed = data.claimed || isExp;
+            const coins = Number(data.coinsAdded) || Math.floor(amt / 7) || 0;
+
+            totalAllTaka += amt;
+            if (rTime >= cutoff30m) {
+                last30MinTaka += amt;
+                last30MinCount++;
+            }
+
+            if (claimType === 'user') {
+                totalUserClaimedTaka += amt;
+                totalUserClaimedCoins += coins;
+                totalUserClaimedCount++;
+            } else if (claimType === 'admin') {
+                totalAdminClaimedTaka += amt;
+                totalAdminClaimedCoins += coins;
+                totalAdminClaimedCount++;
+            } else if (claimType === 'time_expired') {
+                totalExpiredTaka += amt;
+                totalExpiredCount++;
+            }
+
+            list.push({
+                trxId: d.id,
+                sender: data.sender || "Gateway",
+                method: data.method || "bKash",
+                amount: amt,
+                balance: Number(data.balance) || 0,
+                claimed: claimed,
+                claimType: claimType,
+                claimedByUid: data.claimedByUid || data.claimedBy || "",
+                claimedByName: data.claimedByName || "",
+                claimedAt: data.claimedAt && data.claimedAt.toMillis ? data.claimedAt.toMillis() : null,
+                coinsAdded: coins,
+                adminMsg: data.adminMsg || (isExp ? "Auto Expired (>30m)" : ""),
+                receivedAt: rTime
+            });
+        });
+
+        return res.json({
+            ok: true,
+            transactions: list,
+            stats: {
+                last30MinTaka,
+                last30MinCount,
+                totalUserClaimedTaka,
+                totalUserClaimedCoins,
+                totalUserClaimedCount,
+                totalAdminClaimedTaka,
+                totalAdminClaimedCoins,
+                totalAdminClaimedCount,
+                totalExpiredTaka,
+                totalExpiredCount,
+                totalAllTaka,
+                totalAllCount: list.length,
+                serverTime: now
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// অ্যাডমিন কর্তৃক ম্যানুয়াল ক্লেইম (Strictly valid within 30 min)
+app.post("/api/gateway/admin-claim", async (req, res) => {
+    const { trxId, uid, coins, adminName } = req.body;
+    const cleanTrx = (trxId || "").trim().toUpperCase();
+    if (!cleanTrx) return res.status(400).json({ ok: false, error: "Missing trxId" });
+
+    try {
+        const smsRef = db.collection("gateway_sms").doc(cleanTrx);
+        const smsDoc = await smsRef.get();
+        if (!smsDoc.exists) return res.status(404).json({ ok: false, error: "SMS not found" });
+
+        const sData = smsDoc.data();
+        const now = Date.now();
+        const rTime = sData.receivedAt && sData.receivedAt.toMillis ? sData.receivedAt.toMillis() : now;
+        const cutoff30m = now - 30 * 60 * 1000;
+
+        if (sData.claimed === true && sData.claimType !== 'none') {
+            return res.status(400).json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি ইতিমধ্যে ক্লেইম করা হয়েছে!" });
+        }
+
+        if (rTime < cutoff30m || sData.claimType === 'time_expired') {
+            await smsRef.update({ claimed: true, claimType: 'time_expired', adminMsg: 'Expired (>30m)' });
+            return res.status(400).json({ ok: false, error: "❌ এই ট্রানজ্যাকশনটির ৩০ মিনিট সময়সীমা পার হয়ে গেছে! আর ক্লেইম করা সম্ভব নয়।" });
+        }
+
+        const amt = Number(sData.amount) || 0;
+        const finalCoins = Number(coins) || Math.floor(amt / 7) || 3;
+
+        // Atomic lock in used_trx
+        await db.collection("used_trx").doc(cleanTrx).set({
+            trxId: cleanTrx,
+            uid: uid || 'admin_claim',
+            amount: amt,
+            coins: finalCoins,
+            usedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Update gateway_sms
+        await smsRef.update({
+            claimed: true,
+            claimType: 'admin',
+            claimedByUid: uid || 'admin',
+            claimedByName: adminName || 'Admin',
+            claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+            coinsAdded: finalCoins,
+            adminMsg: 'Admin Manual Claim'
+        });
+
+        // If target UID provided, credit user
+        if (uid && uid !== 'admin') {
+            try {
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: uid, coins: finalCoins, type: 'real' })
+                });
+            } catch (e) {}
+        }
+
+        return res.json({ ok: true, message: `TrxID ${cleanTrx} successfully claimed by Admin!` });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// অ্যাডমিন ম্যানুয়াল TrxID অ্যাড ও লক (User Exploits & Duplicate Prevention)
+app.post("/api/gateway/admin-add-trx", async (req, res) => {
+    const { trxId, amount, method, reason, targetUid, uid, coins, adminName, adminEmail } = req.body;
+    const cleanTrx = (trxId || "").trim().toUpperCase();
+    if (!cleanTrx) return res.status(400).json({ ok: false, error: "TrxID প্রদান করা বাধ্যতামূলক" });
+
+    const amt = Number(amount) || 0;
+    const userUid = (targetUid || uid || "").trim();
+    const addCoins = Number(coins) || (amt > 0 ? Math.floor(amt / 7) : 0);
+    const lockReason = (reason || "").trim() || "অ্যাডমিন প্যানেল থেকে ট্রানজ্যাকশন আইডি লক করা হয়েছে";
+
+    try {
+        // ১. Lock into Firestore used_trx
+        await db.collection("used_trx").doc(cleanTrx).set({
+            trxId: cleanTrx,
+            uid: userUid || 'admin_locked',
+            amount: amt,
+            coins: addCoins,
+            reason: lockReason,
+            lockedBy: adminEmail || adminName || 'Admin',
+            usedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // ২. Lock into Firestore gateway_sms
+        await db.collection("gateway_sms").doc(cleanTrx).set({
+            trxId: cleanTrx,
+            sender: "Admin Action",
+            raw: `Admin Manual Entry: ${lockReason}`,
+            method: method || "Manual",
+            amount: amt,
+            claimed: true,
+            claimType: 'admin',
+            claimedByUid: userUid || 'admin',
+            claimedByName: adminEmail || adminName || 'Admin',
+            claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+            coinsAdded: addCoins,
+            adminMsg: lockReason,
+            receivedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // ৩. Sync to Cloudflare D1
+        try {
+            await fetch(`${CF_API}/api/gateway/admin-add-trx`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(req.body)
+            });
+        } catch (cfErr) {}
+
+        return res.json({
+            ok: true,
+            message: `TrxID ${cleanTrx} সফলভাবে লক করা হয়েছে! কোনো ইউজার আর এটি ব্যবহার করতে পারবে না।`
+        });
     } catch (e) {
         return res.status(500).json({ ok: false, error: e.message });
     }
@@ -1085,10 +1346,11 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
                 const curMonthKey = (new Date()).toISOString().slice(0, 7);
                 const mKey = uData.monthlyPointsMonth || uData.monthlyTasksMonth;
                 const curPts = (mKey === curMonthKey) ? (Number(uData.monthlyPoints) || Number(uData.monthlyTasksCount) || 0) : 0;
+                const depPts = Math.max(1, Math.floor(finalCoinsCalculated));
                 t.update(userRef, {
                     realBalance: newReal,
                     balance: newReal + curBonus,
-                    monthlyPoints: Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10,
+                    monthlyPoints: Math.round((curPts + depPts + Number.EPSILON) * 10) / 10,
                     monthlyPointsMonth: curMonthKey,
                     monthlyDepositsCount: ((mKey === curMonthKey) ? (Number(uData.monthlyDepositsCount) || 0) : 0) + 1
                 });
@@ -1122,8 +1384,11 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
             const smsRef = db.collection("gateway_sms").doc(cleanTrx);
             t.set(smsRef, {
                 claimed: true,
-                claimedBy: depData.uid,
-                claimedAt: admin.firestore.FieldValue.serverTimestamp()
+                claimType: 'user',
+                claimedByUid: depData.uid,
+                claimedByName: depData.name || 'User',
+                claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+                coinsAdded: finalCoinsCalculated
             }, { merge: true });
         });
     } catch (fbErr) {

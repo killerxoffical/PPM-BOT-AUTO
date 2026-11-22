@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PP MOD - Telegram Account & Bot Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translate(-50%, 20px);
+            background: #0f172a;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            pointer-events: none;
+            transition: all .25s ease;
+            z-index: 100;
+            max-width: 90vw;
+            text-align: center;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 8px 24px -8px rgba(15, 23, 42, 0.05);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen p-3 sm:p-6 lg:p-10 flex flex-col items-center">
+
+    <div class="w-full max-w-4xl space-y-4 sm:space-y-6">
+
+        <!-- Header -->
+        <header
+            class="flex items-center justify-between gap-3 bg-white p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-sm">
+            <div class="flex items-center gap-3 min-w-0">
+                <div
+                    class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                    <i data-lucide="bot" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-base sm:text-xl font-black text-slate-900 truncate leading-tight">Telegram Worker
+                        Pool</h1>
+                    <p class="text-[10px] sm:text-xs font-semibold text-slate-400 truncate">PlayQuestHelper
+                        Multi-Account & Bot Hub</p>
+                </div>
+            </div>
+            <div class="flex-shrink-0">
+                <span
+                    class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] sm:text-xs font-black">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Render Live
+                </span>
+            </div>
+        </header>
+
+        <!-- Live Metrics Grid (Full-Width Clean Token Card) -->
+        <div class="w-full">
+            <!-- Active Tokens with Real Check Button -->
+            <div
+                class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-lg relative overflow-hidden flex flex-col justify-between">
+                <div class="relative z-10 flex items-start justify-between gap-2">
+                    <div>
+                        <p class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-indigo-300">Live
+                            Quest Bot Tokens</p>
+                        <h2 id="liveTokensTotal" class="text-3xl sm:text-5xl font-black mt-1 text-amber-400">-- 🪙</h2>
+                        <p class="text-[11px] text-slate-300 mt-1 font-semibold">১টি কোয়েস্টে খরচ: ৩ টোকেন &middot;
+                            অটো-রোটেট সচল</p>
+                    </div>
+                    <button id="btnCheckBalance" onclick="checkRealBalance()"
+                        class="bg-white/10 hover:bg-white/20 active:scale-95 border border-white/20 text-white font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-400"></i> Check Real Balance
+                    </button>
+                </div>
+                <div
+                    class="relative z-10 flex flex-wrap items-center justify-between pt-4 mt-3 border-t border-white/10 gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-300 font-semibold">⚡ Active Quest Workers (All):</span>
+                        <span id="workerCountBadge"
+                            class="text-sm font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20">0
+                            Ready</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-300 font-semibold">👑 Auto-Reply Enabled:</span>
+                        <span id="primeCountBadge"
+                            class="text-sm font-black text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20">0
+                            Prime</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-300 font-semibold">Total Accounts:</span>
+                        <span id="accountCountBadge"
+                            class="text-sm font-black text-white bg-white/10 px-2.5 py-0.5 rounded-lg border border-white/10">0</span>
+                    </div>
+                </div>
+                <div
+                    class="absolute -right-8 -bottom-8 w-36 h-36 rounded-full bg-indigo-500/15 blur-2xl pointer-events-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- Add New Telegram Account Form (String Session, OTP & QR Modes) -->
+        <div class="glass-card p-4 sm:p-6 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100 gap-2 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-indigo-600"></i>
+                    <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Add Telegram Worker Account</h3>
+                </div>
+                <!-- Login Mode Switcher Tabs -->
+                <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    <button id="tabSession" onclick="switchLoginMode('session')"
+                        class="px-3 py-1 rounded-lg bg-white text-indigo-600 shadow-xs cursor-pointer">⚡ String Session
+                        (100% Works)</button>
+                    <button id="tabOtp" onclick="switchLoginMode('otp')"
+                        class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">📱 Phone &
+                        OTP</button>
+                    <button id="tabQr" onclick="switchLoginMode('qr')"
+                        class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer">📷 Scan
+                        QR</button>
+                </div>
+            </div>
+
+            <!-- Direct String Session Mode (Guaranteed Instant Connect) -->
+            <div id="viewSession" class="space-y-3.5">
+                <!-- Direct Official Website Generator Card -->
+                <div
+                    class="p-3.5 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-2xl space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">🌐</span>
+                            <div>
+                                <p class="text-xs font-black text-indigo-950">Session String Generator Website</p>
+                                <p class="text-[10px] text-indigo-800 font-semibold">ওয়েবসাইট থেকে ৩ সেকেন্ডে কোড বের
+                                    করুন</p>
+                            </div>
+                        </div>
+                        <a href="https://telegram.tools/session-string-generator" target="_blank"
+                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> <span>Open Website</span>
+                        </a>
+                    </div>
+                    <div
+                        class="p-2 bg-white/90 border border-indigo-100 rounded-xl text-[10.5px] font-bold text-slate-700 space-y-1">
+                        <p>১. <b>Open Website</b> বাটনে চাপ দিয়ে সাইটে যান।</p>
+                        <p>২. আপনার টেলিগ্রাম নম্বরটি লিখলে টেলিগ্রাম অ্যাপে কোড আসবে, কোডটি বসিয়ে <b>"Generate"</b>
+                            চাপুন।</p>
+                        <p>৩. সাইটে যে বড় <b>String Session কোড (1B...)</b> আসবে সেটি কপি করে নিচের বক্সে পেস্ট করুন।
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">Phone Number (যেমন:
+                        017XXXXXXXX)</label>
+                    <input id="inputSessionPhone" type="tel" placeholder="01XXXXXXXXX"
+                        class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-700 mb-1">Paste String Session (1B... দিয়ে
+                        শুরু হওয়া কোডটি)</label>
+                    <textarea id="inputSessionString" rows="3"
+                        placeholder="1BVtsOHcB... (টেলিগ্রাম থেকে পাওয়া সেশন কোডটি এখানে পেস্ট করুন)"
+                        class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] font-bold text-slate-900 focus:outline-none focus:border-indigo-600 select-all"></textarea>
+                </div>
+
+                <button id="btnConnectSession" onclick="connectDirectSession()"
+                    class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black rounded-xl sm:rounded-2xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i> Connect Telegram Account Instant
+                </button>
+            </div>
+
+            <!-- QR Code Login View -->
+            <div id="viewQr" class="hidden space-y-3.5 text-center py-2">
+                <p class="text-xs text-slate-600 font-semibold">টেলিগ্রাম অ্যাপের <b>Settings &gt; Devices &gt; Link
+                        Desktop Device</b> এ গিয়ে নিচের কিউআর কোডটি স্ক্যান করুন:</p>
+                <div class="flex justify-center">
+                    <div id="qrBox"
+                        class="p-3 bg-white border-2 border-indigo-200 rounded-2xl shadow-sm inline-block min-w-[200px] min-h-[200px] flex items-center justify-center">
+                        <span class="text-xs font-bold text-slate-400">QR তৈরি হচ্ছে...</span>
+                    </div>
+                </div>
+                <div id="qr2faBox" class="hidden max-w-sm mx-auto space-y-2">
+                    <input id="inputQr2fa" type="password" placeholder="Two-Step পাসওয়ার্ড দিন"
+                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900">
+                    <button onclick="submitQr2fa()"
+                        class="w-full py-2.5 bg-indigo-600 text-white font-extrabold rounded-xl text-xs">Confirm
+                        2FA</button>
+                </div>
+                <p id="qrStatusText" class="text-xs font-bold text-indigo-600 animate-pulse">📷 স্ক্যানের জন্য অপেক্ষা
+                    করা হচ্ছে...</p>
+            </div>
+
+            <!-- OTP Login View -->
+            <div id="viewOtp" class="space-y-4">
+
+                <!-- Step 1: Phone & Telegram API Credentials -->
+                <div id="stepPhone" class="space-y-3">
+                    <!-- Direct Link to Telegram Apps Site -->
+                    <div
+                        class="p-3 bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-xs font-black text-sky-950">Telegram Official API Portal</p>
+                            <p class="text-[10px] text-sky-800 font-semibold">my.telegram.org থেকে নিজস্ব API ID ও Hash
+                                নিন</p>
+                        </div>
+                        <a href="https://my.telegram.org/apps" target="_blank"
+                            class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> <span>Get API Details</span>
+                        </a>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-black uppercase text-slate-600 mb-1">API ID</label>
+                            <input id="inputApiId" type="number" value="39447470" placeholder="e.g. 1234567"
+                                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-black uppercase text-slate-600 mb-1">API HASH</label>
+                            <input id="inputApiHash" type="text" value="eb7cac1c8ad9935d4b208dc0da076d8c"
+                                placeholder="e.g. 4d7b..."
+                                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">Telegram Phone Number (01 দিয়ে
+                            শুরু করুন)</label>
+                        <div class="relative">
+                            <input id="inputPhone" type="tel" placeholder="01XXXXXXXXX"
+                                class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl font-mono text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all">
+                            <i data-lucide="smartphone"
+                                class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        </div>
+                        <p class="text-[10px] sm:text-[11px] text-slate-400 font-semibold mt-1">+88 দেওয়া লাগবে না,
+                            সরাসরি ১১ ডিজিটের নম্বর লিখুন।</p>
+                    </div>
+
+                    <button id="btnSendOtp" onclick="requestOtpFast()"
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <i data-lucide="send" class="w-4 h-4"></i> Send OTP Code to Telegram
+                    </button>
+                </div>
+
+                <!-- Step 2: OTP & 2FA -->
+                <div id="stepOtp" class="space-y-3 hidden">
+                    <div
+                        class="bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl p-3 text-xs text-amber-800 font-semibold flex items-center gap-2">
+                        <i data-lucide="mail" class="w-4 h-4 text-amber-600 flex-shrink-0"></i>
+                        <span>টেলিগ্রাম অ্যাপে কোড গেছে! কোডটি নিচে দিন:</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">Telegram Login OTP Code</label>
+                        <input id="inputOtp" type="number" placeholder="12345"
+                            class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-center text-xl font-black tracking-widest text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">Two-Step Verification Password
+                            (Optional)</label>
+                        <input id="input2fa" type="password"
+                            placeholder="2FA চালু থাকলে পাসওয়ার্ড দিন (নাহলে ফাঁকা রাখুন)"
+                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="resetForm()"
+                            class="py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl sm:rounded-2xl text-xs transition-all cursor-pointer">
+                            Cancel
+                        </button>
+                        <button id="btnVerify" onclick="verifyOtpFast()"
+                            class="py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold rounded-xl sm:rounded-2xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i> Verify & Connect
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation Hub: Mass Redeem & Daily Claim -->
+            <div class="glass-card p-4 sm:p-6 space-y-4">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="gift" class="w-5 h-5 text-amber-500"></i>
+                        <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Quest Rewards Automation Hub</h3>
+                    </div>
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">1-Click
+                        Bot Actions</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Daily Reward Claim All -->
+                    <div
+                        class="p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl flex flex-col justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">🎁</span>
+                                <h4 class="text-xs sm:text-sm font-extrabold text-slate-900">Auto Daily Claim All</h4>
+                            </div>
+                            <p class="text-[11px] text-slate-600 font-semibold mt-1">সবগুলো অ্যাকাউন্টে বট
+                                স্বয়ংক্রিয়ভাবে ঢুকে Daily Reward (+1/+2 🪙) ক্লেইম করবে।</p>
+                        </div>
+                        <button id="btnClaimDaily" onclick="claimDailyAllAccounts()"
+                            class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> Claim Daily on All Accounts
+                        </button>
+                    </div>
+
+                    <!-- Mass Promo Code Redeem -->
+                    <div
+                        class="p-4 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl flex flex-col justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">🎟️</span>
+                                <h4 class="text-xs sm:text-sm font-extrabold text-slate-900">Mass Promo Code Redeem</h4>
+                            </div>
+                            <p class="text-[11px] text-slate-600 font-semibold mt-1">প্রোমো কোড লিখুন—একটি ক্লিকেই সব
+                                অ্যাকাউন্টে ঢুকে কোড রিডিম করে ব্যালেন্স বাড়িয়ে নেবে।</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="inputMassPromo" placeholder="PROMO CODE"
+                                class="flex-1 min-w-0 p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs font-bold uppercase focus:outline-none focus:border-indigo-600">
+                            <button id="btnRedeemPromo" onclick="redeemPromoAllAccounts()"
+                                class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex-shrink-0">
+                                Redeem All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Execution Logs Preview Box -->
+                <div id="automationLogBox"
+                    class="hidden p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs space-y-1 max-h-40 overflow-y-auto">
+                </div>
+            </div>
+
+            <!-- Connected Accounts Pool Table -->
+            <div class="glass-card p-4 sm:p-6 space-y-4">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100 gap-2 flex-wrap">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="layers" class="w-5 h-5 text-indigo-600"></i>
+                        <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Connected Accounts Pool</h3>
+                        <span id="primeCountBadge"
+                            class="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">👑
+                            0 Prime</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="setAllPrime(true)"
+                            class="text-[10px] font-black px-2.5 py-1.5 rounded-xl bg-amber-500 text-white border border-amber-600 hover:bg-amber-600 transition-all cursor-pointer">👑
+                            All Prime ON</button>
+                        <button onclick="setAllPrime(false)"
+                            class="text-[10px] font-black px-2.5 py-1.5 rounded-xl bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all cursor-pointer">All
+                            OFF</button>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500 font-semibold">যেগুলো Prime ON থাকবে, সবগুলো একসাথে ইনবক্সে
+                    অটো-রিপ্লাই দেবে (Multi-Prime)।</p>
+
+                <div id="accountsList" class="space-y-2.5">
+                    <div class="text-center py-8 text-slate-400 font-semibold text-xs">লোড হচ্ছে...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="toast" class="toast"><span id="toastMsg"></span></div>
+
+        <script type="module">
+            import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+            import { getFirestore, doc, updateDoc, deleteDoc, collection, onSnapshot, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+            import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+
+            const RENDER_API = "https://ppm-bot-auto.onrender.com";
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyAQmiWD9fP0nFpl7ShPjE51udtyFWo6jpA",
+                authDomain: "ppmod1.firebaseapp.com",
+                projectId: "ppmod1",
+                storageBucket: "ppmod1.firebasestorage.app",
+                messagingSenderId: "826595248931",
+                appId: "1:826595248931:web:d55b761c1b9e245437da96",
+                measurementId: "G-CN9LJ502BL"
+            };
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+
+            let activeTargetPhone = "";
+
+            function toast(msg) {
+                const t = document.getElementById('toast');
+                document.getElementById('toastMsg').textContent = msg;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 2600);
+            }
+            window.toast = toast;
+
+            // 1. লাইভ টোকেন লিসেনার
+            onSnapshot(doc(db, 'config', 'app'), (snap) => {
+                if (snap.exists()) {
+                    const bal = snap.data().botTokensTotal;
+                    document.getElementById('liveTokensTotal').textContent = (bal !== undefined ? bal : '--') + ' 🪙';
+                }
+            });
+
+            const auth = getAuth(app);
+            // ব্যাকগ্রাউন্ডে স্বয়ংক্রিয় অ্যাডমিন অথেন্টিকেশন (যাতে কখনো পারমিশন এরর না আসে)
+            onAuthStateChanged(auth, (user) => {
+                if (!user) {
+                    signInWithEmailAndPassword(auth, 'admin@gmail.com', 'nayem544').catch(e => {
+                        console.warn('Auto admin sign-in notice:', e.message);
+                    });
+                }
+            });
+
+            // 2. কানেক্টেড অ্যাকাউন্ট পুল (সব অ্যাকাউন্টই টাস্ক করে, Prime অ্যাকাউন্ট সাথে ইনবক্স অটো-রিপ্লাইও দেয়)
+            let cachedAccounts = [];
+            let unsubsAccounts = null;
+
+            function startAccountsListener() {
+                if (unsubsAccounts) unsubsAccounts();
+                unsubsAccounts = onSnapshot(collection(db, 'tg_accounts'), (snap) => {
+                    const accounts = [];
+                    snap.forEach(d => accounts.push({ id: d.id, ...d.data() }));
+                    cachedAccounts = accounts;
+                    const primes = accounts.filter(a => a.isPrime);
+                    const wb = document.getElementById('workerCountBadge');
+                    if (wb) wb.textContent = `${accounts.length} Ready`;
+                    const pc = document.getElementById('primeCountBadge');
+                    if (pc) pc.textContent = `${primes.length} Prime`;
+                    const ac = document.getElementById('accountCountBadge');
+                    if (ac) ac.textContent = accounts.length;
+                    renderAccounts(accounts);
+                    refreshPrimeStatus();
+                }, async (err) => {
+                    console.warn("Firestore accounts error:", err);
+                    if (err && err.code === 'permission-denied') {
+                        try {
+                            await signInWithEmailAndPassword(auth, 'admin@gmail.com', 'nayem544');
+                            setTimeout(startAccountsListener, 1200);
+                            return;
+                        } catch (e) {}
+                    }
+                    const box = document.getElementById('accountsList');
+                    if (box) box.innerHTML = `<p class="text-center py-6 text-rose-500 font-bold text-xs">ডাটা লোড ত্রুটি: ${err.message}</p>`;
+                });
+            }
+            startAccountsListener();
+
+            // Worker এ আসলে কয়টা prime online আছে
+            async function refreshPrimeStatus() {
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/prime-status`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        const pc = document.getElementById('primeCountBadge');
+                        if (pc) pc.textContent = `👑 ${data.count.online}/${data.count.wanted} Prime Online`;
+                    }
+                } catch (e) { }
+            }
+
+            function renderAccounts(list) {
+                const box = document.getElementById('accountsList');
+                if (!list.length) {
+                    box.innerHTML = `<p class="text-center py-8 text-slate-400 font-semibold text-xs">কোনো টেলিগ্রাম অ্যাকাউন্ট কানেক্ট করা নেই। উপরের ফর্ম থেকে নম্বর দিয়ে যুক্ত করুন।</p>`;
+                    return;
+                }
+                box.innerHTML = list.map(a => `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-mono font-black ${a.isPrime ? 'text-amber-500' : 'text-emerald-600'} flex-shrink-0">
+                            <i data-lucide="${a.isPrime ? 'bot' : 'zap'}" class="w-5 h-5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="font-mono font-extrabold text-sm text-slate-900 truncate">${a.phone || a.id}</p>
+                                ${a.isPrime
+                        ? '<span class="text-[9.5px] font-black bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300">👑 PRIME (Task + Auto-Reply)</span>'
+                        : '<span class="text-[9.5px] font-black bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-300">⚡ QUEST WORKER</span>'}
+                            </div>
+                            <p class="text-[11px] font-black text-amber-600 mt-0.5">টোকেন ব্যালেন্স: ${a.balance !== undefined ? a.balance : 'Checking'} 🪙 &middot; <span class="text-slate-500 font-semibold">${a.isPrime ? 'টাস্ক সম্পন্ন করে + ইনবক্সে অটো-রিপ্লাই দেয়' : 'টাস্ক অর্ডারে কোয়েস্ট সম্পন্ন করে'}</span></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                        <button onclick="togglePrime('${a.id}', ${!a.isPrime})" class="text-[10px] font-black px-2.5 py-1.5 rounded-xl border ${a.isPrime ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'} transition-all cursor-pointer">
+                            ${a.isPrime ? '👑 Auto-Reply ON' : 'Enable Auto-Reply 👑'}
+                        </button>
+                        <span class="text-[10px] font-black px-2.5 py-1.5 rounded-xl ${Number(a.balance) >= 3 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'}">
+                            ${Number(a.balance) >= 3 ? 'READY' : 'EMPTY'}
+                        </span>
+                        <button onclick="deleteAccount('${a.id}')" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 cursor-pointer">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+                if (window.lucide) lucide.createIcons();
+            }
+
+            // 2b. অটো ডেইলি ক্লেইম (সব অ্যাকাউন্টে)
+            window.claimDailyAllAccounts = async () => {
+                const btn = document.getElementById('btnClaimDaily');
+                const logBox = document.getElementById('automationLogBox');
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin">⏳</span> Claiming Daily...`;
+                logBox.classList.remove('hidden');
+                logBox.innerHTML = `<div>🚀 শুরু হচ্ছে সব অ্যাকাউন্টে Daily Claim...</div>`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/claim-daily-all`, { method: "POST" });
+                    const data = await res.json();
+                    if (data.ok) {
+                        toast("✅ ডেইলি ক্লেইম সম্পন্ন হয়েছে!");
+                        logBox.innerHTML = (data.results || []).map(r => 
+                            `<div class="${r.ok ? 'text-emerald-400' : 'text-amber-400'}">${r.phone}: ${r.message.slice(0, 70)}</div>`
+                        ).join("");
+                        setTimeout(window.checkRealBalance, 1500);
+                    } else {
+                        toast("Failed: " + (data.error || "Error"));
+                    }
+                } catch (e) {
+                    toast("সার্ভার রেসপন্স করছে না");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i> Claim Daily on All Accounts`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            };
+
+            // 2c. ম্যাস প্রোমো কোড রিডিম (সব অ্যাকাউন্টে)
+            window.redeemPromoAllAccounts = async () => {
+                const input = document.getElementById('inputMassPromo');
+                const code = (input.value || '').trim();
+                if (!code) { toast("প্রোমো কোডটি লিখুন"); return; }
+
+                const btn = document.getElementById('btnRedeemPromo');
+                const logBox = document.getElementById('automationLogBox');
+                btn.disabled = true;
+                btn.innerHTML = `Redeeming...`;
+                logBox.classList.remove('hidden');
+                logBox.innerHTML = `<div>🎟️ '${code}' কোডটি সব অ্যাকাউন্টে পাঠানো হচ্ছে...</div>`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/redeem-code-all`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ code })
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        toast("🎉 কোড রিডিম সম্পন্ন হয়েছে!");
+                        logBox.innerHTML = (data.results || []).map(r => 
+                            `<div class="${r.ok ? 'text-emerald-400' : 'text-rose-400'}">${r.phone}: ${r.message.slice(0, 70)}</div>`
+                        ).join("");
+                        input.value = '';
+                        setTimeout(window.checkRealBalance, 2000);
+                    } else {
+                        toast("Failed: " + (data.error || "Error"));
+                    }
+                } catch (e) {
+                    toast("সার্ভার এরর");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `Redeem All`;
+                }
+            };
+
+            // 3. আসল ব্যালেন্স চেক করার বাটন (প্রতি অ্যাকাউন্টের ব্যালেন্স আপডেট করবে)
+            window.checkRealBalance = async () => {
+                const btn = document.getElementById('btnCheckBalance');
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin">⏳</span> Auditing Accounts...`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/check-balance`, { method: "POST" });
+                    const data = await res.json();
+                    if (data.ok) {
+                        toast(`✅ সব অ্যাকাউন্টের ব্যালেন্স আপডেট সম্পন্ন হয়েছে! মোট: ${data.total} Tokens`);
+                        document.getElementById('liveTokensTotal').textContent = `${data.total} 🪙`;
+                    } else {
+                        toast(`Error: ${data.error || 'Failed'}`);
+                    }
+                } catch (e) {
+                    toast(`সার্ভার ব্যস্ত বা ঘুমিয়ে আছে, ১৫ সেকেন্ড পর আবার চাপুন`);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-400"></i> Check Real Balance`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            };
+
+            // 4. Fast Direct OTP Send with Custom API ID & HASH
+            window.requestOtpFast = async () => {
+                const raw = (document.getElementById('inputPhone').value || '').trim();
+                const apiId = parseInt((document.getElementById('inputApiId').value || '39447470').trim(), 10);
+                const apiHash = (document.getElementById('inputApiHash').value || 'eb7cac1c8ad9935d4b208dc0da076d8c').trim();
+
+                if (!raw || raw.length < 10) { toast('সঠিক মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)'); return; }
+                if (!apiId || !apiHash) { toast('সঠিক API ID ও API Hash দিন'); return; }
+
+                const btn = document.getElementById('btnSendOtp');
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin">⏳</span> Sending OTP...`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/send-otp`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ phone: raw, apiId, apiHash })
+                    });
+                    const data = await res.json();
+
+                    if (data.ok) {
+                        activeTargetPhone = data.phone || raw;
+                        toast('টেলিগ্রাম অ্যাপে OTP পাঠানো হয়েছে!');
+                        document.getElementById('stepPhone').classList.add('hidden');
+                        document.getElementById('stepOtp').classList.remove('hidden');
+                    } else {
+                        toast('Error: ' + (data.error || 'Failed to send OTP'));
+                        btn.disabled = false;
+                        btn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send OTP Code to Telegram`;
+                    }
+                } catch (e) {
+                    toast('সার্ভার রিস্টার্ট হচ্ছে... ১৫ সেকেন্ড পর আবার সেন্ড চাপুন');
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send OTP Code to Telegram`;
+                }
+                if (window.lucide) lucide.createIcons();
+            };
+
+            // 5. Fast Direct OTP Verify
+            window.verifyOtpFast = async () => {
+                const code = (document.getElementById('inputOtp').value || '').trim();
+                const pass = (document.getElementById('input2fa').value || '').trim();
+                if (!code) { toast('OTP কোডটি লিখুন'); return; }
+
+                const btn = document.getElementById('btnVerify');
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin">⏳</span> Verifying...`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/verify-otp`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ phone: activeTargetPhone, code: code, password: pass })
+                    });
+                    const data = await res.json();
+
+                    if (data.ok) {
+                        toast('🎉 একাউন্ট সফলভাবে কানেক্ট হয়েছে!');
+                        window.resetForm();
+                        // ব্যালেন্স অডিট অটো ট্রিগার
+                        setTimeout(window.checkRealBalance, 1000);
+                    } else {
+                        toast('ভেরিফিকেশন ব্যর্থ: ' + (data.error || 'ভুল কোড'));
+                        btn.disabled = false;
+                        btn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> Verify & Connect`;
+                    }
+                } catch (e) {
+                    toast('সার্ভার এরর');
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> Verify & Connect`;
+                }
+                if (window.lucide) lucide.createIcons();
+            };
+
+            // 6. Multi Prime — একসাথে অনেক account Prime হতে পারবে (auto-reply সবগুলো থেকে যাবে)
+            window.togglePrime = async (id, makePrime) => {
+                try {
+                    await updateDoc(doc(db, 'tg_accounts', id), { isPrime: !!makePrime });
+                    if (makePrime) toast('👑 Prime ON! এই অ্যাকাউন্ট থেকেও অটো-রিপ্লাই যাবে। (Multi-Prime)');
+                    else toast('Prime OFF করা হয়েছে।');
+                } catch (e) { toast('Failed: ' + e.message); }
+            };
+
+            // সব Prime একসাথে ON/OFF
+            window.setAllPrime = async (on) => {
+                try {
+                    if (!cachedAccounts.length) { toast('কোনো অ্যাকাউন্ট নেই'); return; }
+                    const batch = writeBatch(db);
+                    cachedAccounts.forEach(acc => {
+                        batch.update(doc(db, 'tg_accounts', acc.id), { isPrime: !!on });
+                    });
+                    await batch.commit();
+                    toast(on ? '👑 সব অ্যাকাউন্ট Prime ON! সবগুলো থেকে অটো-রিপ্লাই যাবে।' : 'সব Prime OFF করা হয়েছে।');
+                } catch (e) { toast('Failed: ' + e.message); }
+            };
+
+            window.deleteAccount = async (id) => {
+                if (!confirm(`Are you sure you want to delete ${id}?`)) return;
+                try {
+                    await deleteDoc(doc(db, 'tg_accounts', id));
+                    toast('Account removed');
+                } catch (e) { toast('Delete failed'); }
+            };
+
+            window.resetForm = () => {
+                document.getElementById('stepOtp').classList.add('hidden');
+                document.getElementById('stepPhone').classList.remove('hidden');
+                document.getElementById('inputPhone').value = '';
+                document.getElementById('inputOtp').value = '';
+                document.getElementById('input2fa').value = '';
+                activeTargetPhone = '';
+                const b1 = document.getElementById('btnSendOtp');
+                const b2 = document.getElementById('btnVerify');
+                if (b1) { b1.disabled = false; b1.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send OTP Code to Telegram`; }
+                if (b2) { b2.disabled = false; b2.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> Verify & Connect`; }
+                if (window.lucide) lucide.createIcons();
+            };
+
+            // QR Code Login Handlers
+            let qrPollTimer = null;
+            let currentQrId = null;
+
+            window.switchLoginMode = (mode) => {
+                const isSession = mode === 'session';
+                const isOtp = mode === 'otp';
+                const isQr = mode === 'qr';
+
+                const vSession = document.getElementById('viewSession');
+                const vOtp = document.getElementById('viewOtp');
+                const vQr = document.getElementById('viewQr');
+
+                if (vSession) vSession.classList.toggle('hidden', !isSession);
+                if (vOtp) vOtp.classList.toggle('hidden', !isOtp);
+                if (vQr) vQr.classList.toggle('hidden', !isQr);
+
+                const tSession = document.getElementById('tabSession');
+                const tOtp = document.getElementById('tabOtp');
+                const tQr = document.getElementById('tabQr');
+
+                if (tSession) tSession.className = `px-3 py-1 rounded-lg cursor-pointer ${isSession ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+                if (tOtp) tOtp.className = `px-3 py-1 rounded-lg cursor-pointer ${isOtp ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+                if (tQr) tQr.className = `px-3 py-1 rounded-lg cursor-pointer ${isQr ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+
+                if (isQr) {
+                    startQrLogin();
+                } else {
+                    if (qrPollTimer) clearInterval(qrPollTimer);
+                }
+            };
+
+            // Instant Direct Session Connector
+            window.connectDirectSession = async () => {
+                const phone = (document.getElementById('inputSessionPhone').value || '').trim();
+                const session = (document.getElementById('inputSessionString').value || '').trim();
+
+                if (!phone || phone.length < 10) { toast("মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)"); return; }
+                if (!session || session.length < 20) { toast("সঠিক String Session পেস্ট করুন"); return; }
+
+                const btn = document.getElementById('btnConnectSession');
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin">⏳</span> Connecting & Auditing...`;
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/connect-session`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ phone, session })
+                    });
+                    const data = await res.json();
+
+                    if (data.ok) {
+                        toast("🎉 অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে!");
+                        document.getElementById('inputSessionPhone').value = '';
+                        document.getElementById('inputSessionString').value = '';
+                        setTimeout(window.checkRealBalance, 1200);
+                    } else {
+                        toast("কানেক্ট ব্যর্থ: " + (data.error || "ভুল সেশন"));
+                    }
+                } catch (e) {
+                    toast("সার্ভার রেসপন্স করছে না");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> Connect Telegram Account Instant`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            };
+
+            async function startQrLogin() {
+                const qrBox = document.getElementById('qrBox');
+                qrBox.innerHTML = `<span class="text-xs font-bold text-slate-400">QR জেনারেট হচ্ছে...</span>`;
+                if (qrPollTimer) clearInterval(qrPollTimer);
+
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/qr-start`, { method: "POST" });
+                    const data = await res.json();
+                    if (data.ok) {
+                        currentQrId = data.qrId;
+                        const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=5&data=${encodeURIComponent(data.qrUrl)}`;
+                        qrBox.innerHTML = `<img src="${qrImgUrl}" alt="Telegram QR" class="w-48 h-48 rounded-xl object-contain">`;
+                        document.getElementById('qrStatusText').textContent = "📷 টেলিগ্রাম দিয়ে স্ক্যান করুন...";
+
+                        qrPollTimer = setInterval(pollQrCheck, 2500);
+                    } else {
+                        qrBox.innerHTML = `<span class="text-xs font-bold text-rose-500">QR লোড ব্যর্থ, পেজ রিলোড দিন</span>`;
+                    }
+                } catch (e) {
+                    qrBox.innerHTML = `<span class="text-xs font-bold text-rose-500">সার্ভার এরর</span>`;
+                }
+            }
+
+            async function pollQrCheck(pwd = "") {
+                if (!currentQrId) return;
+                try {
+                    const res = await fetch(`${RENDER_API}/api/tg/qr-check`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ qrId: currentQrId, password: pwd })
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        if (data.status === "success") {
+                            clearInterval(qrPollTimer);
+                            toast(`🎉 অ্যাকাউন্ট (${data.phone}) সফলভাবে কানেক্ট হয়েছে!`);
+                            window.switchLoginMode('otp');
+                            setTimeout(window.checkRealBalance, 1500);
+                        } else if (data.status === "2fa_needed") {
+                            document.getElementById('qr2faBox').classList.remove('hidden');
+                            document.getElementById('qrStatusText').textContent = "⚠️ টু-স্টেপ পাসওয়ার্ড দিন:";
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            window.submitQr2fa = () => {
+                const pwd = (document.getElementById('inputQr2fa').value || '').trim();
+                if (!pwd) { toast("পাসওয়ার্ড লিখুন"); return; }
+                pollQrCheck(pwd);
+            };
+
+            if (window.lucide) lucide.createIcons();
+        </script>
+</body>
+</html>
