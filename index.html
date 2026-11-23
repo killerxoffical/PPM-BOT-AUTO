@@ -9266,6 +9266,10 @@
         function disconnectServerCode() {
             window._serverConnectedAccount = null;
             window._matchedPortalService = null;
+            try {
+                localStorage.removeItem('ppm_last_qid');
+                localStorage.removeItem('ppm_server_connected_account');
+            } catch (e) { }
             const profileBox = document.getElementById('serverProfileBox');
             if (profileBox) profileBox.classList.add('hidden');
             const noProfileBox = document.getElementById('serverNoProfileBox');
@@ -9333,7 +9337,15 @@
                 if (!data || !data.ok) {
                     if (loader) loader.classList.add('hidden');
                     if (btn) btn.disabled = false;
-                    toast(data && data.error ? data.error : 'QID পাওয়া যায়নি বা মেয়াদ শেষ হয়ে গেছে।');
+                    try {
+                        localStorage.removeItem('ppm_last_qid');
+                        localStorage.removeItem('ppm_server_connected_account');
+                    } catch (e) { }
+                    window._serverConnectedAccount = null;
+                    if (data && data.deleted && input) {
+                        input.value = '';
+                    }
+                    toast(data && data.error ? data.error : 'QID পাওয়া যায়নি বা সার্ভার থেকে মুছে ফেলা হয়েছে।');
                     return;
                 }
 
@@ -11264,6 +11276,11 @@
 
             // ২. যদি কোনো ভ্যালিড QID না পাওয়া যায়
             if (!activeQid || activeQid.length < 5) {
+                try {
+                    localStorage.removeItem('ppm_last_qid');
+                    localStorage.removeItem('ppm_server_connected_account');
+                } catch (e) { }
+                window._serverConnectedAccount = null;
                 if (bodyEl) {
                     bodyEl.innerHTML = `
                         <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
@@ -11272,7 +11289,7 @@
                             </div>
                             <h4 class="text-xs font-black text-amber-900">আইডি ভ্যালিড নয়</h4>
                             <p class="text-xs font-bold text-amber-800 leading-relaxed">
-                                এই QID টি ভ্যালিড নয়। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।
+                                এই QID টি ভ্যালিড নয় বা সার্ভার থেকে মুছে ফেলা হয়েছে। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।
                             </p>
                             <button type="button" onclick="closeLiveCheckModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs rounded-lg transition-all cursor-pointer">
                                 বন্ধ করুন
@@ -11317,7 +11334,12 @@
                 const data = await res.json();
 
                 if (!data || !data.ok || !data.service) {
-                    const errMsg = (data && data.error) ? data.error : 'এই QID টি ভ্যালিড নয়। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।';
+                    try {
+                        localStorage.removeItem('ppm_last_qid');
+                        localStorage.removeItem('ppm_server_connected_account');
+                    } catch (e) { }
+                    window._serverConnectedAccount = null;
+                    const errMsg = (data && data.error) ? data.error : 'এই QID টি ভ্যালিড নয় বা সার্ভার থেকে মুছে ফেলা হয়েছে। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।';
                     bodyEl.innerHTML = `
                         <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
                             <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
