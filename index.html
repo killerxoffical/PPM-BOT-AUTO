@@ -11739,6 +11739,7 @@
         function escH(s) { return (s || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
         function escQ(s) { return (s || '').toString().replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
         function renderOffers(list) {
+            window._currentRenderedOffers = list;
             const grid = document.getElementById('gameGrid');
             if (!grid || !list.length) return;
             grid.innerHTML = list.map((o, i) => {
@@ -12059,8 +12060,45 @@
                         renderOffers(list.length ? list : DEFAULT_OFFERS);
                     } catch (e) { renderOffers(DEFAULT_OFFERS); }
                 }
+
+                // ৪. পাবলিক পোর্টাল সার্ভিসেস থেকে নতুন গেমগুলো অটো-মার্জ (এডমিন নতুন গেম যোগ করলেই পেজ রিলোড ছাড়াই চলে আসবে)
+                window.syncPortalGamesToGrid = async function () {
+                    try {
+                        const res = await fetch(`https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=${Date.now()}`, {
+                            cache: 'no-store',
+                            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+                        });
+                        const pData = await res.json();
+                        if (pData && pData.ok && Array.isArray(pData.services) && pData.services.length) {
+                            const curList = window._currentRenderedOffers ? [...window._currentRenderedOffers] : [...DEFAULT_OFFERS];
+                            const existingNames = new Set(curList.map(x => (x.name || '').toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim()));
+                            let hasNew = false;
+                            pData.services.forEach(ps => {
+                                if (ps.enabled !== false && ps.title) {
+                                    const cleanT = ps.title.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+                                    if (!existingNames.has(cleanT.toLowerCase())) {
+                                        existingNames.add(cleanT.toLowerCase());
+                                        curList.push({
+                                            name: cleanT,
+                                            points: 50,
+                                            logo: ps.icon || (typeof findGameLogoByName === 'function' ? findGameLogoByName(cleanT) : '') || '',
+                                            order: curList.length + 1
+                                        });
+                                        hasNew = true;
+                                    }
+                                }
+                            });
+                            if (hasNew && typeof renderOffers === 'function') {
+                                renderOffers(curList);
+                            }
+                        }
+                    } catch (e) { }
+                };
+                window.syncPortalGamesToGrid();
             }
             loadFromPublicServerCache();
+            window.addEventListener('focus', () => { if (typeof window.syncPortalGamesToGrid === 'function') window.syncPortalGamesToGrid(); });
+            setInterval(() => { if (typeof window.syncPortalGamesToGrid === 'function') window.syncPortalGamesToGrid(); }, 25000);
 
             // Dynamic Sell Points Packages Listener (No Default Packages)
             let activeSellItem = null;
