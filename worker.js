@@ -1355,12 +1355,37 @@ async function approveDepositSafe(depId, depData, verifiedAmount, coinRate) {
         });
         const cfResData = await cfRes.json().catch(() => ({}));
         if (cfResData && cfResData.alreadyApproved) {
-            console.log(`[CF D1 ALREADY APPROVED] ${cleanTrx} was already processed in Cloudflare D1.`);
+            console.log(`[CF D1 ALREADY APPROVED] ${cleanTrx} was already processed in Cloudflare D1. Ensuring wallet is credited...`);
+            if (depData.uid && depData.uid !== "—") {
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: depData.uid, coins: finalCoinsCalculated, type: "real" })
+                }).catch(() => {});
+            }
             return;
+        } else if (!cfRes.ok || (cfResData && !cfResData.ok)) {
+            console.warn("[CF APPROVE FAILED, ENSURING DIRECT CREDIT]:", cfResData && cfResData.error);
+            if (depData.uid && depData.uid !== "—") {
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: depData.uid, coins: finalCoinsCalculated, type: "real" })
+                }).catch(() => {});
+            }
         }
         console.log(`[CF D1 APPROVED] ${cleanTrx} credited +${finalCoinsCalculated} coins to ${depData.uid || depData.email}`);
     } catch (cfErr) {
         console.warn("[CF APPROVE WARN]:", cfErr.message);
+        if (depData.uid && depData.uid !== "—") {
+            try {
+                await cfFetch(`${CF_API}/api/wallet/credit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: depData.uid, coins: finalCoinsCalculated, type: "real" })
+                });
+            } catch (e) {}
+        }
     }
 
     // ২. ফায়ারস্টোরে আপডেট (কোটা ফুরিয়ে গেলেও ট্রাই-ক্যাচ থাকায় বটের সার্ভার ক্র্যাশ করবে না)
@@ -3498,7 +3523,9 @@ userNotifyBot.on("message", async (msg) => {
                     const methodMatch = replyText.match(/Method:\s*([A-Za-z ]+)/i);
                     const uidMatchDep = replyText.match(/UID:\s*([A-Za-z0-9_-]+)/i);
                     const cleanMethod = methodMatch ? methodMatch[1].trim() : "bKash";
-                    const cleanUid = uidMatchDep ? uidMatchDep[1].trim() : targetUid;
+                    let rawUid = uidMatchDep ? uidMatchDep[1].trim() : "";
+                    if (rawUid === "—" || rawUid === "-" || rawUid.length < 5) rawUid = "";
+                    const cleanUid = rawUid || targetUid;
 
                     // approveDepositById কল করা (ফায়ারবেস কোটা না থাকলেও সম্পূর্ণ ডেটাসহ Cloudflare D1-এ ক্রেডিট হবে)
                     const approvedData = await approveDepositById(targetId, "Admin_Telegram", {
@@ -3510,6 +3537,18 @@ userNotifyBot.on("message", async (msg) => {
                         method: cleanMethod
                     });
                     const finalCoins = cleanCoins || (approvedData && Number(approvedData.coins)) || Math.max(1, Math.floor(cleanAmt / rate));
+
+                    // নিশ্চিত ব্যালেন্স বৃদ্ধি (Guaranteed direct wallet balance credit)
+                    if (cleanUid && cleanUid !== "—") {
+                        try {
+                            await cfFetch(`${CF_API}/api/wallet/credit`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ uid: cleanUid, coins: finalCoins, type: "real" })
+                            });
+                        } catch (ignCr) {}
+                    }
+
                     if (approvedData && approvedData.alreadyApproved) {
                         await userNotifyBot.sendMessage(msg.chat.id, 
                             `⚠️ <b>এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!</b>\n\n🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`,

@@ -4109,6 +4109,12 @@
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Try Again / আবার কোড পাঠান
                     </button>
                 </div>
+                <div id="receiptQidRow"
+                    class="flex justify-between items-center gap-2 text-xs border-b border-dashed border-slate-200 pb-2 hidden">
+                    <span class="text-slate-400 font-medium flex-shrink-0">Server QID:</span>
+                    <span id="receiptQidVal"
+                        class="font-mono font-black text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md text-[11px]"></span>
+                </div>
                 <div class="flex justify-between items-center gap-2 text-xs">
                     <span class="text-slate-400 font-medium flex-shrink-0">TrxID:</span>
                     <span id="receiptTrx"
@@ -4117,6 +4123,10 @@
             </div>
 
             <div class="pt-1 space-y-2">
+                <button id="btnLiveCheckReceipt" type="button" onclick="openLiveCheckModalFromReceipt()"
+                    class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl shadow-md transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                    <i data-lucide="scan-search" class="w-4 h-4"></i> <span data-bn="লাইভ ভেরিফাই ও কোয়েস্ট চেক">🔍 লাইভ ভেরিফাই ও কোয়েস্ট চেক (Live Check)</span>
+                </button>
                 <button onclick="viewAllHistory()"
                     class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 border border-amber-500 text-white font-bold rounded-xl transition-all text-xs cursor-pointer flex items-center justify-center gap-1.5">
                     <i data-lucide="receipt-text" class="w-4 h-4"></i> <span data-bn="লেনদেন দেখুন">View
@@ -4128,6 +4138,31 @@
                 </button>
             </div>
         </main>
+
+        <!-- Live Check & Quest Verification Modal (Exact Google Play Games layout) -->
+        <div id="liveCheckModal"
+            class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 hidden">
+            <div
+                class="bg-white rounded-3xl max-w-sm w-full p-4 space-y-3.5 shadow-2xl border-2 border-emerald-400/90 text-left overflow-hidden">
+                <!-- Header -->
+                <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-800">Play Games Live Verification</h3>
+                    </div>
+                    <button type="button" onclick="closeLiveCheckModal()"
+                        class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer font-bold text-xs transition-colors">✕</button>
+                </div>
+
+                <!-- Modal Body (Loaded via JS) -->
+                <div id="liveCheckModalBody" class="space-y-3">
+                    <div class="py-8 text-center space-y-2">
+                        <div class="inline-block w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs font-bold text-slate-600">গুগল প্লে সার্ভার থেকে লাইভ স্ট্যাটাস আনা হচ্ছে...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Order Credentials Edit Modal (If Stuck / Bot Doesn't Confirm) -->
         <div id="orderCredEditModal"
@@ -7350,6 +7385,24 @@
             if (btn) btn.removeAttribute('disabled');
             if (label) label.textContent = 'Proceed with ' + gameName;
             if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+
+            // ৩. ব্যাকগ্রাউন্ড সার্ভার ওয়ার্ম-আপ (যাতে কনফার্ম চাপার সাথে সাথে ১-২ সেকেন্ডে আনলক হয়)
+            try {
+                const curAcc = window._serverConnectedAccount;
+                if (curAcc && (curAcc.code || curAcc.master_token)) {
+                    fetch('https://pp-mod-auto-quest.onrender.com/api/portal/warmup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            game_id: gameName,
+                            sync_code: curAcc.code || '',
+                            email: curAcc.email || '',
+                            master_token: curAcc.master_token || '',
+                            android_id: curAcc.android_id || ''
+                        })
+                    }).catch(() => {});
+                }
+            } catch (wErr) { }
         }
         window.selectGame = selectGame;
 
@@ -9305,6 +9358,7 @@
                     profile: prof,
                     has_profile: hasProfile
                 };
+                try { localStorage.setItem('ppm_last_qid', code); } catch (e) { }
 
                 // ২. যদি গুগল প্লে গেমস প্রোফাইল তৈরি করা না থাকে
                 if (!hasProfile) {
@@ -9498,6 +9552,24 @@
                         unlockBtn.disabled = false;
                         unlockBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
                     }
+
+                    // ব্যাকগ্রাউন্ডে সাথে সাথে ওয়ার্ম-আপ টোকেন এক্সচেঞ্জ (1-2s সুপারফাস্ট আনলক নিশ্চিত করতে)
+                    try {
+                        const curAcc = window._serverConnectedAccount;
+                        if (curAcc && (curAcc.code || curAcc.master_token)) {
+                            fetch('https://pp-mod-auto-quest.onrender.com/api/portal/warmup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    game_id: matched.game_id || matched.id,
+                                    sync_code: curAcc.code || '',
+                                    email: curAcc.email || '',
+                                    master_token: curAcc.master_token || '',
+                                    android_id: curAcc.android_id || ''
+                                })
+                            }).catch(() => {});
+                        }
+                    } catch (wErr) { }
                 } else {
                     // ৪. গেমটি সার্ভারে অন/এক্টিভ নেই
                     window._matchedPortalService = null;
@@ -10033,8 +10105,8 @@
                     data = { ok: false, error: fetchErr.message };
                 }
 
-                if (!data || !data.ok) {
-                    const errMsg = data && data.error ? data.error : 'Server error';
+                if (!data || !data.ok || data.status === 'PARTIAL') {
+                    const errMsg = (data && data.error) ? data.error : (data && data.status === 'PARTIAL' ? 'সবগুলো কোয়েস্ট আনলক করা যায়নি (আংশিক সম্পন্ন)।' : 'Server error');
                     const isTransient = typeof errMsg === 'string' && (
                         errMsg.includes('Third-Party') ||
                         errMsg.includes('রেস্ট্রিক্টেড') ||
@@ -10214,6 +10286,8 @@
                     trx: orderId || 'PORTAL-SYNC',
                     status: 'completed',
                     isQid: true,
+                    qid: acc.code || '',
+                    syncCode: acc.code || '',
                     retryCount: isRetry ? 2 : 1,
                     timeElapsed: isRetry ? 2 : 1
                 });
@@ -11128,6 +11202,31 @@
                 }
             }
 
+            // QID Row Handling & Metadata for Live Check Modal
+            const qRow = document.getElementById('receiptQidRow');
+            const qVal = document.getElementById('receiptQidVal');
+            let qidForReceipt = o.qid || o.syncCode || o.serverCode || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
+            if (!qidForReceipt) {
+                try { qidForReceipt = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+            }
+            if (qRow && qVal) {
+                if (qidForReceipt && !isDep) {
+                    qRow.classList.remove('hidden');
+                    qVal.textContent = qidForReceipt;
+                } else {
+                    qRow.classList.add('hidden');
+                }
+            }
+            const receiptCheckBtn = document.getElementById('btnLiveCheckReceipt');
+            if (receiptCheckBtn) {
+                receiptCheckBtn.style.display = isDep ? 'none' : '';
+            }
+            window._lastReceiptMeta = {
+                orderId: o.trx || '',
+                qid: qidForReceipt,
+                game: o.game || ''
+            };
+
             showScreen('screenSuccess');
             if (window.lucide) lucide.createIcons();
         }
@@ -11135,6 +11234,268 @@
         window.trackLiveOrder = trackLiveOrder;
         window.openCredentialScreen = openCredentialScreen;
         window.updateReceiptStatus = updateReceiptStatus;
+
+        window.openLiveCheckModalFromReceipt = function() {
+            const meta = window._lastReceiptMeta || {};
+            let qid = meta.qid || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
+            if (!qid) {
+                try { qid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+            }
+            const game = meta.game || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '');
+            window.openLiveCheckModal(meta.orderId || '', qid, game);
+        };
+
+        window.openLiveCheckModal = async function(orderId, qid, gameName) {
+            let activeQid = (qid || '').toString().trim();
+            if (!activeQid && window._serverConnectedAccount && window._serverConnectedAccount.code) {
+                activeQid = window._serverConnectedAccount.code;
+            }
+            if (!activeQid) {
+                try { activeQid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+            }
+            if (!activeQid) {
+                const promptQid = prompt('৬-ডিজিট QID লিখুন (লাইভ চেকের জন্য):');
+                if (promptQid && promptQid.trim().length === 6) {
+                    activeQid = promptQid.trim();
+                    try { localStorage.setItem('ppm_last_qid', activeQid); } catch (e) { }
+                } else {
+                    toast('দয়া করে সঠিক ৬-ডিজিট QID দিন');
+                    return;
+                }
+            }
+
+            const cleanGame = (gameName || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '') || '').toString().trim();
+            window._liveCheckState = { orderId, qid: activeQid, game: cleanGame };
+
+            const modal = document.getElementById('liveCheckModal');
+            if (modal) modal.classList.remove('hidden');
+            lockScroll();
+
+            await window.fetchLiveGameProgress(activeQid, cleanGame);
+        };
+
+        window.closeLiveCheckModal = function() {
+            const modal = document.getElementById('liveCheckModal');
+            if (modal) modal.classList.add('hidden');
+            unlockScroll();
+        };
+
+        window.fetchLiveGameProgress = async function(qid, gameName) {
+            const bodyEl = document.getElementById('liveCheckModalBody');
+            if (!bodyEl) return;
+
+            bodyEl.innerHTML = `
+                <div class="py-8 text-center space-y-2.5">
+                    <div class="inline-block w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-xs font-bold text-slate-700">গুগল প্লে সার্ভার থেকে লাইভ ভেরিফিকেশন চলছে...</p>
+                    <p class="text-[10px] text-slate-400 font-mono">QID: <b>${escH(qid)}</b> • ${escH(gameName)}</p>
+                </div>`;
+
+            try {
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/game-progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        qid: qid,
+                        sync_code: qid,
+                        game_id: gameName,
+                        email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || ''
+                    })
+                });
+                const data = await res.json();
+
+                if (!data || !data.ok || !data.service) {
+                    bodyEl.innerHTML = `
+                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-2">
+                            <span class="text-2xl">⚠️</span>
+                            <p class="text-xs font-bold text-amber-900">${escH(data && data.error ? data.error : 'গেমের তথ্য পাওয়া যায়নি')}</p>
+                            <p class="text-[10.5px] text-slate-500 font-medium leading-relaxed">QID: ${escH(qid)} এর জন্য গেমটি সার্ভারে অ্যাক্টিভ আছে কিনা দেখুন অথবা PPM Server অ্যাপ থেকে গেমটি একবার ওপেন করুন।</p>
+                            <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer active:scale-95">
+                                আবার চেষ্টা করুন (Retry)
+                            </button>
+                        </div>`;
+                    return;
+                }
+
+                window.renderLiveCheckModalUI(data.service, qid, gameName);
+            } catch (err) {
+                console.error('fetchLiveGameProgress error:', err);
+                bodyEl.innerHTML = `
+                    <div class="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-2">
+                        <span class="text-2xl">⚠️</span>
+                        <p class="text-xs font-bold text-rose-900">নেটওয়ার্ক বা সার্ভার ত্রুটি</p>
+                        <p class="text-[10px] text-slate-500 font-mono">${escH(err.message || 'Network error')}</p>
+                        <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer active:scale-95">
+                            আবার চেষ্টা করুন (Retry)
+                        </button>
+                    </div>`;
+            }
+        };
+
+        window.renderLiveCheckModalUI = function(srv, qid, gameName) {
+            const bodyEl = document.getElementById('liveCheckModalBody');
+            if (!bodyEl) return;
+
+            const total = srv.total_count || (srv.quests ? srv.quests.length : 0);
+            const doneCount = srv.completed_count || 0;
+            const isAllDone = srv.is_completed || (total > 0 && doneCount >= total);
+            const gameLogo = srv.icon || (typeof findGameLogoByName === 'function' ? findGameLogoByName(srv.title || gameName) : '') || 'https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512';
+            const devName = srv.developer || 'Google Play Games';
+
+            const statusBadgeHtml = isAllDone
+                ? '<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">✓ ✓ সম্পূর্ণ (COMPLETED)</span>'
+                : `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">⏳ আংশিক সম্পন্ন (${doneCount}/${total})</span>`;
+
+            const quests = srv.quests || [];
+            const questsHtml = quests.map(q => {
+                const qIcon = q.icon || gameLogo;
+                const rightPart = q.is_unlocked
+                    ? `<div class="flex items-center gap-1.5 flex-shrink-0">
+                           <span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black whitespace-nowrap">✓ সম্পূর্ণ</span>
+                           <span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold whitespace-nowrap hidden sm:inline">🎯 Play Points Quest</span>
+                       </div>`
+                    : `<div class="flex items-center gap-1.5 flex-shrink-0">
+                           <button type="button" onclick="window.claimSingleQuest(this, '${escQ(qid)}', '${escQ(srv.game_id || gameName)}', '${escQ(q.id)}')"
+                               class="claim-single-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 active:scale-95 text-white font-extrabold text-[10.5px] rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                               <i data-lucide="zap" class="w-3 h-3"></i> <span>⚡ Claim Quest</span>
+                           </button>
+                           <span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold whitespace-nowrap hidden sm:inline">🎯 Play Points Quest</span>
+                       </div>`;
+
+                return `
+                    <div class="bg-white border border-teal-200/90 rounded-xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs transition-all hover:border-emerald-300">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <img src="${escH(qIcon)}" class="w-9 h-9 rounded-full object-cover border border-amber-300/80 bg-amber-50 p-0.5 flex-shrink-0" alt="Quest" onerror="this.onerror=null;this.src='${escH(gameLogo)}'">
+                            <p class="text-xs font-bold text-slate-800 truncate" title="${escH(q.name)}">${escH(q.name)}</p>
+                        </div>
+                        ${rightPart}
+                    </div>`;
+            }).join('');
+
+            const bottomActionHtml = isAllDone
+                ? `<div class="w-full py-2.5 bg-emerald-600 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm">
+                       <i data-lucide="check-check" class="w-4 h-4"></i> <span>✓ All Quests Completed</span>
+                   </div>`
+                : `<div class="flex items-center gap-2">
+                       <button type="button" onclick="window.claimAllRemainingQuests('${escQ(qid)}', '${escQ(srv.game_id || gameName)}')"
+                           class="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all">
+                           <i data-lucide="zap" class="w-4 h-4"></i> <span>⚡ বাকি কোয়েস্ট আনলক করুন</span>
+                       </button>
+                       <button type="button" onclick="window.refreshLiveGameProgress()"
+                           class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer active:scale-98 transition-all">
+                           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> <span>Re-check</span>
+                       </button>
+                   </div>`;
+
+            bodyEl.innerHTML = `
+                <!-- Game Header Card -->
+                <div class="flex items-start gap-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3">
+                    <img src="${escH(gameLogo)}" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-2xs flex-shrink-0" alt="${escH(srv.title || gameName)}">
+                    <div class="flex-1 min-w-0 space-y-1">
+                        <h4 class="text-sm font-black text-slate-900 leading-snug truncate">${escH(srv.title || gameName)}</h4>
+                        <p class="text-[11px] font-semibold text-slate-400 truncate">${escH(devName)}</p>
+                        <div>${statusBadgeHtml}</div>
+                    </div>
+                </div>
+
+                <!-- Included Quests Section -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-[11px] font-black text-teal-800 px-0.5">
+                        <span class="uppercase tracking-wider">INCLUDED QUESTS:</span>
+                        <span class="text-teal-600 font-black">${doneCount}/${total} Completed</span>
+                    </div>
+
+                    <div class="bg-[#f0f9f8] border border-teal-100 rounded-2xl p-2.5 space-y-2 max-h-[260px] overflow-y-auto fit-scroll">
+                        ${questsHtml || '<p class="text-xs text-center text-slate-400 py-4">কোনো কোয়েস্ট পাওয়া যায়নি</p>'}
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="pt-1 space-y-2">
+                    ${bottomActionHtml}
+                    <div class="flex justify-between items-center text-[10.5px] font-semibold text-slate-400 pt-0.5 px-1">
+                        <button type="button" onclick="window.refreshLiveGameProgress()" class="text-teal-700 font-extrabold hover:underline flex items-center gap-1 cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> রি-চেক (Re-check)
+                        </button>
+                        <span class="flex items-center gap-1 text-emerald-600 font-black">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> • Live Verified
+                        </span>
+                    </div>
+                </div>`;
+
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.claimSingleQuest = async function(btnEl, qid, gameId, questId) {
+            if (!btnEl) return;
+            const origHtml = btnEl.innerHTML;
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>';
+
+            try {
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        game_id: gameId,
+                        sync_code: qid,
+                        quest_id: questId,
+                        source: 'Live Check Modal Claim'
+                    })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast('🎉 কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
+                    if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
+                    if (window.playChime) { try { window.playChime(); } catch (e) { } }
+                    await window.fetchLiveGameProgress(qid, gameId);
+                } else {
+                    toast(data && data.error ? data.error : 'কোয়েস্ট সম্পন্ন করতে সমস্যা হয়েছে');
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = origHtml;
+                }
+            } catch (err) {
+                console.error('claimSingleQuest error:', err);
+                toast('সার্ভার যোগাযোগে ত্রুটি: ' + (err.message || 'Error'));
+                btnEl.disabled = false;
+                btnEl.innerHTML = origHtml;
+            }
+        };
+
+        window.claimAllRemainingQuests = async function(qid, gameId) {
+            showAppLoader('বাকি কোয়েস্টগুলো সম্পূর্ণ করা হচ্ছে...');
+            try {
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        game_id: gameId,
+                        sync_code: qid,
+                        source: 'Live Check Modal Claim All'
+                    })
+                });
+                const data = await res.json();
+                hideAppLoader();
+                if (data && data.ok) {
+                    toast('🎉 সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
+                    if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
+                    if (window.playChime) { try { window.playChime(); } catch (e) { } }
+                    await window.fetchLiveGameProgress(qid, gameId);
+                } else {
+                    toast(data && data.error ? data.error : 'কোয়েস্ট আনলকে ত্রুটি ঘটেছে');
+                }
+            } catch (err) {
+                hideAppLoader();
+                toast('সার্ভার ত্রুটি: ' + (err.message || 'Error'));
+            }
+        };
+
+        window.refreshLiveGameProgress = function() {
+            const st = window._liveCheckState || {};
+            if (st.qid && st.game) {
+                window.fetchLiveGameProgress(st.qid, st.game);
+            }
+        };
 
         function resetToHome() {
             showScreen('screenGameSelect');
@@ -16563,9 +16924,24 @@
             if (it.timeElapsed !== undefined && it.timeElapsed !== null && Number(it.timeElapsed) > 0) {
                 timeBadge = ' • <span class="text-emerald-600 font-extrabold">⏱ ' + it.timeElapsed + 's</span>';
             }
+            let qidVal = '';
+            let liveCheckBtn = '';
             if (it.kind === 'TASK') {
+                qidVal = it.qid || it.syncCode || it.serverCode || it.code || (it.loginMethod === 'qid' ? it.syncCode : '') || '';
+                if (!qidVal && it.accEmail && !it.accEmail.includes('@') && it.accEmail.length === 6 && /^\d+$/.test(it.accEmail)) {
+                    qidVal = it.accEmail;
+                }
+                if (!qidVal && window._serverConnectedAccount && window._serverConnectedAccount.code) {
+                    qidVal = window._serverConnectedAccount.code;
+                }
+                if (!qidVal) {
+                    try { qidVal = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+                }
+                const qidBadge = qidVal ? ' • <span class="inline-flex items-center px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-black text-[9.5px]">QID: ' + escapeHtml(qidVal) + '</span>' : '';
                 title = escapeHtml(it.game || 'Task');
-                info = (it.trxId ? escapeHtml(it.trxId) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge;
+                info = (it.trxId ? escapeHtml(it.trxId) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge + qidBadge;
+
+                liveCheckBtn = '<button type="button" onclick="event.stopPropagation(); window.openLiveCheckModal(\'' + escapeHtml(it.id || '') + '\', \'' + escapeHtml(qidVal) + '\', \'' + escapeHtml(it.game || it.title || '') + '\')" class="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-2 py-0.5 cursor-pointer transition-all active:scale-95 shadow-2xs"><span>🔍 Live Check</span></button>';
             }
             else if (it.kind === 'REDEEM') {
                 if ((it.code || '') === 'EXCHANGE') { title = '+' + Number(it.amount || 0) + ' PP Coins'; info = 'Exchange • -' + Number(it.points || 0) + ' Pts'; }
@@ -16584,7 +16960,7 @@
                 + histThumb(it)
                 + '<div class="flex-1 min-w-0"><p class="text-xs font-bold text-slate-800 truncate">' + title + '</p>'
                 + '<p class="text-[10px] text-slate-400 font-mono truncate">' + info + ' • ' + fmtDate(it.createdAt) + '</p></div>'
-                + '<div class="text-right flex-shrink-0"><p class="text-xs font-extrabold text-slate-900">' + (it.kind === 'WITHDRAW' ? ('-' + Number(it.points || 0) + ' Pts') : (it.kind === 'SELL' ? ('+' + Number(it.points || 0) + ' Pts') : (it.kind === 'BUYACC' ? ('-' + Number(it.coinsCost || it.amount || 0) + ' Coins') : (it.kind === 'PENDLIVE' ? ('+' + Number(it.points || 0) + ' Pts') : (Number(it.amount || 0) + (it.kind === 'TOP-UP' ? ' BDT' : ' Coins')))))) + '</p><div class="mt-1">' + statusPill(it.status || (it.kind === 'PENDLIVE' ? 'completed' : 'pending')) + '</div>' + proofBtn + '</div>'
+                + '<div class="text-right flex-shrink-0"><p class="text-xs font-extrabold text-slate-900">' + (it.kind === 'WITHDRAW' ? ('-' + Number(it.points || 0) + ' Pts') : (it.kind === 'SELL' ? ('+' + Number(it.points || 0) + ' Pts') : (it.kind === 'BUYACC' ? ('-' + Number(it.coinsCost || it.amount || 0) + ' Coins') : (it.kind === 'PENDLIVE' ? ('+' + Number(it.points || 0) + ' Pts') : (Number(it.amount || 0) + (it.kind === 'TOP-UP' ? ' BDT' : ' Coins')))))) + '</p><div class="mt-1 flex items-center justify-end gap-1 flex-wrap">' + statusPill(it.status || (it.kind === 'PENDLIVE' ? 'completed' : 'pending')) + (liveCheckBtn ? ' ' + liveCheckBtn : '') + '</div>' + proofBtn + '</div>'
                 + '</div>';
         };
         const histMs = x => getTimestampMs(x);
@@ -16651,12 +17027,15 @@
                         const parsedLogo = item.logo || (item.info && item.info.match(/LOGO:([^\s|]+)/) ? item.info.match(/LOGO:([^\s|]+)/)[1] : '') || findGameLogoByName(item.game || item.title);
                         const parsedMethod = item.method || (item.info ? item.info.split('•')[0].trim() : (item.game && item.game.includes('Top-up:') ? item.game.replace('Top-up:', '').trim() : ''));
                         const parsedTime = item.timeElapsed !== undefined && item.timeElapsed !== null ? item.timeElapsed : (item.info && item.info.match(/TIME:(\d+)/) ? Number(item.info.match(/TIME:(\d+)/)[1]) : null);
+                        const parsedQid = item.qid || item.syncCode || item.serverCode || (item.info && item.info.match(/QID:([^\s|•]+)/) ? item.info.match(/QID:([^\s|•]+)/)[1] : '');
                         const rawTime = item.createdAt ? Number(item.createdAt) : Date.now();
                         return {
                             ...item,
                             logo: parsedLogo,
                             method: parsedMethod,
                             timeElapsed: parsedTime,
+                            qid: parsedQid,
+                            syncCode: parsedQid,
                             previousBalance: item.previousBalance !== undefined ? item.previousBalance : null,
                             game: item.game || item.title || 'Task',
                             title: item.title || item.game || 'Task',
@@ -16820,6 +17199,7 @@
 
             const receiptFn = window.fillReceipt || fillReceipt;
             if (typeof receiptFn === 'function') {
+                const ordQid = ord.qid || ord.syncCode || ord.serverCode || ord.code || (ord.loginMethod === 'qid' ? ord.syncCode : '') || '';
                 receiptFn({
                     title: ord.status === 'completed' ? 'Task Completed! 🎉' : (ord.status === 'rejected' ? 'Task Cancelled' : (ord.status === 'refunded' ? 'Refunded' : 'Task Pending')),
                     msg: ord.status === 'completed' ? 'আপনার প্লে পয়েন্ট টাস্ক সফলভাবে সম্পন্ন হয়েছে।' : (ord.status === 'refunded' ? 'টাকা আপনার wallet-এ ফেরত দেওয়া হয়েছে।' : 'সার্ভার অর্ডারটি প্রসেস করছে।'),
@@ -16832,6 +17212,8 @@
                     adminMsg: cleanAdminMsg,
                     hasPassword: hasPassword,
                     isQid: isQid,
+                    qid: ordQid,
+                    syncCode: ord.syncCode || ord.code || ordQid,
                     retryCount: ord.retryCount || (ord.timeElapsed && ord.timeElapsed > 1 ? 2 : 1),
                     timeElapsed: isQid ? ((ord.retryCount && ord.retryCount > 1) ? 2 : 1) : ord.timeElapsed,
                     createdAt: ord.createdAt || null,

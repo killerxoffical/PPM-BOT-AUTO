@@ -1504,6 +1504,12 @@ export default {
             UPDATE transactions SET info = info || ' | TIME:' || ? WHERE id = ?
           `).bind(timeElapsed, orderId).run().catch(() => { });
         }
+        if (body.qid || body.syncCode) {
+          const sQid = String(body.qid || body.syncCode).trim();
+          await env.DB.prepare(`
+            UPDATE transactions SET info = info || ' | QID:' || ? WHERE id = ?
+          `).bind(sQid, orderId).run().catch(() => { });
+        }
         if (gamerName !== undefined) { updates.push("gamerName = ?"); params.push(gamerName); }
         if (accEmail !== undefined) { updates.push("accEmail = ?"); params.push(accEmail); }
         if (accPass !== undefined) { updates.push("accPass = ?"); params.push(accPass); }
@@ -1698,9 +1704,24 @@ export default {
         const cleanTrx = (trxId || "").trim().toUpperCase();
         if (!cleanTrx) return json({ ok: false, error: "Missing trxId" }, 400);
 
+        const finalDepId = depId || `DEP-${cleanTrx}`;
         let targetUid = (uid || "").trim();
 
-        // যদি UID না থাকে (যেমন টেলিগ্রাম বট থেকে ইমেইল পাঠানো হলে), ইমেইল দিয়ে UID স্বয়ংক্রিয়ভাবে বের করা
+        // যদি UID খালি বা '—' থাকে, deposits টেবিল থেকে সঠিক ইউজার UID ও ইমেইল উদ্ধার করা
+        if (!targetUid || targetUid === "—" || targetUid === "undefined" || targetUid === "null") {
+          targetUid = "";
+          const depLookup = await env.DB.prepare(`
+            SELECT uid, email, coins, amount FROM deposits WHERE id = ? OR trxId = ? LIMIT 1
+          `).bind(finalDepId, cleanTrx).first();
+          if (depLookup && depLookup.uid && depLookup.uid !== "—") {
+            targetUid = depLookup.uid;
+            if (!email && depLookup.email) email = depLookup.email;
+            if (!coins && depLookup.coins) coins = depLookup.coins;
+            if (!amount && depLookup.amount) amount = depLookup.amount;
+          }
+        }
+
+        // যদি এখনও UID না পাওয়া যায়, তবে ইমেইল দিয়ে user_wallets থেকে খোঁজা
         if (!targetUid && email) {
           const uRow = await env.DB.prepare(`
             SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1
@@ -1709,8 +1730,6 @@ export default {
         }
 
         if (!targetUid) return json({ ok: false, error: "User not found in Cloudflare D1 by UID or Email" }, 400);
-
-        const finalDepId = depId || `DEP-${cleanTrx}`;
 
         // ০. চেক: এই TrxID অথবা ডিপোজিট ইতিমধ্যে ব্যবহৃত বা অ্যাপ্রুভড হয়েছে কিনা
         const existingDep = await env.DB.prepare(`
@@ -1736,7 +1755,11 @@ export default {
           if (doubleCheck && doubleCheck.status === 'approved') {
             return json({ ok: true, alreadyApproved: true, message: "ডিপোজিট ইতিমধ্যে অ্যাপ্রুভড হয়েছে।" });
           }
-          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য কোনো ডিপোজিটে ব্যবহৃত বা লক করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+          // If the deposit exists and is pending, allow admin approval to proceed!
+          const pendingCheck = await env.DB.prepare(`SELECT status FROM deposits WHERE id = ? OR trxId = ? LIMIT 1`).bind(finalDepId, cleanTrx).first();
+          if (!pendingCheck || pendingCheck.status !== 'pending') {
+            return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য কোনো ডিপোজিটে ব্যবহৃত বা লক করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+          }
         }
 
         // ২. Atomic Status Update on Deposit (Preventing double balance credit)
@@ -1757,12 +1780,21 @@ export default {
           `).bind(finalDepId, targetUid, method || "bKash", Number(amount) || 0, addCoins, cleanTrx, now).run();
         }
 
-        // ৩. Atomic Wallet Increment in Cloudflare D1 (Zero dirty read risk)
-        await env.DB.prepare(`
-          UPDATE user_wallets 
-          SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
-          WHERE uid = ?
-        `).bind(addCoins, addCoins, Math.round(Number(amount) || 0), now, targetUid).run();
+        // ৩. Guaranteed Wallet Increment in Cloudflare D1 (Zero missing wallet risk)
+        const userWallet = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE uid = ? LIMIT 1`).bind(targetUid).first();
+        if (!userWallet) {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, banReason, updatedAt)
+            VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, 0, '', ?)
+            ON CONFLICT(uid) DO UPDATE SET balance = balance + excluded.balance, realBalance = realBalance + excluded.realBalance, updatedAt = excluded.updatedAt
+          `).bind(targetUid, "User", email || "", addCoins, addCoins, Math.round(Number(amount) || 0), now).run();
+        } else {
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = balance + ?, realBalance = realBalance + ?, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(addCoins, addCoins, Math.round(Number(amount) || 0), now, targetUid).run();
+        }
 
         // ৪. Mark claimed in gateway_sms if matching SMS exists
         await env.DB.prepare(`
