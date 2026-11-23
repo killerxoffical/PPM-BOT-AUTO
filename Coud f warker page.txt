@@ -1465,14 +1465,22 @@ export default {
       // 3b. এডমিন প্যানেলের জন্য সমস্ত অর্ডার ফেচ (Admin All Orders)
       if (path === "/api/admin/orders" && request.method === "GET") {
         const status = url.searchParams.get("status");
+        const reqUid = url.searchParams.get("uid");
         let q = "SELECT * FROM orders";
         const params = [];
-        if (status && status !== "all") {
-          q += " WHERE status = ? ORDER BY createdAt DESC LIMIT 200";
-          params.push(status);
-        } else {
-          q += " ORDER BY CASE WHEN status IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
+        const conds = [];
+        if (reqUid) {
+          conds.push("uid = ?");
+          params.push(reqUid);
         }
+        if (status && status !== "all") {
+          conds.push("status = ?");
+          params.push(status);
+        }
+        if (conds.length > 0) {
+          q += " WHERE " + conds.join(" AND ");
+        }
+        q += " ORDER BY CASE WHEN status IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
         const { results } = await env.DB.prepare(q).bind(...params).all();
         return json({ ok: true, orders: results || [] });
       }
@@ -1486,6 +1494,14 @@ export default {
           accEmail, accPass, userTgId, inQueue, queuePosition, queuePercent
         } = body;
         if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
+
+        // Security: Prevent duplicate completion abuse
+        if (status === "completed") {
+          const checkCompleted = await env.DB.prepare("SELECT status FROM orders WHERE id = ?").bind(orderId).first();
+          if (checkCompleted && checkCompleted.status === "completed") {
+            return json({ ok: true, message: "Order was already completed", alreadyCompleted: true });
+          }
+        }
 
         let query = "UPDATE orders SET ";
         const params = [];

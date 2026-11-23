@@ -5266,7 +5266,7 @@
             </div>
 
             <!-- SUB-VIEW 2: AUTO QUEST SELECTION (Header with centered title and flushed game cards) -->
-            <div id="ppServiceQuestView" class="hidden flex-1 flex-col overflow-y-auto space-y-2 pb-24 pr-1 scrollbar-none">
+            <div id="ppServiceQuestView" class="hidden flex-1 flex-col overflow-y-auto space-y-2 pb-2 pr-1 scrollbar-none">
                 <!-- Subview Header (Becomes the top header of the screen) -->
                 <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 flex-shrink-0">
                     <button type="button" onclick="openPPServiceHub()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer flex-shrink-0">
@@ -5291,7 +5291,7 @@
             </div>
 
             <!-- Bottom Floating Bar for Selected Game (Directly Above Navbar with Smooth Animation) -->
-            <div id="ppServiceCtaBar" class="hidden absolute bottom-1.5 left-2 right-2 z-40 pointer-events-auto">
+            <div id="ppServiceCtaBar" class="hidden flex-shrink-0 w-full pt-1.5 pb-0.5 z-40">
                 <div class="text-white px-3 py-2 rounded-xl border border-emerald-400/40 shadow-xl flex items-center justify-between gap-3"
                     style="background: linear-gradient(135deg, #059669 0%, #0d9488 60%, #047857 100%);">
                     <div class="flex items-center gap-2.5 min-w-0">
@@ -7769,6 +7769,19 @@
                     window.clearPPServiceGameSelection(true);
                 }
             }
+            if (id !== 'screenGameSelect' && id !== 'screenPayment') {
+                selectedGame = null;
+                selectedGameLogo = '';
+                if (typeof resetSelectedGamePill === 'function') resetSelectedGamePill();
+                const bar = document.getElementById('ctaBar');
+                const btn = document.getElementById('startBtn');
+                if (bar) bar.classList.add('hidden');
+                if (btn) btn.setAttribute('disabled', 'true');
+                document.querySelectorAll('.game-card').forEach(card => {
+                    card.classList.remove('is-selected');
+                    card.setAttribute('aria-pressed', 'false');
+                });
+            }
             const navMap = { screenGameSelect: 'home', screenStore: 'store', screenPPService: 'ppservice', screenEarn: 'earn', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
             if (window.paintNav) paintNav(navMap[id] || null);
             // Translation system removed per user request
@@ -9166,6 +9179,12 @@
             if (window.lucide) lucide.createIcons();
         }
         function openCredentialScreen(game, logo) {
+            const orderId = window._currentOrderId;
+            if (!orderId || (window._completedOrders && window._completedOrders.has(orderId))) {
+                toast('⚠️ কোনো সক্রিয় অর্ডার নেই! অনুগ্রহ করে প্রথমে টাস্ক সিলেক্ট করে পে করুন।');
+                if (typeof showScreen === 'function') showScreen('screenOffers');
+                return;
+            }
             try {
                 const em = document.getElementById('accEmail');
                 const ps = document.getElementById('accPass');
@@ -9244,6 +9263,12 @@
             const tgSaved = ((window.ppfb && window.ppfb.tgChatId) || '').trim();
             const tgId = tgSaved || (document.getElementById('accTgId').value || '').trim();
             const orderId = window._currentOrderId;
+
+            if (!orderId || (window._completedOrders && window._completedOrders.has(orderId))) {
+                toast('⚠️ কোনো সক্রিয় অর্ডার নেই! অনুগ্রহ করে প্রথমে টাস্ক সিলেক্ট করে পে করুন।');
+                if (typeof showScreen === 'function') showScreen('screenOffers');
+                return;
+            }
 
             if (!email || !pass) {
                 toast('Gmail ও Password দুটিই অবশ্যই দিতে হবে!');
@@ -9337,6 +9362,15 @@
                     status: 'pending'
                 });
                 trackLiveOrder(orderId);
+                if (!window._completedOrders) window._completedOrders = new Set();
+                window._completedOrders.add(orderId);
+                try {
+                    const saved = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
+                    if (!saved.includes(orderId)) saved.push(orderId);
+                    sessionStorage.setItem('ppm_completed_orders', JSON.stringify(saved));
+                } catch (e) {}
+                window._currentOrderId = null;
+                window._currentOrderMeta = null;
                 document.getElementById('accEmail').value = '';
                 document.getElementById('accPass').value = '';
                 document.getElementById('accTgId').value = '';
@@ -10348,12 +10382,24 @@
             const orderId = window._currentOrderId;
             const curGame = window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '';
 
+            if (!orderId || (window._completedOrders && window._completedOrders.has(orderId))) {
+                toast('⚠️ এই অর্ডারটি ইতিমধ্যে সম্পন্ন হয়েছে! নতুন টাস্কের জন্য দয়া করে পুনরায় অর্ডার করুন।');
+                if (typeof showScreen === 'function') showScreen('screenOffers');
+                return;
+            }
+            if (window._isOrderExecuting && !isRetry) {
+                return;
+            }
+            window._isOrderExecuting = true;
+
             if (!acc || (!acc.master_token && !acc.code)) {
                 toast('দয়া করে প্রথমে ৬-ডিজিট QID দিয়ে কানেক্ট করুন!');
+                window._isOrderExecuting = false;
                 return;
             }
             if (!srv) {
                 toast('সার্ভারে এই গেমটি সক্রিয় নেই!');
+                window._isOrderExecuting = false;
                 return;
             }
 
@@ -10367,7 +10413,8 @@
 
             try {
                 // সার্ভারে নির্দিষ্ট আনলক এন্ডপয়েন্ট কল করা
-                const webUid = (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : (localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || 'Web User');
+                const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || window.currentUser || null;
+                const webUid = (cu && cu.uid) || (localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || '');
                 const accName = (acc.profile && acc.profile.display_name) || (acc.email ? acc.email.split('@')[0] : 'Play Gamer');
 
                 const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
@@ -10604,6 +10651,22 @@
                 }
 
                 showScreen('screenSuccess');
+
+                // অর্ডার স্থায়ীভাবে কমপ্লিট হিসেবে মার্ক করা এবং স্টেট নাল করা যাতে রিইউজ বন্ধ হয়
+                if (!window._completedOrders) window._completedOrders = new Set();
+                if (orderId) {
+                    window._completedOrders.add(orderId);
+                    try {
+                        const saved = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
+                        if (!saved.includes(orderId)) saved.push(orderId);
+                        sessionStorage.setItem('ppm_completed_orders', JSON.stringify(saved));
+                    } catch (e) {}
+                }
+                window._currentOrderId = null;
+                window._currentOrderMeta = null;
+                window._serverConnectedAccount = null;
+                window._matchedPortalService = null;
+                if (typeof disconnectServerCode === 'function') disconnectServerCode();
             } catch (err) {
                 console.error('Server unlock error:', err);
                 toast(`আনলক প্রক্রিয়ায় ত্রুটি ঘটেছে: ${err.message}`);
@@ -10612,6 +10675,8 @@
                     btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
                     if (window.lucide) lucide.createIcons();
                 }
+            } finally {
+                window._isOrderExecuting = false;
             }
         }
         window.executeServerQuestUnlock = executeServerQuestUnlock;
@@ -10758,7 +10823,7 @@
                         orderId: oid,
                         answer: answer,
                         captchaId: captchaId || '',
-                        uid: (window.currentUser && window.currentUser.uid) ? window.currentUser.uid : ''
+                        uid: (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || (window.currentUser && window.currentUser.uid) || ''
                     })
                 });
                 const data = await res.json().catch(() => ({ ok: res.ok }));
@@ -14916,6 +14981,8 @@
             if (typeof window !== 'undefined') {
                 window.selectedGame = null;
                 window.selectedGameLogo = '';
+                window._ppServiceSelectedGame = null;
+                window._ppServiceSelectedGameLogo = '';
                 if (clearPayGame) {
                     window._payGame = null;
                     window._payGameLogo = '';
@@ -14927,8 +14994,13 @@
                 ctaBar.classList.remove('cta-anim-in', 'cta-anim-switch');
             }
             document.querySelectorAll('.pp-game-card').forEach(c => {
-                c.classList.remove('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                c.classList.remove('border-emerald-600', 'border-2', 'bg-emerald-50/50', 'is-selected');
                 c.classList.add('border-slate-300');
+                const imgWrap = c.querySelector('.overflow-hidden.border-r');
+                if (imgWrap) {
+                    imgWrap.classList.remove('border-emerald-600');
+                    imgWrap.classList.add('border-slate-300');
+                }
                 const checkEl = c.querySelector('.rounded-full');
                 if (checkEl) {
                     checkEl.className = 'w-5 h-5 rounded-full border border-slate-400 text-transparent flex items-center justify-center transition-all';
@@ -15060,14 +15132,14 @@
                 const qCount = g.quests || 1;
                 // Seconds calculation: 1 quest -> 1s, 2 quests -> 2s, 3+ quests -> 3s (max 3s)
                 const sec = qCount <= 1 ? 1 : (qCount === 2 ? 2 : 3);
-                const isSel = (selectedGame === gName || window.selectedGame === gName);
+                const isSel = (window._ppServiceSelectedGame === gName || window.selectedGame === gName);
 
                 html += `
                 <div onclick="window.selectPPServiceGameByIndex(${idx}, this)"
-                    class="pp-game-card group relative overflow-hidden rounded-lg bg-white border ${isSel ? 'border-emerald-600 ring-2 ring-emerald-500/40 bg-emerald-50/50 is-selected shadow-xs' : 'border-slate-300 hover:border-emerald-400 hover:shadow-2xs'} cursor-pointer transition-all active:scale-[0.99] flex items-center justify-between h-[62px]">
+                    class="pp-game-card group relative overflow-hidden rounded-xl bg-white ${isSel ? 'border-2 border-emerald-600 bg-emerald-50/50 is-selected shadow-xs' : 'border border-slate-300 hover:border-slate-400 hover:shadow-2xs'} cursor-pointer transition-all active:scale-[0.99] flex items-center justify-between h-[62px]">
                     <div class="flex items-center h-full min-w-0 flex-1">
-                        <div class="h-full w-[62px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative">
-                            <img src="${escH(gLogo)}" alt="${escH(gName)}" class="w-full h-full object-cover scale-[1.14]" onerror="this.src='brand_logo.png'">
+                        <div class="h-full w-[62px] flex-shrink-0 overflow-hidden border-r ${isSel ? 'border-emerald-600' : 'border-slate-300'} rounded-l-[10px] relative bg-slate-50 flex items-center justify-center">
+                            <img src="${escH(gLogo)}" alt="${escH(gName)}" class="w-full h-full object-cover rounded-l-[10px]" onerror="this.src='brand_logo.png'">
                         </div>
                         <div class="min-w-0 flex-1 px-3 py-1.5">
                             <p class="text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">${escH(gName)}</p>
@@ -15106,19 +15178,33 @@
 
         window.selectPPServiceGame = function (cardEl, gameName, gameLogo, durationSec = 1) {
             const ctaBar = document.getElementById('ppServiceCtaBar');
+
+            // 1 ক্লিকে সিলেক্ট, আবার একই গেমে ক্লিক করলে আনসিলেক্ট
+            if ((window._ppServiceSelectedGame === gameName || window.selectedGame === gameName) && cardEl && cardEl.classList.contains('is-selected')) {
+                window.clearPPServiceGameSelection(true);
+                return;
+            }
+
             const wasHidden = !ctaBar || ctaBar.classList.contains('hidden');
-            const isSwitchingGame = (selectedGame && selectedGame !== gameName);
+            const isSwitchingGame = (window._ppServiceSelectedGame && window._ppServiceSelectedGame !== gameName);
 
             selectedGame = gameName;
             selectedGameLogo = gameLogo || '';
             window.selectedGame = gameName;
             window.selectedGameLogo = gameLogo || '';
+            window._ppServiceSelectedGame = gameName;
+            window._ppServiceSelectedGameLogo = gameLogo || '';
             window._payGame = gameName;
             window._payGameLogo = gameLogo || '';
 
             document.querySelectorAll('.pp-game-card').forEach(c => {
-                c.classList.remove('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                c.classList.remove('border-emerald-600', 'border-2', 'bg-emerald-50/50', 'is-selected');
                 c.classList.add('border-slate-300');
+                const imgWrap = c.querySelector('.overflow-hidden.border-r');
+                if (imgWrap) {
+                    imgWrap.classList.remove('border-emerald-600');
+                    imgWrap.classList.add('border-slate-300');
+                }
                 const checkEl = c.querySelector('.rounded-full');
                 if (checkEl) {
                     checkEl.className = 'w-5 h-5 rounded-full border border-slate-400 text-transparent flex items-center justify-center transition-all';
@@ -15126,7 +15212,12 @@
             });
             if (cardEl) {
                 cardEl.classList.remove('border-slate-300');
-                cardEl.classList.add('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                cardEl.classList.add('border-emerald-600', 'border-2', 'bg-emerald-50/50', 'is-selected');
+                const imgWrap = cardEl.querySelector('.overflow-hidden.border-r');
+                if (imgWrap) {
+                    imgWrap.classList.remove('border-slate-300');
+                    imgWrap.classList.add('border-emerald-600');
+                }
                 const checkEl = cardEl.querySelector('.rounded-full');
                 if (checkEl) {
                     checkEl.className = 'w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center transition-all';
@@ -15355,6 +15446,14 @@
 
         // Cloudflare D1 + Worker API Gateway Endpoint
         const CF_API = "https://ppmod-api.tredarskvt.workers.dev";
+
+        // Persistent completed orders registry to prevent duplicate unlock exploits
+        try {
+            const savedDone = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
+            window._completedOrders = new Set(savedDone);
+        } catch (e) {
+            window._completedOrders = new Set();
+        }
 
         // Cloudflare D1 Edge Wallet & Auto-Migration Helper
         async function syncD1Wallet(u, fbData = null) {
@@ -18153,7 +18252,12 @@
             _onAuth(auth, async (u) => {
                 const wasLoggedOut = localStorage.getItem('pp_logged_out') === '1';
                 if (u && !wasLoggedOut) {
+                    window.currentUser = u;
                     window.ppfb.user = u;
+                    try {
+                        localStorage.setItem('ppm_user_uid', u.uid);
+                        localStorage.setItem('pp_uid', u.uid);
+                    } catch (e) { }
                     window._loginAt = Date.now();
                     // Fresh state on login: clear previously selected game & active card states
                     window._selectedGame = null;
@@ -18204,6 +18308,7 @@
                     if (u && wasLoggedOut) {
                         try { await _signOut(auth); } catch (e) { }
                     }
+                    window.currentUser = null;
                     window.ppfb.user = null;
                     if (unsubBalance) { unsubBalance(); unsubBalance = null; }
                     setBalanceUI(0, 0, 0);

@@ -9407,8 +9407,36 @@
                 if (localU) u = { ...localU, banned: (localU.banned === 1 || localU.banned === true), banReason: localU.banReason || '' };
             }
 
-            const dep = (S.deposits || []).filter(d => d.uid === uid);
-            const ord = (S.orders || []).filter(d => d.uid === uid);
+            const dep = (S.deposits || []).filter(d => d.uid === uid || (u.email && (d.userEmail === u.email || d.email === u.email)));
+            let ord = (S.orders || []).filter(d => d.uid === uid || (u.email && (d.accEmail === u.email || d.email === u.email)));
+            try {
+                const cfOrdRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`).then(r => r.json()).catch(() => null);
+                if (cfOrdRes && cfOrdRes.ok && Array.isArray(cfOrdRes.orders)) {
+                    const ordMap = new Map();
+                    ord.forEach(o => ordMap.set(o.id, o));
+                    cfOrdRes.orders.forEach(o => {
+                        ordMap.set(o.id, {
+                            id: o.id,
+                            uid: o.uid,
+                            name: o.name || 'User',
+                            email: o.email || '',
+                            accEmail: o.accEmail || '',
+                            accPass: o.accPass || '',
+                            game: o.game || 'Task',
+                            logo: o.logo || '',
+                            amount: Number(o.amount) || 2,
+                            status: o.status || 'pending',
+                            adminMsg: o.adminMsg || '',
+                            gamerName: o.gamerName || '',
+                            userTgId: o.userTgId || '',
+                            createdAt: o.createdAt ? new Date(Number(o.createdAt) || o.createdAt) : new Date()
+                        });
+                    });
+                    ord = Array.from(ordMap.values()).sort((x, y) => msOf(y) - msOf(x));
+                }
+            } catch (e) {
+                console.warn('[userSheet orders direct fetch warn]:', e);
+            }
             const red = (S.redemptions || []).filter(d => d.uid === uid);
             const wd = (S.withdrawals || []).filter(d => d.uid === uid);
             const sell = (S.point_sells || []).filter(d => d.uid === uid);
