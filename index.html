@@ -4032,47 +4032,40 @@
                 </div>
             </div>
 
-            <!-- Cloud Execution & Realtime Thread Desk (Compact & Premium UI) -->
+            <!-- Task Status & Execution Desk (Compact & Premium UI) -->
             <div id="adminLiveMsgBox"
-                class="p-3.5 bg-white border border-slate-200/90 rounded-2xl text-left shadow-xs space-y-2 transition-all">
+                class="p-3.5 bg-white border border-slate-200/90 rounded-xl text-left shadow-xs space-y-2 transition-all">
                 <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
-                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-800 whitespace-nowrap">Cloud
-                            Processing Desk</span>
+                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-800 whitespace-nowrap">টাস্ক স্ট্যাটাস (Task Status)</span>
                     </div>
                     <div class="flex items-center gap-1.5 flex-shrink-0">
-                        <span id="activeThreadBadge"
-                            class="text-[9.5px] font-mono font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            ⚡ <span id="threadCountText">1st Thread</span>
-                        </span>
-                        <span
-                            class="text-[9.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">Live</span>
+                        <span id="activeThreadBadge" class="hidden"></span>
+                        <span class="text-[9.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md">Live</span>
                     </div>
                 </div>
                 <div id="adminLiveMsgText" class="min-h-0 text-left">
                     <p class="text-xs font-bold text-slate-700 leading-relaxed">
-                        সার্ভার আপনার কাজটি প্রসেস করছে। প্রয়োজনীয় আপডেট এখানে লাইভ প্রদর্শিত হবে।
+                        আপনার প্লে পয়েন্ট টাস্কটি সম্পন্ন হয়েছে। প্রয়োজনীয় তথ্য নিচে দেখতে পাবেন।
                     </p>
                 </div>
             </div>
 
             <!-- Live Action: Edit / Resubmit Credentials if Stuck or Bot Fails -->
             <div id="orderCredActionBox"
-                class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-left space-y-2 shadow-2xs">
+                class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl text-left space-y-2 shadow-2xs">
                 <div class="flex items-center justify-between">
                     <span class="text-[11px] font-black text-amber-900 flex items-center gap-1.5">
                         <i data-lucide="key-round" class="w-3.5 h-3.5 text-amber-600"></i> ইমেইল বা পাসওয়ার্ড পরিবর্তন:
                     </span>
-                    <span
-                        class="text-[9.5px] font-extrabold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">সার্ভার
-                        রি-সাবমিট</span>
+                    <span class="text-[9.5px] font-extrabold text-amber-700 bg-white px-2 py-0.5 rounded-md border border-amber-200">তথ্য আপডেট</span>
                 </div>
                 <p class="text-[10.5px] font-semibold text-slate-600 leading-snug">
                     বট যদি লগইন না নেয় বা কনফার্মেশন আটকে থাকে, তবে এখান থেকে সঠিক জিমেইল ও পাসওয়ার্ড আবার সাবমিট করুন।
                 </p>
                 <button type="button" onclick="openOrderCredEditModal()"
-                    class="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98">
+                    class="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> জিমেইল ও পাসওয়ার্ড আবার দিন / বদলান
                 </button>
             </div>
@@ -4105,13 +4098,13 @@
                 </div>
                 <div id="receiptRetryBox" class="hidden pt-1 pb-2">
                     <button id="btnRetryPrompt" onclick="triggerTaskRetry()"
-                        class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Try Again / আবার কোড পাঠান
                     </button>
                 </div>
                 <div id="receiptQidRow"
                     class="flex justify-between items-center gap-2 text-xs border-b border-dashed border-slate-200 pb-2 hidden">
-                    <span class="text-slate-400 font-medium flex-shrink-0">Server QID:</span>
+                    <span class="text-slate-400 font-medium flex-shrink-0">প্লে গেমস আইডি (QID):</span>
                     <span id="receiptQidVal"
                         class="font-mono font-black text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md text-[11px]"></span>
                 </div>
@@ -4124,41 +4117,40 @@
 
             <div class="pt-1 space-y-2">
                 <button id="btnLiveCheckReceipt" type="button" onclick="openLiveCheckModalFromReceipt()"
-                    class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl shadow-md transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
-                    <i data-lucide="scan-search" class="w-4 h-4"></i> <span data-bn="লাইভ ভেরিফাই ও কোয়েস্ট চেক">🔍 লাইভ ভেরিফাই ও কোয়েস্ট চেক (Live Check)</span>
+                    class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg border border-emerald-700 shadow-xs transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i> <span data-bn="লাইভ ভেরিফাই ও কোয়েস্ট চেক">লাইভ ভেরিফাই ও কোয়েস্ট চেক (Live Check)</span>
                 </button>
                 <button onclick="viewAllHistory()"
-                    class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 border border-amber-500 text-white font-bold rounded-xl transition-all text-xs cursor-pointer flex items-center justify-center gap-1.5">
-                    <i data-lucide="receipt-text" class="w-4 h-4"></i> <span data-bn="লেনদেন দেখুন">View
-                        Transactions</span>
+                    class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 border border-amber-600 text-white font-extrabold rounded-lg shadow-xs transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                    <i data-lucide="receipt-text" class="w-4 h-4"></i> <span data-bn="লেনদেন দেখুন">লেনদেন দেখুন (View Transactions)</span>
                 </button>
-                <button onclick="backToProfile()"
-                    class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-bold rounded-xl transition-all text-xs cursor-pointer">
-                    <span data-bn="প্রোফাইলে ফিরো">Back to Profile</span>
+                <button onclick="showScreen('screenHome')"
+                    class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-extrabold rounded-lg transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                    <i data-lucide="home" class="w-4 h-4"></i> <span data-bn="হোমে ফিরে যান">হোম পেজে ফিরুন (Back to Home)</span>
                 </button>
             </div>
         </main>
 
-        <!-- Live Check & Quest Verification Modal (Exact Google Play Games layout) -->
+        <!-- Live Check & Quest Verification Modal (Clean Box-Rounded Google Play Games layout) -->
         <div id="liveCheckModal"
             class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 hidden">
             <div
-                class="bg-white rounded-3xl max-w-sm w-full p-4 space-y-3.5 shadow-2xl border-2 border-emerald-400/90 text-left overflow-hidden">
+                class="bg-white rounded-xl max-w-sm w-full p-4 space-y-3.5 shadow-2xl border border-slate-200 text-left overflow-hidden">
                 <!-- Header -->
-                <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
                     <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-800">Play Games Live Verification</h3>
+                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-800">প্লে গেমস লাইভ ভেরিফিকেশন</h3>
                     </div>
                     <button type="button" onclick="closeLiveCheckModal()"
-                        class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer font-bold text-xs transition-colors">✕</button>
+                        class="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer font-bold text-xs transition-colors">✕</button>
                 </div>
 
                 <!-- Modal Body (Loaded via JS) -->
                 <div id="liveCheckModalBody" class="space-y-3">
                     <div class="py-8 text-center space-y-2">
                         <div class="inline-block w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                        <p class="text-xs font-bold text-slate-600">গুগল প্লে সার্ভার থেকে লাইভ স্ট্যাটাস আনা হচ্ছে...</p>
+                        <p class="text-xs font-bold text-slate-600">গুগল প্লে থেকে লাইভ স্ট্যাটাস আনা হচ্ছে...</p>
                     </div>
                 </div>
             </div>
@@ -11237,7 +11229,13 @@
 
         window.openLiveCheckModalFromReceipt = function() {
             const meta = window._lastReceiptMeta || {};
-            let qid = meta.qid || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
+            let qid = meta.qid || '';
+            if (!qid && window._lastCompletedOrder && window._lastCompletedOrder.qid) {
+                qid = window._lastCompletedOrder.qid;
+            }
+            if (!qid && window._serverConnectedAccount && window._serverConnectedAccount.code) {
+                qid = window._serverConnectedAccount.code;
+            }
             if (!qid) {
                 try { qid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
             }
@@ -11247,30 +11245,44 @@
 
         window.openLiveCheckModal = async function(orderId, qid, gameName) {
             let activeQid = (qid || '').toString().trim();
-            if (!activeQid && window._serverConnectedAccount && window._serverConnectedAccount.code) {
-                activeQid = window._serverConnectedAccount.code;
-            }
-            if (!activeQid) {
-                try { activeQid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
-            }
-            if (!activeQid) {
-                const promptQid = prompt('৬-ডিজিট QID লিখুন (লাইভ চেকের জন্য):');
-                if (promptQid && promptQid.trim().length === 6) {
-                    activeQid = promptQid.trim();
-                    try { localStorage.setItem('ppm_last_qid', activeQid); } catch (e) { }
-                } else {
-                    toast('দয়া করে সঠিক ৬-ডিজিট QID দিন');
-                    return;
-                }
-            }
-
             const cleanGame = (gameName || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '') || '').toString().trim();
-            window._liveCheckState = { orderId, qid: activeQid, game: cleanGame };
 
             const modal = document.getElementById('liveCheckModal');
             if (modal) modal.classList.remove('hidden');
             lockScroll();
 
+            const bodyEl = document.getElementById('liveCheckModalBody');
+
+            // ১. অর্ডারের QID নিশ্চিত করা
+            if (!activeQid) {
+                if (window._serverConnectedAccount && window._serverConnectedAccount.code) {
+                    activeQid = window._serverConnectedAccount.code;
+                } else {
+                    try { activeQid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+                }
+            }
+
+            // ২. যদি কোনো ভ্যালিড QID না পাওয়া যায়
+            if (!activeQid || activeQid.length < 5) {
+                if (bodyEl) {
+                    bodyEl.innerHTML = `
+                        <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
+                            <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
+                                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            </div>
+                            <h4 class="text-xs font-black text-amber-900">আইডি ভ্যালিড নয়</h4>
+                            <p class="text-xs font-bold text-amber-800 leading-relaxed">
+                                এই QID টি ভ্যালিড নয়। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।
+                            </p>
+                            <button type="button" onclick="closeLiveCheckModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs rounded-lg transition-all cursor-pointer">
+                                বন্ধ করুন
+                            </button>
+                        </div>`;
+                }
+                return;
+            }
+
+            window._liveCheckState = { orderId, qid: activeQid, game: cleanGame };
             await window.fetchLiveGameProgress(activeQid, cleanGame);
         };
 
@@ -11287,8 +11299,8 @@
             bodyEl.innerHTML = `
                 <div class="py-8 text-center space-y-2.5">
                     <div class="inline-block w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p class="text-xs font-bold text-slate-700">গুগল প্লে সার্ভার থেকে লাইভ ভেরিফিকেশন চলছে...</p>
-                    <p class="text-[10px] text-slate-400 font-mono">QID: <b>${escH(qid)}</b> • ${escH(gameName)}</p>
+                    <p class="text-xs font-bold text-slate-700">গুগল প্লে থেকে লাইভ তথ্য যাচাই করা হচ্ছে...</p>
+                    <p class="text-[10px] text-slate-400 font-mono">আইডি: <b>${escH(qid)}</b> • ${escH(gameName)}</p>
                 </div>`;
 
             try {
@@ -11305,34 +11317,44 @@
                 const data = await res.json();
 
                 if (!data || !data.ok || !data.service) {
+                    const errMsg = (data && data.error) ? data.error : 'এই QID টি ভ্যালিড নয়। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।';
                     bodyEl.innerHTML = `
-                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-2">
-                            <span class="text-2xl">⚠️</span>
-                            <p class="text-xs font-bold text-amber-900">${escH(data && data.error ? data.error : 'গেমের তথ্য পাওয়া যায়নি')}</p>
-                            <p class="text-[10.5px] text-slate-500 font-medium leading-relaxed">QID: ${escH(qid)} এর জন্য গেমটি সার্ভারে অ্যাক্টিভ আছে কিনা দেখুন অথবা PPM Server অ্যাপ থেকে গেমটি একবার ওপেন করুন।</p>
-                            <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer active:scale-95">
-                                আবার চেষ্টা করুন (Retry)
-                            </button>
+                        <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
+                            <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
+                                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            </div>
+                            <h4 class="text-xs font-black text-amber-900">আইডি ভ্যালিড নয়</h4>
+                            <p class="text-xs font-bold text-amber-800 leading-relaxed">${escH(errMsg)}</p>
+                            <div class="flex items-center justify-center gap-2 pt-1">
+                                <button type="button" onclick="closeLiveCheckModal()" class="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer">
+                                    বন্ধ করুন
+                                </button>
+                                <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer">
+                                    পুনরায় চেষ্টা করুন
+                                </button>
+                            </div>
                         </div>`;
                     return;
                 }
 
-                window.renderLiveCheckModalUI(data.service, qid, gameName);
+                window.renderLiveCheckModalUI(data.service, qid, gameName, data.player);
             } catch (err) {
                 console.error('fetchLiveGameProgress error:', err);
                 bodyEl.innerHTML = `
-                    <div class="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-2">
-                        <span class="text-2xl">⚠️</span>
-                        <p class="text-xs font-bold text-rose-900">নেটওয়ার্ক বা সার্ভার ত্রুটি</p>
-                        <p class="text-[10px] text-slate-500 font-mono">${escH(err.message || 'Network error')}</p>
-                        <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer active:scale-95">
+                    <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg text-center space-y-2.5">
+                        <div class="w-10 h-10 rounded-full bg-rose-100 border border-rose-300 text-rose-700 flex items-center justify-center mx-auto">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        </div>
+                        <h4 class="text-xs font-black text-rose-900">নেটওয়ার্ক যোগাযোগে সমস্যা</h4>
+                        <p class="text-xs font-bold text-rose-700 leading-relaxed">${escH(err.message || 'Network error')}</p>
+                        <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-lg shadow-2xs cursor-pointer active:scale-95">
                             আবার চেষ্টা করুন (Retry)
                         </button>
                     </div>`;
             }
         };
 
-        window.renderLiveCheckModalUI = function(srv, qid, gameName) {
+        window.renderLiveCheckModalUI = function(srv, qid, gameName, player) {
             const bodyEl = document.getElementById('liveCheckModalBody');
             if (!bodyEl) return;
 
@@ -11340,85 +11362,116 @@
             const doneCount = srv.completed_count || 0;
             const isAllDone = srv.is_completed || (total > 0 && doneCount >= total);
             const gameLogo = srv.icon || (typeof findGameLogoByName === 'function' ? findGameLogoByName(srv.title || gameName) : '') || 'https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512';
-            const devName = srv.developer || 'Google Play Games';
+            const cleanTitle = srv.title || gameName;
 
+            // ১. উপরে প্লে গেমস প্রোফাইল তথ্য
+            const playerName = (player && player.displayName) ? player.displayName : (window._serverConnectedAccount && window._serverConnectedAccount.email ? window._serverConnectedAccount.email.split('@')[0] : 'Play Games Profile');
+            const playerAvatar = (player && player.avatarImageUrl)
+                ? `<img src="${escH(player.avatarImageUrl)}" class="w-8 h-8 rounded-full object-cover border border-emerald-300 flex-shrink-0" alt="Avatar">`
+                : `<div class="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 font-black text-xs flex-shrink-0">
+                       <svg class="w-4 h-4 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                   </div>`;
+
+            // স্ট্যাটাস ব্যাজ (কোনো ইমোজি নয়)
             const statusBadgeHtml = isAllDone
-                ? '<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">✓ ✓ সম্পূর্ণ (COMPLETED)</span>'
-                : `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">⏳ আংশিক সম্পন্ন (${doneCount}/${total})</span>`;
+                ? '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300"><svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> সম্পূর্ণ (Completed)</span>'
+                : `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-black bg-amber-50 text-amber-700 border border-amber-300"><svg class="w-3 h-3 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> আংশিক সম্পন্ন (${doneCount}/${total})</span>`;
 
+            // ২. কোয়েস্ট লিস্ট
             const quests = srv.quests || [];
             const questsHtml = quests.map(q => {
                 const qIcon = q.icon || gameLogo;
                 const rightPart = q.is_unlocked
-                    ? `<div class="flex items-center gap-1.5 flex-shrink-0">
-                           <span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black whitespace-nowrap">✓ সম্পূর্ণ</span>
-                           <span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold whitespace-nowrap hidden sm:inline">🎯 Play Points Quest</span>
-                       </div>`
-                    : `<div class="flex items-center gap-1.5 flex-shrink-0">
-                           <button type="button" onclick="window.claimSingleQuest(this, '${escQ(qid)}', '${escQ(srv.game_id || gameName)}', '${escQ(q.id)}')"
-                               class="claim-single-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 active:scale-95 text-white font-extrabold text-[10.5px] rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
-                               <i data-lucide="zap" class="w-3 h-3"></i> <span>⚡ Claim Quest</span>
-                           </button>
-                           <span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold whitespace-nowrap hidden sm:inline">🎯 Play Points Quest</span>
-                       </div>`;
+                    ? `<span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black whitespace-nowrap flex items-center gap-1">
+                           <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                           <span>সম্পূর্ণ</span>
+                       </span>`
+                    : `<button type="button" onclick="window.claimSingleQuest(this, '${escQ(qid)}', '${escQ(srv.game_id || gameName)}', '${escQ(q.id)}')"
+                           class="claim-single-btn px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-[10px] rounded-md shadow-2xs transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                           <svg class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                           <span>Claim Quest</span>
+                       </button>`;
 
                 return `
-                    <div class="bg-white border border-teal-200/90 rounded-xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs transition-all hover:border-emerald-300">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                            <img src="${escH(qIcon)}" class="w-9 h-9 rounded-full object-cover border border-amber-300/80 bg-amber-50 p-0.5 flex-shrink-0" alt="Quest" onerror="this.onerror=null;this.src='${escH(gameLogo)}'">
+                    <div class="bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between gap-2 shadow-2xs transition-all hover:border-emerald-300">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <img src="${escH(qIcon)}" class="w-7 h-7 rounded-md object-cover border border-slate-200 bg-slate-50 flex-shrink-0" alt="" onerror="this.onerror=null;this.src='${escH(gameLogo)}'">
                             <p class="text-xs font-bold text-slate-800 truncate" title="${escH(q.name)}">${escH(q.name)}</p>
                         </div>
-                        ${rightPart}
+                        <div class="flex-shrink-0">
+                            ${rightPart}
+                        </div>
                     </div>`;
             }).join('');
 
             const bottomActionHtml = isAllDone
-                ? `<div class="w-full py-2.5 bg-emerald-600 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm">
-                       <i data-lucide="check-check" class="w-4 h-4"></i> <span>✓ All Quests Completed</span>
+                ? `<div class="w-full py-2.5 bg-emerald-600 text-white font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-2xs">
+                       <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                       <span>সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন</span>
                    </div>`
                 : `<div class="flex items-center gap-2">
                        <button type="button" onclick="window.claimAllRemainingQuests('${escQ(qid)}', '${escQ(srv.game_id || gameName)}')"
-                           class="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all">
-                           <i data-lucide="zap" class="w-4 h-4"></i> <span>⚡ বাকি কোয়েস্ট আনলক করুন</span>
+                           class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-lg shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all">
+                           <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                           <span>বাকি কোয়েস্ট আনলক করুন</span>
                        </button>
                        <button type="button" onclick="window.refreshLiveGameProgress()"
-                           class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer active:scale-98 transition-all">
-                           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> <span>Re-check</span>
+                           class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-black text-xs rounded-lg flex items-center justify-center gap-1 cursor-pointer active:scale-98 transition-all">
+                           <svg class="w-3.5 h-3.5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 21h5v-5"></path></svg>
+                           <span>Re-check</span>
                        </button>
                    </div>`;
 
             bodyEl.innerHTML = `
-                <!-- Game Header Card -->
-                <div class="flex items-start gap-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3">
-                    <img src="${escH(gameLogo)}" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-2xs flex-shrink-0" alt="${escH(srv.title || gameName)}">
-                    <div class="flex-1 min-w-0 space-y-1">
-                        <h4 class="text-sm font-black text-slate-900 leading-snug truncate">${escH(srv.title || gameName)}</h4>
-                        <p class="text-[11px] font-semibold text-slate-400 truncate">${escH(devName)}</p>
-                        <div>${statusBadgeHtml}</div>
+                <!-- ১. উপরে প্লে গেমস প্রোফাইল তথ্য -->
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        ${playerAvatar}
+                        <div class="min-w-0">
+                            <p class="text-[11.5px] font-black text-slate-900 truncate">${escH(playerName)}</p>
+                            <p class="text-[9.5px] font-semibold text-slate-500">Play Games Profile</p>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-bold text-[10px]">
+                            QID: ${escH(qid)}
+                        </span>
                     </div>
                 </div>
 
-                <!-- Included Quests Section -->
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between text-[11px] font-black text-teal-800 px-0.5">
-                        <span class="uppercase tracking-wider">INCLUDED QUESTS:</span>
-                        <span class="text-teal-600 font-black">${doneCount}/${total} Completed</span>
+                <!-- ২. তার নিচে ছোট গেম লোগো ও গেমের নাম (তার নিচে অন্য কোনো বাড়তি লেখা নেই) -->
+                <div class="flex items-center justify-between bg-white border border-slate-200 rounded-lg p-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <img src="${escH(gameLogo)}" class="w-7 h-7 rounded-md object-cover border border-slate-200 flex-shrink-0" alt="">
+                        <h4 class="text-xs font-black text-slate-800 truncate">${escH(cleanTitle)}</h4>
                     </div>
-
-                    <div class="bg-[#f0f9f8] border border-teal-100 rounded-2xl p-2.5 space-y-2 max-h-[260px] overflow-y-auto fit-scroll">
-                        ${questsHtml || '<p class="text-xs text-center text-slate-400 py-4">কোনো কোয়েস্ট পাওয়া যায়নি</p>'}
+                    <div class="flex-shrink-0">
+                        ${statusBadgeHtml}
                     </div>
                 </div>
 
-                <!-- Action Button -->
+                <!-- ৩. কোয়েস্ট লিস্ট (কোনটা হয়েছে আর কোনটা বাকি) -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-[10.5px] font-black text-slate-600 px-0.5">
+                        <span class="uppercase tracking-wider">INCLUDED QUESTS</span>
+                        <span class="text-emerald-700 font-black">${doneCount}/${total} Completed</span>
+                    </div>
+
+                    <div class="bg-slate-50/70 border border-slate-200 rounded-lg p-2 space-y-1.5 max-h-[220px] overflow-y-auto fit-scroll">
+                        ${questsHtml || '<p class="text-xs text-center text-slate-400 py-3">কোনো কোয়েস্ট পাওয়া যায়নি</p>'}
+                    </div>
+                </div>
+
+                <!-- ৪. একশন বাটন -->
                 <div class="pt-1 space-y-2">
                     ${bottomActionHtml}
-                    <div class="flex justify-between items-center text-[10.5px] font-semibold text-slate-400 pt-0.5 px-1">
+                    <div class="flex justify-between items-center text-[10.5px] font-semibold text-slate-400 pt-0.5 px-0.5">
                         <button type="button" onclick="window.refreshLiveGameProgress()" class="text-teal-700 font-extrabold hover:underline flex items-center gap-1 cursor-pointer">
-                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> রি-চেক (Re-check)
+                            <svg class="w-3 h-3 text-teal-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 21h5v-5"></path></svg>
+                            রি-চেক (Re-check)
                         </button>
                         <span class="flex items-center gap-1 text-emerald-600 font-black">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> • Live Verified
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Live Verified
                         </span>
                     </div>
                 </div>`;
@@ -11445,7 +11498,7 @@
                 });
                 const data = await res.json();
                 if (data && data.ok) {
-                    toast('🎉 কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
+                    toast('কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
                     if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
                     if (window.playChime) { try { window.playChime(); } catch (e) { } }
                     await window.fetchLiveGameProgress(qid, gameId);
@@ -11456,7 +11509,7 @@
                 }
             } catch (err) {
                 console.error('claimSingleQuest error:', err);
-                toast('সার্ভার যোগাযোগে ত্রুটি: ' + (err.message || 'Error'));
+                toast('যোগাযোগে সমস্যা: ' + (err.message || 'Error'));
                 btnEl.disabled = false;
                 btnEl.innerHTML = origHtml;
             }
@@ -11477,7 +11530,7 @@
                 const data = await res.json();
                 hideAppLoader();
                 if (data && data.ok) {
-                    toast('🎉 সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
+                    toast('সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
                     if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
                     if (window.playChime) { try { window.playChime(); } catch (e) { } }
                     await window.fetchLiveGameProgress(qid, gameId);
@@ -16979,7 +17032,7 @@
                 title = escapeHtml(it.game || 'Task');
                 info = (it.trxId ? escapeHtml(it.trxId) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge + qidBadge;
 
-                liveCheckBtn = '<button type="button" onclick="event.stopPropagation(); window.openLiveCheckModal(\'' + escapeHtml(it.id || '') + '\', \'' + escapeHtml(qidVal) + '\', \'' + escapeHtml(it.game || it.title || '') + '\')" class="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-2 py-0.5 cursor-pointer transition-all active:scale-95 shadow-2xs"><span>🔍 Live Check</span></button>';
+                liveCheckBtn = '<button type="button" onclick="event.stopPropagation(); window.openLiveCheckModal(\'' + escapeHtml(it.id || '') + '\', \'' + escapeHtml(qidVal) + '\', \'' + escapeHtml(it.game || it.title || '') + '\')" class="inline-flex items-center gap-1.5 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md px-2 py-0.5 cursor-pointer transition-all active:scale-95 shadow-2xs"><svg class="w-3 h-3 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg><span>Live Check</span></button>';
             }
             else if (it.kind === 'REDEEM') {
                 if ((it.code || '') === 'EXCHANGE') { title = '+' + Number(it.amount || 0) + ' PP Coins'; info = 'Exchange • -' + Number(it.points || 0) + ' Pts'; }
