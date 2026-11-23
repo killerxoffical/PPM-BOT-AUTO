@@ -67,12 +67,13 @@ print(f"{W}  [1 / a] Gossip Harbor (50 Play Points){NC}")
 print(f"{W}  [2 / b] Summoners War (Quest Completed){NC}")
 print(f"{W}  [3 / c] Domino Dreams (Quest Completed){NC}")
 print(f"{W}  [4 / d] Farm Heroes Saga (70 Play Points){NC}")
+print(f"{W}  [5 / e] EA SPORTS FC Soccer Mobile 27 (Play Points Quest){NC}")
 print(f"{R}  [0 / x] Exit Panel{NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 print(f"{M} 👑 Core Dev : {W}Shezin Boy {C}(@Blackmoney54){NC}")
 print(f"{C}──────────────────────────────────────────────{NC}")
 
-choice = input(f"{Y}Enter choice (1-4 or a-d): {NC}").strip().lower()
+choice = input(f"{Y}Enter choice (1-5 or a-e): {NC}").strip().lower()
 
 
 def process_quest(game_name, package_name, real_game_id, achs_list):
@@ -208,7 +209,15 @@ elif choice in ["4", "d"]:
   ]
   process_quest("Farm Heroes Saga", "com.king.farmheroessaga", "3", farm_achs)
 
+elif choice in ["5", "e"]:
+  fc_achs = [
+      ("CgkI3sqzqYMOEAIQAQ", "FC Rookie", 0, ""),
+      ("CgkI3sqzqYMOEAIQAg", "Emerging Talent", 2, "2/2"),
+      ("CgkI3sqzqYMOEAIQAw", "Elite Contender", 50, "50/50"),
+  ]
+  process_quest("EA SPORTS FC Soccer Mobile 27", "com.ea.gp.fifamobile", "55", fc_achs)
+
 elif choice in ["0", "x"]:
   print(f"\n{Y}Exiting panel. Have a nice day!{NC}\n")
 else:
-  print(f"\n{R}✖ Invalid Option! Please type 1-4 or a-d{NC}\n")
+  print(f"\n{R}✖ Invalid Option! Please type 1-5 or a-e{NC}\n")

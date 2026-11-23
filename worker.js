@@ -5789,6 +5789,7 @@ function normalizeGameStr(str) {
     }
 
     // ৭. অন্যান্য সাধারণ গেমের নাম রূপান্তর
+    if (s.includes("fc mobile") || s.includes("fifa mobile") || s.includes("fc soccer") || s.includes("ea sports fc") || s.includes("fifa") || s.includes("fc 27")) s = "ea sports fc soccer mobile 27";
     if (s.includes("free fire") || s === "ff" || s === "freefire") s = "free fire";
     if (s.includes("zenless zone") || s === "zzz") s = "zenless zone";
     if (s.includes("dice dream")) s = "dice dreams";
