@@ -2967,9 +2967,10 @@
                                 autocomplete="off" spellcheck="false"
                                 oninput="filterGames(this.value)">
                             <button type="button" id="gameSearchClearBtn" onclick="clearGameSearch()"
-                                class="hidden absolute right-1.5 w-5 h-5 rounded-md hover:bg-slate-200/80 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all cursor-pointer"
+                                style="display: none;"
+                                class="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md hover:bg-slate-200/80 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-all cursor-pointer"
                                 title="Clear search">
-                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         </div>
                     </div>
@@ -7252,7 +7253,7 @@
             const cards = document.querySelectorAll('#gameGrid .game-card');
             const clearBtn = document.getElementById('gameSearchClearBtn');
             if (clearBtn) {
-                clearBtn.classList.toggle('hidden', q.length === 0);
+                clearBtn.style.display = q.length > 0 ? 'flex' : 'none';
             }
             let visibleCount = 0;
             cards.forEach(card => {
@@ -7293,6 +7294,8 @@
                 inp.placeholder = `Search ${total} games...`;
                 inp.focus();
             }
+            const clearBtn = document.getElementById('gameSearchClearBtn');
+            if (clearBtn) clearBtn.style.display = 'none';
             filterGames('');
         };
 
