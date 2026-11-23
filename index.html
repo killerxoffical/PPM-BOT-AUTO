@@ -975,70 +975,63 @@
             flex-shrink: 0;
         }
 
-        /* --- Game Selection Grid & Tactile Cards --- */
+        /* --- Game Selection Grid & Tactile Cards (List Box Style) --- */
         #gameGrid .game-card {
             position: relative;
             display: flex;
             align-items: center;
-            gap: 0.55rem;
             min-width: 0;
-            padding: 0.65rem 0.65rem;
-            border-radius: 1.25rem;
+            padding: 0;
+            border-radius: 0.5rem;
             background: #ffffff;
-            border: 1.5px solid #e2e8f0;
+            border: 1px solid #cbd5e1;
             text-align: left;
             cursor: pointer;
             overflow: hidden;
-            box-shadow:
-                0 2px 6px -1px rgba(15, 23, 42, 0.04),
-                inset 0 1px 0 #ffffff;
-            transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+            height: 56px;
+            box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
         }
 
         #gameGrid .game-card::after {
             content: "✓";
             position: absolute;
-            top: 6px;
-            right: 6px;
-            width: 18px;
-            height: 18px;
+            top: 4px;
+            right: 4px;
+            width: 16px;
+            height: 16px;
             border-radius: 9999px;
-            background: var(--acc, #94a3b8);
+            background: #10b981;
             color: #ffffff;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 900;
             display: flex;
             align-items: center;
             justify-content: center;
             opacity: 0;
-            transform: scale(0.3) rotate(-30deg);
-            transition: all 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 2px 6px -1px var(--acc, #94a3b8);
+            transform: scale(0.3);
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 5;
         }
 
         #gameGrid .game-card:hover {
-            transform: translateY(-2px);
-            border-color: #cbd5e1;
-            box-shadow:
-                0 10px 22px -8px rgba(15, 23, 42, 0.12),
-                inset 0 1px 0 #ffffff;
+            border-color: #94a3b8;
+            box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.08);
         }
 
         #gameGrid .game-card:active {
-            transform: scale(0.96);
+            transform: scale(0.98);
         }
 
         #gameGrid .game-card.is-selected {
-            border-color: var(--acc) !important;
-            background: var(--acc-bg) !important;
-            box-shadow:
-                0 12px 26px -8px var(--acc),
-                inset 0 0 0 1px var(--acc) !important;
+            border-color: #10b981 !important;
+            background: #ecfdf5 !important;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35) !important;
         }
 
         #gameGrid .game-card.is-selected::after {
             opacity: 1;
-            transform: scale(1) rotate(0deg);
+            transform: scale(1);
         }
 
         #gameGrid .game-card.is-selected>span:last-child {
@@ -1066,44 +1059,29 @@
         }
 
         .g-logo {
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
             object-fit: cover;
             flex-shrink: 0;
             background: #f1f5f9;
-            box-shadow: 0 3px 8px -2px rgba(15, 23, 42, 0.2);
             transition: transform 0.2s ease;
         }
 
         #gameGrid .game-card:hover .g-logo {
-            transform: scale(1.06);
+            transform: scale(1.14);
         }
 
         .g-name {
-            flex: 1;
-            min-width: 0;
+            width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 800;
-            color: #1e293b;
+            color: #0f172a;
             letter-spacing: -0.01em;
-        }
-
-        #gameGrid .game-card>span:last-child {
-            flex-shrink: 0;
-            white-space: nowrap;
-            font-size: 10px;
-            padding: 3px 7px;
-            border-radius: 8px;
-            font-weight: 800;
-        }
-
-        #gameGrid .game-card>span:last-child img {
-            width: 12px;
-            height: 12px;
+            line-height: 1.25;
         }
 
         .g-letter {
@@ -3052,206 +3030,263 @@
                 </div>
 
                 <div class="fit-grid !p-0.5" id="gameGrid">
-
-                    <button onclick="selectGame(this, '8ball pool (50)', 'border-red-500 bg-red-50/70 text-red-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/19/af/80/19af80a7-eb95-39bc-f7a8-6147cf933c39/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="8ball pool" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">8ball pool</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, '8ball pool (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/19/af/80/19af80a7-eb95-39bc-f7a8-6147cf933c39/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="8ball pool" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">8ball pool</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Angry birds 2 (50)', 'border-amber-500 bg-amber-50/70 text-amber-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/04/ca/7804ca49-20cd-e1f6-77e0-2b24b0dadcb8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Angry birds 2" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Angry birds 2</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Angry birds 2 (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/04/ca/7804ca49-20cd-e1f6-77e0-2b24b0dadcb8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Angry birds 2" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Angry birds 2</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Best Fiends(50)', 'border-emerald-500 bg-emerald-50/70 text-emerald-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/9a/7d/2d9a7da6-eb4b-3b25-a751-8258da75a0a8/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg"
-                            alt="Best Fiends" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Best Fiends</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Best Fiends(50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/9a/7d/2d9a7da6-eb4b-3b25-a751-8258da75a0a8/AppIcon-0-0-1x_U007emarketing-0-5-85-220.png/512x512bb.jpg"
+                                alt="Best Fiends" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Best Fiends</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Dice dreams (50)', 'border-sky-500 bg-sky-50/70 text-sky-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f1/71/03/f171036e-5a26-9eb3-2d93-e9154db3e9b6/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg"
-                            alt="Dice dreams" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Dice dreams™</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Dice dreams (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f1/71/03/f171036e-5a26-9eb3-2d93-e9154db3e9b6/AppIcon-0-0-1x_U007emarketing-0-6-0-85-220.png/512x512bb.jpg"
+                                alt="Dice dreams™" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Dice dreams™</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Disney Solitaire', 'border-red-500 bg-red-50/70 text-red-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/3c/13/4d/3c134dff-c40d-b4b5-dc23-42661a0762d9/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Disney Solitaire" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Disney Solitaire</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Disney Solitaire')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/3c/13/4d/3c134dff-c40d-b4b5-dc23-42661a0762d9/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Disney Solitaire" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Disney Solitaire</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Domino dreams (50)', 'border-amber-500 bg-amber-50/70 text-amber-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/97/4d/16/974d164e-52d6-61b2-8ece-8d509eb232ab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Domino dreams" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Domino dreams™</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Domino dreams (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/97/4d/16/974d164e-52d6-61b2-8ece-8d509eb232ab/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Domino dreams™" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Domino dreams™</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Farm heroes saga', 'border-emerald-500 bg-emerald-50/70 text-emerald-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c2/a1/63/c2a1633a-82e8-f6ab-5e3a-b0ef5ac3629b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Farm heroes" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Farm heroes</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Farm heroes saga')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c2/a1/63/c2a1633a-82e8-f6ab-5e3a-b0ef5ac3629b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Farm heroes" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Farm heroes</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Fruit ninja (50)', 'border-sky-500 bg-sky-50/70 text-sky-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Fruit ninja" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Fruit ninja</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Fruit ninja (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/6b/52/f2/6b52f27e-eba6-6f6e-9a7f-5ca0b6b1a9e2/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Fruit ninja" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Fruit ninja</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Hey day (All)', 'border-red-500 bg-red-50/70 text-red-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="Hey day" loading="lazy" onerror="this.style.display='none'"><span class="g-name">Hey
+                    <button onclick="selectGame(this, 'Hey day (All)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/68/e4/de/68e4de8b-0e48-d1bc-004b-1346c3cf511b/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="Hey
+                            day" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Hey
                             day</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">All</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">All
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Lords mobile (50)', 'border-amber-500 bg-amber-50/70 text-amber-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4d/e8/f2/4de8f2eb-2d7d-7f28-ddc7-d6f62ca67b49/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg"
-                            alt="Lords mobile" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Lords mobile</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Lords mobile (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4d/e8/f2/4de8f2eb-2d7d-7f28-ddc7-d6f62ca67b49/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg"
+                                alt="Lords mobile" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Lords mobile</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Mobile legends (50)', 'border-emerald-500 bg-emerald-50/70 text-emerald-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/d9/88/76/d9887647-00fd-09c8-8a61-c6c31a1bfe2a/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg"
-                            alt="Mobile legends" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Mobile legends</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Mobile legends (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/d9/88/76/d9887647-00fd-09c8-8a61-c6c31a1bfe2a/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg"
+                                alt="Mobile legends" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Mobile legends</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Mobile Legends.US', 'border-sky-500 bg-sky-50/70 text-sky-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg"
-                            alt="Mobile Legends US" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Mobile Leg. US</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Mobile Legends.US')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/78/e1/77/78e177f1-e174-dfe5-bbd9-f4f2988d9b89/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/512x512bb.jpg"
+                                alt="Mobile Leg. US" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Mobile Leg. US</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button onclick="selectGame(this, 'Summoners War (50)', 'border-red-500 bg-red-50/70 text-red-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f7/18/a7/f718a783-120f-0a08-30dc-be8e99c24f4a/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg"
-                            alt="Summoners War" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Summoners War</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Summoners War (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/f7/18/a7/f718a783-120f-0a08-30dc-be8e99c24f4a/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg"
+                                alt="Summoners War" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Summoners War</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'War machines (50)', 'border-amber-500 bg-amber-50/70 text-amber-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/5e/ba/cc/5ebacc73-5314-8783-7d09-49e15d803755/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
-                            alt="War machines" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">War machines</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'War machines (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/5e/ba/cc/5ebacc73-5314-8783-7d09-49e15d803755/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.jpg"
+                                alt="War machines" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">War machines</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Yalla Ludo', 'border-emerald-500 bg-emerald-50/70 text-emerald-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/ad/c6/61adc661-dd73-03b1-0f3e-4743d237bb5e/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg"
-                            alt="Yalla Ludo" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Yalla Ludo</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Yalla Ludo')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/ad/c6/61adc661-dd73-03b1-0f3e-4743d237bb5e/AppIcon-0-0-1x_U007emarketing-0-8-0-sRGB-85-220.png/512x512bb.jpg"
+                                alt="Yalla Ludo" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Yalla Ludo</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
-
-                    <button
-                        onclick="selectGame(this, 'Zenless Zone Zero (50)', 'border-sky-500 bg-sky-50/70 text-sky-950')"
-                        class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">
-                        <img class="g-logo"
-                            src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/4a/fb/2d4afb82-bdb9-cc80-b5b7-d1d7f515b2ae/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg"
-                            alt="Zenless Zone" loading="lazy" onerror="this.style.display='none'"><span
-                            class="g-name">Zenless Zone</span>
-                        <span
-                            class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img
-                                src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                                class="w-3.5 h-3.5">50</span>
+                    <button onclick="selectGame(this, 'Zenless Zone Zero (50)')"
+                        class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">
+                        <div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">
+                            <img class="g-logo w-full h-full object-cover scale-[1.12]"
+                                src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/2d/4a/fb/2d4afb82-bdb9-cc80-b5b7-d1d7f515b2ae/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg"
+                                alt="Zenless Zone" loading="lazy" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">
+                            <span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">Zenless Zone</span>
+                            <div class="mt-0.5 flex items-center">
+                                <span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png" class="w-3.5 h-3.5">50
+                                </span>
+                            </div>
+                        </div>
                     </button>
                 </div>
             </div>
@@ -4373,9 +4408,9 @@
                             <span class="text-xs font-black text-white tracking-tight">PPM SERVER App</span>
                             <span
                                 class="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-black uppercase">Official</span>
-                            <span id="appDownloadRewardBadge" class="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded hidden">+১ Point</span>
+                            <span id="appDownloadRewardBadge" class="hidden"></span>
                         </div>
-                        <p id="appDownloadRewardDesc" class="text-[10px] text-slate-300 font-semibold truncate mt-0.5">প্রথম ডাউনলোডে পাবেন ফ্রি ১ পয়েন্ট 🎁</p>
+                        <p id="appDownloadRewardDesc" class="text-[10px] text-slate-300 font-semibold truncate mt-0.5">PPM SERVER অফিসিয়াল কানেক্টর অ্যাপ ডাউনলোড করুন</p>
                     </div>
                 </div>
                 <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank" onclick="claimAppDownloadReward(event)"
@@ -5152,7 +5187,237 @@
 
         </main>
 
-        <!-- SCREEN: STAR SELL (User Sells Telegram Stars to Admin) -->
+        <!-- SCREEN: PP SERVICE HUB (Quest Complete & Level Up) -->
+        <main id="screenPPService" class="screen hidden fit-home flex-col h-full overflow-hidden space-y-2.5 relative">
+            <style>
+                @keyframes ctaSlideUp {
+                    0% { transform: translateY(35px); opacity: 0; }
+                    100% { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes ctaBounce {
+                    0% { transform: translateY(0) scale(1); opacity: 1; }
+                    40% { transform: translateY(12px) scale(0.97); opacity: 0.6; }
+                    100% { transform: translateY(0) scale(1); opacity: 1; }
+                }
+                .cta-anim-in { animation: ctaSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+                .cta-anim-switch { animation: ctaBounce 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            </style>
+
+            <!-- Top Hero Banner (Store style luxury green - only shown in Hub view) -->
+            <section id="ppServiceHeroBanner" class="relative overflow-hidden rounded-lg p-3 text-white border border-emerald-700/40 shadow-xs flex-shrink-0"
+                style="background: radial-gradient(130% 170% at 85% -20%, #065f46 0%, #064e3b 55%, #022c22 100%);">
+                <p class="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300 relative z-10">SERVICES</p>
+                <div class="flex items-center justify-between gap-2 relative z-10 mt-0.5">
+                    <div>
+                        <h2 class="text-sm sm:text-base font-black tracking-tight leading-snug">Play Games Services Hub</h2>
+                        <p class="text-[10px] text-emerald-200 font-medium">কোয়েস্ট কমপ্লিট ও প্রোফাইল লেভেল আপ সার্ভিস</p>
+                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-800/80 border border-emerald-600/40 flex items-center justify-center flex-shrink-0 shadow-inner">
+                        <i data-lucide="layers" class="w-4 h-4 text-emerald-200"></i>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SUB-VIEW 1: PP SERVICE MAIN HUB (Cards for Quest Complete & Level Up) -->
+            <div id="ppServiceHubView" class="space-y-2.5 flex-1 overflow-y-auto pb-4 pr-1 scrollbar-none">
+                <!-- Card 1: Quest Complete (Auto Quest) -->
+                <div onclick="openAutoQuestView()" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-emerald-500 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]" style="border-top: 3px solid #10b981;">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                            <i data-lucide="gamepad-2" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors">Auto Quest Complete</h3>
+                                <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase border border-emerald-200">⚡ 1-3s Fast</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">প্লে পয়েন্ট কোয়েস্ট ১ ক্লিকে স্বয়ংক্রিয়ভাবে সম্পন্ন করুন।</p>
+                            <div class="mt-2.5 flex items-center justify-end pt-2 border-t border-slate-100">
+                                <div class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 group-hover:translate-x-0.5 transition-transform">
+                                    <span>গেম বেছে নিন</span>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Level Up Booster -->
+                <div onclick="openLevelUpView()" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-amber-500 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]" style="border-top: 3px solid #f59e0b;">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-md bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 flex-shrink-0">
+                            <i data-lucide="zap" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors">Play Games Level Up</h3>
+                                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">🚀 Level Up Booster</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">আপনার গুগল প্লে গেমস প্রোফাইল লেভেল আপ ও বুস্ট করুন।</p>
+                            <div class="mt-2.5 flex items-center justify-end pt-2 border-t border-slate-100">
+                                <div class="inline-flex items-center gap-1 text-xs font-bold text-amber-600 group-hover:translate-x-0.5 transition-transform">
+                                    <span>লেভেল বুস্ট</span>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-VIEW 2: AUTO QUEST SELECTION (Header with centered title and flushed game cards) -->
+            <div id="ppServiceQuestView" class="hidden flex-1 flex-col overflow-y-auto space-y-2 pb-24 pr-1 scrollbar-none">
+                <!-- Subview Header (Becomes the top header of the screen) -->
+                <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 flex-shrink-0">
+                    <button type="button" onclick="openPPServiceHub()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer flex-shrink-0">
+                        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> <span>সার্ভিস সমূহ</span>
+                    </button>
+                    <h3 class="text-xs sm:text-sm font-black text-slate-800 text-center flex-1 truncate px-1">Auto Quest Unlock</h3>
+                    <span id="ppServiceGameCountBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold flex-shrink-0">0 Games</span>
+                </div>
+
+                <!-- Search Input with Clear Button -->
+                <div class="relative flex-shrink-0">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input id="ppServiceGameSearch" type="text" oninput="filterPPServiceGames(this.value)" placeholder="গেমের নাম দিয়ে সার্চ করুন..."
+                        class="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all">
+                    <button type="button" id="ppServiceSearchClearBtn" onclick="clearPPServiceGameSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Games List Container (Component Rows with Image on Left Touching Borders) -->
+                <div id="ppServiceGamesGrid" class="space-y-2 p-0.5"></div>
+            </div>
+
+            <!-- Bottom Floating Bar for Selected Game (Directly Above Navbar with Smooth Animation) -->
+            <div id="ppServiceCtaBar" class="hidden absolute bottom-1.5 left-2 right-2 z-40 pointer-events-auto">
+                <div class="text-white px-3 py-2 rounded-xl border border-emerald-400/40 shadow-xl flex items-center justify-between gap-3"
+                    style="background: linear-gradient(135deg, #059669 0%, #0d9488 60%, #047857 100%);">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <img id="ppServiceCtaLogo" src="" class="w-9 h-9 rounded-lg object-cover border border-white/30 bg-white/10 flex-shrink-0">
+                        <div class="min-w-0">
+                            <p id="ppServiceCtaTitle" class="text-xs font-black truncate leading-tight text-white"></p>
+                            <p id="ppServiceCtaDuration" class="text-[11px] text-emerald-100 font-bold font-mono flex items-center gap-1 mt-0.5">
+                                <i data-lucide="zap" class="w-3 h-3 text-amber-300 fill-amber-300"></i> Complete just 1s
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="goToPaymentScreen()" class="px-4 py-2 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-950 font-black text-xs rounded-lg shadow-md transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0">
+                        <span>Next</span>
+                        <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SUB-VIEW 3: LEVEL UP BOOSTER VIEW (Header with centered title and clean cards) -->
+            <div id="ppServiceLevelUpView" class="hidden flex-1 flex-col overflow-y-auto space-y-3 pb-8 pr-1 scrollbar-none">
+                <!-- Subview Header (Becomes the top header of the screen) -->
+                <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 flex-shrink-0">
+                    <button type="button" onclick="openPPServiceHub()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer flex-shrink-0">
+                        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> <span>সার্ভিস সমূহ</span>
+                    </button>
+                    <h3 class="text-xs sm:text-sm font-black text-slate-800 text-center flex-1 truncate px-1">Level Up Booster</h3>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold flex-shrink-0">100% Safe</span>
+                </div>
+
+                <!-- Level Up Booster Package Card -->
+                <div onclick="openLevelUpOrderModal()" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-98" style="border-top: 3px solid #f59e0b;">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-md bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-2xs flex-shrink-0">
+                            <i data-lucide="zap" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors">Level Up Booster</h3>
+                                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">Booster Pack</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">আপনার গুগল প্লে গেমস আইডি সাথে সাথে বুস্ট করে দেওয়া হবে।</p>
+                            <div class="mt-2.5 flex items-center justify-end pt-2 border-t border-slate-100">
+                                <button type="button" class="px-3.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
+                                    সিলেক্ট করুন →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: LEVEL UP QID CONNECT & ORDER POPUP -->
+            <div id="levelUpOrderModal" class="pop-overlay fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4" style="display:none;">
+                <div class="bg-white rounded-lg max-w-sm w-full p-4 border border-amber-300 shadow-2xl space-y-3.5">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-md bg-amber-500 flex items-center justify-center text-white">
+                                <i data-lucide="zap" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900">Level Up Booster</h3>
+                                <p class="text-[10px] text-slate-500">Google Play Games Profile Boost</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="closeLevelUpOrderModal()" class="w-7 h-7 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between p-2.5 rounded-md bg-amber-50/70 border border-amber-200">
+                        <span class="text-xs font-bold text-slate-700">সার্ভিস ফি:</span>
+                        <span class="text-xs font-black text-amber-700 font-mono">2 PP Coins</span>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">আপনার ৬ ডিজিটের QID কোড দিন:</label>
+                        <input id="levelUpModalQidInput" type="text" maxlength="6" placeholder="যেমন: 524409"
+                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-center text-sm font-mono font-black tracking-widest text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition-all">
+                        <p class="text-[10px] text-slate-400 text-center">আপনার ৬ ডিজিটের QID কোডটি লিখুন</p>
+                    </div>
+
+                    <div class="pt-1 flex items-center gap-2">
+                        <button type="button" onclick="closeLevelUpOrderModal()" class="flex-1 py-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all">
+                            বাতিল
+                        </button>
+                        <button id="btnConfirmLevelUp" type="button" onclick="confirmLevelUpBoost()" class="flex-1 py-2.5 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5">
+                            <i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: LEVEL UP SUCCESS CELEBRATION ("suesses ashbe je koto te chilo koto hoice") -->
+            <div id="levelUpSuccessModal" class="pop-overlay fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4" style="display:none;">
+                <div class="bg-white rounded-xl max-w-sm w-full p-5 border border-emerald-200 shadow-2xl text-center space-y-3.5">
+                    <div class="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
+                        <i data-lucide="check-circle" class="w-8 h-8"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">🎉 লেভেল আপ সম্পন্ন হয়েছে!</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">আপনার প্লে গেমস আইডি সফলভাবে বুস্ট করা হয়েছে</p>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center gap-3">
+                        <div class="text-center">
+                            <span class="text-[10px] text-slate-400 font-bold block">পূর্ববর্তী লেভেল</span>
+                            <span id="lvlSuccessPrev" class="text-sm font-black text-slate-700">Level 1</span>
+                        </div>
+                        <div class="text-amber-500 font-black text-base">➔</div>
+                        <div class="text-center">
+                            <span class="text-[10px] text-emerald-600 font-bold block">নতুন লেভেল</span>
+                            <span id="lvlSuccessNew" class="text-base font-black text-emerald-600">Level 10</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs text-slate-600 px-2 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <span>কয়েন কর্তন:</span>
+                        <span class="font-mono font-black text-emerald-800">2 PP Coins</span>
+                    </div>
+
+                    <button type="button" onclick="closeLevelUpSuccessModal()" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-md active:scale-98 transition-all">
+                        ঠিক আছে
+                    </button>
+                </div>
+            </div>
+        </main>
         <main id="screenStarSell" class="screen space-y-3.5 hidden fit-scroll pb-16">
             <!-- Header bar with Back button to Store -->
             <div
@@ -5842,10 +6107,10 @@
             <i data-lucide="home" class="w-5 h-5"></i>
             <span class="text-[10px] font-extrabold" data-bn="হোম">Home</span>
         </button>
-        <button data-navbtn="store" onclick="navGo('store')"
+        <button data-navbtn="ppservice" onclick="navGo('ppservice')"
             class="relative flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-all cursor-pointer active:scale-95 text-slate-400 hover:text-slate-600">
-            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-            <span class="text-[10px] font-extrabold" data-bn="স্টোর">Store</span>
+            <i data-lucide="layers" class="w-5 h-5"></i>
+            <span class="text-[10px] font-extrabold" data-bn="পিপি সার্ভিস">PP Service</span>
         </button>
         <button data-navbtn="earn" onclick="navGo('earn')"
             class="relative flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-all cursor-pointer active:scale-95 text-slate-400 hover:text-slate-600">
@@ -7475,7 +7740,7 @@
         }
 
         function showScreen(id) {
-            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenEarn', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell', 'screenCommunity'].forEach(s => {
+            ['screenLogin', 'screenGameSelect', 'screenPayment', 'screenTopup', 'screenCredentials', 'screenSuccess', 'screenProfile', 'screenEditProfile', 'screenHistory', 'screenStore', 'screenPPService', 'screenEarn', 'screenP2P', 'screenRewards', 'screenADellRoom', 'screenStarSell', 'screenCommunity'].forEach(s => {
                 const el = document.getElementById(s);
                 if (el) el.classList.toggle('hidden', s !== id);
             });
@@ -7497,7 +7762,14 @@
             if (id === 'screenP2P' && window.startP2PLive) { try { window.startP2PLive(); } catch (e) { } }
             if (id !== 'screenP2P' && window.stopP2PLive) { try { window.stopP2PLive(); } catch (e) { } }
             if (id !== 'screenSuccess' && window.liveSecTick) { try { clearInterval(window.liveSecTick); } catch (e) { } }
-            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenEarn: 'earn', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
+            if (id !== 'screenPPService') {
+                const ppBar = document.getElementById('ppServiceCtaBar');
+                if (ppBar) ppBar.classList.add('hidden');
+                if (id !== 'screenPayment' && window.clearPPServiceGameSelection) {
+                    window.clearPPServiceGameSelection(true);
+                }
+            }
+            const navMap = { screenGameSelect: 'home', screenStore: 'store', screenPPService: 'ppservice', screenEarn: 'earn', screenP2P: 'wallet', screenTopup: 'wallet', screenProfile: 'profile', screenHistory: 'profile', screenStarSell: 'store', screenCommunity: 'profile' };
             if (window.paintNav) paintNav(navMap[id] || null);
             // Translation system removed per user request
         }
@@ -7515,6 +7787,11 @@
             if (tab === 'store') {
                 showScreen('screenStore');
                 if (window.renderStoreList && window._storeCache) window.renderStoreList(window._storeCache);
+                return;
+            }
+            if (tab === 'ppservice') {
+                showScreen('screenPPService');
+                if (window.renderPPServiceHub) window.renderPPServiceHub();
                 return;
             }
             if (tab === 'earn') {
@@ -8186,6 +8463,10 @@
         window.payWallet = window.onWalletPayClick;
 
         function goToPaymentScreen() {
+            if (!selectedGame && window.selectedGame) {
+                selectedGame = window.selectedGame;
+                selectedGameLogo = window.selectedGameLogo || '';
+            }
             if (!selectedGame) {
                 toast('দয়া করে প্রথমে একটি গেম নির্বাচন করুন');
                 return;
@@ -8197,8 +8478,8 @@
             }
             if (window.ppfb && window.ppfb.ev) window.ppfb.ev('begin_checkout', { game: selectedGame });
             window._payGame = selectedGame;
-            const card = document.querySelector('.game-card.is-selected img.g-logo');
-            window._payGameLogo = card ? card.src : '';
+            const card = document.querySelector('.game-card.is-selected img.g-logo, .pp-game-card.is-selected img');
+            window._payGameLogo = selectedGameLogo || window.selectedGameLogo || (card ? card.src : '');
             const pgEl = document.getElementById('payGame');
             if (pgEl) pgEl.innerText = selectedGame;
             const pl = document.getElementById('payGameLogo');
@@ -9087,27 +9368,14 @@
         window.refreshPpmApkDownloadUrl = updatePpmApkDownloadUrl;
         setTimeout(updatePpmApkDownloadUrl, 500);
 
-        // PPM SERVER APP FIRST TIME DOWNLOAD REWARD (1 Point Strictly Once)
+        // PPM SERVER APP FIRST TIME DOWNLOAD REWARD (1 Coin Strictly Once)
         function updateAppDownloadUI(isClaimed) {
             const badge = document.getElementById('appDownloadRewardBadge');
             const desc = document.getElementById('appDownloadRewardDesc');
             const btnTxt = document.getElementById('btnDownloadPpmApkProfileTxt');
-            if (isClaimed) {
-                if (badge) {
-                    badge.classList.remove('hidden');
-                    badge.className = 'text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.2 rounded font-black';
-                    badge.textContent = '১ Pt Claimed ✓';
-                }
-                if (desc) desc.textContent = '৬-ডিজিট QID ও অটো কোয়েস্টের জন্য';
-                if (btnTxt) btnTxt.textContent = 'Download';
-            } else {
-                if (badge) {
-                    badge.classList.remove('hidden');
-                    badge.className = 'text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded';
-                    badge.textContent = '+১ Point';
-                }
-                if (desc) desc.textContent = 'প্রথম ডাউনলোডে পাবেন ফ্রি ১ পয়েন্ট 🎁';
-            }
+            if (badge) badge.classList.add('hidden');
+            if (desc) desc.textContent = 'PPM SERVER অফিসিয়াল কানেক্টর অ্যাপ ডাউনলোড করুন';
+            if (btnTxt) btnTxt.textContent = 'Download';
         }
         window.updateAppDownloadUI = updateAppDownloadUI;
 
@@ -9131,26 +9399,51 @@
                     return;
                 }
 
-                // Strictly 1 time reward per account lifetime
+                // Strictly 1 time reward per account lifetime: +1 PP Coin
                 if (window.ppfb) window.ppfb.appDownloadRewarded = true;
-                const curMonthKey = (new Date()).toISOString().slice(0, 7);
-                const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
-                const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
-                const newPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
-                if (window.ppfb) window.ppfb.monthlyPoints = newPts;
+                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
+                const curBonus = Number(ud.bonusBalance || 0);
+                const newBonus = Math.round((curBonus + 1.0 + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
 
+                // 1. Credit Cloudflare D1 wallet
+                const cfApi = window.CF_API || 'https://pp-mod-auto-quest.onrender.com';
+                await fetch(`${cfApi}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, coins: 1, type: 'bonus' })
+                }).catch(() => { });
+
+                // 2. Update Firestore user balance
                 await window.FB.updateDoc(uRef, {
                     appDownloadRewarded: true,
                     appDownloadRewardedAt: new Date(),
-                    monthlyPoints: newPts,
-                    monthlyPointsMonth: curMonthKey
+                    balance: newTotal,
+                    bonusBalance: newBonus
                 }).catch(() => {});
 
-                updateAppDownloadUI(true);
-                toast('🎉 অভিনন্দন! PPM SERVER অ্যাপ ডাউনলোডের জন্য ১ পয়েন্ট যুক্ত হয়েছে!');
-                if (typeof window.renderEarnLeaderboard === 'function') {
-                    window.renderEarnLeaderboard();
+                // 3. Save History / Redemption record
+                await window.FB.addDoc(window.FB.collection(window.FB.db, 'redemptions'), {
+                    uid: u.uid,
+                    name: u.displayName || 'User',
+                    email: u.email || '',
+                    code: 'APPDOWNLOAD',
+                    amount: 1,
+                    note: 'PPM SERVER App Download',
+                    status: 'approved',
+                    createdAt: (window.FB.serverTimestamp ? window.FB.serverTimestamp() : new Date()),
+                    expiresAt: new Date(Date.now() + 60 * 86400000)
+                }).catch(() => { });
+
+                // 4. Update UI
+                if (window.ppfb && window.ppfb.wallet) {
+                    window.ppfb.wallet.balance = newTotal;
                 }
+                if (typeof setBalanceUI === 'function') {
+                    setBalanceUI(newTotal, window.ppfb ? (window.ppfb.playPoints || 0) : 0, window.ppfb ? (window.ppfb.pendingPoints || 0) : 0, curReal, newBonus);
+                }
+                updateAppDownloadUI(true);
+                toast('🎉 অভিনন্দন! PPM SERVER অ্যাপ ডাউনলোডের জন্য ১ কয়েন ওয়ালেটে যোগ হয়েছে!');
             } catch (err) {
                 console.warn('claimAppDownloadReward err:', err);
             }
@@ -11826,10 +12119,18 @@
                 const nm = (o.name || 'Game').toString();
                 const pts = (o.points !== undefined && o.points !== null && o.points !== '') ? o.points : 50;
                 const tag = nm + ' (' + pts + ')';
-                const lg = o.logo ? '<img class="g-logo" src="' + o.logo + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<span class="g-letter">' + escH(nm.charAt(0).toUpperCase()) + '</span>';
-                return '<button onclick="selectGame(this, \'' + escQ(tag) + '\')" data-accent="' + ACC[i % 4] + '" class="game-card flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition-all text-left shadow-2xs group cursor-pointer active:scale-98">'
-                    + lg + '<span class="g-name">' + escH(nm) + '</span>'
-                    + '<span class="flex items-center gap-1 text-[11px] font-extrabold bg-slate-100 text-slate-700 px-2 py-1 rounded-lg"><img src="' + PP_LOGO + '" class="w-3.5 h-3.5">' + escH(pts) + '</span></button>';
+                const lg = o.logo ? '<img class="g-logo w-full h-full object-cover scale-[1.12]" src="' + o.logo + '" alt="" loading="lazy" onerror="this.src=\'brand_logo.png\'">' : '<span class="g-letter font-black">' + escH(nm.charAt(0).toUpperCase()) + '</span>';
+                return '<button onclick="selectGame(this, \'' + escQ(tag) + '\')" class="game-card flex items-center p-0 rounded-lg bg-white border border-slate-300 hover:border-slate-400 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">'
+                    + '<div class="h-full w-[52px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative bg-slate-50 flex items-center justify-center">'
+                    + lg
+                    + '</div>'
+                    + '<div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">'
+                    + '<span class="g-name text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">' + escH(nm) + '</span>'
+                    + '<div class="mt-0.5 flex items-center">'
+                    + '<span class="inline-flex items-center gap-1 text-[10px] font-extrabold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded"><img src="' + PP_LOGO + '" class="w-3.5 h-3.5">' + escH(pts) + '</span>'
+                    + '</div>'
+                    + '</div>'
+                    + '</button>';
             }).join('');
             if (typeof updateGameCount === 'function') updateGameCount(list.length);
             const sInp = document.getElementById('gameSearchInput');
@@ -12154,7 +12455,7 @@
                             const existingNames = new Set(curList.map(x => (x.name || '').toLowerCase().replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim()));
                             let hasNew = false;
                             pData.services.forEach(ps => {
-                                if (ps.enabled !== false && ps.title) {
+                                if (ps.enabled !== false && ps.title && ps.section !== 'level_up' && ps.category !== 'level_up') {
                                     const cleanT = ps.title.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
                                     if (!existingNames.has(cleanT.toLowerCase())) {
                                         existingNames.add(cleanT.toLowerCase());
@@ -14605,6 +14906,446 @@
         }
     </script>
 
+    <script>
+        /* ==============================================================================
+           PP SERVICES MODULE (Auto Quest & Level Up Booster)
+           ============================================================================== */
+        window.clearPPServiceGameSelection = function (clearPayGame = false) {
+            selectedGame = null;
+            if (typeof window !== 'undefined') {
+                window.selectedGame = null;
+                window.selectedGameLogo = '';
+                if (clearPayGame) {
+                    window._payGame = null;
+                    window._payGameLogo = '';
+                }
+            }
+            const ctaBar = document.getElementById('ppServiceCtaBar');
+            if (ctaBar) {
+                ctaBar.classList.add('hidden');
+                ctaBar.classList.remove('cta-anim-in', 'cta-anim-switch');
+            }
+            document.querySelectorAll('.pp-game-card').forEach(c => {
+                c.classList.remove('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                c.classList.add('border-slate-300');
+                const checkEl = c.querySelector('.rounded-full');
+                if (checkEl) {
+                    checkEl.className = 'w-5 h-5 rounded-full border border-slate-400 text-transparent flex items-center justify-center transition-all';
+                }
+            });
+        };
+
+        window.openPPServiceHub = function () {
+            if (window.clearPPServiceGameSelection) window.clearPPServiceGameSelection(true);
+            const hero = document.getElementById('ppServiceHeroBanner');
+            const hub = document.getElementById('ppServiceHubView');
+            const qView = document.getElementById('ppServiceQuestView');
+            const lvlView = document.getElementById('ppServiceLevelUpView');
+            const ctaBar = document.getElementById('ppServiceCtaBar');
+            if (hero) { hero.classList.remove('hidden'); hero.style.display = 'block'; }
+            if (hub) { hub.classList.remove('hidden'); hub.style.display = 'block'; }
+            if (qView) { qView.classList.add('hidden'); qView.style.display = 'none'; }
+            if (lvlView) { lvlView.classList.add('hidden'); lvlView.style.display = 'none'; }
+            if (ctaBar) ctaBar.classList.add('hidden');
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.renderPPServiceHub = function () {
+            window.openPPServiceHub();
+        };
+
+        // --- SUB-VIEW 1: Auto Quest Game Selection (Public Portal Services) ---
+        window._ppPortalGamesCache = null;
+        const DEFAULT_PORTAL_GAMES = [
+            { title: "8 Ball Pool", icon: "https://play-lh.googleusercontent.com/F2_Kbn1-vQePDh_Y0qNCDhkmpEK5qdEyPwcJqwXho54ZVG4w6Szt32VHsyPzeVLPR2kfYI62-hGmNpQoDxS-wQ=s0-br30", quests: 3, package: "com.miniclip.eightballpool" },
+            { title: "Angry Birds 2", icon: "https://play-lh.googleusercontent.com/XrA1acf-l1YT0jw0QTxWqpJLE_TYSgdGpWE1vrEepFpA2128Zx4to0ARPvKFdhT5vAc0LHHC7xAAwa8aABIFeg=s0-br30", quests: 2, package: "com.rovio.baba" },
+            { title: "Arknights: Endfield", icon: "https://play-lh.googleusercontent.com/l6FVNa293RykBWy88TqEhUakIcGSC8bRygSnKOBgztln48JX-WzMWnrBAETrKZsxDNC4HhwCsvfle_UI7rBE=s0-br30", quests: 1, package: "com.gryphline.endfield.gp" },
+            { title: "Best Fiends - Match 3 Puzzles", icon: "https://play-lh.googleusercontent.com/f8uOEX90LCMfmR8DBJ_VSL70hOTwE0EnaIhuId6wQSNb0U3qX4X6PEaGvA7yfgsIsC-r6LV7FLQgsEnPTmRfJw=s0-br30", quests: 2, package: "com.Seriously.BestFiends" },
+            { title: "Dice Dreams™️", icon: "https://play-lh.googleusercontent.com/5MLgC2WWXcq1Pol8qRAXOKzIJY9qySkjF43DnWyd5F9fPj_heinHeIxvgIpPQwcaQ1w-mUzUmoP1Xeslf29irg=s0-br30", quests: 2, package: "com.superplaystudios.dicedreams" },
+            { title: "Disney Solitaire", icon: "https://play-lh.googleusercontent.com/BpyKPyeCiAoCtYP23WtOoHW1G_4IAGUyk4G6V_5YNmXomuBwNC5ZnSq5OfxejW-Ufuukma8-UYZirB2wz3m8UnM=s0-br30", quests: 3, package: "com.superplaystudios.disneysolitairedreams" },
+            { title: "Domino Dreams™", icon: "https://play-lh.googleusercontent.com/KPBcFtNGNn3cMtgFthtbrWL0COVs5bINj1aQYniBa6JxgI-FAkce2czhVONttEtLQXnfd0X5rHA6YGMHp3nfWw=s0-br30", quests: 2, package: "com.screenshake.dominodreams" },
+            { title: "Evony: The King's Return", icon: "https://play-lh.googleusercontent.com/O_2KnfGM5WwoQrZVXoyHJEv-NyyZf3Nv6zYe3uQCtAFHzx8v4PT4Sb9oaSRoJDQ9Z8RDAYfHZh-_23TkBRSGRQ=s0-br30", quests: 2, package: "com.topgamesinc.evony" },
+            { title: "Food Hunt: Pixel Puzzle", icon: "https://play-lh.googleusercontent.com/f7HHbEOewA0rIk299hsDv6vN4Iz_W5OvivKF2lMKOKzttF1g4lp8kE7qDAUGlJLAelw56TSRd6V5y4SFGCKp=s0-br30", quests: 3, package: "com.vigafun.funfinity.foodhunt" },
+            { title: "Free Fire MAX", icon: "https://play-lh.googleusercontent.com/CHTegoh7kat0rwX0gsbqrAAepT4qYASGwJi-KyAdcxVlnQxN3pe4ahKNe6lh4_vOCutj-oQp6rWRoBKiuxvdEw=s0-br30", quests: 2, package: "com.dts.freefiremax" },
+            { title: "Gossip Harbor®: Merge & Story", icon: "https://play-lh.googleusercontent.com/VIv1J5fPLy-r9KrlA4WhLvzTboMphqs_jo_U9OqLyOmkr1AGAZ-nzIPo74_VISY7Ul28ZkObCkvlyyWPd_50=s0-br30", quests: 3, package: "com.mergegames.gossipharbor" },
+            { title: "Hay Day", icon: "https://play-lh.googleusercontent.com/f_ANUktbqGVjj9DNAzZ7ZOAV2JjZfb72BbGhd1ooXdIIki9zeInSwK6RRfaRpX8cdzm9BGfWTMEa1CHJ80XxCw=s0-br30", quests: 2, package: "com.supercell.hayday" },
+            { title: "Lords Mobile: Kingdom Wars", icon: "https://play-lh.googleusercontent.com/9gTDGNC_Ly7dWNWcfZtnBKdIY8a9REzuWMCC89ycYugXGvWgAPDo4GgnyitrX2LpMqE-1yb_2CDFugre9QVKfg=s0-br30", quests: 2, package: "com.igg.android.lordsmobile" },
+            { title: "Marvel Contest of Champions", icon: "https://play-lh.googleusercontent.com/Qu9lyWmuzXotmEhWMckhfk4gUamTPNSjbcZGfrwE0N_qzltBKTyHdDqbcD9-HgRPD9vJCPrTQNOdAjKXZmZxKSY=s0-br30", quests: 3, package: "com.kabam.marvelbattle" },
+            { title: "Pokémon Masters EX", icon: "https://play-lh.googleusercontent.com/Sh6nvwhh0fz2iA_yCf-SsaJ0ceHHL-DKgv5nGr5yd3m5DyTFdZQAsjp5-14kA5bNCc5zxzXkj5oOVSghU04ZfA=s0-br30", quests: 2, package: "com.dena.a12026418" },
+            { title: "Pokémon TCG Pocket", icon: "https://play-lh.googleusercontent.com/p_05nasYCOpKzbj4n-j6qFrWRu5mb4oBFiulf9kc-SdLssRKbIqIt8u-XkI2R07vfHh0KE_Vr4L8R0l7c3JTWw=s0-br30", quests: 4, package: "jp.pokemon.pokemontcgp" },
+            { title: "Rise of Castles: Ice and Fire", icon: "https://play-lh.googleusercontent.com/VnuNntrmS7rBVEP2DrwSQAO9BFlaYZf9MwJ72p2jX5la8esW7IHoVuoVH9Qg5kzwLOCsKkg71GIzh7iQgG7hXQ=s0-br30", quests: 2, package: "com.im30.ROE.gp" },
+            { title: "Summoners War", icon: "https://play-lh.googleusercontent.com/MUCpc9V1KmbWYb2Cv6p3aSVyzBo-uuG_iMPWY0vZSRh9cpDadSM07vaWHJXE6Yrpxj-wH1y55mO6Bo6B3_2k=s0-br30", quests: 3, package: "com.com2us.smon.normal.freefull.google.kr.android.common" },
+            { title: "Triple Match 3D", icon: "https://play-lh.googleusercontent.com/j_2GiIwfJGQDF3erVUhHRTJfMpOyk3Tyl85J8LbN3v6Qu7tNn_lLfDE5Oho_f-ikT5m_EBvEKpVBBQJb8MH2Ww8=s0-br30", quests: 2, package: "com.master.triple3d.find" },
+            { title: "War Machines：Tanks Battle Game", icon: "https://play-lh.googleusercontent.com/bkzoRJZfTQNKKQSDBsedwOg8lMl4bepJiueo7DLDWS82sRRsEWhwKZPkHCuLxvDKeS8y977LbhjqPDJK4NaQiA=s0-br30", quests: 4, package: "com.fungames.battletanksbeta" },
+            { title: "Whiteout Survival", icon: "https://play-lh.googleusercontent.com/tNMaMiJ4wTQy_TeZSWHdSlP5qH0PGig9g9sDJu2QFvCHdnrbo2u17pX55W4i6KITo56v_ZyICkqLgA2svH9ycQ=s0-br30", quests: 2, package: "com.gof.global" },
+            { title: "Yalla Ludo - Ludo&Jackaroo", icon: "https://play-lh.googleusercontent.com/_B8WTUQVNhy4frnK0ekTvxNUpYDL-HYfeJvM8jo7Zw58N-RoAWD2gC4ksVp5KDNdtiYDGBMo3DVBo8bcBkxBLw=s0-br30", quests: 2, package: "com.yalla.yallagames" }
+        ];
+
+        async function fetchPPPortalServices() {
+            try {
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=' + Date.now(), { cache: 'no-store' });
+                const data = await res.json();
+                if (data && data.ok && Array.isArray(data.services) && data.services.length) {
+                    const questOnly = data.services.filter(s => {
+                        if (!s || s.enabled === false) return false;
+                        if (s.section === 'level_up' || s.category === 'level_up') return false;
+                        return true;
+                    });
+                    window._ppPortalGamesCache = questOnly.map(s => ({
+                        title: s.title || 'Game',
+                        icon: s.icon || 'brand_logo.png',
+                        quests: s.selected_quests_count || 1,
+                        package: s.package || ''
+                    }));
+                    return window._ppPortalGamesCache;
+                }
+            } catch (err) {
+                console.warn('Portal services fetch error:', err);
+            }
+            return window._ppPortalGamesCache || DEFAULT_PORTAL_GAMES;
+        }
+
+        function getPPPortalGamesList() {
+            return window._ppPortalGamesCache || DEFAULT_PORTAL_GAMES;
+        }
+
+        window.openAutoQuestView = async function () {
+            if (window.clearPPServiceGameSelection) window.clearPPServiceGameSelection(true);
+            const hero = document.getElementById('ppServiceHeroBanner');
+            const hub = document.getElementById('ppServiceHubView');
+            const qView = document.getElementById('ppServiceQuestView');
+            const lvlView = document.getElementById('ppServiceLevelUpView');
+            if (hero) { hero.classList.add('hidden'); hero.style.display = 'none'; }
+            if (hub) { hub.classList.add('hidden'); hub.style.display = 'none'; }
+            if (lvlView) { lvlView.classList.add('hidden'); lvlView.style.display = 'none'; }
+            if (qView) { qView.classList.remove('hidden'); qView.style.display = 'flex'; }
+
+            // Render instantly with cached / default portal games list
+            window.renderPPServiceGames();
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+
+            // Sync fresh games list from Public Portal API in background
+            try {
+                const fresh = await fetchPPPortalServices();
+                if (fresh && fresh.length) {
+                    const searchVal = (document.getElementById('ppServiceGameSearch') || {}).value || '';
+                    window.renderPPServiceGames(searchVal);
+                }
+            } catch (e) { }
+        };
+
+        window.renderPPServiceGames = function (filterQuery = '') {
+            const grid = document.getElementById('ppServiceGamesGrid');
+            const countBadge = document.getElementById('ppServiceGameCountBadge');
+            if (!grid) return;
+
+            const rawList = getPPPortalGamesList();
+            let query = (filterQuery || '').trim().toLowerCase();
+            let filtered = rawList.filter(g => {
+                if (!g || !g.title) return false;
+                if (!query) return true;
+                return g.title.toLowerCase().includes(query) || (g.package && g.package.toLowerCase().includes(query));
+            });
+
+            window._ppServiceFilteredGames = filtered;
+
+            if (countBadge) countBadge.textContent = `${filtered.length} Games`;
+
+            let html = '';
+            filtered.forEach((g, idx) => {
+                const gName = g.title || 'Game';
+                const gLogo = g.icon || 'brand_logo.png';
+                const qCount = g.quests || 1;
+                // Seconds calculation: 1 quest -> 1s, 2 quests -> 2s, 3+ quests -> 3s (max 3s)
+                const sec = qCount <= 1 ? 1 : (qCount === 2 ? 2 : 3);
+                const isSel = (selectedGame === gName || window.selectedGame === gName);
+
+                html += `
+                <div onclick="window.selectPPServiceGameByIndex(${idx}, this)"
+                    class="pp-game-card group relative overflow-hidden rounded-lg bg-white border ${isSel ? 'border-emerald-600 ring-2 ring-emerald-500/40 bg-emerald-50/50 is-selected shadow-xs' : 'border-slate-300 hover:border-emerald-400 hover:shadow-2xs'} cursor-pointer transition-all active:scale-[0.99] flex items-center justify-between h-[62px]">
+                    <div class="flex items-center h-full min-w-0 flex-1">
+                        <div class="h-full w-[62px] flex-shrink-0 overflow-hidden border-r border-slate-300 relative">
+                            <img src="${escH(gLogo)}" alt="${escH(gName)}" class="w-full h-full object-cover scale-[1.14]" onerror="this.src='brand_logo.png'">
+                        </div>
+                        <div class="min-w-0 flex-1 px-3 py-1.5">
+                            <p class="text-xs font-black text-slate-900 truncate leading-snug group-hover:text-emerald-700 transition-colors">${escH(gName)}</p>
+                            <p class="text-[11px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                                <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500 fill-amber-500"></i>
+                                <span>Complete just ${sec}s</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="pr-3 flex items-center flex-shrink-0">
+                        <div class="w-5 h-5 rounded-full ${isSel ? 'bg-emerald-500 text-white' : 'border border-slate-400 text-transparent'} flex items-center justify-center transition-all">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            grid.innerHTML = html;
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.selectPPServiceGameByIndex = function (idx, cardEl) {
+            const list = window._ppServiceFilteredGames || [];
+            const g = list[idx];
+            if (!g) return;
+            const gName = g.title || 'Game';
+            const gLogo = g.icon || 'brand_logo.png';
+            const qCount = g.quests || 1;
+            const sec = qCount <= 1 ? 1 : (qCount === 2 ? 2 : 3);
+            if (!cardEl) {
+                const cards = document.querySelectorAll('.pp-game-card');
+                cardEl = cards[idx] || null;
+            }
+            window.selectPPServiceGame(cardEl, gName, gLogo, sec);
+        };
+
+        window.selectPPServiceGame = function (cardEl, gameName, gameLogo, durationSec = 1) {
+            const ctaBar = document.getElementById('ppServiceCtaBar');
+            const wasHidden = !ctaBar || ctaBar.classList.contains('hidden');
+            const isSwitchingGame = (selectedGame && selectedGame !== gameName);
+
+            selectedGame = gameName;
+            selectedGameLogo = gameLogo || '';
+            window.selectedGame = gameName;
+            window.selectedGameLogo = gameLogo || '';
+            window._payGame = gameName;
+            window._payGameLogo = gameLogo || '';
+
+            document.querySelectorAll('.pp-game-card').forEach(c => {
+                c.classList.remove('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                c.classList.add('border-slate-300');
+                const checkEl = c.querySelector('.rounded-full');
+                if (checkEl) {
+                    checkEl.className = 'w-5 h-5 rounded-full border border-slate-400 text-transparent flex items-center justify-center transition-all';
+                }
+            });
+            if (cardEl) {
+                cardEl.classList.remove('border-slate-300');
+                cardEl.classList.add('border-emerald-600', 'ring-2', 'ring-emerald-500/40', 'bg-emerald-50/50', 'is-selected');
+                const checkEl = cardEl.querySelector('.rounded-full');
+                if (checkEl) {
+                    checkEl.className = 'w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center transition-all';
+                }
+            }
+
+            const ctaTitle = document.getElementById('ppServiceCtaTitle');
+            const ctaLogo = document.getElementById('ppServiceCtaLogo');
+            const ctaDuration = document.getElementById('ppServiceCtaDuration');
+            if (ctaBar && ctaTitle && ctaLogo) {
+                ctaTitle.textContent = gameName;
+                ctaLogo.src = gameLogo || 'brand_logo.png';
+                if (ctaDuration) {
+                    ctaDuration.innerHTML = '<i data-lucide="zap" class="w-3 h-3 text-amber-300 fill-amber-300"></i> Complete just ' + durationSec + 's';
+                }
+
+                ctaBar.classList.remove('hidden');
+                if (isSwitchingGame) {
+                    ctaBar.classList.remove('cta-anim-in', 'cta-anim-switch');
+                    void ctaBar.offsetWidth; // trigger reflow
+                    ctaBar.classList.add('cta-anim-switch');
+                } else if (wasHidden) {
+                    ctaBar.classList.remove('cta-anim-in', 'cta-anim-switch');
+                    void ctaBar.offsetWidth;
+                    ctaBar.classList.add('cta-anim-in');
+                }
+            }
+
+            try {
+                let curCode = (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
+                if (!curCode) { try { curCode = localStorage.getItem('ppm_last_qid') || ''; } catch(e){} }
+                if (curCode) {
+                    fetch('https://pp-mod-auto-quest.onrender.com/api/portal/warmup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ game_id: gameName, sync_code: curCode })
+                    }).catch(() => {});
+                }
+            } catch (wErr) { }
+
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.openLevelUpView = function () {
+            if (window.clearPPServiceGameSelection) window.clearPPServiceGameSelection(true);
+            const hero = document.getElementById('ppServiceHeroBanner');
+            const hub = document.getElementById('ppServiceHubView');
+            const qView = document.getElementById('ppServiceQuestView');
+            const lvlView = document.getElementById('ppServiceLevelUpView');
+            const ctaBar = document.getElementById('ppServiceCtaBar');
+            if (hero) { hero.classList.add('hidden'); hero.style.display = 'none'; }
+            if (hub) { hub.classList.add('hidden'); hub.style.display = 'none'; }
+            if (qView) { qView.classList.add('hidden'); qView.style.display = 'none'; }
+            if (ctaBar) ctaBar.classList.add('hidden');
+            if (lvlView) { lvlView.classList.remove('hidden'); lvlView.style.display = 'flex'; }
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.filterPPServiceGames = function (val) {
+            const clearBtn = document.getElementById('ppServiceSearchClearBtn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !val.trim());
+            window.renderPPServiceGames(val);
+        };
+
+        window.clearPPServiceGameSearch = function () {
+            const input = document.getElementById('ppServiceGameSearch');
+            const clearBtn = document.getElementById('ppServiceSearchClearBtn');
+            if (input) input.value = '';
+            if (clearBtn) clearBtn.classList.add('hidden');
+            window.renderPPServiceGames('');
+        };
+
+        window.openLevelUpOrderModal = function () {
+            let autoQid = (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
+            if (!autoQid) {
+                try { autoQid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+            }
+            const inp = document.getElementById('levelUpModalQidInput');
+            if (inp && autoQid) inp.value = autoQid;
+
+            const modal = document.getElementById('levelUpOrderModal');
+            if (modal) modal.style.display = 'flex';
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        };
+
+        window.closeLevelUpOrderModal = function () {
+            const modal = document.getElementById('levelUpOrderModal');
+            if (modal) modal.style.display = 'none';
+        };
+
+        window.closeLevelUpSuccessModal = function () {
+            const modal = document.getElementById('levelUpSuccessModal');
+            if (modal) modal.style.display = 'none';
+        };
+
+        window.confirmLevelUpBoost = async function () {
+            const inp = document.getElementById('levelUpModalQidInput');
+            const qid = (inp ? inp.value : '').trim();
+            if (!qid || qid.length !== 6 || !/^\d+$/.test(qid)) {
+                toast('অনুগ্রহ করে সঠিক ৬ ডিজিটের QID কোড দিন');
+                return;
+            }
+
+            try { localStorage.setItem('ppm_last_qid', qid); } catch (e) { }
+
+            if (!(window.ppfb && window.ppfb.user)) {
+                toast('টাস্ক শুরু করতে দয়া করে আগে লগইন করুন');
+                showScreen('screenLogin');
+                return;
+            }
+
+            const coinsCost = 2;
+            const curBal = Number(window.ppfb.wallet ? (window.ppfb.wallet.balance || 0) : 0);
+            if (curBal < coinsCost) {
+                toast(`আপনার ওয়ালেটে পর্যাপ্ত কয়েন নেই (${coinsCost} কয়েন প্রয়োজন)। দয়া করে টপ-আপ করুন।`);
+                enterTopup('ppservice');
+                return;
+            }
+
+            const btn = document.getElementById('btnConfirmLevelUp');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> প্রসেস হচ্ছে...`;
+            }
+
+            try {
+                // ১. Cloudflare D1 থেকে কয়েন ফি কর্তন
+                const activeApi = (typeof CF_API !== 'undefined' ? CF_API : (window.CF_API || 'https://ppmod-api.tredarskvt.workers.dev'));
+                const payRes = await fetch(`${activeApi}/api/wallet/pay-task`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: window.ppfb.user.uid,
+                        feeCoins: coinsCost,
+                        isFree: false
+                    })
+                });
+                const payData = await payRes.json();
+                if (!payData.ok) {
+                    toast(payData.error === 'insufficient' ? 'অপর্যাপ্ত কয়েন ব্যালেন্স।' : 'পেমেন্ট ব্যর্থ হয়েছে।');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
+                    }
+                    return;
+                }
+
+                if (window.ppfb.wallet) {
+                    window.ppfb.wallet.balance = payData.balance;
+                    window.ppfb.wallet.realBalance = payData.realBalance;
+                    window.ppfb.wallet.bonusBalance = payData.bonusBalance;
+                    if (typeof updateWalletUI === 'function') updateWalletUI();
+                }
+
+                // ২. Render ব্যাকএন্ডে বুস্টার আনলক এক্সিকিউশন
+                const execRes = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/level-up/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        qid: qid,
+                        target_level: 10,
+                        coins_cost: coinsCost,
+                        user_uid: window.ppfb.user.uid,
+                        balance_before: curBal,
+                        balance_after: payData.balance
+                    })
+                });
+                const execData = await execRes.json();
+
+                if (!execData.ok) {
+                    toast(execData.error || 'লেভেল আপ প্রসেসিং ব্যর্থ হয়েছে।');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
+                    }
+                    return;
+                }
+
+                // ৩. অর্ডার হিস্ট্রিতে রেকর্ড সংরক্ষণ
+                const orderId = 'ORD-' + Date.now();
+                try {
+                    await fetch(`${activeApi}/api/orders/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: orderId,
+                            uid: window.ppfb.user.uid,
+                            name: (window.ppfb.user && window.ppfb.user.name) || 'User',
+                            email: (window.ppfb.user && window.ppfb.user.email) || '',
+                            kind: 'TASK',
+                            game: 'Level Up Booster (Level 10)',
+                            status: 'completed',
+                            coins: coinsCost,
+                            qid: qid,
+                            adminMsg: `Level ${execData.new_level || 10} Booster Success!`
+                        })
+                    });
+                } catch (recErr) { }
+
+                // ৪. অর্ডার মোডাল বন্ধ ও সাকসেস মোডাল ওপেন ("koto te chilo koto hoice")
+                closeLevelUpOrderModal();
+
+                const prevLvlEl = document.getElementById('lvlSuccessPrev');
+                const newLvlEl = document.getElementById('lvlSuccessNew');
+                if (prevLvlEl) prevLvlEl.textContent = `Level ${execData.previous_level || 1}`;
+                if (newLvlEl) newLvlEl.textContent = `Level ${execData.new_level || 10}`;
+
+                const succModal = document.getElementById('levelUpSuccessModal');
+                if (succModal) succModal.style.display = 'flex';
+                if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+            } catch (ex) {
+                toast('একটি ত্রুটি ঘটেছে: ' + ex.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
+                }
+            }
+        };
+    </script>
+
     <script type="module">
         import { initializeApp as _initApp, getApp as _getApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
         import { getFirestore as _getFS, doc as _doc, getDoc as _getDoc, setDoc as _setDoc, deleteDoc as _deleteDoc, collection as _col, addDoc as _addDoc, serverTimestamp as _ts, runTransaction as _tx, increment as _inc, query as _q, where as _where, orderBy as _orderBy, limit as _limit, getDocs as _getDocs, onSnapshot as _snap } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
@@ -16687,8 +17428,16 @@
                     return;
                 }
 
-                // 0.1 বেশি পাবে (৮৫%), 0.2 খুব কম (১৫%), এর বেশি কখনোই পাবে না
-                const awardedAmt = Math.random() < 0.85 ? 0.1 : 0.2;
+                // র‍্যান্ডম কয়েন বন্টন: ০.৫ কয়েন খুব কম (১০ দিনে ১ দিন বা ১০%), বাকি দিনগুলোতে ০.১ বা ০.২ কয়েন
+                const r = Math.random();
+                let awardedAmt = 0.1;
+                if (r < 0.10) {
+                    awardedAmt = 0.5;
+                } else if (r < 0.55) {
+                    awardedAmt = 0.2;
+                } else {
+                    awardedAmt = 0.1;
+                }
                 const curStreak = (ud.lastBonusDay === yesterday) ? (Number(ud.lastBonusStreak) || 0) + 1 : 1;
 
                 const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
@@ -17049,7 +17798,6 @@
                 timeBadge = ' • <span class="text-emerald-600 font-extrabold">⏱ ' + it.timeElapsed + 's</span>';
             }
             let qidVal = '';
-            let liveCheckBtn = '';
             if (it.kind === 'TASK') {
                 qidVal = it.qid || it.syncCode || it.serverCode || it.code || (it.loginMethod === 'qid' ? it.syncCode : '') || '';
                 if (!qidVal && it.accEmail && !it.accEmail.includes('@') && it.accEmail.length === 6 && /^\d+$/.test(it.accEmail)) {
@@ -17064,12 +17812,11 @@
                 const qidBadge = qidVal ? ' • <span class="inline-flex items-center px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-black text-[9.5px]">QID: ' + escapeHtml(qidVal) + '</span>' : '';
                 title = escapeHtml(it.game || 'Task');
                 info = (it.trxId ? escapeHtml(it.trxId) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge + qidBadge;
-
-                liveCheckBtn = '<button type="button" onclick="event.stopPropagation(); window.openLiveCheckModal(\'' + escapeHtml(it.id || '') + '\', \'' + escapeHtml(qidVal) + '\', \'' + escapeHtml(it.game || it.title || '') + '\')" class="inline-flex items-center gap-1.5 text-[10px] font-extrabold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md px-2 py-0.5 cursor-pointer transition-all active:scale-95 shadow-2xs"><svg class="w-3 h-3 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg><span>Live Check</span></button>';
             }
             else if (it.kind === 'REDEEM') {
                 if ((it.code || '') === 'EXCHANGE') { title = '+' + Number(it.amount || 0) + ' PP Coins'; info = 'Exchange • -' + Number(it.points || 0) + ' Pts'; }
                 else if ((it.code || '') === 'DAILY') { title = '+' + Number(it.amount || 0) + ' Coins Daily Bonus'; info = escapeHtml(it.note || 'Daily check-in'); }
+                else if ((it.code || '') === 'APPDOWNLOAD') { title = '+1 Coin App Download'; info = escapeHtml(it.note || 'PPM SERVER App Download'); }
                 else { title = 'Redeem ' + escapeHtml(it.code || ''); info = escapeHtml(it.code || ''); }
             }
             else if (it.kind === 'WITHDRAW') { title = 'Withdraw ' + Number(it.points || 0) + ' Pts'; info = escapeHtml(it.method || '') + ' • ' + escapeHtml(it.account || ''); }
@@ -17084,7 +17831,7 @@
                 + histThumb(it)
                 + '<div class="flex-1 min-w-0"><p class="text-xs font-bold text-slate-800 truncate">' + title + '</p>'
                 + '<p class="text-[10px] text-slate-400 font-mono truncate">' + info + ' • ' + fmtDate(it.createdAt) + '</p></div>'
-                + '<div class="text-right flex-shrink-0"><p class="text-xs font-extrabold text-slate-900">' + (it.kind === 'WITHDRAW' ? ('-' + Number(it.points || 0) + ' Pts') : (it.kind === 'SELL' ? ('+' + Number(it.points || 0) + ' Pts') : (it.kind === 'BUYACC' ? ('-' + Number(it.coinsCost || it.amount || 0) + ' Coins') : (it.kind === 'PENDLIVE' ? ('+' + Number(it.points || 0) + ' Pts') : (Number(it.amount || 0) + (it.kind === 'TOP-UP' ? ' BDT' : ' Coins')))))) + '</p><div class="mt-1 flex items-center justify-end gap-1 flex-wrap">' + statusPill(it.status || (it.kind === 'PENDLIVE' ? 'completed' : 'pending')) + (liveCheckBtn ? ' ' + liveCheckBtn : '') + '</div>' + proofBtn + '</div>'
+                + '<div class="text-right flex-shrink-0"><p class="text-xs font-extrabold text-slate-900">' + (it.kind === 'WITHDRAW' ? ('-' + Number(it.points || 0) + ' Pts') : (it.kind === 'SELL' ? ('+' + Number(it.points || 0) + ' Pts') : (it.kind === 'BUYACC' ? ('-' + Number(it.coinsCost || it.amount || 0) + ' Coins') : (it.kind === 'PENDLIVE' ? ('+' + Number(it.points || 0) + ' Pts') : (Number(it.amount || 0) + (it.kind === 'TOP-UP' ? ' BDT' : ' Coins')))))) + '</p><div class="mt-1 flex items-center justify-end gap-1 flex-wrap">' + statusPill(it.status || (it.kind === 'PENDLIVE' ? 'completed' : 'pending')) + '</div>' + proofBtn + '</div>'
                 + '</div>';
         };
         const histMs = x => getTimestampMs(x);
