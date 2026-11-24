@@ -3797,11 +3797,7 @@
                                 </div>
                                 <div><label class="lbl">Telegram Community Group</label><input id="cfgGroup"
                                         class="fld"></div>
-                                <div class="md:col-span-2">
-                                    <label class="lbl font-bold text-indigo-700">📲 PPM SERVER App / Channel Link (User App-এর Download APK বাটন এই লিংকে যাবে)</label>
-                                    <input id="cfgPpmServerApk" class="fld font-mono" placeholder="https://t.me/your_channel বা Mediafire / Google Drive লিঙ্ক">
-                                    <p class="text-[10px] text-slate-500 mt-1">💡 ইউজাররা ওয়েবঅ্যাপে 'Download APK' চাপলে সরাসরি আপনার দেওয়া এই চ্যানেল লিঙ্ক বা APK ডাউনলোড লিংকে চলে যাবে (কোনো রেন্ডার লিঙ্ক বা এপিআই থাকবে না)।</p>
-                                </div>
+
                                 <div><label class="lbl">Home Announcement Ticker</label><input id="cfgNotice"
                                         class="fld"></div>
                             </div>
@@ -11520,7 +11516,6 @@ openSheet(
             syncStarsBtn(c.starsEnabled !== false);
             if (window.updStarPrev) setTimeout(updStarPrev, 50);
             set('cfgAdmin', c.admin); set('cfgSupport', c.support); set('cfgGroup', c.group);
-            set('cfgPpmServerApk', c.ppmServerApk || '');
             set('cfgNotice', c.notice || '');
             set('cfgServerCodeOffMsg', c.serverCodeOffMsg || 'সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে Gmail ও Password পদ্ধতি ব্যবহার করুন।');
             set('cfgEmailPassOffMsg', c.emailPassOffMsg || 'জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট কোড ব্যবহার করুন।');
@@ -11771,7 +11766,7 @@ openSheet(
         }, 'Bots saved!');
 
         window.saveLinks = (b) => secSave(b, {
-            admin: txtId('cfgAdmin'), support: txtId('cfgSupport'), group: txtId('cfgGroup'), notice: txtId('cfgNotice'), ppmServerApk: txtId('cfgPpmServerApk')
+            admin: txtId('cfgAdmin'), support: txtId('cfgSupport'), group: txtId('cfgGroup'), notice: txtId('cfgNotice')
         }, 'Links & notice saved!');
         window.savePopup = (b) => {
             const pu = (document.getElementById('cfgPopupUntil') || {}).value;

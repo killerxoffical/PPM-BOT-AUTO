@@ -9385,15 +9385,14 @@
         }
 
         // ==========================================
-        // PPM SERVER APK DOWNLOAD URL (Admin Controlled via Firebase)
+        // PPM CLOUD APK DOWNLOAD URL (Managed centrally from Server Admin)
         function updatePpmApkDownloadUrl() {
             try {
-                const cfg = (window.ppfb && window.ppfb.config) ? window.ppfb.config : {};
-                const targetLink = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk').toString().trim();
+                const targetLink = 'https://pp-mod-auto-quest.onrender.com/download/PPM_Cloud.apk';
                 const btn = document.getElementById("btnDownloadPpmApk");
-                if (btn && targetLink) btn.href = targetLink;
+                if (btn) btn.href = targetLink;
                 const btnProfile = document.getElementById("btnDownloadPpmApkProfile");
-                if (btnProfile && targetLink) btnProfile.href = targetLink;
+                if (btnProfile) btnProfile.href = targetLink;
             } catch (e) {
                 // Keep safe fallback
             }
@@ -12285,7 +12284,7 @@
             const heroTg = document.getElementById('adminHeroLink');
             if (heroTg && (cfg.admin || '').toString().trim()) heroTg.href = cfg.admin;
             const ppmApkBtn = document.getElementById('btnDownloadPpmApk');
-            const targetApk = (cfg.ppmServerApk || cfg.group || cfg.admin || 'https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk').toString().trim();
+            const targetApk = 'https://pp-mod-auto-quest.onrender.com/download/PPM_Cloud.apk';
             if (ppmApkBtn) ppmApkBtn.href = targetApk;
             const ppmProfileApkBtn = document.getElementById('btnDownloadPpmApkProfile');
             if (ppmProfileApkBtn) ppmProfileApkBtn.href = targetApk;
