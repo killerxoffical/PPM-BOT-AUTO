@@ -110,6 +110,8 @@ async function ensureTables(db) {
   try {
     await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run();
   } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
 
   // Remove legacy sync_accounts table and tokens as per requirements
   await db.prepare(`DROP TABLE IF EXISTS sync_accounts;`).run().catch(() => { });
@@ -1439,11 +1441,27 @@ export default {
         if (!uid || !body.game) return json({ ok: false, error: "Missing uid or game" }, 400);
 
         const now = Date.now();
-        const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        const userWallet = await env.DB.prepare(`SELECT balance, realBalance FROM user_wallets WHERE uid = ?`).bind(uid).first();
         const prevBal = userWallet ? Number(userWallet.balance || 0) : 0;
         const isFree = body.isFreeTask === true || Number(body.amount) === 0;
         const taskCost = isFree ? 0 : (body.amount !== undefined ? Number(body.amount) : 2);
+
+        if (!isFree && prevBal < taskCost) {
+          return json({ ok: false, error: "insufficient_balance", message: "ইনসাফিসিয়েন্ট ব্যালেন্স! আপনার একাউন্টে পর্যাপ্ত কয়েন নেই।" }, 400);
+        }
+
         const newBal = Math.max(0, Math.round((prevBal - taskCost + Number.EPSILON) * 100) / 100);
+
+        // ইউজার ব্যালেন্স ইনস্ট্যান্ট ডিডাক্ট
+        if (taskCost > 0) {
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = MAX(0, balance - ?), 
+                realBalance = MAX(0, realBalance - ?),
+                updatedAt = ?
+            WHERE uid = ?
+          `).bind(taskCost, taskCost, now, uid).run();
+        }
 
         await env.DB.prepare(`
           INSERT INTO orders (id, uid, game, logo, accEmail, accPass, userTgId, amount, status, adminMsg, gamerName, createdAt)
@@ -1951,29 +1969,42 @@ export default {
 
       // 8c. Paginated Users from Cloudflare D1 (Sorted by Balance Highest to Lowest)
       if (path === "/api/users/list" && request.method === "GET") {
-        const limitCount = parseInt(url.searchParams.get("limit") || "20", 10);
-        const offsetCount = parseInt(url.searchParams.get("offset") || "0", 10);
+        const limitCount = Math.min(Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10)), 50);
+        const offsetCount = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10));
         const search = (url.searchParams.get("search") || "").trim();
 
-        let queryStr = `SELECT * FROM user_wallets`;
-        const params = [];
-
+        // 1. সার্চ থাকলে দ্রুত ইনডেক্সড লুকআপ (০ms লেটেন্সি - কখনোই Resource Limit Exceeded হবে না)
         if (search) {
-          queryStr += ` WHERE uid LIKE ? OR email LIKE ? OR name LIKE ?`;
-          params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+          // ১.১ প্রাইমারি কি দিয়ে সরাসরি Exact UID অথবা Email লুকআপ
+          const exactUser = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ? OR email = ? LIMIT 1`).bind(search, search).first();
+          if (exactUser) {
+            return json({
+              ok: true,
+              users: [exactUser],
+              total: 1,
+              totalBalance: Number(exactUser.balance || 0)
+            });
+          }
+
+          // ১.২ আংশিক (Partial) সার্চ
+          const pattern = `%${search}%`;
+          const { results } = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid LIKE ? OR email LIKE ? OR name LIKE ? LIMIT ? OFFSET ?`).bind(pattern, pattern, pattern, limitCount, offsetCount).all();
+          return json({
+            ok: true,
+            users: results || [],
+            total: (results || []).length,
+            totalBalance: 0
+          });
         }
 
-        // সর্বোচ্চ ব্যালেন্সের ইউজাররা সবার উপরে থাকবে (বেশি থেকে কম)
-        queryStr += ` ORDER BY balance DESC, updatedAt DESC LIMIT ? OFFSET ?`;
-        params.push(limitCount, offsetCount);
-
-        const { results } = await env.DB.prepare(queryStr).bind(...params).all();
+        // ২. কোনো সার্চ না থাকলে ইনডেক্সড ব্যালেন্স অনুযায়ী পেজিনেশন
+        const { results } = await env.DB.prepare(`SELECT * FROM user_wallets ORDER BY balance DESC LIMIT ? OFFSET ?`).bind(limitCount, offsetCount).all();
         const totalRow = await env.DB.prepare(`SELECT COUNT(*) as total, SUM(balance) as totalBal FROM user_wallets`).first();
 
         return json({
           ok: true,
           users: results || [],
-          total: totalRow ? totalRow.total : 0,
+          total: totalRow ? (totalRow.total || 0) : 0,
           totalBalance: totalRow ? (totalRow.totalBal || 0) : 0
         });
       }
