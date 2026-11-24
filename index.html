@@ -10478,7 +10478,11 @@
                         await new Promise(r => setTimeout(r, 1500));
                         return await executeServerQuestUnlock(true);
                     }
-                    toast(`আনলক ব্যর্থ হয়েছে: ${errMsg}`);
+                    let cleanErrMsg = typeof errMsg === 'string' ? errMsg : 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি।';
+                    if (cleanErrMsg.includes('fetch') || cleanErrMsg.includes('http') || cleanErrMsg.includes('{') || cleanErrMsg.includes('Server error')) {
+                        cleanErrMsg = 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি। দয়া করে PPM Server অ্যাপ থেকে নতুন কোড দিন।';
+                    }
+                    toast(`আনলক ব্যর্থ হয়েছে: ${cleanErrMsg}`);
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
