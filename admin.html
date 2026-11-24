@@ -8922,7 +8922,25 @@
                     throw new Error((data && data.error) || 'Invalid API response');
                 }
             } catch (err) {
-                console.warn('CF Users Load Error:', err);
+                console.warn('CF Users Load Error, falling back to Firestore S.users:', err);
+                // Fallback: If Cloudflare D1 hits daily read limit or network error, immediately render from Firebase Firestore S.users!
+                if (typeof _old_unused_renderUsers === 'function' && S.users && S.users.length) {
+                    _old_unused_renderUsers();
+                    const tCntEl = document.getElementById('usrTotalCount');
+                    const tBalEl = document.getElementById('usrTotalBalance');
+                    const actEl = document.getElementById('usrActiveCount');
+                    const banEl = document.getElementById('usrBannedCount');
+                    const lbl = document.getElementById('usrPageLabel');
+                    if (tCntEl) tCntEl.textContent = S.users.length;
+                    const totBal = S.users.reduce((acc, u) => acc + (Number(u.balance) || 0), 0);
+                    if (tBalEl) tBalEl.textContent = (Math.round((totBal + Number.EPSILON) * 100) / 100) + ' Coins';
+                    const bCount = S.users.filter(u => u.banned === true).length;
+                    if (actEl) actEl.textContent = S.users.length - bCount;
+                    if (banEl) banEl.textContent = bCount;
+                    if (lbl) lbl.textContent = `Showing all ${S.users.length} users (Live from Firebase Firestore)`;
+                    toast('⚠️ Cloudflare D1 লিমিট থাকায় Firebase Firestore থেকে ৮০০+ ইউজার ব্যাকআপ মোডে লোড হয়েছে।');
+                    return;
+                }
                 if (box) {
                     box.innerHTML = `<div class="p-6 text-center bg-rose-50 border border-rose-200 rounded-2xl space-y-2">
                         <p class="text-xs font-black text-rose-700">⚠️ Cloudflare D1 থেকে ইউজার লোড করতে সমস্যা হয়েছে!</p>
