@@ -9385,22 +9385,21 @@
         }
 
         // ==========================================
-        // PPM CLOUD APK DOWNLOAD URL (Managed from Admin Panel)
-        function updatePpmApkDownloadUrl() {
+                // ==========================================
+        // PPM CLOUD APK DOWNLOAD URL (Sourced directly from Server Admin)
+        async function updatePpmApkDownloadUrl() {
             try {
-                let targetLink = '';
-                if (window.ppfb && window.ppfb.config && window.ppfb.config.ppmServerApk) {
-                    targetLink = (window.ppfb.config.ppmServerApk || '').trim();
-                }
-                if (!targetLink) {
-                    try {
-                        const c = JSON.parse(localStorage.getItem('pp_config_cache') || '{}');
-                        if (c && c.ppmServerApk) targetLink = (c.ppmServerApk || '').trim();
-                    } catch (e) { }
-                }
-                if (!targetLink) {
-                    targetLink = (localStorage.getItem('pp_admin_apk_link') || '').trim();
-                }
+                let targetLink = localStorage.getItem('pp_server_apk_download_link') || '';
+
+                // Server Admin এপিআই থেকে সেন্ট্রাল ডাউনলোড লিংক ফেচ
+                try {
+                    const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/app/version', { cache: 'no-store' });
+                    const verData = await res.json();
+                    if (verData && verData.ok && verData.download_url) {
+                        targetLink = verData.download_url.trim();
+                        localStorage.setItem('pp_server_apk_download_link', targetLink);
+                    }
+                } catch (e) { }
 
                 const btn = document.getElementById("btnDownloadPpmApk");
                 const btnProfile = document.getElementById("btnDownloadPpmApkProfile");
@@ -9408,7 +9407,7 @@
                 const handleApkClick = function (e) {
                     if (!targetLink || targetLink === '#' || targetLink === '') {
                         e.preventDefault();
-                        const msg = '⚠️ এডমিন এখনো APK Download Link কনফিগার করেনি। অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন।';
+                        const msg = '⚠️ সার্ভার এডমিন এখনো APK Download Link কনফিগার করেনি। অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন।';
                         if (typeof showToast === 'function') showToast(msg, 'warning');
                         else if (typeof showAlertModal === 'function') showAlertModal('Link Unavailable', msg);
                         else alert(msg);
@@ -9436,7 +9435,7 @@
         }
         window.updatePpmApkDownloadUrl = updatePpmApkDownloadUrl;
         window.refreshPpmApkDownloadUrl = updatePpmApkDownloadUrl;
-        setTimeout(updatePpmApkDownloadUrl, 500);
+        setTimeout(updatePpmApkDownloadUrl, 300);
 
         // PPM SERVER APP FIRST TIME DOWNLOAD REWARD (1 Coin Strictly Once)
         function updateAppDownloadUI(isClaimed) {
