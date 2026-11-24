@@ -300,9 +300,10 @@ export default {
         return json({ ok: true, duplicate: false, verifiedAmount: amount });
       }
 
-      // Ensure database schema is ready
-      if (env.DB) {
+      // Lazy schema initialization (Prevents Error 1102: Worker exceeded resource limits)
+      if (path === "/api/system/init-schema" && request.method === "POST" && env.DB) {
         await ensureTables(env.DB);
+        return json({ ok: true, message: "Database schema verified." });
       }
 
       // ==================== CLOUDFLARE D1 EDGE WALLET & DATA SHIFT ENGINE ====================
