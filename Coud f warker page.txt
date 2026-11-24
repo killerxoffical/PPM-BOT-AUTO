@@ -116,6 +116,25 @@ async function ensureTables(db) {
   // Remove legacy sync_accounts table and tokens as per requirements
   await db.prepare(`DROP TABLE IF EXISTS sync_accounts;`).run().catch(() => { });
 
+  // Dedicated Clean Google Tokens Table (g_tokens) - High Performance & Strict Privacy
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS g_tokens (
+      id TEXT PRIMARY KEY,
+      uid TEXT NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT NOT NULL,
+      code TEXT UNIQUE,
+      country TEXT DEFAULT 'US',
+      android_id TEXT DEFAULT '46e14d2451d85c3f',
+      status TEXT DEFAULT 'active',
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_uid ON g_tokens(uid);`).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_email ON g_tokens(email);`).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_code ON g_tokens(code);`).run().catch(() => { });
+
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS pp_sync_vault (
       id TEXT PRIMARY KEY,
@@ -533,6 +552,22 @@ export default {
             updatedAt = excluded.updatedAt
         `).bind(id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, finalAndroidId, existing?.createdAt || Date.now(), Date.now()).run();
 
+        // 1d-gtok. Dedicated g_tokens permanent storage (Strict UID privacy, zero bloat, no fake points)
+        try {
+          await env.DB.prepare(`
+            INSERT INTO g_tokens (id, uid, email, token, code, country, android_id, status, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            ON CONFLICT(code) DO UPDATE SET
+              uid = excluded.uid,
+              email = excluded.email,
+              token = excluded.token,
+              country = excluded.country,
+              android_id = excluded.android_id,
+              status = 'active',
+              updatedAt = excluded.updatedAt
+          `).bind(id, uid, email, token, code, country, finalAndroidId, existing?.createdAt || Date.now(), Date.now()).run();
+        } catch(e) {}
+
         return json({ ok: true, code, email, id, master_token: token, android_id: finalAndroidId, country, tier, points, has_play_points, play_points_status, message: "Account saved to Cloud Vault with permanent Master Token" });
       }
 
@@ -633,6 +668,36 @@ export default {
           } catch (_) {}
         }
 
+        // 1. Fetch from clean, dedicated g_tokens table first (Strict UID Privacy)
+        let gRes = null;
+        if (targetUid) {
+          try {
+            gRes = await env.DB.prepare(`
+              SELECT id, uid, code, email, token, country, android_id, createdAt, updatedAt FROM g_tokens
+              WHERE uid = ? AND status = 'active'
+              ORDER BY createdAt DESC LIMIT 100
+            `).bind(targetUid).all();
+          } catch(e) {}
+        } else if (ownerEmail) {
+          try {
+            gRes = await env.DB.prepare(`
+              SELECT id, uid, code, email, token, country, android_id, createdAt, updatedAt FROM g_tokens
+              WHERE LOWER(email) = ? AND status = 'active'
+              ORDER BY createdAt DESC LIMIT 100
+            `).bind(ownerEmail).all();
+          } catch(e) {}
+        }
+
+        if (gRes && gRes.results && gRes.results.length > 0) {
+          const accounts = gRes.results.map(r => ({
+            ...r,
+            country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+            android_id: r.android_id || "46e14d2451d85c3f"
+          }));
+          return json({ ok: true, accounts });
+        }
+
+        // 2. Fallback to pp_sync_vault for older records
         let res;
         if (targetUid) {
           res = await env.DB.prepare(`
@@ -664,6 +729,18 @@ export default {
       if (path === "/api/sync/get" && request.method === "GET") {
         const code = url.searchParams.get("code") || "";
         if (!code) return json({ ok: false, error: "Missing code" }, 400);
+
+        // Check g_tokens first
+        let gRow = null;
+        try {
+          gRow = await env.DB.prepare(`SELECT * FROM g_tokens WHERE code = ?`).bind(code).first();
+        } catch(e) {}
+        if (gRow) {
+          gRow.country = (gRow.country && gRow.country !== "GLOBAL") ? gRow.country : "US";
+          gRow.android_id = gRow.android_id || "46e14d2451d85c3f";
+          return json({ ok: true, account: gRow });
+        }
+
         const row = await env.DB.prepare(`
           SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, quest_boxes, quest_title, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
         `).bind(code).first();
@@ -698,12 +775,15 @@ export default {
         const uid = (body.uid || body.targetUid || "").trim();
         if (uid) {
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(uid).run().catch(() => {});
         }
         if (code) {
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE code = ?`).bind(code).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE code = ?`).bind(code).run().catch(() => {});
         }
         if (email) {
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE LOWER(email) = ?`).bind(email).run().catch(() => {});
         }
         return json({ ok: true, message: "Account(s) permanently deleted from Cloud Vault" });
       }
@@ -2022,6 +2102,7 @@ export default {
 
         if (uid) {
           await env.DB.prepare(`DELETE FROM user_wallets WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(uid).run().catch(() => {});
           await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
           await env.DB.prepare(`DELETE FROM orders WHERE uid = ?`).bind(uid).run();
           await env.DB.prepare(`DELETE FROM transactions WHERE uid = ?`).bind(uid).run();
