@@ -9385,17 +9385,54 @@
         }
 
         // ==========================================
-        // PPM CLOUD APK DOWNLOAD URL (Managed centrally from Server Admin)
+        // PPM CLOUD APK DOWNLOAD URL (Managed from Admin Panel)
         function updatePpmApkDownloadUrl() {
             try {
-                const targetLink = 'https://pp-mod-auto-quest.onrender.com/download/PPM_Cloud.apk';
+                let targetLink = '';
+                if (window.ppfb && window.ppfb.config && window.ppfb.config.ppmServerApk) {
+                    targetLink = (window.ppfb.config.ppmServerApk || '').trim();
+                }
+                if (!targetLink) {
+                    try {
+                        const c = JSON.parse(localStorage.getItem('pp_config_cache') || '{}');
+                        if (c && c.ppmServerApk) targetLink = (c.ppmServerApk || '').trim();
+                    } catch (e) { }
+                }
+                if (!targetLink) {
+                    targetLink = (localStorage.getItem('pp_admin_apk_link') || '').trim();
+                }
+
                 const btn = document.getElementById("btnDownloadPpmApk");
-                if (btn) btn.href = targetLink;
                 const btnProfile = document.getElementById("btnDownloadPpmApkProfile");
-                if (btnProfile) btnProfile.href = targetLink;
-            } catch (e) {
-                // Keep safe fallback
-            }
+
+                const handleApkClick = function (e) {
+                    if (!targetLink || targetLink === '#' || targetLink === '') {
+                        e.preventDefault();
+                        const msg = '⚠️ এডমিন এখনো APK Download Link কনফিগার করেনি। অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন।';
+                        if (typeof showToast === 'function') showToast(msg, 'warning');
+                        else if (typeof showAlertModal === 'function') showAlertModal('Link Unavailable', msg);
+                        else alert(msg);
+                        return false;
+                    }
+                };
+
+                if (btn) {
+                    btn.href = targetLink || '#';
+                    btn.target = targetLink ? '_blank' : '_self';
+                    btn.onclick = function (e) {
+                        if (!targetLink || targetLink === '#') return handleApkClick(e);
+                        if (typeof claimAppDownloadReward === 'function') claimAppDownloadReward(e);
+                    };
+                }
+                if (btnProfile) {
+                    btnProfile.href = targetLink || '#';
+                    btnProfile.target = targetLink ? '_blank' : '_self';
+                    btnProfile.onclick = function (e) {
+                        if (!targetLink || targetLink === '#') return handleApkClick(e);
+                        if (typeof claimAppDownloadReward === 'function') claimAppDownloadReward(e);
+                    };
+                }
+            } catch (e) { }
         }
         window.updatePpmApkDownloadUrl = updatePpmApkDownloadUrl;
         window.refreshPpmApkDownloadUrl = updatePpmApkDownloadUrl;
@@ -12312,11 +12349,10 @@
             if (sn) sn.textContent = cfg.starAdmin;
             const heroTg = document.getElementById('adminHeroLink');
             if (heroTg && (cfg.admin || '').toString().trim()) heroTg.href = cfg.admin;
-            const ppmApkBtn = document.getElementById('btnDownloadPpmApk');
-            const targetApk = 'https://pp-mod-auto-quest.onrender.com/download/PPM_Cloud.apk';
-            if (ppmApkBtn) ppmApkBtn.href = targetApk;
-            const ppmProfileApkBtn = document.getElementById('btnDownloadPpmApkProfile');
-            if (ppmProfileApkBtn) ppmProfileApkBtn.href = targetApk;
+            if (cfg && cfg.ppmServerApk) {
+                try { localStorage.setItem('pp_admin_apk_link', cfg.ppmServerApk.trim()); } catch (e) { }
+            }
+            if (typeof updatePpmApkDownloadUrl === 'function') updatePpmApkDownloadUrl();
             if (typeof window.applyCredMethodConfig === 'function') window.applyCredMethodConfig(cfg);
             const idBot = (cfg.idBot || 'https://t.me/userinfobot').toString().trim() || 'https://t.me/userinfobot';
             const nbBot = (cfg.notifyBot || 'https://t.me/Ppmod_bot').toString().trim() || 'https://t.me/Ppmod_bot';
