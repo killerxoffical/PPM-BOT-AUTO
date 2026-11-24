@@ -2009,6 +2009,20 @@ export default {
         });
       }
 
+      // 8c-2. Cascade Delete User & Wipe Data
+      if (path === "/api/admin/user/delete" && request.method === "POST") {
+        const body = await request.json();
+        const uid = body.uid;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await env.DB.prepare(`DELETE FROM user_wallets WHERE uid = ?`).bind(uid).run();
+        await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+        await env.DB.prepare(`DELETE FROM orders WHERE uid = ?`).bind(uid).run();
+        await env.DB.prepare(`DELETE FROM transactions WHERE uid = ?`).bind(uid).run();
+
+        return json({ ok: true, message: "User, wallet, orders, and synced accounts permanently cascade-deleted." });
+      }
+
       // 8d. Realtime Dashboard Stats from Cloudflare D1
       if (path === "/api/admin/stats" && request.method === "GET") {
         const uStats = await env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first();
