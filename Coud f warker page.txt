@@ -2017,14 +2017,43 @@ export default {
       if (path === "/api/admin/user/delete" && request.method === "POST") {
         const body = await request.json();
         const uid = body.uid;
-        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+        const email = (body.email || "").toLowerCase().trim();
+        if (!uid && !email) return json({ ok: false, error: "Missing uid or email" }, 400);
 
-        await env.DB.prepare(`DELETE FROM user_wallets WHERE uid = ?`).bind(uid).run();
-        await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
-        await env.DB.prepare(`DELETE FROM orders WHERE uid = ?`).bind(uid).run();
-        await env.DB.prepare(`DELETE FROM transactions WHERE uid = ?`).bind(uid).run();
+        if (uid) {
+          await env.DB.prepare(`DELETE FROM user_wallets WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM orders WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM transactions WHERE uid = ?`).bind(uid).run();
+        }
 
-        return json({ ok: true, message: "User, wallet, orders, and synced accounts permanently cascade-deleted." });
+        // Cascade delete matching devices & connected accounts from app_cache
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'registered_devices' LIMIT 1`).first();
+          if (row && row.data) {
+            let devObj = JSON.parse(row.data);
+            let changed = false;
+            if (typeof devObj === "object" && devObj !== null) {
+              for (const [dId, dVal] of Object.entries(devObj)) {
+                if (dVal) {
+                  const mUid = dVal.ppmod_uid;
+                  const mEmail = (dVal.ppmod_email || "").toLowerCase().trim();
+                  const accEmails = Array.isArray(dVal.accounts) ? dVal.accounts.map(a => (a.email || "").toLowerCase().trim()) : [];
+                  if ((uid && mUid === uid) || (email && (mEmail === email || accEmails.includes(email)))) {
+                    delete devObj[dId];
+                    changed = true;
+                  }
+                }
+              }
+              if (changed) {
+                await env.DB.prepare(`UPDATE app_cache SET data = ?, updatedAt = ? WHERE id = 'registered_devices'`)
+                  .bind(JSON.stringify(devObj), Date.now()).run();
+              }
+            }
+          }
+        } catch(e) {}
+
+        return json({ ok: true, message: "User, wallet, orders, devices, and synced accounts permanently cascade-deleted." });
       }
 
       // 8d. Realtime Dashboard Stats from Cloudflare D1
