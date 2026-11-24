@@ -16123,22 +16123,25 @@
                     window.ppfb.banned = false;
                     setBannedUI(false);
                     const d = s.data();
-                    // D1-এ যদি ব্যালেন্স অ্যাডমিনের মাধ্যমে আপডেট হয়ে থাকে, তবে পুরনো ফায়ারবেস ক্যাশ দিয়ে ওভাররাইট করবে না
+                    const bonusC = Number(d.bonusBalance || 0);
+                    const totalBal = Number(d.balance !== undefined ? d.balance : 0);
+                    const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
+                        ? Number(d.realBalance)
+                        : Math.max(0, totalBal - bonusC);
+                    // Always display Firestore balance instantly — prevents 0 Coins glitch if Cloudflare is rate-limited!
+                    setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
+
+                    // D1-এ যদি ব্যালেন্স অ্যাডমিনের মাধ্যমে আপডেট হয়ে থাকে, তবে আপডেট করা (কখনোই পজিটিভ ব্যালেন্স ০ দিয়ে ওভাররাইট করবে না)
                     fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(u.uid)}`).then(r => r.json()).then(res => {
                         if (res && res.ok && res.wallet) {
                             const w = res.wallet;
-                            setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            if (Number(w.balance || 0) > 0 || totalBal === 0) {
+                                setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            }
                             window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
                             if (window.renderLoyaltyStars) window.renderLoyaltyStars();
                         }
-                    }).catch(() => {
-                        const bonusC = Number(d.bonusBalance || 0);
-                        const totalBal = Number(d.balance !== undefined ? d.balance : 0);
-                        const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
-                            ? Number(d.realBalance)
-                            : Math.max(0, totalBal - bonusC);
-                        setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
-                    });
+                    }).catch(() => { });
                     window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
                     window.ppfb.appDownloadRewarded = !!(s.data().appDownloadRewarded);
