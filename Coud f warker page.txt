@@ -146,6 +146,8 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN has_play_points INTEGER DEFAULT 1;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN play_points_status TEXT DEFAULT 'active';`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN android_id TEXT DEFAULT '46e14d2451d85c3f';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN quest_boxes INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE pp_sync_vault ADD COLUMN quest_title TEXT DEFAULT '';`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS gateway_sms (
@@ -570,14 +572,17 @@ export default {
         const last_claim_date = body.last_claim_date || existing.last_claim_date || "";
         const has_play_points = (body.has_play_points !== undefined) ? (body.has_play_points ? 1 : 0) : (existing.has_play_points !== undefined ? existing.has_play_points : 1);
         const play_points_status = body.play_points_status || existing.play_points_status || "active";
+        const quest_boxes = (body.quest_boxes !== undefined) ? parseInt(body.quest_boxes, 10) : (existing.quest_boxes || 0);
+        const quest_title = body.quest_title !== undefined ? body.quest_title.toString().trim() : (existing.quest_title || "");
 
         await env.DB.prepare(`
           UPDATE pp_sync_vault SET
             country = ?, tier = ?, points = ?, balance = ?, has_perk = ?,
             claimed = ?, last_claim_date = ?, has_play_points = ?, play_points_status = ?,
+            quest_boxes = ?, quest_title = ?,
             updatedAt = ?
           WHERE code = ?
-        `).bind(country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, Date.now(), code).run();
+        `).bind(country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, quest_boxes, quest_title, Date.now(), code).run();
 
         return json({ ok: true, code, message: "Account data updated in Cloudflare D1" });
       }
@@ -657,7 +662,7 @@ export default {
         const code = url.searchParams.get("code") || "";
         if (!code) return json({ ok: false, error: "Missing code" }, 400);
         const row = await env.DB.prepare(`
-          SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
+          SELECT id, uid, code, email, token, country, tier, points, balance, has_perk, claimed, last_claim_date, has_play_points, play_points_status, status, android_id, quest_boxes, quest_title, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
         `).bind(code).first();
         if (!row) return json({ ok: false, error: "Code not found" }, 404);
         row.country = (row.country && row.country !== "GLOBAL") ? row.country : "US";
@@ -666,7 +671,21 @@ export default {
         row.claimed = Boolean(row.claimed);
         row.has_play_points = row.has_play_points !== 0;
         row.play_points_status = row.play_points_status || "active";
+        row.quest_boxes = parseInt(row.quest_boxes || 0, 10);
+        row.quest_title = row.quest_title || "";
         return json({ ok: true, account: row });
+      }
+
+      if (path === "/api/sync/update_quest" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        const boxes = parseInt(body.quest_boxes || 0, 10);
+        const title = (body.quest_title || "").trim();
+        if (!code) return json({ ok: false, error: "Missing code" }, 400);
+        await env.DB.prepare(`
+          UPDATE pp_sync_vault SET quest_boxes = ?, quest_title = ?, updatedAt = ? WHERE code = ?
+        `).bind(boxes, title, Date.now(), code).run();
+        return json({ ok: true, code, quest_boxes: boxes, quest_title: title, message: "Quest boxes updated in real-time" });
       }
 
       if (path === "/api/sync/delete" && request.method === "POST") {
