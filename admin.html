@@ -7169,6 +7169,24 @@
                     }).catch(() => { });
                 } catch (e) { }
 
+                // অ্যাডমিন টেলিগ্রামে নোটিফিকেশন পাঠানো
+                try {
+                    const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
+                    const manDepMsg = `💎 <b>MANUAL DEPOSIT ENTRY CREATED!</b>\n\n` +
+                        `👤 <b>User:</b> ${targetUser.name || 'User'} (<code>${targetUser.email || targetUser.id}</code>)\n` +
+                        `🆔 <b>UID:</b> <code>${targetUser.id}</code>\n` +
+                        `💵 <b>Amount:</b> ${amount} BDT\n` +
+                        `🪙 <b>Coins Credited:</b> +${coins} PP Coins\n` +
+                        `💳 <b>Method:</b> ${method}\n` +
+                        `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
+                        `✅ <b>Status:</b> MANUAL ENTRY by Admin`;
+                    fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: ADMIN_TG_ID, text: manDepMsg, parse_mode: 'HTML' })
+                    }).catch(() => { });
+                } catch (tgM) { }
+
                 document.getElementById('manDepUser').value = '';
                 document.getElementById('manDepAmt').value = '';
                 document.getElementById('manDepCoins').value = '';
@@ -7328,8 +7346,24 @@
                         }
                     }
 
-                    // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো (টাকা ও কয়েন ছাড়া সব তথ্য গোপন)
+                    // অ্যাডমিনকে সরাসরি টেলিগ্রামে নোটিফিকেশন পাঠানো (Admin Notification on Bot)
                     const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
+                    const adminDepMsg = `💎 <b>DEPOSIT APPROVED FROM ADMIN PANEL!</b>\n\n` +
+                        `👤 <b>User:</b> ${targetDep.name || 'User'} (<code>${targetDep.email || '—'}</code>)\n` +
+                        `🆔 <b>UID:</b> <code>${targetDep.uid}</code>\n` +
+                        `🆔 <b>Dep ID:</b> <code>${id}</code>\n` +
+                        `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
+                        `🪙 <b>Coins Credited:</b> +${coinsToAdd} PP Coins\n` +
+                        `💳 <b>Method:</b> ${targetDep.method || 'bKash'}\n` +
+                        `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+                        `✅ <b>Status:</b> APPROVED by Admin`;
+                    fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: ADMIN_TG_ID, text: adminDepMsg, parse_mode: 'HTML' })
+                    }).catch(() => { });
+
+                    // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো (টাকা ও কয়েন ছাড়া সব তথ্য গোপন)
                     const rawEmail = (targetDep.email || targetDep.name || '').toString().trim();
                     const atIdx = rawEmail.indexOf('@');
                     const uPart = atIdx > 0 ? rawEmail.slice(0, atIdx) : rawEmail;
@@ -7482,6 +7516,7 @@
         };
 
         const BOT_TOKEN = "8906230491:AAGdST6cFQmE71kUkGX6NVnwImzUwA27wh4";
+        const ADMIN_TG_ID = "7504616242";
 
         window.notifyUserOffline = async (tgId, userEmail) => {
             const target = tgId || prompt('Enter user Telegram Chat ID / Username:');

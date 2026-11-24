@@ -1875,7 +1875,10 @@ export default {
           now
         ).run().catch(() => { });
 
-        return json({ ok: true, balance: newTotal, realBalance: newReal, coinsCredited: addCoins, uid: targetUid });
+        const updatedWallet = await env.DB.prepare(`SELECT balance, realBalance FROM user_wallets WHERE uid = ?`).bind(targetUid).first();
+        const finalBal = updatedWallet ? Number(updatedWallet.balance || 0) : addCoins;
+        const finalReal = updatedWallet ? Number(updatedWallet.realBalance || 0) : addCoins;
+        return json({ ok: true, balance: finalBal, realBalance: finalReal, coinsCredited: addCoins, uid: targetUid });
       }
 
       // 8b-1b. Check Single Deposit Status on Cloudflare D1

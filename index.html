@@ -10240,7 +10240,8 @@
             if (!orderId || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId))) return;
             if (typeof markOrderAsRefunded === 'function') markOrderAsRefunded(orderId);
 
-            const refundCoins = getTaskCoinCost();
+            const isFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
+            const refundCoins = isFreeOrder ? 0 : getTaskCoinCost();
             const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
 
             try {
@@ -10329,17 +10330,25 @@
                     })
                 }).catch(() => {});
 
-                const alertMsg = `🪙 <b>SERVER QUEST UNLOCK AUTO-REFUNDED!</b>\n\n` +
-                    `🎮 <b>Game:</b> ${gameName}\n` +
-                    `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
-                    `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-                    `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
-                    `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
-                    `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${beforeBalance} Coins</b>\n` +
-                    `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${taskCost} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balanceAfterDeduct} Coins</b>)\n` +
-                    `▫️ অটো-রিফান্ড যোগ হয়েছে: <b>+${taskCost} Coins</b>\n` +
-                    `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balanceAfterRefund} Coins</b>\n\n` +
-                    `✅ <b>Status:</b> 100% AUTO-REFUNDED TO WALLET`;
+                const alertMsg = isFreeOrder
+                    ? `🪙 <b>SERVER QUEST UNLOCK FAILED (10TH FREE TASK)!</b>\n\n` +
+                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                        `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
+                        `⭐ <b>নোট:</b> এটি ১০ম ফ্রি টাস্ক ছিল, ওয়ালেট থেকে কোনো কয়েন কাটা হয়নি।\n\n` +
+                        `❌ <b>Status:</b> FAILED (0 COINS CHARGED)`
+                    : `🪙 <b>SERVER QUEST UNLOCK AUTO-REFUNDED!</b>\n\n` +
+                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                        `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
+                        `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
+                        `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${beforeBalance} Coins</b>\n` +
+                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${taskCost} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balanceAfterDeduct} Coins</b>)\n` +
+                        `▫️ অটো-রিফান্ড যোগ হয়েছে: <b>+${taskCost} Coins</b>\n` +
+                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balanceAfterRefund} Coins</b>\n\n` +
+                        `✅ <b>Status:</b> 100% AUTO-REFUNDED TO WALLET`;
                 if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
                     sendTelegramMsg(ADMIN_TG_ID, alertMsg);
                 }
@@ -10423,6 +10432,7 @@
                 const taskCost = getTaskCoinCost();
                 const curBal = (window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—';
 
+                const isFreeTaskUsed = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
                 const payload = {
                     game_id: srv.game_id || srv.id,
                     sync_code: acc.code || '',
@@ -10434,7 +10444,7 @@
                     order_id: orderId || '',
                     account_name: accName,
                     source: 'Web App',
-                    coins_cost: taskCost,
+                    coins_cost: isFreeTaskUsed ? 0 : taskCost,
                     balance_before: prevBal,
                     balance_after: curBal
                 };
@@ -10530,12 +10540,17 @@
                     // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি (Cloudflare D1 + Firebase + UI - Instant Reward)
                     try {
                         if (!window.ppfb) window.ppfb = {};
-                        window.ppfb.loyaltyStars = Math.min(10, (Number(window.ppfb.loyaltyStars) || 0) + 1);
+                        const curStars = Number(window.ppfb.loyaltyStars) || 0;
+                        const wasFreeTask = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree) || (curStars >= 9);
+
+                        // ১০ম ফ্রি টাস্ক সম্পন্ন হলে স্টার ০ এ রিসেট হবে, অন্যথায় ১ বাড়বে (সর্বোচ্চ ৯ পর্যন্ত)
+                        const nextStars = wasFreeTask ? 0 : Math.min(9, curStars + 1);
+                        window.ppfb.loyaltyStars = nextStars;
                         if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
                         await fetch(`${CF_API}/api/wallet/credit`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uid: webUid, loyaltyStarsInc: 1 })
+                            body: JSON.stringify({ uid: webUid, ...(wasFreeTask ? { resetLoyaltyStars: true } : { loyaltyStarsInc: 1 }) })
                         }).catch(e => console.warn('Credit star err:', e));
 
                         if (window.FB && window.FB.db) {
@@ -10580,11 +10595,18 @@
                     // Admin TG Notification
                     const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
                     const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                    const wasFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
+                    const taskCost = getTaskCoinCost();
                     const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
                         ? window._currentOrderMeta.beforeBalance
-                        : (window.ppfb ? (Number(window.ppfb.balance || 0) + getTaskCoinCost()) : '—');
-                    const taskCost = getTaskCoinCost();
-                    const curBal = (window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—';
+                        : (window.ppfb ? (Number(window.ppfb.balance || 0) + (wasFreeOrder ? 0 : taskCost)) : '—');
+                    const curBal = (data && data.current_balance !== undefined)
+                        ? data.current_balance
+                        : ((window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—');
+
+                    const deductCostLine = wasFreeOrder
+                        ? `▫️ টাস্ক ফি: <b>⭐ ১০ম ফ্রি টাস্ক (০ Coins)</b>`
+                        : `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>`;
 
                     const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
                         `🎮 <b>Game:</b> ${srv.title}\n` +
@@ -10595,7 +10617,7 @@
                         `🎯 <b>Status:</b> Quest Unlocked (${isRetry ? '2nd Thread' : '1st Thread'})\n\n` +
                         `💰 <b>BALANCE AUDIT:</b>\n` +
                         `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
-                        `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>\n` +
+                        `${deductCostLine}\n` +
                         `▫️ বর্তমান ব্যালেন্স: <b>${curBal} Coins</b>\n\n` +
                         `✅ <b>Status:</b> COMPLETED`;
                     if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
@@ -16570,10 +16592,11 @@
                 window._currentOrderMeta = {
                     beforeBalance: beforeOrderBalance,
                     deductedCoins: feeCoins,
-                    afterBalance: newBalData.balance
+                    afterBalance: newBalData.balance,
+                    isFree: isFree
                 };
                 // D1 সার্ভার থেকে আসা আসল ব্যালেন্সই সঠিক (দ্বিতীয়বার মাইনাস করা বন্ধ করা হলো)
-                toast(feeCoins + ' Coins deducted! Provide credentials below');
+                toast(isFree ? '⭐ 10th Free Task! Provide credentials below' : (feeCoins + ' Coins deducted! Provide credentials below'));
                 setTimeout(() => {
                     openCredentialScreen(game, logo);
                 }, 50);
