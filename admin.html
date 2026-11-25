@@ -11398,6 +11398,17 @@
                 };
                 await setDoc(doc(db, 'config', 'app'), payload, { merge: true });
                 S.cfg = { ...S.cfg, ...payload };
+                // Also dispatch native system shade push notification to Android app devices
+                fetch('https://pp-mod-auto-quest.onrender.com/api/admin/notifications/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target: 'all',
+                        title: t,
+                        message: m,
+                        image_url: im
+                    })
+                }).catch(err => console.warn('Push notify dispatch error:', err));
                 document.getElementById('bcTitle').value = '';
                 document.getElementById('bcMsg').value = '';
                 document.getElementById('bcUntil').value = '';
