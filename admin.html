@@ -9610,6 +9610,32 @@
             }
         };
 
+        window.sendUserCustomReward = (uid) => {
+            const title = (document.getElementById('sheetCustomTitle') ? document.getElementById('sheetCustomTitle').value : '').trim();
+            const amt = document.getElementById('sheetCustomAmt') ? document.getElementById('sheetCustomAmt').value : '';
+            const unit = document.getElementById('sheetCustomUnit') ? document.getElementById('sheetCustomUnit').value : 'taka';
+            const days = document.getElementById('sheetCustomDays') ? document.getElementById('sheetCustomDays').value : 0;
+            window.sendUserBalanceCustom(uid, amt, unit, title, days);
+        };
+
+        window.toggleResellerStatus = async (uid, makeReseller) => {
+            if (!needAdmin()) return;
+            const action = makeReseller ? 'Make Reseller' : 'Revoke Reseller';
+            if (!confirm(`Are you sure you want to ${action} for this user?`)) return;
+            try {
+                await updateDoc(doc(db, 'users', uid), {
+                    isReseller: Boolean(makeReseller)
+                });
+                const u = (S.users || []).find(x => x.id === uid || x.uid === uid);
+                if (u) u.isReseller = Boolean(makeReseller);
+                toast(`✅ Reseller status ${makeReseller ? 'granted' : 'revoked'} successfully!`);
+                logIt('toggle_reseller', `${uid} ${makeReseller}`);
+                userSheet(uid);
+            } catch (e) {
+                toast('Failed to update reseller status: ' + e.message);
+            }
+        };
+
         window.toggleBanWithNotice = async (uid, curBanned, emailOrName = '', currentReason = '') => {
             if (curBanned) {
                 if (!confirm('ইউজারকে আনব্যান (Unban) করতে চান?')) return;
@@ -9737,6 +9763,7 @@
                 playPoints: Number(initialUser.playPoints || 0),
                 pendingPoints: Number(initialUser.pendingPoints || 0),
                 loyaltyStars: Number(initialUser.loyaltyStars || 0),
+                isReseller: Boolean(initialUser.isReseller === true || initialUser.isReseller === 1),
                 banned: (initialUser.banned === 1 || initialUser.banned === true),
                 banReason: initialUser.banReason || ''
             };
@@ -9775,6 +9802,7 @@
                         playPoints: Number(w.playPoints || 0),
                         pendingPoints: Number(w.pendingPoints || 0),
                         loyaltyStars: Number(w.loyaltyStars || 0),
+                        isReseller: Boolean((w.isReseller === 1 || w.isReseller === true) || initialUser.isReseller),
                         banned: (w.banned === 1 || w.banned === true),
                         banReason: w.banReason || ''
                     };
