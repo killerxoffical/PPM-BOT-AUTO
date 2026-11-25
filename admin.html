@@ -3023,6 +3023,205 @@
                         </div>
                     </div>
                 </div>
+
+<!-- ===== EARN TASKS MANAGER (Direct Link & Ad Pages) ===== -->
+                <div id="scrEarn" class="ascreen hidden space-y-5">
+                    <!-- Top Action / Stats Header -->
+                    <div class="glass p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                                <span class="text-amber-500">⚡</span> Earn Tasks Manager (আর্ন ও অ্যাড কন্ট্রোল)
+                            </h3>
+                            <p class="text-xs text-slate-500 font-medium mt-0.5">Direct Links, Short URLs এবং In-App Ad
+                                Page টাস্ক তৈরি ও পরিচালনা করুন</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="seedEarnTasks()"
+                                class="btn bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold py-2 px-3 cursor-pointer">
+                                🎲 Seed Sample Tasks
+                            </button>
+                            <button onclick="resetEarnForm()" class="prim py-2 px-4 text-xs font-black cursor-pointer">
+                                + Create New Task
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Leaderboard & Top 1 Reward Control (10 Coins) -->
+                    <div class="glass p-4 sm:p-5 space-y-3.5 border-2 border-amber-300 bg-amber-50/40 rounded-2xl">
+                        <div class="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-amber-200/80">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">👑</span>
+                                <div>
+                                    <h4 class="text-sm font-black text-slate-900 leading-tight">Monthly Leaderboard &amp; Top 1 Prize (10 Coins)</h4>
+                                    <p class="text-[10px] text-amber-900 font-semibold mt-0.5">১ম স্থান অধিকারী পাবেন ১০ কয়েন (কোনো মিনিমাম পয়েন্টের শর্ত নেই)</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="loadLeaderboardAdminStatus()"
+                                    class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-amber-300 text-slate-800 text-xs font-black shadow-2xs transition-all cursor-pointer">
+                                    🔄 Refresh Top 1
+                                </button>
+                                <button type="button" onclick="awardTop1AndResetSeasonAdmin()"
+                                    class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer flex items-center gap-1.5">
+                                    <span>🎁 Award 10 Coins &amp; Reset Season</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="adminLdrTop1InfoBox" class="p-3 bg-white/90 rounded-xl border border-amber-200 text-xs text-slate-700">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <span class="font-bold text-slate-500">চলতি সিজন: <strong id="adminLdrSeasonKey" class="text-slate-900 font-mono font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">শীর্ষ #১ ইউজার: <strong id="adminLdrTop1User" class="text-amber-800 font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">পয়েন্ট: <strong id="adminLdrTop1Pts" class="text-emerald-700 font-mono font-black tabular-nums">0 Pts</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="earnTaskFormCard" class="glass p-4 sm:p-6 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <h4 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                                <span id="earnFormIcon">➕</span> <span id="earnFormTitleText">Add New Earn Task</span>
+                            </h4>
+                            <span id="earnFormEditBadge"
+                                class="hidden px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700">EDITING
+                                MODE</span>
+                        </div>
+
+                        <input type="hidden" id="earnTaskId" value="">
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <div>
+                                <label class="lbl">Task Title / Name *</label>
+                                <input id="earnTitle" placeholder="e.g. Visit Monetag SmartLink #1"
+                                    class="fld font-bold">
+                            </div>
+
+                            <div>
+                                <label class="lbl">Task Type *</label>
+                                <select id="earnMiscType" class="fld font-bold" onchange="toggleEarnTaskFields()">
+                                    <option value="direct_link">🔗 Direct Link / Short URL (নতুন ট্যাবে ভিজিট)</option>
+                                    <option value="ad_page">📺 In-App Dedicated Ad Page (অ্যাপের ভেতর বিজ্ঞাপন)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Direct Link Destination Field -->
+                        <div id="earnDirectLinkWrap">
+                            <label class="lbl">Destination Link URL (Direct Link / Short URL) *</label>
+                            <input id="earnLink" placeholder="https://example.com/direct-link-or-short-url..."
+                                class="fld font-mono text-xs">
+                            <p class="text-[10px] text-slate-400 font-semibold mt-1">💡 ইউজার এই লিংকে গিয়ে সর্বনিম্ন
+                                নির্ধারিত সময় থাকবে। কম সময় থেকে ব্যাক আসলে স্বয়ংক্রিয়ভাবে কয়েন পাবে না।</p>
+                        </div>
+
+                        <!-- In-App Ad Page Builder Wrap -->
+                        <div id="earnAdPageWrap"
+                            class="hidden space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h5 class="text-xs font-black text-slate-800 uppercase tracking-wide">📦 Ad Page
+                                        Multi-Unit Builder</h5>
+                                    <p class="text-[10px] text-slate-500 font-semibold">বিজ্ঞাপনের ব্যানার বা স্ক্রিপ্ট
+                                        কোডগুলো যুক্ত করুন (+ দিয়ে একাধিক অ্যাড কোড দেওয়া যাবে)</p>
+                                </div>
+                                <button type="button" onclick="addAdUnitField()"
+                                    class="btn px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-2xs cursor-pointer">
+                                    + Add Ad Unit
+                                </button>
+                            </div>
+                            <div id="earnAdUnitsContainer" class="space-y-3">
+                                <!-- Dynamic ad units rows -->
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="lbl">Required Stay Time (Seconds) *</label>
+                                <div class="relative">
+                                    <input type="number" id="earnDuration" min="5" value="30"
+                                        class="fld font-mono font-bold">
+                                    <span
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Sec</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 font-semibold mt-0.5">ইউজারকে কত সেকেন্ড থাকতে হবে
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="lbl">Reward Amount (PP Coins) *</label>
+                                <div class="relative">
+                                    <input type="number" step="0.01" min="0.01" id="earnReward" value="0.10"
+                                        class="fld font-mono font-bold text-emerald-700">
+                                    <span
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">Coins</span>
+                                </div>
+                                <p class="text-[10px] text-slate-400 font-semibold mt-0.5">১০টি টাস্কে ১ কয়েন দিতে চাইলে
+                                    ০.১০ দিন</p>
+                            </div>
+
+                            <div>
+                                <label class="lbl">Reset Schedule *</label>
+                                <select id="earnResetType" class="fld font-bold">
+                                    <option value="daily">🔄 Daily Reset (প্রতিদিন রাত ১২টার পর আবার করতে পারবে)
+                                    </option>
+                                    <option value="once">🔒 One-Time Only (জীবনে একবার করতে পারবে)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="lbl">Display Order</label>
+                                <input type="number" id="earnOrder" value="1" min="1" class="fld font-mono">
+                            </div>
+                            <div>
+                                <label class="lbl">Task Active Status</label>
+                                <select id="earnActive" class="fld font-bold">
+                                    <option value="1">Active (ইউজারদের সামনে শো করবে)</option>
+                                    <option value="0">Disabled (হাইড থাকবে)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            <button id="btnSaveEarnTask" onclick="saveEarnTask(this)"
+                                class="prim py-2.5 flex-1 font-black shadow-md btn-save-premium">
+                                💾 Save Earn Task
+                            </button>
+                            <button id="btnCancelEarnEdit" onclick="cancelEarnEdit()" type="button"
+                                class="hidden btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+
+
+
+
+
+                    <!-- Live Tasks List Table Card -->
+                    <div class="glass p-4 sm:p-6 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-extrabold text-slate-900">Active &amp; Scheduled Earn Tasks</h4>
+                                <p class="text-xs text-slate-500 font-medium">ইউজার অ্যাপের আর্ন সেকশনে লাইভ থাকা সকল
+                                    টাস্কের তালিকা</p>
+                            </div>
+                            <span id="earnTasksSummaryBadge"
+                                class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                0 Tasks Live
+                            </span>
+                        </div>
+                        <div id="adminEarnTasksList">
+                            <!-- Tasks table dynamically rendered -->
+                        </div>
+                    </div>
+
+
+
+
+                </div>
+
+                
+
                 <!-- ===== 10. REWARD CODES ===== -->
                 <div id="scrCode" class="ascreen hidden space-y-5">
                     <div class="glass p-4 sm:p-6">

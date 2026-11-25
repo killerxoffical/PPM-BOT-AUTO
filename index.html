@@ -10471,10 +10471,12 @@
                 const accName = (acc.profile && acc.profile.display_name) || (acc.email ? acc.email.split('@')[0] : 'Play Gamer');
 
                 const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
-                    ? window._currentOrderMeta.beforeBalance
-                    : (window.ppfb ? (Number(window.ppfb.balance || 0) + getTaskCoinCost()) : '—');
+                    ? Math.round((Number(window._currentOrderMeta.beforeBalance) + Number.EPSILON) * 100) / 100
+                    : (window.ppfb ? Math.round((Number(window.ppfb.balance || 0) + getTaskCoinCost() + Number.EPSILON) * 100) / 100 : '—');
                 const taskCost = getTaskCoinCost();
-                const curBal = (window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—';
+                const curBal = (window._currentOrderMeta && window._currentOrderMeta.afterBalance !== undefined)
+                    ? Math.round((Number(window._currentOrderMeta.afterBalance) + Number.EPSILON) * 100) / 100
+                    : ((window.ppfb && window.ppfb.balance !== undefined) ? Math.round((Number(window.ppfb.balance) + Number.EPSILON) * 100) / 100 : '—');
 
                 const isFreeTaskUsed = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
                 const payload = {
@@ -10646,11 +10648,13 @@
                     const wasFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
                     const taskCost = getTaskCoinCost();
                     const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
-                        ? window._currentOrderMeta.beforeBalance
-                        : (window.ppfb ? (Number(window.ppfb.balance || 0) + (wasFreeOrder ? 0 : taskCost)) : '—');
+                        ? Math.round((Number(window._currentOrderMeta.beforeBalance) + Number.EPSILON) * 100) / 100
+                        : (window.ppfb ? Math.round((Number(window.ppfb.balance || 0) + (wasFreeOrder ? 0 : taskCost) + Number.EPSILON) * 100) / 100 : '—');
                     const curBal = (data && data.current_balance !== undefined)
-                        ? data.current_balance
-                        : ((window.ppfb && window.ppfb.balance !== undefined) ? window.ppfb.balance : '—');
+                        ? Math.round((Number(data.current_balance) + Number.EPSILON) * 100) / 100
+                        : (window._currentOrderMeta && window._currentOrderMeta.afterBalance !== undefined
+                            ? Math.round((Number(window._currentOrderMeta.afterBalance) + Number.EPSILON) * 100) / 100
+                            : ((window.ppfb && window.ppfb.balance !== undefined) ? Math.round((Number(window.ppfb.balance) + Number.EPSILON) * 100) / 100 : '—'));
 
                     const deductCostLine = wasFreeOrder
                         ? `▫️ টাস্ক ফি: <b>⭐ ১০ম ফ্রি টাস্ক (০ Coins)</b>`
@@ -16561,7 +16565,7 @@
             const feeCoins = isFree ? 0 : getTaskCoinCost();
             const curReal = Number(window.ppfb.realBalance !== undefined ? window.ppfb.realBalance : window.ppfb.balance) || 0;
             const curBonus = Number(window.ppfb.bonusBalance || 0);
-            const curBalNow = curReal + curBonus;
+            const curBalNow = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
             if (!isFree && curBalNow < feeCoins) { toast('Insufficient PP Coins — please buy coins'); refreshPayUI(); return; }
             const deductReal = isFree ? 0 : Math.min(curReal, feeCoins);
             const deductBonus = isFree ? 0 : Math.max(0, feeCoins - deductReal);
@@ -16667,7 +16671,7 @@
                 window._currentOrderMeta = {
                     beforeBalance: beforeOrderBalance,
                     deductedCoins: feeCoins,
-                    afterBalance: newBalData.balance,
+                    afterBalance: Math.round((Number(newBalData.balance) + Number.EPSILON) * 100) / 100,
                     isFree: isFree
                 };
                 // D1 সার্ভার থেকে আসা আসল ব্যালেন্সই সঠিক (দ্বিতীয়বার মাইনাস করা বন্ধ করা হলো)
