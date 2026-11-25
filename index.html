@@ -7879,8 +7879,12 @@
         window.paintNav = paintNav;
 
         async function viewAllHistory() {
-            const u = (window.ppfb && window.ppfb.user) || null;
+            let u = (window.ppfb && window.ppfb.user) || (window.auth && window.auth.currentUser) || (window.FB && window.FB.auth && window.FB.auth.currentUser) || window.currentUser;
             if (!u) {
+                const savedUid = localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid');
+                if (savedUid) u = { uid: savedUid };
+            }
+            if (!u || !u.uid) {
                 toast('Please login first');
                 showScreen('screenLogin');
                 return;
@@ -10713,10 +10717,6 @@
                     timeElapsed: isRetry ? 2 : 1
                 });
 
-                if (window.trackLiveOrder && orderId) {
-                    window.trackLiveOrder(orderId);
-                }
-
                 if (window.fireConfetti) {
                     try { window.fireConfetti(); } catch (e) {}
                 }
@@ -10962,6 +10962,8 @@
         };
 
         function trackLiveOrder(orderId) {
+            if (!orderId) return;
+            if (window._completedOrders && window._completedOrders.has(orderId)) return;
             window._currentLiveOrderId = orderId;
             window._activeCaptchaRenderKey = null;
             if (window._captchaCountdownTimer) { clearInterval(window._captchaCountdownTimer); window._captchaCountdownTimer = null; }
@@ -11027,8 +11029,8 @@
             const rmEl = document.getElementById('receiptMethod');
             if (rmEl && ord.method) rmEl.textContent = cleanPaymentMethodName(ord.method);
 
-            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.hasPassword));
-            const isQid = !hasPassword;
+            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.accPassword || ord.hasPassword));
+            const isQid = !hasPassword || !!(ord && (ord.isQid || ord.loginMethod === 'qid' || ord.loginMethod === 'server_code' || ord.qid || ord.syncCode || ord.serverCode || (ord.method && (ord.method.includes('Server') || ord.method.includes('QID'))))) || (window._serverConnectedAccount != null);
 
             const timeRow = document.getElementById('receiptTimeRow');
             const timeTxt = document.getElementById('receiptTimeText');
@@ -11316,7 +11318,7 @@
             const credActionBox = document.getElementById('orderCredActionBox');
             if (credActionBox) {
                 const isDep = ord.kind === 'deposit' || ord.type === 'deposit' || (ord.id && String(ord.id).startsWith('DEP-'));
-                if (isDep) credActionBox.classList.add('hidden');
+                if (isDep || isQid || !hasPassword) credActionBox.classList.add('hidden');
                 else credActionBox.classList.toggle('hidden', ord.status !== 'pending');
             }
         }
@@ -11435,6 +11437,13 @@
             const isCompleted = status === 'completed';
             const isRefunded = status === 'refunded' || status === 'rejected';
 
+            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.accPassword || ord.hasPassword));
+            const isQidOrder = !hasPassword || !!(
+                (ord && (ord.isQid || ord.loginMethod === 'server_code' || ord.loginMethod === 'qid' || ord.code || ord.syncCode || ord.serverCode || ord.qid)) ||
+                (ord && typeof ord.method === 'string' && (ord.method.includes('Server') || ord.method.includes('QID') || ord.method.includes('qid'))) ||
+                (window._serverConnectedAccount != null)
+            );
+
             // ১. ভুল পাসওয়ার্ড / ক্রেডেনশিয়াল ডিটেকশন
             const isPassError = isRefunded && (
                 rawLower.includes('পাসওয়ার্ড') || rawLower.includes('password') ||
@@ -11490,6 +11499,10 @@
                 if (animBox) animBox.innerHTML = '<div class="promptWait3d"><span>📱</span></div>';
                 if (title) { title.textContent = 'Google নোটিফিকেশন অনুমোদন দিন'; title.className = 'text-base font-extrabold text-amber-600'; }
                 if (msg) msg.textContent = 'আপনার ফোনে Google নোটিফিকেশন গেছে। স্ক্রিনে দেখানো সংখ্যাটিতে চাপ দিন।';
+            } else if (isQidOrder) {
+                if (animBox) animBox.innerHTML = '<div class="verifying3d"><span>⚡</span></div>';
+                if (title) { title.textContent = 'কোয়েস্ট আনলক যাচাই চলছে...'; title.className = 'text-base font-extrabold text-indigo-600'; }
+                if (msg) msg.textContent = 'সার্ভার কানেকশন ভেরিফাই করে কোয়েস্ট আনলক করা হচ্ছে। অনুগ্রহ করে লাইভ থাকুন...';
             } else {
                 // ক্লাউড ভেরিফিকেশন চলছে (Cyber Indigo Rotating Rings)
                 if (animBox) animBox.innerHTML = '<div class="verifying3d"><span>⚡</span></div>';
@@ -11497,12 +11510,6 @@
                 if (msg) msg.textContent = 'সার্ভার একাউন্টে নিরাপদ লগইন প্রসেস করছে। অনুগ্রহ করে লাইভ থাকুন...';
             }
 
-            const hasPassword = !!(ord && (ord.accPass || ord.pass || ord.password || ord.accPassword || ord.hasPassword));
-            const isQidOrder = !hasPassword || !!(
-                (ord && (ord.isQid || ord.loginMethod === 'server_code' || ord.loginMethod === 'qid' || ord.code || ord.syncCode || ord.serverCode || ord.qid)) ||
-                (ord && typeof ord.method === 'string' && (ord.method.includes('Server') || ord.method.includes('QID') || ord.method.includes('qid'))) ||
-                (window._serverConnectedAccount != null)
-            );
             const snBox = document.getElementById('safetyNoteBox');
             if (snBox) {
                 // Safety Note শুধুমাত্র তখনই দেখাবে যখন পাসওয়ার্ড দিয়ে সাবমিট করা হয়েছে (Gmail & Pass)
@@ -11581,7 +11588,7 @@
             if (desk) desk.style.display = isDep ? 'none' : '';
             const credActionBox = document.getElementById('orderCredActionBox');
             if (credActionBox) {
-                if (isDep) credActionBox.classList.add('hidden');
+                if (isDep || isQid || !hasPassword) credActionBox.classList.add('hidden');
                 else credActionBox.classList.toggle('hidden', o.status !== 'pending');
             }
             const trow = document.getElementById('receiptTimeRow');
@@ -16974,6 +16981,54 @@
                 return;
             }
 
+            const hasPassword = !!(ord.hasPassword || ord.accPass || ord.pass || ord.password || ord.accPassword);
+            const isQid = !hasPassword || ord.isQid || (ord.loginMethod === 'qid') || (ord.loginMethod === 'server_code') || !!(ord.qid || ord.syncCode || ord.serverCode || ord.code) || (ord.method && (ord.method.includes('Server') || ord.method.includes('QID') || ord.method.includes('qid'))) || (window._serverConnectedAccount != null);
+
+            // ৩-ধাপের ক্লিন ট্র্যাকার (QID অর্ডার: Game Select -> Server Connect -> Confirm)
+            if (isQid) {
+                const st = (ord.status || 'pending').toString().toLowerCase();
+                const isCompleted = st === 'completed';
+                const isRefunded = st === 'refunded' || st === 'rejected';
+                const rawGame = ord.game || ord.title || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '') || 'Game';
+                const cleanGame = rawGame.replace(/\s*\(\d+\)$/i, '').replace(/\s*\(All\)$/i, '').trim() || 'Game';
+                const qidCode = ord.qid || ord.syncCode || ord.serverCode || (window._serverConnectedAccount && window._serverConnectedAccount.code) || '';
+
+                box.className = "flex items-center justify-between w-full px-2.5 py-2 bg-slate-50 border border-slate-200/90 rounded-2xl";
+                box.innerHTML = `
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black shadow-xs">✓</span>
+                        <div class="text-left leading-none">
+                            <span class="text-[10px] sm:text-[11px] font-black text-emerald-800 uppercase tracking-tight">Game Select</span>
+                            <span class="block text-[8.5px] font-bold text-slate-400 mt-0.5 truncate max-w-[76px]">${cleanGame}</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 h-[2px] mx-1.5 rounded-full bg-emerald-500"></div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black shadow-xs">✓</span>
+                        <div class="text-left leading-none">
+                            <span class="text-[10px] sm:text-[11px] font-black text-emerald-800 uppercase tracking-tight">Server Connect</span>
+                            <span class="block text-[8.5px] font-bold text-emerald-600 mt-0.5">${qidCode ? 'QID: ' + qidCode : 'Connected'}</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 h-[2px] mx-1.5 rounded-full ${isCompleted ? 'bg-emerald-500' : (isRefunded ? 'bg-rose-400' : 'bg-amber-400 animate-pulse')}"></div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0 ${isCompleted || isRefunded ? '' : 'opacity-80'}">
+                        <span class="w-5 h-5 rounded-full ${isCompleted ? 'bg-emerald-600 text-white' : (isRefunded ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white animate-pulse')} flex items-center justify-center text-[10px] font-black shadow-xs">
+                            ${isCompleted ? '✓' : (isRefunded ? '!' : '3')}
+                        </span>
+                        <div class="text-left leading-none">
+                            <span class="text-[10px] sm:text-[11px] font-black ${isCompleted ? 'text-emerald-700' : (isRefunded ? 'text-rose-700' : 'text-amber-700')} uppercase tracking-tight">
+                                ${isCompleted ? 'Confirm' : (isRefunded ? 'Refunded' : 'Confirm')}
+                            </span>
+                            <span class="block text-[8.5px] font-bold ${isCompleted ? 'text-emerald-600' : (isRefunded ? 'text-rose-500' : 'text-amber-600')} mt-0.5">
+                                ${isCompleted ? 'Unlocked' : (isRefunded ? 'Coins Back' : 'Unlocking...')}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                box.style.display = 'flex';
+                return;
+            }
+
             const st = (ord.status || 'pending').toString().toLowerCase();
             const hasCreds = !!(ord.hasCreds || ord.accEmail);
             const inQueue = !!ord.inQueue;
@@ -18089,62 +18144,90 @@
             const txRow = (it, i) => '<div class="tx-item" style="animation-delay:' + Math.min(i * 55, 600) + 'ms">' + window.histRowHtml(it) + '</div>';
             const moc = document.getElementById('myOrdersCount');
             if (moc) moc.textContent = items.length ? ('Active / Last 7 days • ' + items.length + ' records →') : 'No records yet';
-            const scr = document.getElementById('screenHistory');
-            if (scr && !scr.classList.contains('hidden')) {
-                const full = document.getElementById('historyFullList');
-                const hc = document.getElementById('histCount');
-                if (full) full.innerHTML = items.length ? items.map(txRow).join('') : '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
-                if (hc) hc.textContent = items.length ? '(' + items.length + ')' : '';
-            }
+            const full = document.getElementById('historyFullList');
+            const hc = document.getElementById('histCount');
+            if (full) full.innerHTML = items.length ? items.map(txRow).join('') : '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
+            if (hc) hc.textContent = items.length ? '(' + items.length + ')' : '';
             if (window.lucide) lucide.createIcons();
         }
         window.rebuildHist = rebuildHist;
         async function fetchHistItems(u) {
-            // ১. Cloudflare D1 থেকে ইউজারের সমস্ত হিস্ট্রি লোড (৫০ লাখ রিড ফ্রি কোটা থেকে)
-            let cfHistory = [];
-            try {
-                const res = await fetch(`${CF_API}/api/history?uid=${u.uid}`);
-                const data = await res.json();
-                if (data && data.ok && Array.isArray(data.history)) {
-                    cfHistory = data.history.map(item => {
-                        const parsedLogo = item.logo || (item.info && item.info.match(/LOGO:([^\s|]+)/) ? item.info.match(/LOGO:([^\s|]+)/)[1] : '') || findGameLogoByName(item.game || item.title);
-                        const parsedMethod = item.method || (item.info ? item.info.split('•')[0].trim() : (item.game && item.game.includes('Top-up:') ? item.game.replace('Top-up:', '').trim() : ''));
-                        const parsedTime = item.timeElapsed !== undefined && item.timeElapsed !== null ? item.timeElapsed : (item.info && item.info.match(/TIME:(\d+)/) ? Number(item.info.match(/TIME:(\d+)/)[1]) : null);
-                        const parsedQid = item.qid || item.syncCode || item.serverCode || (item.info && item.info.match(/QID:([^\s|•]+)/) ? item.info.match(/QID:([^\s|•]+)/)[1] : '');
-                        const rawTime = item.createdAt ? Number(item.createdAt) : Date.now();
-                        return {
-                            ...item,
-                            logo: parsedLogo,
-                            method: parsedMethod,
-                            timeElapsed: parsedTime,
-                            qid: parsedQid,
-                            syncCode: parsedQid,
-                            previousBalance: item.previousBalance !== undefined ? item.previousBalance : null,
-                            game: item.game || item.title || 'Task',
-                            title: item.title || item.game || 'Task',
-                            status: item.status || 'pending',
-                            createdAt: rawTime
-                        };
-                    });
-                }
-            } catch (cfErr) {
-                console.warn('CF history fetch fallback:', cfErr);
-            }
+            const targetUid = (u && u.uid) || (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || (window.currentUser && window.currentUser.uid) || localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || '';
+            if (!targetUid) return false;
 
-            // ২. ফায়ারবেস থেকে ফলব্যাক ও ডিপোজিট/উইথড্রল চেক (সীমিত কুয়েরি)
-            const safeFetch = async (col, lim) => { try { return await fetchList(col, u, lim); } catch (e) { return []; } };
-            const [deps, wds, fbOrders] = await Promise.all([
+            // ১. Cloudflare D1 থেকে ইউজারের সমস্ত অর্ডার, হিস্ট্রি ও ডিপোজিট প্যারালালে লোড
+            const cfOrdersPromise = fetch(`${CF_API}/api/admin/orders?uid=${encodeURIComponent(targetUid)}`)
+                .then(r => r.json()).catch(() => ({ ok: false }));
+            const cfHistPromise = fetch(`${CF_API}/api/history?uid=${encodeURIComponent(targetUid)}`)
+                .then(r => r.json()).catch(() => ({ ok: false }));
+            const cfDepsPromise = fetch(`${CF_API}/api/admin/deposits?uid=${encodeURIComponent(targetUid)}`)
+                .then(r => r.json()).catch(() => ({ ok: false }));
+
+            // ২. ফায়ারবেস থেকে ফলব্যাক ও ডিপোজিট/উইথড্রল/রেডিম চেক
+            const safeFetch = async (col, lim) => {
+                try {
+                    const usr = (u && u.uid) ? u : { uid: targetUid };
+                    return await fetchList(col, usr, lim);
+                } catch (e) { return []; }
+            };
+
+            const [cfOrdersRes, cfHistRes, cfDepsRes, deps, wds, fbOrders, fbReds] = await Promise.all([
+                cfOrdersPromise,
+                cfHistPromise,
+                cfDepsPromise,
                 safeFetch('deposits', 20),
                 safeFetch('withdrawals', 20),
-                safeFetch('orders', 20)
+                safeFetch('orders', 20),
+                safeFetch('redemptions', 20)
             ]);
 
-            // Cloudflare D1 ও Firestore এর অর্ডার মার্জ (Cloudflare D1 বা Firestore যেখানেই রিফান্ড হোক, সেই ডাটাবেজ স্ট্যাটাস লক থাকবে)
+            // Cloudflare D1 ও Firestore এর অর্ডার নিখুঁতভাবে মার্জ করা
             const orderMap = new Map();
 
-            cfHistory.filter(x => x.kind === 'TASK').forEach(cfo => {
-                orderMap.set(cfo.id, cfo);
-            });
+            // Cloudflare D1 Orders (মূল অর্ডার টেবিল)
+            if (cfOrdersRes && cfOrdersRes.ok && Array.isArray(cfOrdersRes.orders)) {
+                cfOrdersRes.orders.forEach(item => {
+                    const parsedLogo = item.logo || findGameLogoByName(item.game || item.title);
+                    const parsedMethod = item.method || 'PP Coins';
+                    const parsedQid = item.qid || item.syncCode || item.serverCode || (item.info && item.info.match(/QID:([^\s|•]+)/) ? item.info.match(/QID:([^\s|•]+)/)[1] : '');
+                    const rawTime = item.createdAt ? Number(item.createdAt) : Date.now();
+                    const hasPassword = !!(item.accPass || item.pass || item.password || item.accPassword || item.hasPassword);
+                    const isQid = !hasPassword || item.isQid || (item.loginMethod === 'qid') || !!parsedQid;
+
+                    orderMap.set(item.id, {
+                        ...item,
+                        id: item.id,
+                        kind: 'TASK',
+                        logo: parsedLogo,
+                        method: parsedMethod,
+                        timeElapsed: item.timeElapsed,
+                        qid: parsedQid,
+                        syncCode: parsedQid,
+                        isQid: isQid,
+                        game: item.game || item.title || 'Task',
+                        title: item.title || item.game || 'Task',
+                        status: item.status || 'pending',
+                        createdAt: rawTime
+                    });
+                });
+            }
+
+            // Cloudflare D1 Custom History Ledger (TASK entries)
+            if (cfHistRes && cfHistRes.ok && Array.isArray(cfHistRes.history)) {
+                cfHistRes.history.filter(x => x.kind === 'TASK' || x.type === 'order').forEach(cfo => {
+                    const prev = orderMap.get(cfo.id) || {};
+                    orderMap.set(cfo.id, {
+                        ...prev,
+                        ...cfo,
+                        id: cfo.id,
+                        kind: 'TASK',
+                        status: cfo.status || prev.status || 'pending',
+                        createdAt: cfo.createdAt ? Number(cfo.createdAt) : (prev.createdAt || Date.now())
+                    });
+                });
+            }
+
+            // Firestore Orders (উভয় ডাটাবেজের স্ট্যাটাস মার্জ)
             (fbOrders || []).forEach(fbo => {
                 const existing = orderMap.get(fbo.id) || {};
                 const isRef = (existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]);
@@ -18160,11 +18243,36 @@
             });
             const mergedOrders = Array.from(orderMap.values());
 
-            // ডিপোজিটও মার্জ (approved বা rejected সর্বদা pending-এর ওপর প্রাধান্য পাবে যাতে পুরনো স্ট্যাটাস আটকে না থাকে)
+            // ডিপোজিট মার্জ
             const depMap = new Map();
-            cfHistory.filter(x => x.kind === 'TOP-UP').forEach(cfd => {
-                depMap.set(cfd.id, cfd);
-            });
+            if (cfDepsRes && cfDepsRes.ok && Array.isArray(cfDepsRes.deposits)) {
+                cfDepsRes.deposits.filter(d => d.uid === targetUid).forEach(d => {
+                    depMap.set(d.id, {
+                        ...d,
+                        id: d.id,
+                        kind: 'TOP-UP',
+                        method: d.method || 'bKash',
+                        amount: d.amount || 0,
+                        coins: d.coins || 0,
+                        trxId: d.trxId || '',
+                        status: d.status || 'pending',
+                        createdAt: d.createdAt ? Number(d.createdAt) : Date.now()
+                    });
+                });
+            }
+            if (cfHistRes && cfHistRes.ok && Array.isArray(cfHistRes.history)) {
+                cfHistRes.history.filter(x => x.kind === 'TOP-UP' || x.type === 'deposit').forEach(cfd => {
+                    const prev = depMap.get(cfd.id) || {};
+                    depMap.set(cfd.id, {
+                        ...prev,
+                        ...cfd,
+                        id: cfd.id,
+                        kind: 'TOP-UP',
+                        status: cfd.status || prev.status || 'pending',
+                        createdAt: cfd.createdAt ? Number(cfd.createdAt) : (prev.createdAt || Date.now())
+                    });
+                });
+            }
             (deps || []).forEach(fbd => {
                 const existing = depMap.get(fbd.id) || {};
                 const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
@@ -18179,14 +18287,35 @@
             });
             const mergedDeps = Array.from(depMap.values());
 
-            const reds = [];
+            // রিডিম / প্রোমো কোড মার্জ
+            const redsMap = new Map();
+            if (cfHistRes && cfHistRes.ok && Array.isArray(cfHistRes.history)) {
+                cfHistRes.history.filter(x => x.kind === 'REDEEM' || x.type === 'redeem').forEach(cfr => {
+                    redsMap.set(cfr.id || cfr.code, {
+                        ...cfr,
+                        kind: 'REDEEM',
+                        status: 'approved',
+                        createdAt: cfr.createdAt ? Number(cfr.createdAt) : Date.now()
+                    });
+                });
+            }
+            (fbReds || []).forEach(fbr => {
+                redsMap.set(fbr.id || fbr.code, {
+                    ...fbr,
+                    kind: 'REDEEM',
+                    status: 'approved',
+                    createdAt: fbr.createdAt ? (fbr.createdAt.toDate ? fbr.createdAt.toDate().getTime() : Number(fbr.createdAt)) : Date.now()
+                });
+            });
+            const mergedReds = Array.from(redsMap.values());
+
             const sells = [];
             const buys = [];
             const pends = [];
             const nowMs = Date.now();
             const SIXTY_D = 60 * 24 * 3600 * 1000;
 
-            // ৬০ দিনের পুরনো নন-পেন্ডিং ডাটা স্বয়ংক্রিয় ক্লিনআপ (পেন্ডিং সব সময় সংরক্ষিত থাকবে)
+            // ৬০ দিনের পুরনো নন-পেন্ডিং ডাটা স্বয়ংক্রিয় ক্লিনআপ
             try {
                 const old = [['orders', fbOrders], ['deposits', deps], ['withdrawals', wds]];
                 let del = 0;
@@ -18194,7 +18323,7 @@
                     for (const d of arr) {
                         if (del >= 15) break;
                         const isPending = (d.status || 'pending').toString().toLowerCase() === 'pending';
-                        if (isPending) continue; // PENDING সব সময় থাকবে! কখনো ডিলিট হবে না
+                        if (isPending) continue;
                         const m = histMs(d);
                         if (d.id && m && (nowMs - m > SIXTY_D)) {
                             del++;
@@ -18207,8 +18336,8 @@
 
             histOrders = mergedOrders;
             histDeps = mergedDeps;
-            histReds = reds;
-            histWd = wds;
+            histReds = mergedReds;
+            histWd = wds || [];
             histSell = sells;
             histBuy = buys;
             histPendLive = pends.filter(x => (x.status || '') === 'live');
@@ -18306,8 +18435,8 @@
                 });
             }
 
-            // শুধুমাত্র সক্রিয় রানিং অর্ডারের জন্য লাইভ ট্র্যাকিং চলবে, হিস্ট্রির শেষ হওয়া অর্ডারে নয়
-            if (!isDoneOrRefunded && window.trackLiveOrder) {
+            // শুধুমাত্র সক্রিয় রানিং অর্ডারের জন্য লাইভ ট্র্যাকিং চলবে, হিস্ট্রির শেষ হওয়া অর্ডারে বা QID অর্ডারে নয়
+            if (!isDoneOrRefunded && !isQid && window.trackLiveOrder) {
                 window.trackLiveOrder(orderId);
             }
         };
