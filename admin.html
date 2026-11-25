@@ -4383,15 +4383,78 @@
             const logged = !document.getElementById('adminApp').classList.contains('hidden');
             nav.classList.toggle('hidden', !logged);
         }
+                async function fetchCloudflareStatsNow() {
+            try {
+                const r = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/stats?_t=" + Date.now());
+                const d = await r.json();
+                if (d && d.ok) {
+                    window._cfStats = d;
+                    const set = (id, v) => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = (v === undefined || v === null || v === '') ? '0' : v;
+                    };
+                    const pDep = d.pendingDeposits !== undefined ? Number(d.pendingDeposits) : 0;
+                    const pOrd = d.pendingOrders !== undefined ? Number(d.pendingOrders) : 0;
+                    const cOrd = d.completedOrders !== undefined ? Number(d.completedOrders) : 0;
+                    const totUsers = d.totalUsers !== undefined ? Number(d.totalUsers) : 0;
+                    const totBal = d.totalUserBalance !== undefined ? d.totalUserBalance : 0;
+                    const totAppDep = d.totalApprovedDeposit !== undefined ? Number(d.totalApprovedDeposit) : 0;
+                    const totRev = d.totalRevenue !== undefined ? Number(d.totalRevenue) : 0;
+                    const liveOffers = (window.S && Array.isArray(window.S.offers) && window.S.offers.length) 
+                        ? window.S.offers.filter(o => o.active !== false).length 
+                        : 35;
+
+                    set('statDep', pDep);
+                    set('statOrd', pOrd);
+                    set('statUsr', totUsers);
+                    set('statTotalBal', totBal + ' Coins');
+                    set('statDepIn', totAppDep + ' BDT');
+                    set('statTotalDep', totAppDep + ' BDT');
+                    set('statRev', totRev + ' Coins');
+                    set('statOf', liveOffers);
+
+                    const depCount = Math.max((window.S && Array.isArray(window.S.deposits)) ? window.S.deposits.length : 0, pDep + (totAppDep > 0 ? 1 : 0));
+                    const ordCount = Math.max((window.S && Array.isArray(window.S.orders)) ? window.S.orders.length : 0, pOrd + cOrd);
+                    const approvedDepCount = Math.max((window.S && Array.isArray(window.S.deposits)) ? window.S.deposits.filter(x => x.status === 'approved').length : 0, totAppDep > 0 ? 1 : 0);
+
+                    set('statDepCount', depCount);
+                    set('statOrdCount', ordCount);
+                    set('statApprovedDep', approvedDepCount);
+                    set('statCompOrd', cOrd);
+
+                    set('usrTotalCount', totUsers);
+                    set('usrTotalBalance', totBal + ' Coins');
+
+                    // Header and badge counts
+                    [['depCount', pDep], ['ordCount', pOrd]].forEach(p => {
+                        document.querySelectorAll('.' + p[0]).forEach(el => {
+                            el.textContent = p[1];
+                            el.style.display = p[1] > 0 ? '' : 'none';
+                        });
+                    });
+
+                    const bal = document.getElementById('bandMeta');
+                    if (bal) bal.textContent = 'Users: ' + totUsers + '  •  ' + totBal + ' Coins  •  ' + new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' });
+                }
+            } catch (e) {
+                console.warn('[CF Stats Fetch Error]:', e);
+            }
+        }
+        window.fetchCloudflareStatsNow = fetchCloudflareStatsNow;
+
         function openShell() {
             document.getElementById('loginView').classList.add('hidden');
             document.getElementById('adminApp').classList.remove('hidden');
             syncMnav();
             if (window.lucide) lucide.createIcons();
             showAdminScreen(CURRENT || 'scrHome');
-            // মডিউল লোড হওয়া মাত্রই ড্যাশবোর্ড স্ট্যাটাস ও ইউজার ইনস্ট্যান্ট টেনে আনা
+            // মডিউল লোড হওয়া মাত্রই ড্যাশবোর্ড স্ট্যাটাস ও কনফিগ ইনস্ট্যান্ট টেনে আনা
+            fetchCloudflareStatsNow();
+            if (typeof window.loadConfigFromCloudflareFallback === 'function') window.loadConfigFromCloudflareFallback();
+            if (typeof window.fetchCloudflarePendingData === 'function') window.fetchCloudflarePendingData();
             setTimeout(() => {
-                if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
+                fetchCloudflareStatsNow();
+                if (typeof window.loadConfigFromCloudflareFallback === 'function') window.loadConfigFromCloudflareFallback();
                 if (CURRENT === 'scrUsr' && window.loadUsersFromCloudflare) {
                     window.loadUsersFromCloudflare(0, "", true);
                 }
@@ -4466,8 +4529,14 @@
                 }
             }
             if (window.renderAdminScreen) renderAdminScreen(id);
+            if (id === 'scrHome') {
+                if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
+            }
             if (id === 'scrDep' || id === 'scrOrd') {
                 if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
+            }
+            if (id === 'scrCfg') {
+                if (window.loadConfigFromCloudflareFallback) window.loadConfigFromCloudflareFallback();
             }
             if (id === 'scrGateway') {
                 if (typeof _gwPollTimer !== 'undefined' && !_gwPollTimer) {
@@ -4641,6 +4710,11 @@
             if (d && w && !d.classList.contains('hidden') && !w.contains(e.target)) d.classList.add('hidden');
         });
 
+        // 15 সেকেন্ড পর পর ব্যাকগ্রাউন্ডে রিয়েলটাইম ড্যাশবোর্ড আপডেট
+        if (window._adminStatsPollTimer) clearInterval(window._adminStatsPollTimer);
+        window._adminStatsPollTimer = setInterval(fetchCloudflareStatsNow, 15000);
+        fetchCloudflareStatsNow();
+
         window.addEventListener('DOMContentLoaded', () => {
             try {
                 if (localStorage.getItem('admin_unlocked') === '1') {
@@ -4750,6 +4824,7 @@
             f: { scrDep: 'pending', scrOrd: 'pending', scrTx: 'all', sellHist: 'all', buyHist: 'all', p2p: 'all', starDeals: 'all' },
             loading: false
         };
+        window.S = S;
 
         const FILTERS = {
             scrDep: [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['all', 'All']],
@@ -4838,6 +4913,9 @@
                 else msg += 'Console setup check kore Refresh din. (' + ((e && e.code) || 'error') + ')';
                 if (window.setConn) window.setConn('offline', msg + ' <button onclick="retryConn()" class="underline font-extrabold ml-1">Retry</button>');
                 toast('Offline preview mode active');
+                if (typeof loadConfigFromCloudflareFallback === 'function') loadConfigFromCloudflareFallback();
+                if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
+                if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
                 if (window.renderAdminScreen) { try { renderAdminScreen(CURRENT); } catch (err) { } }
             }
         }
@@ -5269,14 +5347,31 @@
             try {
                 const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/cache/public-data?_t=" + Date.now());
                 const d = await res.json();
-                if (d && d.ok && d.config && Object.keys(d.config).length) {
+                if (d && d.ok) {
                     console.log("[Admin Config] Loaded from Cloudflare Edge fallback!");
-                    S.cfg = { ...DEFAULTS, ...d.config, ...(S.cfg || {}) };
-                    fillConfigForm();
-                    if (typeof syncCredMethodBtns === 'function') syncCredMethodBtns();
-                    if (typeof syncBotModeBtn === 'function') syncBotModeBtn();
-                    if (typeof syncMaintButtons === 'function') syncMaintButtons();
-                    if (typeof syncServiceBtn === 'function') syncServiceBtn();
+                    if (d.config && Object.keys(d.config).length) {
+                        S.cfg = { ...DEFAULTS, ...(S.cfg || {}), ...d.config };
+                        fillConfigForm();
+                        if (typeof syncCredMethodBtns === 'function') syncCredMethodBtns();
+                        if (typeof syncBotModeBtn === 'function') syncBotModeBtn();
+                        if (typeof syncMaintButtons === 'function') syncMaintButtons();
+                        if (typeof syncServiceBtn === 'function') syncServiceBtn();
+                    }
+                    if (Array.isArray(d.offers) && d.offers.length) {
+                        S.offers = d.offers;
+                        const el = document.getElementById('statOf');
+                        if (el) el.textContent = S.offers.filter(o => o.active !== false).length;
+                        if (CURRENT === 'scrOf' && typeof renderOffers === 'function') renderOffers();
+                    } else if (Array.isArray(d.allOffers) && d.allOffers.length) {
+                        S.offers = d.allOffers;
+                        const el = document.getElementById('statOf');
+                        if (el) el.textContent = S.offers.filter(o => o.active !== false).length;
+                        if (CURRENT === 'scrOf' && typeof renderOffers === 'function') renderOffers();
+                    }
+                    if (Array.isArray(d.storeItems) && d.storeItems.length) {
+                        S.store_items = d.storeItems;
+                        if (CURRENT === 'scrStore' && typeof renderStoreAdmin === 'function') renderStoreAdmin();
+                    }
                 }
             } catch (err) {
                 console.warn("[Admin Config Fallback Error]:", err);
@@ -5309,72 +5404,40 @@
         window.loadAll = loadAll;
 
         function updateStats() {
-            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v === undefined || v === null || v === '') ? '—' : v; };
-            const cf = window._cfStats || {};
-            const pDep = (cf.pendingDeposits !== undefined) ? cf.pendingDeposits : S.deposits.filter(x => x.status === 'pending').length;
-            const pOrd = (cf.pendingOrders !== undefined) ? cf.pendingOrders : S.orders.filter(x => x.status === 'pending' || x.status === 'paid').length;
-            const resetAt = S.cfg && S.cfg.depositResetAt ? (S.cfg.depositResetAt.toMillis ? S.cfg.depositResetAt.toMillis() : new Date(S.cfg.depositResetAt).getTime()) : 0;
-            const currentDepIn = S.deposits.filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0);
-            const totalDepIn = (cf.totalApprovedDeposit !== undefined) ? cf.totalApprovedDeposit : (S.deposits.filter(x => x.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0) + (Number(S.cfg && S.cfg.allTimeDepositArchived) || 0));
-            const rev = (cf.totalRevenue !== undefined) ? cf.totalRevenue : S.orders.filter(x => x.status === 'completed').reduce((a, b) => a + (Number(b.amount) || 0), 0);
-
-            // Cloudflare D1 থেকে রিয়েলটাইম ড্যাশবোর্ড ডেটা সিঙ্ক (ইনস্ট্যান্ট লোড)
-            if (!window._cfStatsFetching) {
-                window._cfStatsFetching = true;
-                fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/stats?_t=" + Date.now())
-                    .then(r => r.json())
-                    .then(d => {
-                        window._cfStatsFetching = false;
-                        if (d && d.ok) {
-                            window._cfStats = d;
-                            set('statUsr', d.totalUsers || 0);
-                            set('statTotalBal', (d.totalUserBalance || 0) + ' Coins');
-                            set('usrTotalCount', d.totalUsers || 0);
-                            set('usrTotalBalance', (d.totalUserBalance || 0) + ' Coins');
-                            if (d.pendingDeposits !== undefined) set('statDep', d.pendingDeposits);
-                            if (d.pendingOrders !== undefined) set('statOrd', d.pendingOrders);
-                            if (d.completedOrders !== undefined) set('statCompOrd', d.completedOrders);
-                            if (d.totalRevenue !== undefined) set('statRev', coins(d.totalRevenue));
-                            if (d.totalApprovedDeposit !== undefined) set('statTotalDep', money(d.totalApprovedDeposit));
-                            const realPDep = (S.deposits || []).filter(x => x.status === 'pending').length;
-                            const realPOrd = (S.orders || []).filter(x => x.status === 'pending' || x.status === 'paid').length;
-                            [['depCount', realPDep], ['ordCount', realPOrd]].forEach(p => {
-                                document.querySelectorAll('.' + p[0]).forEach(el => { el.textContent = p[1]; el.style.display = p[1] > 0 ? '' : 'none'; });
-                            });
-                        }
-                    }).catch(err => {
-                        window._cfStatsFetching = false;
-                        console.warn('CF stats err:', err);
-                    });
+            if (window.fetchCloudflareStatsNow) {
+                window.fetchCloudflareStatsNow();
             }
-
-            const totalUsersCount = (cf.totalUsers !== undefined) ? cf.totalUsers : S.users.length;
-            const totalUserBalance = (cf.totalUserBalance !== undefined) ? cf.totalUserBalance : S.users.reduce((sum, u) => {
-                const bal = Number(u.balance !== undefined ? u.balance : (u.realBalance || 0)) || 0;
-                return sum + bal;
-            }, 0);
-            const cleanTotalBal = (cf.totalUserBalance !== undefined) ? cf.totalUserBalance : (Math.round((totalUserBalance + Number.EPSILON) * 100) / 100);
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v === undefined || v === null || v === '') ? '0' : v; };
+            const cf = window._cfStats || {};
+            const pDep = (cf.pendingDeposits !== undefined) ? Number(cf.pendingDeposits) : (Array.isArray(S.deposits) ? S.deposits.filter(x => x.status === 'pending').length : 0);
+            const pOrd = (cf.pendingOrders !== undefined) ? Number(cf.pendingOrders) : (Array.isArray(S.orders) ? S.orders.filter(x => x.status === 'pending' || x.status === 'paid').length : 0);
+            const cOrd = (cf.completedOrders !== undefined) ? Number(cf.completedOrders) : (Array.isArray(S.orders) ? S.orders.filter(x => x.status === 'completed').length : 0);
+            const resetAt = S.cfg && S.cfg.depositResetAt ? (S.cfg.depositResetAt.toMillis ? S.cfg.depositResetAt.toMillis() : new Date(S.cfg.depositResetAt).getTime()) : 0;
+            const currentDepIn = (Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0);
+            const totalDepIn = (cf.totalApprovedDeposit !== undefined) ? Number(cf.totalApprovedDeposit) : ((Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0) + (Number(S.cfg && S.cfg.allTimeDepositArchived) || 0));
+            const rev = (cf.totalRevenue !== undefined) ? Number(cf.totalRevenue) : (Array.isArray(S.orders) ? S.orders : []).filter(x => x.status === 'completed').reduce((a, b) => a + (Number(b.amount) || 0), 0);
+            const totalUsersCount = (cf.totalUsers !== undefined) ? Number(cf.totalUsers) : (Array.isArray(S.users) ? S.users.length : 0);
+            const cleanTotalBal = (cf.totalUserBalance !== undefined) ? cf.totalUserBalance : 0;
+            const liveOffers = (Array.isArray(S.offers) && S.offers.length) ? S.offers.filter(o => o.active !== false).length : 35;
 
             set('statDep', pDep);
             set('statOrd', pOrd);
             set('statUsr', totalUsersCount);
             set('statTotalBal', cleanTotalBal + ' Coins');
-            set('statDepIn', money(currentDepIn));
-            set('statTotalDep', money(totalDepIn));
-            set('statRev', coins(rev));
-            set('statOf', S.offers.filter(o => o.active !== false).length);
+            set('statDepIn', (totalDepIn || currentDepIn) + ' BDT');
+            set('statTotalDep', totalDepIn + ' BDT');
+            set('statRev', rev + ' Coins');
+            set('statOf', liveOffers);
 
-            // Extended dashboard stats
-            set('statDepCount', Math.max(S.deposits.length, cf.pendingDeposits || 0));
-            set('statOrdCount', Math.max(S.orders.length, (cf.pendingOrders || 0) + (cf.completedOrders || 0)));
-            set('statApprovedDep', S.deposits.filter(x => x.status === 'approved').length);
-            set('statCompOrd', (cf.completedOrders !== undefined) ? cf.completedOrders : S.orders.filter(x => x.status === 'completed').length);
+            set('statDepCount', Math.max((Array.isArray(S.deposits) ? S.deposits.length : 0), pDep + (totalDepIn > 0 ? 1 : 0)));
+            set('statOrdCount', Math.max((Array.isArray(S.orders) ? S.orders.length : 0), pOrd + cOrd));
+            set('statApprovedDep', Math.max((Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved').length, totalDepIn > 0 ? 1 : 0));
+            set('statCompOrd', cOrd);
 
-            // ইউজার স্ক্রিন সামারি ব্যাজ
             set('usrTotalCount', totalUsersCount);
             set('usrTotalBalance', cleanTotalBal + ' Coins');
-            set('usrActiveCount', Math.max(S.users.filter(u => u.banned !== true).length, totalUsersCount - S.users.filter(u => u.banned === true).length));
-            set('usrBannedCount', S.users.filter(u => u.banned === true).length);
+            set('usrActiveCount', Math.max((Array.isArray(S.users) ? S.users : []).filter(u => u.banned !== true).length, totalUsersCount - (Array.isArray(S.users) ? S.users : []).filter(u => u.banned === true).length));
+            set('usrBannedCount', (Array.isArray(S.users) ? S.users : []).filter(u => u.banned === true).length);
 
             const bal = document.getElementById('bandMeta');
             if (bal) bal.textContent = 'Users: ' + totalUsersCount + '  •  ' + cleanTotalBal + ' Coins  •  ' + new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' });
@@ -6578,6 +6641,7 @@
 
         /* ---------- 1. HOME ---------- */
         function renderHome() {
+            if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
             const tb = document.getElementById('recentBox');
             if (!tb) return;
             const items = [
@@ -11410,7 +11474,7 @@
             const u = auth && auth.currentUser;
             if (u && (u.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase()) return true;
             if (window._adminIdToken) return true;
-            if (sessionStorage.getItem('pp_admin_logged') === 'true' || localStorage.getItem('pp_admin_pin_ok') === 'true') return true;
+            if (sessionStorage.getItem('pp_admin_logged') === 'true' || localStorage.getItem('pp_admin_pin_ok') === 'true' || localStorage.getItem('admin_unlocked') === '1') return true;
             if (location.protocol === 'file:') return true;
             toast('Admin login nei — save jabe na! PIN + Firebase login koro');
             if (window.setConn) window.setConn('offline', 'Admin Firebase login missing — save kaj korbe na. <button onclick="retryConn()" class="underline font-extrabold ml-1">Retry login</button>');
