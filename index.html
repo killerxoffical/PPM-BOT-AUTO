@@ -427,10 +427,18 @@
         /* --- Header User Avatar: Play Points Dynamic Color on Refresh --- */
         .user-header-avatar {
             border: 2.5px solid var(--pp-avatar-border, #f59e0b) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
             box-shadow: 0 0 10px var(--pp-avatar-shadow, rgba(245, 158, 11, 0.5)), 0 0 2px var(--pp-avatar-border, #f59e0b) !important;
             box-sizing: border-box !important;
             transition: transform 0.2s ease, box-shadow 0.3s ease, border-color 0.4s ease;
             animation: ppAvatarPulse 3s infinite ease-in-out;
+        }
+
+        .user-header-avatar img,
+        #avatarImg {
+            border-radius: 9px !important;
+            object-fit: cover !important;
         }
 
         .user-header-avatar:hover {
@@ -2758,10 +2766,10 @@
 
 
                 <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
-                    class="user-header-avatar w-9 h-9 rounded-full bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
+                    class="user-header-avatar w-9 h-9 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
                     <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
                     <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
-                        class="hidden absolute inset-0 w-full h-full object-cover" alt="">
+                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="">
                 </button>
             </div>
         </header>
@@ -3812,7 +3820,7 @@
                     <a id="btnDownloadPpmApk" href="https://t.me/Blackmoney54" target="_blank" onclick="claimAppDownloadReward(event)"
                         class="py-2.5 px-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-[11px] rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span>Download APK</span>
+                        <span>Download APK v4.5</span>
                     </a>
                 </div>
 
@@ -4416,7 +4424,7 @@
                 <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank" onclick="claimAppDownloadReward(event)"
                     class="py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer whitespace-nowrap">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                    <span id="btnDownloadPpmApkProfileTxt">Download</span>
+                    <span id="btnDownloadPpmApkProfileTxt">Download v4.5</span>
                 </a>
             </div>
 
@@ -9444,7 +9452,7 @@
             const btnTxt = document.getElementById('btnDownloadPpmApkProfileTxt');
             if (badge) badge.classList.add('hidden');
             if (desc) desc.textContent = 'PPM SERVER অফিসিয়াল কানেক্টর অ্যাপ ডাউনলোড করুন';
-            if (btnTxt) btnTxt.textContent = 'Download';
+            if (btnTxt) btnTxt.textContent = 'Download v4.5';
         }
         window.updateAppDownloadUI = updateAppDownloadUI;
 
