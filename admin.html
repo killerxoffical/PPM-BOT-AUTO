@@ -1768,16 +1768,9 @@
                     class="w-4 h-4"></i>Users</button>
 
             <p class="sgroup">Content</p>
-            <button data-nav="scrOf" onclick="showAdminScreen('scrOf')" class="snav"><i data-lucide="gamepad-2"
-                    class="w-4 h-4"></i>Offers</button>
             <button data-nav="scrEarn" onclick="showAdminScreen('scrEarn')" class="snav"><i data-lucide="zap"
                     class="w-4 h-4 text-amber-500"></i>Earn Tasks <span
                     class="nbadge ml-auto bg-amber-100 text-amber-800" id="earnTasksCount"
-                    style="display:none">0</span></button>
-            <button data-nav="scrStore" onclick="showAdminScreen('scrStore')" class="snav"><i data-lucide="shopping-bag"
-                    class="w-4 h-4"></i>Store Items</button>
-            <button data-nav="scrP2P" onclick="showAdminScreen('scrP2P')" class="snav"><i data-lucide="arrow-left-right"
-                    class="w-4 h-4"></i>P2P Deals <span id="p2pDisputeBadge" class="nbadge ml-auto"
                     style="display:none">0</span></button>
             <button data-nav="scrCode" onclick="showAdminScreen('scrCode')" class="snav"><i data-lucide="ticket"
                     class="w-4 h-4"></i>Codes</button>
@@ -1937,9 +1930,6 @@
                         class="nbadge ordCount" style="display:none">0</span></button>
                 <button data-nav="scrTx" onclick="showAdminScreen('scrTx')" class="tnav">Transactions</button>
                 <button data-nav="scrUsr" onclick="showAdminScreen('scrUsr')" class="tnav">Users</button>
-                <button data-nav="scrOf" onclick="showAdminScreen('scrOf')" class="tnav">Offers</button>
-                <button data-nav="scrStore" onclick="showAdminScreen('scrStore')" class="tnav">Store</button>
-                <button data-nav="scrP2P" onclick="showAdminScreen('scrP2P')" class="tnav">P2P Deals</button>
                 <button data-nav="scrCode" onclick="showAdminScreen('scrCode')" class="tnav">Codes</button>
                 <button data-nav="scrExt" onclick="showAdminScreen('scrExt')" class="tnav">Extension</button>
                 <button data-nav="scrBc" onclick="showAdminScreen('scrBc')" class="tnav">Broadcast</button>
@@ -2630,8 +2620,8 @@
 
                 </div>
 
-                <!-- ===== STORE ITEMS & USER SELL REQUESTS ===== -->
-                <div id="scrStore" class="ascreen hidden space-y-5">
+                <!-- ===== STORE ITEMS & USER SELL REQUESTS (REMOVED) ===== -->
+                <div id="scrStore" class="ascreen hidden space-y-5" style="display:none !important;">
                     <!-- Store Categories (user app tabs: All + 2 category) -->
                     <div class="glass p-4 sm:p-6 space-y-3">
                         <div>
@@ -2924,8 +2914,8 @@
 
                 </div>
 
-                <!-- ===== P2P MARKETPLACE DEALS & DISPUTE DESK ===== -->
-                <div id="scrP2P" class="ascreen hidden space-y-5">
+                <!-- ===== P2P MARKETPLACE DEALS & DISPUTE DESK (REMOVED) ===== -->
+                <div id="scrP2P" class="ascreen hidden space-y-5" style="display:none !important;">
                     <!-- Live Overview Metric Cards for ADELL & P2P -->
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                         <div class="stat-card border-emerald-300 bg-emerald-50/30 cursor-pointer"
@@ -3002,7 +2992,7 @@
                 </div>
 
                 <!-- ===== 9. OFFERS ===== -->
-                <div id="scrOf" class="ascreen hidden space-y-5">
+                <div id="scrOf" class="ascreen hidden space-y-5" style="display:none !important;">
                     <div class="glass p-6 sm:p-8 text-center border-2 border-emerald-500/20 bg-emerald-50/10">
                         <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
                             <i data-lucide="gamepad-2" class="w-7 h-7"></i>
@@ -7546,16 +7536,15 @@
                         const uSnap = await getDoc(uRef);
                         if (uSnap.exists()) {
                             const ud = uSnap.data() || {};
-                            const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                            const curBonus = Number(ud.bonusBalance || 0);
-                            const newReal = curReal + coinsToAdd;
-                            const newTotal = newReal + curBonus;
+                            const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                            const newTotal = Math.round((curBal + coinsToAdd + Number.EPSILON) * 100) / 100;
                             const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                             const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || Number(ud.monthlyTasksCount) || 0) : 0;
                             const depPoints = Math.max(1, Math.floor(coinsToAdd));
                             await setDoc(uRef, {
-                                realBalance: newReal,
+                                realBalance: newTotal,
                                 balance: newTotal,
+                                bonusBalance: 0,
                                 monthlyPoints: Math.round((curPts + depPoints + Number.EPSILON) * 10) / 10,
                                 monthlyPointsMonth: curMonthKey,
                                 monthlyDepositsCount: ((mKey === curMonthKey) ? (Number(ud.monthlyDepositsCount) || 0) : 0) + 1
@@ -9177,7 +9166,7 @@
                             + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || 'User') + '</p>'
                             + '<div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 truncate max-w-[130px]">' + esc(u.email || '') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div></div></div></td>'
                             + '<td><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(uid) + '</span>' + cpBtn(uid, 'Copy UID') + '</div></td>'
-                            + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600">' + coins(bal) + '</p><p>' + '<span class="text-[9.5px] font-mono text-slate-400">R: ' + rBal + ' | B: ' + bBal + '</span></p></td>'
+                            + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(bal) + '</p></td>'
                             + '<td>' + (isBanned ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
                             + '<td class="text-xs text-slate-500 whitespace-nowrap">' + joinedTime + '</td>'
                             + '<td><div class="flex gap-2 items-center flex-wrap" onclick="event.stopPropagation()">'
@@ -9270,7 +9259,7 @@
                 + '</p>'
                 + '<div class="cpline mt-0.5" onclick="event.stopPropagation()"><p class="grow text-[11px] text-slate-500 truncate max-w-[130px]">' + esc(u.email || '') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div></div></div></td>'
                 + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(u.id || '') + '</span>' + cpBtn(u.id, 'Copy UID') + '</div></td>'
-                + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600">' + coins(u.balance) + '</p><p class="text-[9.5px] font-mono text-slate-400">R: ' + (u.realBalance !== undefined ? u.realBalance : (u.balance || 0)) + ' | B: ' + (u.bonusBalance || 0) + '</p></td>'
+                + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(u.balance) + '</p></td>'
                 + '<td>' + (u.banned === true ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
                 + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(u.createdAt || u.updatedAt) + '</td>'
                 + '<td onclick="event.stopPropagation()"><div class="flex gap-2 items-center">'
@@ -9386,20 +9375,13 @@
             if (!v || isNaN(v)) { toast('Enter adjustment amount'); return; }
             toast('Adjusting balance...');
             try {
-                // ১. ফায়ারবেস Firestore এ রিয়েল ও বোনাস ব্যালেন্স আপডেট
+                // ১. ফায়ারবেস Firestore এ ইউনিফায়েড ব্যালেন্স আপডেট
                 await runTransaction(db, async (t) => {
                     const uref = doc(db, 'users', uid);
                     const us = await t.get(uref);
                     const ud = us.exists() ? (us.data() || {}) : {};
-                    let curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                    let curBonus = Number(ud.bonusBalance || 0);
-
-                    if (type === 'bonus') {
-                        curBonus = Math.max(0, Math.round((curBonus + v + Number.EPSILON) * 100) / 100);
-                    } else {
-                        curReal = Math.max(0, Math.round((curReal + v + Number.EPSILON) * 100) / 100);
-                    }
-                    const newTotal = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
+                    let curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                    const newTotal = Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
 
                     if (!us.exists()) {
                         const cached = (S.users || []).find(x => x.id === uid) || {};
@@ -9408,17 +9390,17 @@
                             name: cached.name || 'User',
                             email: cached.email || '',
                             balance: newTotal,
-                            realBalance: curReal,
-                            bonusBalance: curBonus,
-                            playPoints: Number(cached.playPoints || 0),
-                            pendingPoints: Number(cached.pendingPoints || 0),
+                            realBalance: newTotal,
+                            bonusBalance: 0,
+                            playPoints: 0,
+                            pendingPoints: 0,
                             createdAt: serverTimestamp()
                         }, { merge: true });
                     } else {
                         t.update(uref, {
                             balance: newTotal,
-                            realBalance: curReal,
-                            bonusBalance: curBonus
+                            realBalance: newTotal,
+                            bonusBalance: 0
                         });
                     }
                 });
@@ -9428,14 +9410,14 @@
                     await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uid: uid, coins: v, type: type })
+                        body: JSON.stringify({ uid: uid, coins: v, type: 'real' })
                     });
                 } catch (cfErr) {
                     console.warn('CF credit sync warn:', cfErr);
                 }
 
-                toast(`✅ [${type.toUpperCase()}] balance ${v > 0 ? '+' : ''}${v} adjusted!`);
-                logIt('dual_balance_adjust', `${uid} ${type} ${v}`);
+                toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted!`);
+                logIt('balance_adjust', `${uid} ${v}`);
 
                 // Sheet টি সাথে সাথে নতুন ব্যালেন্স সহ রিফ্রেশ
                 userSheet(uid);
@@ -9668,12 +9650,10 @@
                         });
                     } else {
                         const ud = us.data() || {};
-                        const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                        const curBonus = Number(ud.bonusBalance || 0);
-                        const newReal = Math.max(0, curReal + v);
-                        const nb = newReal + curBonus;
+                        const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                        const nb = Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
                         if (nb < 0) throw new Error('neg');
-                        t.update(uref, { balance: nb, realBalance: newReal });
+                        t.update(uref, { balance: nb, realBalance: nb, bonusBalance: 0 });
                     }
                 });
                 toast((v > 0 ? '+' : '') + v + ' coins adjusted');
@@ -9874,16 +9854,124 @@
 
             const dep = (S.deposits || []).filter(d => d.uid === uid || (u.email && (d.userEmail === u.email || d.email === u.email)));
             const red = (S.redemptions || []).filter(d => d.uid === uid);
-            const wd = (S.withdrawals || []).filter(d => d.uid === uid);
-            const sell = (S.point_sells || []).filter(d => d.uid === uid);
-            const buy = (S.account_orders || []).filter(d => d.uid === uid);
-            const pend = (S.pending_points || []).filter(d => d.uid === uid);
             const sum = arr => arr.reduce((a, b) => a + (Number(b.amount) || 0), 0);
-            const isD = c => (c || '').toString().toUpperCase() === 'DAILY';
-            const isR = c => (c || '').toString().toUpperCase() === 'REFERRAL';
-            const isE = c => (c || '').toString().toUpperCase() === 'EXCHANGE';
-            const dDaily = red.filter(d => isD(d.code)), dRef = red.filter(d => isR(d.code)),
-                dEx = red.filter(d => isE(d.code)), dCode = red.filter(d => !isD(d.code) && !isR(d.code) && !isE(d.code));
+
+            // Fetch live transactions from Firestore for this user
+            let userTxs = [];
+            try {
+                const txSnap = await getDocs(query(collection(db, 'transactions'), where('uid', '==', uid)));
+                txSnap.forEach(docSnap => {
+                    userTxs.push({ id: docSnap.id, ...docSnap.data() });
+                });
+            } catch (e) {
+                console.warn('userSheet tx fetch err:', e);
+            }
+
+            const unifiedHist = [];
+
+            // 1. Transactions from Firestore (Quest unlocks, Level-ups, Daily claims, Task rewards, Promo codes, etc.)
+            userTxs.forEach(t => {
+                const type = (t.type || '').toLowerCase();
+                let badge = 'LOG';
+                let badgeCls = 'bg-slate-100 text-slate-700 border border-slate-300';
+                if (type.includes('quest')) { badge = '🎮 QUEST'; badgeCls = 'bg-indigo-100 text-indigo-800 border border-indigo-200'; }
+                else if (type.includes('daily')) { badge = '⭐ DAILY'; badgeCls = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; }
+                else if (type.includes('task') || type.includes('earn')) { badge = '⚡ TASK'; badgeCls = 'bg-purple-100 text-purple-800 border border-purple-200'; }
+                else if (type.includes('level')) { badge = '🚀 LEVEL'; badgeCls = 'bg-blue-100 text-blue-800 border border-blue-200'; }
+                else if (type.includes('deposit')) { badge = '🪙 DEPOSIT'; badgeCls = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; }
+                else if (type.includes('promo') || type.includes('code')) { badge = '🎟️ PROMO'; badgeCls = 'bg-amber-100 text-amber-800 border border-amber-200'; }
+                else if (type.includes('reward')) { badge = '🎁 REWARD'; badgeCls = 'bg-rose-100 text-rose-800 border border-rose-200'; }
+
+                unifiedHist.push({
+                    badge,
+                    badgeCls,
+                    title: t.title || t.taskTitle || 'Activity Log',
+                    note: t.note || t.game || '',
+                    amount: Number(t.amount || 0),
+                    status: t.status || 'completed',
+                    ts: t.createdAt
+                });
+            });
+
+            // 2. Orders from Cloudflare / Firestore
+            ord.forEach(o => {
+                unifiedHist.push({
+                    badge: '🎮 QUEST',
+                    badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+                    title: o.game || 'Game Quest Order',
+                    note: o.adminMsg || (o.accEmail ? 'Account: ' + o.accEmail : ''),
+                    amount: -Math.abs(Number(o.amount || o.coins || 2)),
+                    status: o.status || 'completed',
+                    ts: o.createdAt
+                });
+            });
+
+            // 3. Deposits
+            dep.forEach(d => {
+                unifiedHist.push({
+                    badge: '🪙 DEPOSIT',
+                    badgeCls: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+                    title: `ডিপোজিট (${d.method || 'Gateway'})`,
+                    note: `TrxID: ${d.trxId || '—'} • ${d.amount || 0} BDT`,
+                    amount: Math.abs(Number(d.coins || 0)),
+                    status: d.status || 'approved',
+                    ts: d.createdAt
+                });
+            });
+
+            // 4. Redemptions (Daily, Codes)
+            red.forEach(r => {
+                const codeUpper = (r.code || '').toUpperCase();
+                unifiedHist.push({
+                    badge: codeUpper === 'DAILY' ? '⭐ DAILY' : '🎟️ CODE',
+                    badgeCls: codeUpper === 'DAILY' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200',
+                    title: codeUpper === 'DAILY' ? 'ডেইলি বোনাস ক্লেইম' : ('প্রোমো কোড: ' + (r.code || '')),
+                    note: r.note || '',
+                    amount: Math.abs(Number(r.amount || 0)),
+                    status: r.status || 'approved',
+                    ts: r.createdAt
+                });
+            });
+
+            const ms = x => {
+                if (!x) return 0;
+                if (typeof x === 'number') return x;
+                if (x.seconds) return x.seconds * 1000;
+                if (x.toDate) return x.toDate().getTime();
+                const t = new Date(x).getTime();
+                return isNaN(t) ? 0 : t;
+            };
+            unifiedHist.sort((a, b) => ms(b.ts) - ms(a.ts));
+
+            // Unique deduplicate by title + time slice
+            const seenKeys = new Set();
+            const filteredHist = [];
+            for (const item of unifiedHist) {
+                const k = (item.title || '') + '_' + Math.round(ms(item.ts) / 5000) + '_' + item.amount;
+                if (!seenKeys.has(k)) {
+                    seenKeys.add(k);
+                    filteredHist.push(item);
+                }
+            }
+
+            const historyHtml = filteredHist.length > 0 ? filteredHist.slice(0, 50).map(item => {
+                const isPlus = item.amount > 0;
+                const amtTxt = (isPlus ? '+' : '') + item.amount + ' Coins';
+                const amtCls = isPlus ? 'text-emerald-600' : (item.amount < 0 ? 'text-amber-600' : 'text-slate-500');
+                return `<div class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-between gap-2 text-xs">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span class="px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase shrink-0 ${item.badgeCls}">${item.badge}</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-extrabold text-slate-900 truncate leading-tight">${esc(item.title)}</p>
+                            ${item.note ? `<p class="text-[10px] text-slate-500 truncate font-semibold mt-0.5">${esc(item.note)}</p>` : ''}
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p class="font-black ${amtCls} text-xs">${item.amount === 0 ? '0 Coins (Free)' : amtTxt}</p>
+                        <p class="text-[9.5px] font-mono text-slate-400 mt-0.5">${fmtDate(item.ts)}</p>
+                    </div>
+                </div>`;
+            }).join('') : '<p class="text-xs text-slate-400 font-semibold py-4 text-center">কোনো ট্রানজ্যাকশন বা ক্লেইম হিস্ট্রি পাওয়া যায়নি</p>';
 
             openSheet(
                 '<div class="flex items-center gap-3">'
@@ -9896,46 +9984,29 @@
                 + '<div class="cpline"><p class="grow text-[11px] font-mono text-slate-400 truncate">' + esc(u.id) + '</p>' + cpBtn(u.id, 'Copy UID') + '</div>'
                 + '</div></div>'
                 + vaultHtml
-                + '<div class="grid grid-cols-2 gap-2 mt-4">'
-                + '<div class="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-center"><p class="text-[10px] font-extrabold uppercase text-amber-800 tracking-wider">🪙 Total Coins</p><p class="text-xl font-black text-amber-600 mt-0.5">' + coins(u.balance) + '</p><p class="text-[10px] font-mono font-bold text-amber-700/80 mt-0.5">Real: ' + (u.realBalance !== undefined ? u.realBalance : (u.balance || 0)) + ' | Bonus: ' + (u.bonusBalance || 0) + '</p></div>'
-                + '<div class="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl text-center"><p class="text-[10px] font-extrabold uppercase text-emerald-800 tracking-wider">৳ Total Taka</p><p class="text-xl font-black text-emerald-600 mt-0.5">৳ ' + (u.playPoints || 0) + '</p><p class="text-[10px] font-mono font-bold text-emerald-700/80 mt-0.5">Live: ৳ ' + (u.playPoints || 0) + ' | Pend: ৳ ' + (u.pendingPoints || 0) + '</p></div>'
+                + '<div class="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl text-center mt-4">'
+                + '<p class="text-[11px] font-extrabold uppercase text-amber-800 tracking-wider">🪙 Total PP Coins</p>'
+                + '<p class="text-2xl font-black text-amber-600 mt-1">' + coins(u.balance) + '</p>'
                 + '</div>'
-                + '<div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">'
-                + '<p class="text-[10px] font-black uppercase text-slate-600 tracking-wider border-b border-slate-200 pb-1">📊 Taka Wallet Breakdown</p>'
-                + [['Earn/Sell থেকে প্রাপ্ত', '৳ ' + (sell.reduce((a, b) => a + (Number(b.creditedPoints || b.points) || 0), 0)) + ' (' + sell.length + ' req)'],
-                ['Withdraw করা', '৳ ' + (wd.reduce((a, b) => a + (Number(b.points) || 0), 0)) + ' (' + wd.length + 'x)'],
-                ['পেন্ডিং আছে', '৳ ' + ((u.pendingPoints || 0))]]
-                    .map(c => '<div class="flex items-center justify-between text-xs"><span class="font-bold text-slate-600">' + c[0] + '</span><span class="font-black text-slate-900">' + c[1] + '</span></div>').join('')
-                + '</div>'
-                + (Number(u.pendingPoints) > 0 ? '<div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2"><div><p class="text-xs font-black text-amber-900">Pending: ৳ ' + u.pendingPoints + '</p><p class="text-[10px] font-semibold text-amber-700">এখনই লাইভ ব্যালেন্সে পাঠাতে চান?</p></div><button onclick="forceMakeLive(\'' + u.id + '\', ' + u.pendingPoints + ')" class="btn bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2 px-3 shadow-sm">⚡ Make Live Now</button></div>' : '')
                 + '<p class="text-xs font-semibold text-slate-600 py-2">Total Deposited: <span class="font-bold text-slate-900">' + money(sum(dep.filter(d => d.status === "approved"))) + '</span> &middot; Spent: <span class="font-bold text-amber-600">' + coins(sum(ord)) + '</span></p>'
                 + '<div class="space-y-2 py-2 bg-slate-100/70 p-3 rounded-2xl border border-slate-200">'
-                + '<p class="text-[10px] font-black uppercase tracking-wider text-slate-600">🪙 Coins Balance Adjust (Real vs Bonus)</p>'
-                + '<div class="grid grid-cols-3 gap-2">'
-                + '<input id="sheetAdj" type="number" placeholder="+/- Coins" class="fld">'
-                + '<button onclick="adjUserDualBalance(\'' + u.id + '\',document.getElementById(\'sheetAdj\').value, \'real\')" class="btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold">± Real</button>'
-                + '<button onclick="adjUserDualBalance(\'' + u.id + '\',document.getElementById(\'sheetAdj\').value, \'bonus\')" class="btn bg-amber-600 hover:bg-amber-700 text-white font-bold">± Bonus</button>'
-                + '</div></div>'
-                + '<div class="space-y-2 py-2.5 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200 mt-2 text-left">'
-                + '<div class="flex items-center justify-between"><p class="text-[10px] font-black uppercase tracking-wider text-emerald-800">৳ Taka Balance Adjust (লাইভ ও পেন্ডিং টাকা)</p><span class="text-[9.5px] font-bold text-emerald-700 font-mono">Live: ৳ ' + (u.playPoints || 0) + ' | Pend: ৳ ' + (u.pendingPoints || 0) + '</span></div>'
-                + '<div class="grid grid-cols-3 gap-2">'
-                + '<input id="sheetTakaAdj" type="number" placeholder="+/- Taka" class="fld bg-white text-xs">'
-                + '<button onclick="adjUserTakaBalance(\'' + u.id + '\', document.getElementById(\'sheetTakaAdj\').value, \'live\')" class="btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5">± Live Taka</button>'
-                + '<button onclick="adjUserTakaBalance(\'' + u.id + '\', document.getElementById(\'sheetTakaAdj\').value, \'pending\')" class="btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-1.5">± Pending Taka</button>'
+                + '<p class="text-[10px] font-black uppercase tracking-wider text-slate-600">🪙 PP Coins Balance Adjust</p>'
+                + '<div class="flex gap-2">'
+                + '<input id="sheetAdj" type="number" placeholder="+/- Coins" class="fld grow">'
+                + '<button onclick="adjUserDualBalance(\'' + u.id + '\',document.getElementById(\'sheetAdj\').value, \'coins\')" class="btn bg-amber-600 hover:bg-amber-700 text-white font-bold px-4">± Adjust Coins</button>'
                 + '</div></div>'
                 + '<div class="space-y-2 py-2.5 bg-indigo-50/70 p-3 rounded-2xl border border-indigo-200 mt-2 text-left">'
-                + '<p class="text-[10px] font-black uppercase tracking-wider text-indigo-900">🎁 Send Balance / Reward (টাইটেল ও পেন্ডিং ডে সহ)</p>'
+                + '<p class="text-[10px] font-black uppercase tracking-wider text-indigo-900">🎁 Send Balance / Reward</p>'
                 + '<div class="space-y-1.5">'
                 + '<input id="sheetCustomTitle" type="text" placeholder="Title/Reason (e.g. Special Bonus, Compensation)" class="fld bg-white text-xs">'
-                + '<div class="grid grid-cols-3 gap-2">'
-                + '<input id="sheetCustomAmt" type="number" placeholder="Amount" class="fld bg-white text-xs">'
+                + '<div class="grid grid-cols-2 gap-2">'
+                + '<input id="sheetCustomAmt" type="number" placeholder="Coins Amount" class="fld bg-white text-xs">'
                 + '<select id="sheetCustomUnit" class="fld bg-white text-xs font-bold">'
-                + '<option value="taka">৳ Taka</option>'
-                + '<option value="coins">🪙 Coins</option>'
+                + '<option value="coins">🪙 PP Coins</option>'
                 + '</select>'
-                + '<input id="sheetCustomDays" type="number" min="0" placeholder="Days (0=Live)" class="fld bg-white text-xs">'
+                + '<input id="sheetCustomDays" type="hidden" value="0">'
                 + '</div>'
-                + '<button onclick="sendUserCustomReward(\'' + u.id + '\')" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs">🚀 Send Balance to User</button>'
+                + '<button onclick="sendUserCustomReward(\'' + u.id + '\')" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs">🚀 Send Coins to User</button>'
                 + '</div></div>'
                 + '<div class="space-y-2 py-2 bg-slate-100/70 p-3 rounded-2xl border border-slate-200 mt-2 text-left">'
                 + '<p class="text-[10px] font-black uppercase tracking-wider text-slate-600">👑 Reseller Account Permission (কয়েন রিসেলার)</p>'
@@ -9960,24 +10031,17 @@
                 + '<button onclick="resetUser(\'' + u.id + '\')" class="btn bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold">Reset Bal 0</button>'
                 + '<button onclick="deleteRow(\'users\',\'' + u.id + '\')" class="btn bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold">Delete</button>'
                 + '</div>'
-                + '<div class="grid grid-cols-2 gap-2 mt-2">'
+                + '<div class="mt-2">'
                 + '<button onclick="resetUserDailyBonus(\'' + u.id + '\')" class="w-full py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold rounded-xl text-xs cursor-pointer transition-all flex items-center justify-center gap-1"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Daily Bonus</button>'
-                + '<button onclick="resetWdPin(\'' + u.id + '\')" class="w-full py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold rounded-xl text-xs cursor-pointer transition-all">Reset Withdraw PIN</button>'
                 + '</div>'
-                + '<div class="border-t border-slate-200 pt-3 space-y-2 max-h-96 overflow-y-auto">'
-                + (dep.slice(0, 15).map(d => rowLine('TOP-UP', (d.method || '') + ' ' + (d.trxId || '') + ' +' + (d.coins || 0) + 'c', d.amount, d.status, d.createdAt, d.previousBalance))
-                    .concat(ord.slice(0, 15).map(d => rowLine('TASK', (d.game || '') + ' -' + (d.amount || 0) + 'c', d.amount, d.status, d.createdAt, d.previousBalance)))
-                    .concat(red.slice(0, 15).map(d => {
-                        const cc = (d.code || '').toUpperCase();
-                        const k = cc === 'DAILY' ? 'DAILY' : cc === 'REFERRAL' ? 'REF' : cc === 'EXCHANGE' ? 'EXCH' : 'REDEEM';
-                        return rowLine(k, (d.code || '') + ' +' + (d.amount || 0) + 'c ' + (d.note || ''), d.amount, d.status || 'approved', d.createdAt, d.previousBalance);
-                    }))
-                    .concat(wd.slice(0, 10).map(d => rowLine('WDR', (d.method || '') + ' ' + (d.points || 0) + 'pts', d.points, d.status, d.createdAt, d.previousBalance)))
-                    .concat(sell.slice(0, 10).map(d => rowLine('SELL', (d.packageTitle || '') + ' +' + (d.creditedPoints || d.points || 0) + 'pts', (d.creditedPoints || d.points || 0), d.status, d.createdAt, d.previousBalance)))
-                    .concat(buy.slice(0, 10).map(d => rowLine('BUY', (d.packageTitle || '') + ' -' + (d.coinsCost || 0) + 'c', (d.coinsCost || 0), d.status, d.createdAt, d.previousBalance)))
-                    .concat(pend.slice(0, 10).map(d => rowLine('PEND', (d.packageTitle || '') + ' ' + (d.points || 0) + 'pts', (d.points || 0), (d.status || 'pending'), d.createdAt, d.previousBalance)))
-                    .join('') || '<p class="text-xs text-slate-400 font-semibold py-3 text-center">No transaction history found</p>')
+                + '<div class="border-t border-slate-200 pt-3 space-y-2">'
+                + '<div class="flex items-center justify-between">'
+                + '<p class="text-[11px] font-black uppercase tracking-wider text-slate-800">📜 হিস্ট্রি ও ট্রানজ্যাকশন লগ (' + filteredHist.length + ')</p>'
+                + '<span class="text-[10px] text-slate-400 font-bold">সকল ক্লেইম, টাস্ক, কোয়েস্ট ও ডিপোজিট</span>'
                 + '</div>'
+                + '<div class="space-y-1.5 max-h-[380px] overflow-y-auto pr-0.5">'
+                + historyHtml
+                + '</div></div>'
                 + '<button onclick="closeSheet()" class="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl text-xs cursor-pointer transition-all">Close</button>'
             );
         };
@@ -10894,14 +10958,15 @@
                 await fetch(`${CF_API}/api/wallet/credit`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: u.uid, coins: 10, type: 'bonus' })
+                    body: JSON.stringify({ uid: u.uid, coins: 10, type: 'real' })
                 }).catch(() => null);
 
                 // 2. Update Firestore user balance
-                const newBonus = Math.round((u.bonusBalance + 10 + Number.EPSILON) * 100) / 100;
-                const newTotal = Math.round((u.balance + 10 + Number.EPSILON) * 100) / 100;
+                const curTot = Number(u.balance || 0) + Number(u.bonusBalance || 0);
+                const newTotal = Math.round((curTot + 10 + Number.EPSILON) * 100) / 100;
                 await setDoc(doc(db, 'users', u.uid), {
-                    bonusBalance: newBonus,
+                    bonusBalance: 0,
+                    realBalance: newTotal,
                     balance: newTotal
                 }, { merge: true }).catch(() => {});
 
