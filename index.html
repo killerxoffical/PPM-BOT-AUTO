@@ -5154,24 +5154,87 @@
                     <button type="button" onclick="openPPServiceHub()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer flex-shrink-0">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> <span>সার্ভিস সমূহ</span>
                     </button>
-                    <h3 class="text-xs sm:text-sm font-black text-slate-800 text-center flex-1 truncate px-1">Level Up Booster</h3>
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold flex-shrink-0">100% Safe</span>
+                    <h3 class="text-xs sm:text-sm font-black text-slate-800 text-center flex-1 truncate px-1">Level Up Booster Packages</h3>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold flex-shrink-0">⚡ 3.1M XP Pool</span>
                 </div>
 
-                <!-- Level Up Booster Package Card -->
-                <div onclick="openLevelUpOrderModal()" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-98" style="border-top: 3px solid #f59e0b;">
+                <!-- Info Banner -->
+                <div class="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex items-center gap-2.5 text-[11px] text-amber-900 leading-snug">
+                    <span class="text-base flex-shrink-0">🚀</span>
+                    <span>আপনার গুগল প্লে গেমস প্রোফাইল সরাসরি লেভেল আপ করতে নিচের যেকোনো প্যাকেজ সিলেক্ট করুন:</span>
+                </div>
+
+                <!-- Package 1: Level 1 ➔ 10 Boost -->
+                <div onclick="openLevelUpOrderModal('lvl_1_10')" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]" style="border-top: 3px solid #f59e0b;">
                     <div class="flex items-start gap-3">
-                        <div class="w-11 h-11 rounded-md bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-2xs flex-shrink-0">
+                        <div class="w-11 h-11 rounded-md bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
                             <i data-lucide="zap" class="w-5 h-5"></i>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-1.5 flex-wrap">
-                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors">Level Up Booster</h3>
-                                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">Booster Pack</span>
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors">Level 1 ➔ 10 Boost</h3>
+                                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">Golden Tier</span>
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">আপনার গুগল প্লে গেমস আইডি সাথে সাথে বুস্ট করে দেওয়া হবে।</p>
-                            <div class="mt-2.5 flex items-center justify-end pt-2 border-t border-slate-100">
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">৪৩২,০০০ XP • আপনার আইডি সরাসরি লেভেল ১০ এ উন্নীত করা হবে।</p>
+                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
+                                <div class="flex items-center gap-1 font-mono font-black text-amber-700 text-xs">
+                                    <span>ফি:</span>
+                                    <span id="ppLvlPrice_lvl_1_10">5</span> <span>PP Coins</span>
+                                </div>
                                 <button type="button" class="px-3.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
+                                    সিলেক্ট করুন →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Package 2: Level 10 ➔ 20 Pro Boost -->
+                <div onclick="openLevelUpOrderModal('lvl_10_20')" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-purple-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]" style="border-top: 3px solid #a855f7;">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-md bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
+                            <i data-lucide="award" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-purple-700 transition-colors">Level 10 ➔ 20 Pro Boost</h3>
+                                <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-black text-[9px] uppercase border border-purple-200">Ultra Pro</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">২,৫০০,০০০ XP • প্রো প্লেয়ারদের জন্য আল্ট্রা লেভেল ২০ বুস্ট।</p>
+                            <div class="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                                <span>🔒 প্লেয়ার লেভেল ন্যূনতম ১০ হতে হবে</span>
+                            </div>
+                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
+                                <div class="flex items-center gap-1 font-mono font-black text-purple-700 text-xs">
+                                    <span>ফি:</span>
+                                    <span id="ppLvlPrice_lvl_10_20">20</span> <span>PP Coins</span>
+                                </div>
+                                <button type="button" class="px-3.5 py-1.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
+                                    সিলেক্ট করুন →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Package 3: +50,000 XP Booster Pack -->
+                <div onclick="openLevelUpOrderModal('lvl_50k_xp')" class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-sky-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]" style="border-top: 3px solid #0ea5e9;">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
+                            <i data-lucide="flame" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                                <h3 class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-sky-700 transition-colors">+50,000 XP Booster</h3>
+                                <span class="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-black text-[9px] uppercase border border-sky-200">Custom XP</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">যেকোনো অ্যাকাউন্টে ইনস্ট্যান্ট ফিক্সড +৫০,০০০ XP বুস্ট যোগ করুন।</p>
+                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
+                                <div class="flex items-center gap-1 font-mono font-black text-sky-700 text-xs">
+                                    <span>ফি:</span>
+                                    <span id="ppLvlPrice_lvl_50k_xp">1</span> <span>PP Coin</span>
+                                </div>
+                                <button type="button" class="px-3.5 py-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
                                     সিলেক্ট করুন →
                                 </button>
                             </div>
@@ -5185,12 +5248,12 @@
                 <div class="bg-white rounded-lg max-w-sm w-full p-4 border border-amber-300 shadow-2xl space-y-3.5">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
                         <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-md bg-amber-500 flex items-center justify-center text-white">
-                                <i data-lucide="zap" class="w-4 h-4"></i>
+                            <div id="lvlModalIconWrap" class="w-8 h-8 rounded-md bg-amber-500 flex items-center justify-center text-white">
+                                <i id="lvlModalIcon" data-lucide="zap" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <h3 class="text-xs sm:text-sm font-black text-slate-900">Level Up Booster</h3>
-                                <p class="text-[10px] text-slate-500">Google Play Games Profile Boost</p>
+                                <h3 id="lvlModalTitle" class="text-xs sm:text-sm font-black text-slate-900">Level 1 ➔ 10 Boost</h3>
+                                <p id="lvlModalSub" class="text-[10px] text-slate-500">Google Play Games Profile Boost (432,000 XP)</p>
                             </div>
                         </div>
                         <button type="button" onclick="closeLevelUpOrderModal()" class="w-7 h-7 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center">
@@ -5200,7 +5263,7 @@
 
                     <div class="flex items-center justify-between p-2.5 rounded-md bg-amber-50/70 border border-amber-200">
                         <span class="text-xs font-bold text-slate-700">সার্ভিস ফি:</span>
-                        <span class="text-xs font-black text-amber-700 font-mono">2 PP Coins</span>
+                        <span id="lvlModalFeeDisplay" class="text-xs font-black text-amber-700 font-mono">5 PP Coins</span>
                     </div>
 
                     <div class="space-y-1.5">
@@ -5246,7 +5309,7 @@
 
                     <div class="flex items-center justify-between text-xs text-slate-600 px-2 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
                         <span>কয়েন কর্তন:</span>
-                        <span class="font-mono font-black text-emerald-800">2 PP Coins</span>
+                        <span id="lvlSuccessCoinsDeducted" class="font-mono font-black text-emerald-800">5 PP Coins</span>
                     </div>
 
                     <button type="button" onclick="closeLevelUpSuccessModal()" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-md active:scale-98 transition-all">
@@ -15171,7 +15234,65 @@ async function executeServerQuestUnlock(isRetry = false) {
             window.renderPPServiceGames('');
         };
 
-        window.openLevelUpOrderModal = function () {
+        window._selectedLevelUpPkg = 'lvl_1_10';
+        window._lvlUpPackagesCache = {
+            'lvl_1_10': { id: 'lvl_1_10', name: 'Level 1 ➔ 10 Boost', desc: 'Google Play Games Profile Boost (432,000 XP)', coins: 5, target_level: 10, min_level: 1, icon: 'zap', color: 'amber' },
+            'lvl_10_20': { id: 'lvl_10_20', name: 'Level 10 ➔ 20 Pro Boost', desc: 'Ultra Pro Profile Boost (2,500,000 XP)', coins: 20, target_level: 20, min_level: 10, icon: 'award', color: 'purple' },
+            'lvl_50k_xp': { id: 'lvl_50k_xp', name: '+50,000 XP Booster', desc: 'Instant Fixed Boost (+50,000 XP)', coins: 1, target_level: 50000, min_level: 1, icon: 'flame', color: 'sky' }
+        };
+
+        // Auto-fetch dynamic prices set by Admin in Server Portal
+        (async function fetchLiveLevelUpConfig() {
+            try {
+                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/level-up/config?_t=' + Date.now());
+                const d = await res.json();
+                if (d && d.ok && d.config && d.config.packages) {
+                    for (const [k, v] of Object.entries(d.config.packages)) {
+                        if (window._lvlUpPackagesCache[k]) {
+                            if (v.coin_price) {
+                                window._lvlUpPackagesCache[k].coins = Number(v.coin_price);
+                                const el = document.getElementById(`ppLvlPrice_${k}`);
+                                if (el) el.innerText = v.coin_price;
+                            }
+                            if (v.enabled !== undefined) {
+                                window._lvlUpPackagesCache[k].enabled = Boolean(v.enabled);
+                            }
+                        }
+                    }
+                }
+            } catch(e) {}
+        })();
+
+        window.openLevelUpOrderModal = function (pkgKey) {
+            pkgKey = pkgKey || 'lvl_1_10';
+            window._selectedLevelUpPkg = pkgKey;
+            const pkg = window._lvlUpPackagesCache[pkgKey] || window._lvlUpPackagesCache['lvl_1_10'];
+
+            if (pkg.enabled === false) {
+                toast(`${pkg.name} বর্তমানে সাময়িকভাবে বন্ধ রয়েছে।`);
+                return;
+            }
+
+            // Check if Level 10+ required for Level 10->20 package
+            if (pkg.min_level > 1 && window._serverConnectedAccount) {
+                const curLvl = Number(window._serverConnectedAccount.level || window._serverConnectedAccount.current_level || 1);
+                if (curLvl < pkg.min_level) {
+                    toast(`🔒 এই প্যাকেজটি নেওয়ার জন্য আপনার বর্তমান লেভেল অন্তত ${pkg.min_level} হতে হবে। (আপনার অ্যাকাউন্টের বর্তমান লেভেল: ${curLvl})`);
+                    return;
+                }
+            }
+
+            const titleEl = document.getElementById('lvlModalTitle');
+            const subEl = document.getElementById('lvlModalSub');
+            const feeEl = document.getElementById('lvlModalFeeDisplay');
+            const iconWrap = document.getElementById('lvlModalIconWrap');
+            if (titleEl) titleEl.innerText = pkg.name;
+            if (subEl) subEl.innerText = pkg.desc;
+            if (feeEl) feeEl.innerText = `${pkg.coins} PP Coin${pkg.coins === 1 ? '' : 's'}`;
+            if (iconWrap) {
+                iconWrap.className = `w-8 h-8 rounded-md bg-${pkg.color || 'amber'}-500 flex items-center justify-center text-white`;
+            }
+
             let autoQid = (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
             if (!autoQid) {
                 try { autoQid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
@@ -15210,7 +15331,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                 return;
             }
 
-            const coinsCost = 2;
+            const pkg = window._lvlUpPackagesCache[window._selectedLevelUpPkg || 'lvl_1_10'] || window._lvlUpPackagesCache['lvl_1_10'];
+            const coinsCost = Number(pkg.coins || 5);
             const curBal = Number(window.ppfb.wallet ? (window.ppfb.wallet.balance || 0) : 0);
             if (curBal < coinsCost) {
                 toast(`আপনার ওয়ালেটে পর্যাপ্ত কয়েন নেই (${coinsCost} কয়েন প্রয়োজন)। দয়া করে টপ-আপ করুন।`);
@@ -15261,7 +15383,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         qid: qid,
-                        target_level: 10,
+                        package_id: pkg.id,
+                        target_level: pkg.target_level,
                         coins_cost: coinsCost,
                         user_uid: window.ppfb.user.uid,
                         balance_before: curBal,
@@ -15307,11 +15430,11 @@ async function executeServerQuestUnlock(isRetry = false) {
                             name: (window.ppfb.user && window.ppfb.user.name) || 'User',
                             email: (window.ppfb.user && window.ppfb.user.email) || '',
                             kind: 'TASK',
-                            game: 'Level Up Booster (Level 10)',
+                            game: `Level Up Booster (${pkg.name})`,
                             status: 'completed',
                             coins: coinsCost,
                             qid: qid,
-                            adminMsg: `Level ${execData.new_level || 10} Booster Success!`
+                            adminMsg: `${pkg.name} Booster Success!`
                         })
                     });
                 } catch (recErr) { }
@@ -15320,21 +15443,23 @@ async function executeServerQuestUnlock(isRetry = false) {
                     window.FB.addDoc(window.FB.collection(window.FB.db, 'transactions'), {
                         uid: window.ppfb.user.uid,
                         type: 'level_up',
-                        title: 'প্লে গেমস লেভেল আপ (Level 10)',
-                        amount: -Math.abs(Number(coinsCost) || 2),
+                        title: `প্লে গেমস লেভেল আপ (${pkg.name})`,
+                        amount: -Math.abs(Number(coinsCost) || 5),
                         note: `QID: ${qid} • Level ${execData.previous_level || 1} ➔ Level ${execData.new_level || 10}`,
                         status: 'completed',
                         createdAt: new Date()
                     }).catch(() => { });
                 }
 
-                // ৪. অর্ডার মোডাল বন্ধ ও সাকসেস মোডাল ওপেন ("koto te chilo koto hoice")
+                // ৪. অর্ডার মোডাল বন্ধ ও সাকসেস মোডাল ওপেন
                 closeLevelUpOrderModal();
 
                 const prevLvlEl = document.getElementById('lvlSuccessPrev');
                 const newLvlEl = document.getElementById('lvlSuccessNew');
+                const coinsDeductedEl = document.getElementById('lvlSuccessCoinsDeducted');
                 if (prevLvlEl) prevLvlEl.textContent = `Level ${execData.previous_level || 1}`;
                 if (newLvlEl) newLvlEl.textContent = `Level ${execData.new_level || 10}`;
+                if (coinsDeductedEl) coinsDeductedEl.textContent = `${coinsCost} PP Coin${coinsCost === 1 ? '' : 's'}`;
 
                 const succModal = document.getElementById('levelUpSuccessModal');
                 if (succModal) succModal.style.display = 'flex';
