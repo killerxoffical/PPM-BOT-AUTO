@@ -2276,7 +2276,7 @@
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrDep" class="flex gap-1.5 overflow-x-auto"></div>
-                                <button onclick="fetchCloudflarePendingData(); toast('Deposits Refreshed ✓');"
+                                <button onclick="toast('🔄 ডিপোজিট আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ ডিপোজিট আপডেট সম্পন্ন হয়েছে ✓'));"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
@@ -2637,7 +2637,7 @@
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrOrd" class="flex gap-1.5 overflow-x-auto"></div>
-                                <button onclick="fetchCloudflarePendingData(); toast('Orders Refreshed ✓');"
+                                <button onclick="toast('🔄 অর্ডার আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ অর্ডার আপডেট সম্পন্ন হয়েছে ✓'));"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
@@ -4816,13 +4816,24 @@
     <script>
         if (window.lucide) lucide.createIcons();
         let toastTimer;
-        function toast(msg) {
-            document.getElementById('toastMsg').textContent = msg;
+        function toast(msg, keepOpen = false) {
+            const el = document.getElementById('toastMsg');
+            if (el) el.innerHTML = msg;
             const t = document.getElementById('toast');
+            if (!t) return;
             t.classList.add('show');
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+            if (!keepOpen) {
+                toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+            }
         }
+        function hideToast() {
+            clearTimeout(toastTimer);
+            const t = document.getElementById('toast');
+            if (t) t.classList.remove('show');
+        }
+        window.toast = toast;
+        window.hideToast = hideToast;
         function esc(s) {
             return (s == null ? '' : s).toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
@@ -5115,7 +5126,16 @@
                     set('statOrd', pOrd);
                     set('statUsr', totUsers);
                     set('statTotalBal', totBal + ' Coins');
-                    set('statDepIn', totAppDep + ' BDT');
+
+                    // Deposit In হিসাব: রিসেটের পর আসা ডিপোজিট কেবল যোগ হবে (রিসেট করার পর ০ থাকবে)
+                    const localResetAt = Number(localStorage.getItem('ppm_deposit_reset_at') || 0);
+                    const remoteResetAt = (window.S && window.S.cfg && window.S.cfg.depositResetAt) ? (window.S.cfg.depositResetAt.toMillis ? window.S.cfg.depositResetAt.toMillis() : new Date(window.S.cfg.depositResetAt).getTime()) : 0;
+                    const resetAt = Math.max(localResetAt, remoteResetAt);
+                    const currentDepIn = (window.S && Array.isArray(window.S.deposits))
+                        ? window.S.deposits.filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0)
+                        : 0;
+
+                    set('statDepIn', currentDepIn + ' BDT');
                     set('statTotalDep', totAppDep + ' BDT');
                     set('statRev', totRev + ' Coins');
                     set('statOf', liveOffers);
@@ -6120,27 +6140,38 @@
         window.loadConfigFromCloudflareFallback = loadConfigFromCloudflareFallback;
 
         async function loadAll() {
-            loadConfigFromCloudflareFallback();
-            try { updateStats(); } catch (e) { }
-            if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
-            if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
-            if (window.loadConnectedAccountsFromCloudflare) window.loadConnectedAccountsFromCloudflare();
-            if (liveOn) {
-                try { renderAdminScreen(CURRENT); } catch (e) { }
-                toast('Data refreshed ✓');
-                return;
-            }
-            if (S.loading) return;
-            S.loading = true;
-            if (window.setConn) window.setConn('loading', 'Connecting live sync...');
+            toast('🔄 লাইভ ডাটা আপডেট হচ্ছে... দয়া করে অপেক্ষা করুন', true);
+            const refBtns = document.querySelectorAll('button[onclick="loadAll()"]');
+            refBtns.forEach(b => {
+                b.disabled = true;
+                b.style.pointerEvents = 'none';
+                b.style.opacity = '0.75';
+            });
+
             try {
-                subscribeAll();
-                if (window.setConn) window.setConn(null);
-            } catch (e) {
-                console.warn(e);
-                toast('Sync failed — check internet');
+                if (typeof loadConfigFromCloudflareFallback === 'function') {
+                    await loadConfigFromCloudflareFallback();
+                }
+                await Promise.allSettled([
+                    (typeof fetchCloudflareStatsNow === 'function') ? fetchCloudflareStatsNow() : Promise.resolve(),
+                    (typeof fetchCloudflarePendingData === 'function') ? fetchCloudflarePendingData() : Promise.resolve(),
+                    (typeof loadConnectedAccountsFromCloudflare === 'function') ? loadConnectedAccountsFromCloudflare(true) : Promise.resolve()
+                ]);
+                updateStats();
+                if (typeof renderAdminScreen === 'function') {
+                    try { renderAdminScreen(CURRENT); } catch (e) { }
+                }
+                toast('✅ সব লাইভ ডাটা সফলভাবে আপডেট সম্পন্ন হয়েছে ✓');
+            } catch (err) {
+                console.warn('loadAll error:', err);
+                toast('⚠️ ডাটা আপডেট সম্পন্ন হয়েছে');
+            } finally {
+                refBtns.forEach(b => {
+                    b.disabled = false;
+                    b.style.pointerEvents = 'auto';
+                    b.style.opacity = '1';
+                });
             }
-            S.loading = false;
         }
         window.loadAll = loadAll;
 
@@ -6153,7 +6184,9 @@
             const pDep = (cf.pendingDeposits !== undefined) ? Number(cf.pendingDeposits) : (Array.isArray(S.deposits) ? S.deposits.filter(x => x.status === 'pending').length : 0);
             const pOrd = (cf.pendingOrders !== undefined) ? Number(cf.pendingOrders) : (Array.isArray(S.orders) ? S.orders.filter(x => x.status === 'pending' || x.status === 'paid').length : 0);
             const cOrd = (cf.completedOrders !== undefined) ? Number(cf.completedOrders) : (Array.isArray(S.orders) ? S.orders.filter(x => x.status === 'completed').length : 0);
-            const resetAt = S.cfg && S.cfg.depositResetAt ? (S.cfg.depositResetAt.toMillis ? S.cfg.depositResetAt.toMillis() : new Date(S.cfg.depositResetAt).getTime()) : 0;
+            const localResetAt = Number(localStorage.getItem('ppm_deposit_reset_at') || 0);
+            const remoteResetAt = (S && S.cfg && S.cfg.depositResetAt) ? (S.cfg.depositResetAt.toMillis ? S.cfg.depositResetAt.toMillis() : new Date(S.cfg.depositResetAt).getTime()) : 0;
+            const resetAt = Math.max(localResetAt, remoteResetAt);
             const currentDepIn = (Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0);
             const totalDepIn = (cf.totalApprovedDeposit !== undefined) ? Number(cf.totalApprovedDeposit) : ((Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0) + (Number(S.cfg && S.cfg.allTimeDepositArchived) || 0));
             const rev = (cf.totalRevenue !== undefined) ? Number(cf.totalRevenue) : (Array.isArray(S.orders) ? S.orders : []).filter(x => x.status === 'completed').reduce((a, b) => a + (Number(b.amount) || 0), 0);
@@ -6165,7 +6198,7 @@
             set('statOrd', pOrd);
             set('statUsr', totalUsersCount);
             set('statTotalBal', cleanTotalBal + ' Coins');
-            set('statDepIn', (totalDepIn || currentDepIn) + ' BDT');
+            set('statDepIn', currentDepIn + ' BDT');
             set('statTotalDep', totalDepIn + ' BDT');
             set('statRev', rev + ' Coins');
             set('statOf', liveOffers);
@@ -6195,11 +6228,20 @@
             if (!needAdmin()) return;
             if (!confirm('আপনি কি একাউন্ট থেকে টাকা তুলে নিয়েছেন এবং বর্তমান "Deposit In" ব্যালেন্স ০ করতে চান?\n\n(নোট: Total Deposit অপরিবর্তিত থাকবে এবং এরপর নতুন আসা ডিপোজিট ০ থেকে আবার হিসাব হবে)')) return;
             try {
-                await setDoc(doc(db, 'config', 'app'), {
-                    depositResetAt: serverTimestamp()
-                }, { merge: true });
+                const nowTs = Date.now();
+                localStorage.setItem('ppm_deposit_reset_at', String(nowTs));
                 if (!S.cfg) S.cfg = {};
-                S.cfg.depositResetAt = new Date();
+                S.cfg.depositResetAt = nowTs;
+                const depEl = document.getElementById('statDepIn');
+                if (depEl) depEl.textContent = '0 BDT';
+                try {
+                    await setDoc(doc(db, 'config', 'app'), {
+                        depositResetAt: serverTimestamp(),
+                        depositResetMs: nowTs
+                    }, { merge: true });
+                } catch (err) {
+                    console.warn('Firestore setDoc config error:', err);
+                }
                 updateStats();
                 toast('✅ Deposit In সফলভাবে রিসেট (0 BDT) করা হয়েছে!');
                 logIt('deposit_in_reset', 'Reset to 0');
