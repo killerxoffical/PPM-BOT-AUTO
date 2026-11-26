@@ -2687,8 +2687,11 @@
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="showAdminScreen('scrConnected')"
+                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-black shadow-sm flex items-center gap-1.5"><i
+                                        data-lucide="smartphone" class="w-3.5 h-3.5"></i> 📱 Connected Accounts (<span id="btnConnectedAccountsBadge">14</span>)</button>
                                 <button onclick="migrateAllUsersToCloudflare(this)"
-                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-black shadow-sm"><i
+                                    class="btn bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"><i
                                         data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Shift All to
                                     Cloudflare</button>
                                 <button onclick="showAdminScreen('scrOf')"
@@ -6121,6 +6124,7 @@
             try { updateStats(); } catch (e) { }
             if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
             if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
+            if (window.loadConnectedAccountsFromCloudflare) window.loadConnectedAccountsFromCloudflare();
             if (liveOn) {
                 try { renderAdminScreen(CURRENT); } catch (e) { }
                 toast('Data refreshed ✓');
@@ -13269,6 +13273,8 @@
                     navBadge.textContent = totalAcc;
                     navBadge.style.display = totalAcc > 0 ? 'inline-flex' : 'none';
                 }
+                const btnBadge = document.getElementById('btnConnectedAccountsBadge');
+                if (btnBadge) btnBadge.textContent = totalAcc;
 
                 window.renderConnectedAccountsTable(accounts);
             } catch (err) {
