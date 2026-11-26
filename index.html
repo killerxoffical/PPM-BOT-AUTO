@@ -10373,6 +10373,11 @@
 
         /* cancelAndRefundActiveOrder removed - admin only refund */
 async function executeServerQuestUnlock() {
+            if (window._isOrderExecuting) {
+                console.warn('[UnlockLock] আনলক প্রসেস অলরেডি রানিং আছে। ডুপ্লিকেট ক্লিক অগ্রাহ্য করা হয়েছে।');
+                return;
+            }
+
             const acc = window._serverConnectedAccount;
             const srv = window._matchedPortalService;
             const orderId = window._currentOrderId;
@@ -10383,28 +10388,34 @@ async function executeServerQuestUnlock() {
                 if (typeof showScreen === 'function') showScreen('screenOffers');
                 return;
             }
-            if (window._isOrderExecuting) {
-                return;
-            }
-            window._isOrderExecuting = true;
 
             if (!acc || (!acc.master_token && !acc.code)) {
                 toast('দয়া করে প্রথমে ৬-ডিজিট QID দিয়ে কানেক্ট করুন!');
-                window._isOrderExecuting = false;
                 return;
             }
             if (!srv) {
                 toast('সার্ভারে এই গেমটি সক্রিয় নেই!');
-                window._isOrderExecuting = false;
                 return;
             }
 
+            const accLockKey = (acc.code || acc.email || 'active_acc').toString().trim();
+            if (window._activeAccountLock === accLockKey) {
+                console.warn('[UnlockLock] এই অ্যাকাউন্টে (' + accLockKey + ') ইতিমধ্যেই আনলক প্রসেস চলমান আছে।');
+                return;
+            }
+
+            // ১. গ্লোবাল ও অ্যাকাউন্ট কনকারেন্সি লক সক্রিয় করা — একই সময়ে এক অ্যাকাউন্টে কখনো ২টি রিকোয়েস্ট হতে পারবে না
+            window._isOrderExecuting = true;
+            window._activeAccountLock = accLockKey;
+
+            // ২. বাটনে সাথে সাথে স্পিনার লোডিং অ্যানিমেশন ও টাচ/ক্লিক কমপ্লিটলি লক করা (যতক্ষণ না আনলক শেষ হয়)
             const btn = document.getElementById('btnConfirmServerUnlock');
             if (btn) {
                 btn.disabled = true;
                 btn.style.pointerEvents = 'none';
-                btn.style.opacity = '0.7';
-                btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>প্রসেসিং হচ্ছে...</span>`;
+                btn.style.cursor = 'not-allowed';
+                btn.style.opacity = '0.75';
+                btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>কোয়েস্ট আনলক হচ্ছে... অপেক্ষা করুন</span>`;
             }
 
             try {
@@ -10659,6 +10670,7 @@ async function executeServerQuestUnlock() {
                 }
             } finally {
                 window._isOrderExecuting = false;
+                window._activeAccountLock = null;
             }
         }
         window.executeServerQuestUnlock = executeServerQuestUnlock;
