@@ -9860,6 +9860,47 @@
         }
         window.checkGameInPublicPortal = checkGameInPublicPortal;
 
+        function resolveGameTitleForDisplay(gameName) {
+            let raw = (gameName || window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '').toString().trim();
+            let clean = raw.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+            if (!clean || clean.toLowerCase() === 'game' || clean.toLowerCase() === 'task' || clean.toLowerCase() === 'selected task') {
+                if (window._payGame && window._payGame.toLowerCase() !== 'game' && window._payGame.toLowerCase() !== 'task') {
+                    clean = window._payGame.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+                } else if (window._ppServiceSelectedGame) {
+                    clean = window._ppServiceSelectedGame.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+                } else if (window.selectedGame) {
+                    clean = window.selectedGame.replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
+                }
+            }
+            if (window.DEFAULT_OFFERS) {
+                const found = window.DEFAULT_OFFERS.find(o => o.name && o.name.toLowerCase() === clean.toLowerCase());
+                if (found && found.name) return found.name;
+            }
+            if (window._ppPortalGamesCache) {
+                const found = window._ppPortalGamesCache.find(g => g.title && g.title.toLowerCase().includes(clean.toLowerCase()));
+                if (found && found.title) return found.title;
+            }
+            return clean || raw || 'Auto Quest Service';
+        }
+
+        function getConnectedTelegramDisplay(curUid) {
+            let rawTg = (window.ppfb && (window.ppfb.tgUsername || window.ppfb.tgChatId))
+                || ((window.FB && window.FB.auth && window.FB.auth.currentUser) ? (window.FB.auth.currentUser.tgUsername || window.FB.auth.currentUser.tgChatId) : '')
+                || (curUid && localStorage.getItem('pp_cached_tg_' + curUid))
+                || (document.getElementById('accTgId') ? document.getElementById('accTgId').value.trim() : '')
+                || '';
+            if (!rawTg) return 'Not Connected';
+            rawTg = rawTg.toString().trim();
+            if (rawTg.startsWith('@')) return rawTg;
+            if (/^[a-zA-Z0-9_]{4,}$/.test(rawTg) && isNaN(Number(rawTg))) return '@' + rawTg;
+            return rawTg;
+        }
+
+        function getConnectedQidDisplay() {
+            const curAcc = window._serverConnectedAccount || {};
+            return curAcc.code || (document.getElementById('serverSyncCode') ? document.getElementById('serverSyncCode').value.trim() : '') || window._lastConnectedQid || window._currentConnectedQid || '—';
+        }
+
         async function refundOrderNonPortalGame(gameName, customReason = null) {
             const orderId = window._currentOrderId;
             const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
@@ -9939,6 +9980,13 @@
                     // এডমিনকে টেলিগ্রামে এলার্ট পাঠানো
                     const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
                     const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                    const displayGameTitle = resolveGameTitleForDisplay(gameName);
+                    const serverQid = getConnectedQidDisplay();
+                    const tgDisplay = getConnectedTelegramDisplay(curUid);
+                    const srvAcc = window._serverConnectedAccount || {};
+                    const gamerName = srvAcc.account_name || (document.getElementById('serverDisplayName') ? document.getElementById('serverDisplayName').textContent.trim() : '') || uName || 'Gamer';
+                    const gamerEmail = srvAcc.email || (document.getElementById('serverEmail') ? document.getElementById('serverEmail').textContent.trim() : '') || (cu && cu.email) || '';
+                    const gamerLvl = (srvAcc.profile && srvAcc.profile.current_level) || (document.getElementById('serverLevelBadge') ? document.getElementById('serverLevelBadge').textContent.trim() : '');
 
                     const taskCost = Number(refundCoins) || 2;
                     const beforeBalance = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance != null)
@@ -9954,10 +10002,10 @@
                         body: JSON.stringify({
                             user_uid: curUid,
                             order_id: orderId,
-                            game_title: gameName,
-                            account_name: uName,
-                            email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || '',
-                            server_code: (window._serverConnectedAccount && window._serverConnectedAccount.code) || '',
+                            game_title: displayGameTitle,
+                            account_name: gamerName,
+                            email: gamerEmail,
+                            server_code: serverQid !== '—' ? serverQid : '',
                             coins_refunded: taskCost,
                             balance_before: beforeBalance,
                             balance_deducted: balanceAfterDeduct,
@@ -9967,10 +10015,13 @@
                     }).catch(() => {});
 
                     const alertMsg = `🪙 <b>TASK ORDER AUTO-REFUNDED!</b>\n\n` +
-                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `🎮 <b>Game:</b> ${displayGameTitle}\n` +
+                        `🔑 <b>Server QID:</b> <code>${serverQid}</code>\n` +
                         `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `✈️ <b>Telegram:</b> ${tgDisplay}\n` +
+                        (gamerEmail ? `📧 <b>Connected Gamer:</b> ${gamerName} ${gamerLvl ? `[${gamerLvl}]` : ''} (<code>${gamerEmail}</code>)\n` : '') +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-                        `📋 <b>Reason:</b> ${customReason || 'Game not active on portal'}\n\n` +
+                        `📋 <b>Reason:</b> ${customReason || 'Game not active on server portal'}\n\n` +
                         `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
                         `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${beforeBalance} Coins</b>\n` +
                         `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${taskCost} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balanceAfterDeduct} Coins</b>)\n` +
@@ -9983,11 +10034,13 @@
 
                     // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো
                     if (typeof sendTelegramMsg === 'function') {
-                        const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
+                        const pubEmail = gamerEmail || (cu && cu.email) || '';
                         const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
-                            `🎮 <b>Game:</b> ${gameName}\n` +
-                            `👤 <b>Play Gamer:</b> ${maskProfileName((window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName)}\n` +
+                            `🎮 <b>Game:</b> ${displayGameTitle}\n` +
+                            `🔑 <b>Server QID:</b> <code>${serverQid !== '—' ? serverQid : '—'}</code>\n` +
+                            `👤 <b>Play Gamer:</b> ${maskProfileName(gamerName)}\n` +
                             `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
+                            `✈️ <b>Telegram:</b> ${tgDisplay !== 'Not Connected' ? maskProfileName(tgDisplay) : 'None'}\n` +
                             `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
                             `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                             `↩️ <b>Status:</b> REFUNDED (Auto-Refund)`;
@@ -10217,6 +10270,14 @@
                 // ৩. সঠিক ব্যালেন্স অডিট হিসাব
                 const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
                 const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                const displayGameTitle = resolveGameTitleForDisplay(gameName);
+                const serverQid = getConnectedQidDisplay();
+                const tgDisplay = getConnectedTelegramDisplay(curUid);
+                const srvAcc = window._serverConnectedAccount || {};
+                const gamerName = srvAcc.account_name || (document.getElementById('serverDisplayName') ? document.getElementById('serverDisplayName').textContent.trim() : '') || uName || 'Gamer';
+                const gamerEmail = srvAcc.email || (document.getElementById('serverEmail') ? document.getElementById('serverEmail').textContent.trim() : '') || (cu && cu.email) || '';
+                const gamerLvl = (srvAcc.profile && srvAcc.profile.current_level) || (document.getElementById('serverLevelBadge') ? document.getElementById('serverLevelBadge').textContent.trim() : '');
+
                 const taskCost = Number(refundCoins) || 2;
                 const beforeBalance = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance != null)
                     ? Number(window._currentOrderMeta.beforeBalance)
@@ -10231,10 +10292,10 @@
                     body: JSON.stringify({
                         user_uid: curUid,
                         order_id: orderId,
-                        game_title: gameName,
-                        account_name: uName,
-                        email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || '',
-                        server_code: (window._serverConnectedAccount && window._serverConnectedAccount.code) || '',
+                        game_title: displayGameTitle,
+                        account_name: gamerName,
+                        email: gamerEmail,
+                        server_code: serverQid !== '—' ? serverQid : '',
                         coins_refunded: taskCost,
                         balance_before: beforeBalance,
                         balance_deducted: balanceAfterDeduct,
@@ -10245,15 +10306,21 @@
 
                 const alertMsg = isFreeOrder
                     ? `🪙 <b>SERVER QUEST UNLOCK FAILED (10TH FREE TASK)!</b>\n\n` +
-                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `🎮 <b>Game:</b> ${displayGameTitle}\n` +
+                        `🔑 <b>Server QID:</b> <code>${serverQid}</code>\n` +
                         `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `✈️ <b>Telegram:</b> ${tgDisplay}\n` +
+                        (gamerEmail ? `📧 <b>Connected Gamer:</b> ${gamerName} ${gamerLvl ? `[${gamerLvl}]` : ''} (<code>${gamerEmail}</code>)\n` : '') +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
                         `⭐ <b>নোট:</b> এটি ১০ম ফ্রি টাস্ক ছিল, ওয়ালেট থেকে কোনো কয়েন কাটা হয়নি।\n\n` +
                         `❌ <b>Status:</b> FAILED (0 COINS CHARGED)`
                     : `🪙 <b>SERVER QUEST UNLOCK AUTO-REFUNDED!</b>\n\n` +
-                        `🎮 <b>Game:</b> ${gameName}\n` +
+                        `🎮 <b>Game:</b> ${displayGameTitle}\n` +
+                        `🔑 <b>Server QID:</b> <code>${serverQid}</code>\n` +
                         `👤 <b>User:</b> ${uName} (UID: <code>${curUid}</code>)\n` +
+                        `✈️ <b>Telegram:</b> ${tgDisplay}\n` +
+                        (gamerEmail ? `📧 <b>Connected Gamer:</b> ${gamerName} ${gamerLvl ? `[${gamerLvl}]` : ''} (<code>${gamerEmail}</code>)\n` : '') +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `📋 <b>Reason:</b> ${errorReason || 'Server quest unlock failed'}\n\n` +
                         `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
@@ -10268,11 +10335,13 @@
 
                 // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড লগ পাঠানো
                 if (typeof sendTelegramMsg === 'function') {
-                    const pubEmail = (window._serverConnectedAccount && window._serverConnectedAccount.email) || (cu && cu.email) || '';
+                    const pubEmail = gamerEmail || (cu && cu.email) || '';
                     const pubMsg = `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n` +
-                        `🎮 <b>Game:</b> ${gameName}\n` +
-                        `👤 <b>Play Gamer:</b> ${maskProfileName((window._serverConnectedAccount && window._serverConnectedAccount.account_name) || uName)}\n` +
+                        `🎮 <b>Game:</b> ${displayGameTitle}\n` +
+                        `🔑 <b>Server QID:</b> <code>${serverQid !== '—' ? serverQid : '—'}</code>\n` +
+                        `👤 <b>Play Gamer:</b> ${maskProfileName(gamerName)}\n` +
                         `📧 <b>Email:</b> <code>${maskEmail(pubEmail)}</code>\n` +
+                        `✈️ <b>Telegram:</b> ${tgDisplay !== 'Not Connected' ? maskProfileName(tgDisplay) : 'None'}\n` +
                         `🪙 <b>Coins Refunded:</b> +${taskCost} Coins\n` +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `↩️ <b>Status:</b> REFUNDED (Auto-Refund)`;
@@ -10494,10 +10563,12 @@ async function executeServerQuestUnlock(isRetry = false) {
                         ? `▫️ টাস্ক ফি: <b>⭐ ১০ম ফ্রি টাস্ক (০ Coins)</b>`
                         : `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>`;
 
+                    const userTgForComplete = getConnectedTelegramDisplay(webUid);
                     const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
                         `🎮 <b>Game:</b> ${srv.title}\n` +
                         `👤 <b>User:</b> ${uName} (<code>${acc.email}</code>)\n` +
                         `🆔 <b>UID:</b> <code>${webUid}</code>\n` +
+                        `✈️ <b>Telegram:</b> ${userTgForComplete}\n` +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
                         `🎯 <b>Status:</b> Quest Unlocked (${isRetry ? '2nd Thread' : '1st Thread'})\n\n` +
@@ -10521,6 +10592,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                             `🎮 <b>Game:</b> ${cleanGameName}\n` +
                             `👤 <b>Play Gamer:</b> ${gamerDisplay}\n` +
                             `📧 <b>Email:</b> <code>${maskEmail(acc.email)}</code>\n` +
+                            `✈️ <b>Telegram:</b> ${userTgForComplete !== 'Not Connected' ? maskProfileName(userTgForComplete) : 'None'}\n` +
                             `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
                             `🪙 <b>Coins Deducted:</b> ${taskCost} Coins\n` +
                             `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
@@ -12109,7 +12181,12 @@ async function executeServerQuestUnlock(isRetry = false) {
             window._currentRenderedOffers = list;
             const grid = document.getElementById('gameGrid');
             if (!grid || !list.length) return;
-            grid.innerHTML = list.map((o, i) => {
+            const validList = (list || []).filter(o => {
+                if (!o) return false;
+                const nm = (o.name || o.title || '').toString().trim();
+                return nm && nm.toLowerCase() !== 'game' && nm.toLowerCase() !== 'selected task';
+            });
+            grid.innerHTML = validList.map((o, i) => {
                 const nm = (o.name || 'Game').toString();
                 const pts = (o.points !== undefined && o.points !== null && o.points !== '') ? o.points : 50;
                 const tag = nm + ' (' + pts + ')';
@@ -12141,7 +12218,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                     + '</div>'
                     + '</button>';
             }).join('');
-            if (typeof updateGameCount === 'function') updateGameCount(list.length);
+            if (typeof updateGameCount === 'function') updateGameCount(validList.length);
             const sInp = document.getElementById('gameSearchInput');
             if (sInp && sInp.value.trim() && typeof filterGames === 'function') {
                 filterGames(sInp.value);
@@ -12407,8 +12484,11 @@ async function executeServerQuestUnlock(isRetry = false) {
                         // ১. ফিল্টারিং: লেভেল আপ গেম ইউজার পোর্টালে সম্পূর্ণ হাইড
                         // ২. ফিল্টারিং: enabled === false (Off) সম্পূর্ণ হাইড
                         const activeServices = pData.services.filter(ps => {
-                            if (ps.enabled === false) return false;
+                            if (!ps || ps.enabled === false) return false;
                             if (ps.section === 'level_up' || ps.category === 'level_up') return false;
+                            if (ps.id === '__level_up_config__' || ps.is_config || String(ps.id).startsWith('__')) return false;
+                            const t = (ps.title || '').trim();
+                            if (!t || t.toLowerCase() === 'game' || t.toLowerCase() === 'selected task') return false;
                             return true;
                         });
 
@@ -12444,7 +12524,15 @@ async function executeServerQuestUnlock(isRetry = false) {
                     const cfData = await cfRes.json();
                     const cfObj = (cfData && cfData.data) ? cfData.data : cfData;
                     if (cfObj && typeof cfObj === 'object') {
-                        const allCfServices = Object.values(cfObj).filter(s => s && s.enabled !== false && s.section !== 'level_up' && s.category !== 'level_up');
+                        const allCfServices = Object.entries(cfObj).filter(([k, s]) => {
+                            if (!s || s.enabled === false) return false;
+                            if (k.startsWith('__')) return false;
+                            if (s.section === 'level_up' || s.category === 'level_up') return false;
+                            if (s.id === '__level_up_config__' || s.is_config || String(s.id).startsWith('__')) return false;
+                            const t = (s.title || '').trim();
+                            if (!t || t.toLowerCase() === 'game' || t.toLowerCase() === 'selected task') return false;
+                            return true;
+                        }).map(([k, s]) => s);
                         if (allCfServices.length) {
                             const lgCache = JSON.parse(localStorage.getItem('pp_game_logo_cache') || '{}');
                             const gamesList = allCfServices.map((ps, idx) => {
