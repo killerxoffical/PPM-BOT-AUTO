@@ -3393,7 +3393,7 @@
                 <div
                     class="mt-3 relative z-10 text-center py-2 bg-black/20 rounded-2xl border border-white/10 backdrop-blur-sm">
                     <span id="walletHeroRateSpan" class="text-xs font-black text-amber-300 flex items-center justify-center gap-1.5"><img
-                            src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = 5 BDT)</span>
+                            src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = 7 BDT)</span>
                 </div>
 
                 <div class="mt-2.5 flex items-center min-h-[24px] relative z-10">
@@ -15155,6 +15155,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                 btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> প্রসেস হচ্ছে...`;
             }
 
+            let paidCoinsDeducted = false;
             try {
                 // ১. Cloudflare D1 থেকে কয়েন ফি কর্তন
                 const activeApi = (typeof CF_API !== 'undefined' ? CF_API : (window.CF_API || 'https://ppmod-api.tredarskvt.workers.dev'));
@@ -15177,6 +15178,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                     return;
                 }
 
+                paidCoinsDeducted = true;
                 if (window.ppfb.wallet) {
                     window.ppfb.wallet.balance = payData.balance;
                     window.ppfb.wallet.realBalance = payData.realBalance;
@@ -15200,7 +15202,23 @@ async function executeServerQuestUnlock(isRetry = false) {
                 const execData = await execRes.json();
 
                 if (!execData.ok) {
-                    toast(execData.error || 'লেভেল আপ প্রসেসিং ব্যর্থ হয়েছে।');
+                    // Auto-refund deducted coins immediately upon failure
+                    try {
+                        await fetch(`${activeApi}/api/wallet/credit`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid: window.ppfb.user.uid, coins: coinsCost, type: 'real' })
+                        });
+                        if (window.ppfb.wallet) {
+                            window.ppfb.wallet.balance = curBal;
+                            window.ppfb.wallet.realBalance = curBal;
+                            if (typeof updateWalletUI === 'function') updateWalletUI();
+                        }
+                        if (typeof setBalanceUI === 'function') setBalanceUI(curBal, 0, 0, curBal, 0);
+                    } catch (refErr) {
+                        console.error('Auto refund error:', refErr);
+                    }
+                    toast((execData.error || 'লেভেল আপ প্রসেসিং ব্যর্থ হয়েছে।') + ` (${coinsCost} কয়েন ওয়ালেটে রিফান্ড করা হয়েছে)`);
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
@@ -15253,7 +15271,25 @@ async function executeServerQuestUnlock(isRetry = false) {
                 if (succModal) succModal.style.display = 'flex';
                 if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
             } catch (ex) {
-                toast('একটি ত্রুটি ঘটেছে: ' + ex.message);
+                if (paidCoinsDeducted) {
+                    try {
+                        const activeApi = (typeof CF_API !== 'undefined' ? CF_API : (window.CF_API || 'https://ppmod-api.tredarskvt.workers.dev'));
+                        await fetch(`${activeApi}/api/wallet/credit`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid: window.ppfb.user.uid, coins: coinsCost, type: 'real' })
+                        });
+                        if (window.ppfb.wallet) {
+                            window.ppfb.wallet.balance = curBal;
+                            window.ppfb.wallet.realBalance = curBal;
+                            if (typeof updateWalletUI === 'function') updateWalletUI();
+                        }
+                        if (typeof setBalanceUI === 'function') setBalanceUI(curBal, 0, 0, curBal, 0);
+                    } catch (refErr) {}
+                    toast('ত্রুটি: ' + ex.message + ` (${coinsCost} কয়েন স্বয়ংক্রিয়ভাবে রিফান্ড করা হয়েছে)`);
+                } else {
+                    toast('একটি ত্রুটি ঘটেছে: ' + ex.message);
+                }
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -15445,7 +15481,24 @@ async function executeServerQuestUnlock(isRetry = false) {
                 if (window.ppfb) window.ppfb.loyaltyStars = nextStars;
                 if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
 
-                // 2. Save to Firestore user doc
+                // 2. Cloudflare D1 ওয়ালেটে loyaltyStars পার্মানেন্টলি সেভ
+                try {
+                    const activeApi = (typeof CF_API !== 'undefined' ? CF_API : (window.CF_API || 'https://ppmod-api.tredarskvt.workers.dev'));
+                    await fetch(`${activeApi}/api/wallet/credit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uid: uid,
+                            coins: 0,
+                            loyaltyStars: nextStars,
+                            skipTxLog: true
+                        })
+                    });
+                } catch (cfErr) {
+                    console.warn('D1 loyaltyStars update warning:', cfErr);
+                }
+
+                // 3. Save to Firestore user doc
                 if (window.FB && window.FB.db) {
                     const curMonthKey = (new Date()).toISOString().slice(0, 7);
                     let userPts = 1.0;
@@ -16149,6 +16202,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                             paidWithReal: deductReal,
                             paidWithBonus: deductBonus,
                             isFreeTask: isFree,
+                            isPrepaid: true,
+                            alreadyPaid: true,
                             previousBalance: beforeOrderBalance
                         })
                     });

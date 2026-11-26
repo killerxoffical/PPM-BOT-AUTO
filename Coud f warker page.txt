@@ -389,7 +389,7 @@ export default {
         let newPendingPoints = pendingPoints !== undefined ? Number(pendingPoints) : Number(w.pendingPoints || 0);
 
         let curStars = Number(w.loyaltyStars || 0);
-        let newStars = body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.min(10, curStars + Number(loyaltyStarsInc)) : curStars);
+        let newStars = body.loyaltyStars !== undefined ? Number(body.loyaltyStars) : (body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.min(10, curStars + Number(loyaltyStarsInc)) : curStars));
 
         await env.DB.prepare(`
           INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
@@ -1399,18 +1399,30 @@ export default {
         const isFree = body.isFreeTask === true || Number(body.amount) === 0;
         const taskCost = isFree ? 0 : roundCoin(body.amount !== undefined ? body.amount : 2);
 
-        if (!isFree && prevBal < taskCost) {
-          return json({ ok: false, error: "insufficient_balance", message: "ইনসাফিসিয়েন্ট ব্যালেন্স! আপনার একাউন্টে পর্যাপ্ত কয়েন নেই।" }, 400);
-        }
+        // Check if order was already prepaid via /api/wallet/pay-task
+        const isPrepaid = body.isPrepaid === true || body.alreadyPaid === true || body.paidWithReal !== undefined || body.paidWithBonus !== undefined || body.method === 'PP Coins';
 
-        const newBal = Math.max(0, roundCoin(prevBal - taskCost));
+        let newBal = prevBal;
+        let recordedPrevBal = prevBal;
 
-        if (taskCost > 0) {
-          await env.DB.prepare(`
-            UPDATE user_wallets 
-            SET balance = ?, realBalance = ?, bonusBalance = 0, updatedAt = ?
-            WHERE uid = ?
-          `).bind(newBal, newBal, now, uid).run();
+        if (isPrepaid) {
+          // Already deducted in /api/wallet/pay-task! Strict zero double-deduction.
+          newBal = prevBal;
+          recordedPrevBal = body.previousBalance !== undefined ? roundCoin(body.previousBalance) : roundCoin(prevBal + taskCost);
+        } else {
+          // Direct order creation without prior /api/wallet/pay-task
+          if (!isFree && prevBal < taskCost) {
+            return json({ ok: false, error: "insufficient_balance", message: "ইনসাফিসিয়েন্ট ব্যালেন্স! আপনার একাউন্টে পর্যাপ্ত কয়েন নেই।" }, 400);
+          }
+          newBal = Math.max(0, roundCoin(prevBal - taskCost));
+          if (taskCost > 0) {
+            await env.DB.prepare(`
+              UPDATE user_wallets 
+              SET balance = ?, realBalance = ?, bonusBalance = 0, updatedAt = ?
+              WHERE uid = ?
+            `).bind(newBal, newBal, now, uid).run();
+          }
+          recordedPrevBal = prevBal;
         }
 
         await env.DB.prepare(`
@@ -1427,17 +1439,18 @@ export default {
         ).run();
 
         const payType = isFree ? '⭐ Free Star Task (0 Coins)' : 'Coins';
-        const taskInfo = `Trx: ${id} | Game: ${body.game} | Pay: ${payType} | Bal: ${prevBal} ➔ ${newBal} (-${taskCost} Coins) | LOGO: ${body.logo || ''}`;
+        const taskInfo = `Trx: ${id} | Game: ${body.game} | Pay: ${payType} | Bal: ${recordedPrevBal} ➔ ${newBal} (-${taskCost} Coins) | LOGO: ${body.logo || ''}`;
         await env.DB.prepare(`
           INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
           VALUES (?, ?, 'TASK', ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            title = excluded.title, game = excluded.game, info = excluded.info, amount = excluded.amount, status = 'pending', previousBalance = excluded.previousBalance
-        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, prevBal, prevBal, newBal, now).run();
+            title = excluded.title, game = excluded.game, info = excluded.info, amount = excluded.amount, status = 'pending',
+            previousBalance = excluded.previousBalance, balance_before = excluded.balance_before, balance_after = excluded.balance_after
+        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, recordedPrevBal, recordedPrevBal, newBal, now).run();
 
         await autoPruneOldTransactions(env.DB);
 
-        return json({ ok: true, orderId: id, previousBalance: prevBal, currentBalance: newBal });
+        return json({ ok: true, orderId: id, previousBalance: recordedPrevBal, currentBalance: newBal });
       }
 
       // 3. রেন্ডার বটের জন্য পেন্ডিং অর্ডার ফেচ (Fetch Pending for Render Bot & Admin)
