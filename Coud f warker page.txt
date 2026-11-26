@@ -389,7 +389,7 @@ export default {
         let newPendingPoints = pendingPoints !== undefined ? Number(pendingPoints) : Number(w.pendingPoints || 0);
 
         let curStars = Number(w.loyaltyStars || 0);
-        let newStars = body.loyaltyStars !== undefined ? Number(body.loyaltyStars) : (body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.min(10, curStars + Number(loyaltyStarsInc)) : curStars));
+        let newStars = body.loyaltyStars !== undefined ? Math.max(0, Math.min(10, Number(body.loyaltyStars))) : (body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.max(0, Math.min(10, curStars + Number(loyaltyStarsInc))) : curStars));
 
         await env.DB.prepare(`
           INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
@@ -1848,7 +1848,7 @@ export default {
           console.warn("Telegram deposit alert error:", tgErr);
         }
 
-        return json({ ok: true, balance: newCoins, realBalance: newCoins, coinsCredited: addCoins, uid: targetUid });
+        return json({ ok: true, balance: newCoins, realBalance: newCoins, previousBalance: currentCoins, coinsCredited: addCoins, uid: targetUid });
       }
 
       // 8b-1b. Check Single Deposit Status on Cloudflare D1
