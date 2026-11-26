@@ -1422,7 +1422,7 @@
                 display: none !important;
             }
         }
-    
+
         /* ======================================================================
            SERVER ADMIN CONSOLE (EXECUTIVE LIGHT ENTERPRISE) UI/UX THEME
            Directly aligned with achievement_unlocker/templates/index.html
@@ -1453,15 +1453,22 @@
         }
 
         /* 1. Global Typography & Background */
-        *, *::before, *::after {
+        *,
+        *::before,
+        *::after {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
         }
 
-        .font-mono, font-mono, code, pre, .mono {
+        .font-mono,
+        font-mono,
+        code,
+        pre,
+        .mono {
             font-family: 'JetBrains Mono', monospace !important;
         }
 
-        html, body {
+        html,
+        body {
             background-color: #f4f6fa !important;
             color: #0f172a !important;
             font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -1471,7 +1478,7 @@
         /* 2. Crisp Rectangular Boxes (Eliminate Bubbly 20px-24px Curves) */
         .glass,
         .card,
-        .ascreen > div,
+        .ascreen>div,
         .users-table-card,
         .guide-side-card,
         .vps-config-card,
@@ -1486,7 +1493,8 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
         }
 
-        .glass:hover, .card:hover {
+        .glass:hover,
+        .card:hover {
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06) !important;
             border-color: #cbd5e1 !important;
         }
@@ -1666,7 +1674,6 @@
             font-weight: 700 !important;
             letter-spacing: 0.2px !important;
         }
-
     </style>
 </head>
 
@@ -1680,8 +1687,7 @@
             <div class="login-header p-8 pb-6 text-center">
                 <div
                     class="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg mb-4 bg-white border border-slate-200 overflow-hidden">
-                    <img src="brand_logo.png"
-                        alt="PP" class="w-full h-full object-contain"
+                    <img src="brand_logo.png" alt="PP" class="w-full h-full object-contain"
                         onerror="this.onerror=null;this.src='pp_logo.png'">
                 </div>
                 <h2 class="text-slate-900 text-2xl font-extrabold tracking-tight">Admin Executive</h2>
@@ -1727,8 +1733,7 @@
                 <div class="flex items-center gap-3">
                     <div
                         class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-slate-200 overflow-hidden">
-                        <img src="brand_logo.png"
-                            alt="PP" class="w-full h-full object-contain"
+                        <img src="brand_logo.png" alt="PP" class="w-full h-full object-contain"
                             onerror="this.onerror=null;this.src='pp_logo.png'">
                     </div>
                     <div>
@@ -1756,7 +1761,9 @@
                     class="w-4 h-4"></i>Deposits <span class="nbadge depCount ml-auto"
                     style="display:none">0</span></button>
             <button data-nav="scrGateway" onclick="showAdminScreen('scrGateway')" class="snav"><i data-lucide="radio"
-                    class="w-4 h-4 text-emerald-500"></i>SMS Gateway <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto" title="Gateway Active"></span></button>
+                    class="w-4 h-4 text-emerald-500"></i>SMS Gateway <span
+                    class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto"
+                    title="Gateway Active"></span></button>
             <button data-nav="scrOrd" onclick="showAdminScreen('scrOrd')" class="snav"><i data-lucide="package-check"
                     class="w-4 h-4"></i>Orders <span class="nbadge ordCount ml-auto"
                     style="display:none">0</span></button>
@@ -2253,12 +2260,15 @@
                     <div class="glass p-4 sm:p-6">
                         <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
+                                <div
+                                    class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
                                     <i data-lucide="wallet" class="w-6 h-6"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Wallet Deposits Ledger</h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Verify user TRX ID & approve wallet credit</p>
+                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Wallet Deposits
+                                        Ledger</h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Verify user TRX ID & approve
+                                        wallet credit</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
@@ -2283,34 +2293,66 @@
                 <!-- ===== 4b. SMS GATEWAY MONITOR & AUDIT SCREEN ===== -->
                 <div id="scrGateway" class="ascreen hidden space-y-4">
                     <!-- Top Header Control Bar -->
-                    <div class="glass p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap border-2 border-emerald-100 bg-emerald-50/20 rounded-2xl">
+                    <div
+                        class="glass p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap border-2 border-emerald-100 bg-emerald-50/20 rounded-2xl">
                         <div class="flex items-center gap-3">
-                            <div style="width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+                            <div
+                                style="width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+                                    <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+                                    <circle cx="12" cy="12" r="2" />
+                                    <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+                                    <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+                                </svg>
                             </div>
                             <div>
-                                <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                                <h3
+                                    class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 flex-wrap">
                                     <span>Professional Auto Payment SMS Gateway</span>
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                                         30-Min Strict Expiry Active
                                     </span>
                                 </h3>
-                                <p class="text-xs text-slate-500 font-medium mt-0.5">রিয়েল-টাইম SMS ভেরিফিকেশন, TrxID কনকারেন্সি লক ও ৩০-মিনিট এক্সপায়ারেশন অডিট</p>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">রিয়েল-টাইম SMS ভেরিফিকেশন, TrxID
+                                    কনকারেন্সি লক ও ৩০-মিনিট এক্সপায়ারেশন অডিট</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                            <div
+                                class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
                                 <span class="text-[11px] font-bold text-slate-600">Auto Deposit:</span>
-                                <span id="gwAutoDepStatus" class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">ON</span>
-                                <button type="button" onclick="toggleAutoDeposit(); setTimeout(() => renderGatewayScreen(false), 300);" class="text-[10px] font-black underline text-indigo-600 hover:text-indigo-800 cursor-pointer">Toggle</button>
+                                <span id="gwAutoDepStatus"
+                                    class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">ON</span>
+                                <button type="button"
+                                    onclick="toggleAutoDeposit(); setTimeout(() => renderGatewayScreen(false), 300);"
+                                    class="text-[10px] font-black underline text-indigo-600 hover:text-indigo-800 cursor-pointer">Toggle</button>
                             </div>
-                            <button type="button" onclick="openAdminAddTrxModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; border: none; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+                            <button type="button" onclick="openAdminAddTrxModal()"
+                                style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; border: none; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M12 8v8" />
+                                    <path d="M8 12h8" />
+                                </svg>
                                 <span>+ Add / Lock TrxID</span>
                             </button>
-                            <button type="button" onclick="renderGatewayScreen(true)" style="background: #ffffff; color: #1e293b; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                            <button type="button" onclick="renderGatewayScreen(true)"
+                                style="background: #ffffff; color: #1e293b; border: 1.5px solid #cbd5e1; font-size: 12px; font-weight: 800; padding: 7px 14px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <path d="M3 3v5h5" />
+                                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                    <path d="M16 21h5v-5" />
+                                </svg>
                                 <span>Live Refresh</span>
                             </button>
                         </div>
@@ -2320,62 +2362,89 @@
                     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
                         <div class="glass p-3.5 rounded-2xl border-2 border-indigo-200 bg-indigo-50/40">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-900">🕒 Last 30 Min</span>
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-900">🕒
+                                    Last 30 Min</span>
                                 <span class="text-xs">⚡</span>
                             </div>
                             <h3 id="gwStatLast30Taka" class="text-lg font-black text-indigo-950 mt-1">৳0</h3>
-                            <p id="gwStatLast30Count" class="text-[10px] font-bold text-indigo-700 mt-0.5">0 SMS Received</p>
+                            <p id="gwStatLast30Count" class="text-[10px] font-bold text-indigo-700 mt-0.5">0 SMS
+                                Received</p>
                         </div>
 
                         <div class="glass p-3.5 rounded-2xl border-2 border-emerald-200 bg-emerald-50/40">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-900">👤 User Claimed</span>
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-900">👤
+                                    User Claimed</span>
                                 <span class="text-xs">✓</span>
                             </div>
                             <h3 id="gwStatUserTaka" class="text-lg font-black text-emerald-950 mt-1">৳0</h3>
-                            <p id="gwStatUserCoins" class="text-[10px] font-bold text-emerald-700 mt-0.5">🪙 0 Coins (0 Trx)</p>
+                            <p id="gwStatUserCoins" class="text-[10px] font-bold text-emerald-700 mt-0.5">🪙 0 Coins (0
+                                Trx)</p>
                         </div>
 
                         <div class="glass p-3.5 rounded-2xl border-2 border-blue-200 bg-blue-50/40">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-blue-900">🛡️ Admin Claimed</span>
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-blue-900">🛡️
+                                    Admin Claimed</span>
                                 <span class="text-xs">👑</span>
                             </div>
                             <h3 id="gwStatAdminTaka" class="text-lg font-black text-blue-950 mt-1">৳0</h3>
-                            <p id="gwStatAdminCoins" class="text-[10px] font-bold text-blue-700 mt-0.5">🪙 0 Coins (0 Trx)</p>
+                            <p id="gwStatAdminCoins" class="text-[10px] font-bold text-blue-700 mt-0.5">🪙 0 Coins (0
+                                Trx)</p>
                         </div>
 
                         <div class="glass p-3.5 rounded-2xl border-2 border-rose-200 bg-rose-50/40">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-rose-900">⏳ Time Expired</span>
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-rose-900">⏳ Time
+                                    Expired</span>
                                 <span class="text-xs">🔒</span>
                             </div>
                             <h3 id="gwStatExpiredTaka" class="text-lg font-black text-rose-950 mt-1">৳0</h3>
-                            <p id="gwStatExpiredCount" class="text-[10px] font-bold text-rose-700 mt-0.5">0 Trx Locked (>30m)</p>
+                            <p id="gwStatExpiredCount" class="text-[10px] font-bold text-rose-700 mt-0.5">0 Trx Locked
+                                (>30m)</p>
                         </div>
 
-                        <div class="glass p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50/60 col-span-2 lg:col-span-1">
+                        <div
+                            class="glass p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50/60 col-span-2 lg:col-span-1">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-700">💰 Total Processed</span>
+                                <span class="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-700">💰
+                                    Total Processed</span>
                                 <span class="text-xs">📊</span>
                             </div>
                             <h3 id="gwStatTotalTaka" class="text-lg font-black text-slate-900 mt-1">৳0</h3>
-                            <p id="gwStatTotalCount" class="text-[10px] font-bold text-slate-500 mt-0.5">0 Total SMS Recorded</p>
+                            <p id="gwStatTotalCount" class="text-[10px] font-bold text-slate-500 mt-0.5">0 Total SMS
+                                Recorded</p>
                         </div>
                     </div>
 
                     <!-- Filter Tabs & Quick Search -->
                     <div class="glass p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
                         <div class="flex items-center gap-1.5 flex-wrap" id="gwFilterGroup">
-                            <button type="button" onclick="setGwFilter('all')" data-gwf="all" class="gw-tab" style="background: #059669; color: #ffffff; border: none; font-weight: 800; padding: 6px 12px; border-radius: 12px; font-size: 11.5px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">📋 All Records</button>
-                            <button type="button" onclick="setGwFilter('last30')" data-gwf="last30" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🕒 Last 30 Minutes</button>
-                            <button type="button" onclick="setGwFilter('user')" data-gwf="user" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">👤 User Claimed</button>
-                            <button type="button" onclick="setGwFilter('admin')" data-gwf="admin" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🛡️ Admin Claimed</button>
-                            <button type="button" onclick="setGwFilter('time_expired')" data-gwf="time_expired" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">⏳ Time Expired (30m+)</button>
-                            <button type="button" onclick="setGwFilter('waiting')" data-gwf="waiting" class="gw-tab" style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🟡 Waiting Claim</button>
+                            <button type="button" onclick="setGwFilter('all')" data-gwf="all" class="gw-tab"
+                                style="background: #059669; color: #ffffff; border: none; font-weight: 800; padding: 6px 12px; border-radius: 12px; font-size: 11.5px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">📋
+                                All Records</button>
+                            <button type="button" onclick="setGwFilter('last30')" data-gwf="last30" class="gw-tab"
+                                style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🕒
+                                Last 30 Minutes</button>
+                            <button type="button" onclick="setGwFilter('user')" data-gwf="user" class="gw-tab"
+                                style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">👤
+                                User Claimed</button>
+                            <button type="button" onclick="setGwFilter('admin')" data-gwf="admin" class="gw-tab"
+                                style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🛡️
+                                Admin Claimed</button>
+                            <button type="button" onclick="setGwFilter('time_expired')" data-gwf="time_expired"
+                                class="gw-tab"
+                                style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">⏳
+                                Time Expired (30m+)</button>
+                            <button type="button" onclick="setGwFilter('waiting')" data-gwf="waiting" class="gw-tab"
+                                style="background: #ffffff; color: #334155; border: 1.5px solid #e2e8f0; font-weight: 700; padding: 6px 12px; border-radius: 12px; font-size: 11.5px;">🟡
+                                Waiting Claim</button>
                         </div>
                         <div class="flex items-center gap-2">
-                            <input id="gwSearchInput" oninput="filterGwTableSearch()" placeholder="Search TrxID, sender, amount..." class="fld text-xs font-bold py-1.5 px-3 w-48 sm:w-64" style="border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff;">
+                            <input id="gwSearchInput" oninput="filterGwTableSearch()"
+                                placeholder="Search TrxID, sender, amount..."
+                                class="fld text-xs font-bold py-1.5 px-3 w-48 sm:w-64"
+                                style="border: 1.5px solid #cbd5e1; border-radius: 12px; background: #ffffff;">
                         </div>
                     </div>
 
@@ -2384,7 +2453,8 @@
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs border-collapse">
                                 <thead>
-                                    <tr class="border-b border-slate-200 text-slate-400 font-extrabold uppercase text-[10px]">
+                                    <tr
+                                        class="border-b border-slate-200 text-slate-400 font-extrabold uppercase text-[10px]">
                                         <th class="py-2.5 px-3">Method &amp; Sender</th>
                                         <th class="py-2.5 px-3">TrxID</th>
                                         <th class="py-2.5 px-3">Amount (৳)</th>
@@ -2394,9 +2464,11 @@
                                         <th class="py-2.5 px-3 text-right">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody id="gwSmsTableBody" class="divide-y divide-slate-100 font-semibold text-slate-800">
+                                <tbody id="gwSmsTableBody"
+                                    class="divide-y divide-slate-100 font-semibold text-slate-800">
                                     <tr>
-                                        <td colspan="7" class="py-8 text-center text-slate-400 font-bold">লোড হচ্ছে...</td>
+                                        <td colspan="7" class="py-8 text-center text-slate-400 font-bold">লোড হচ্ছে...
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2404,86 +2476,139 @@
                     </div>
 
                     <!-- Modal: Smart Admin TrxID Lock & Filter -->
-                    <div id="modalAdminAddTrx" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);">
-                        <div class="glass w-full max-w-lg p-5 sm:p-6 bg-white rounded-3xl border-2 border-indigo-200 shadow-2xl space-y-4">
+                    <div id="modalAdminAddTrx" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style="background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);">
+                        <div
+                            class="glass w-full max-w-lg p-5 sm:p-6 bg-white rounded-3xl border-2 border-indigo-200 shadow-2xl space-y-4">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                                 <div class="flex items-center gap-3">
-                                    <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    <div
+                                        style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                        </svg>
                                     </div>
                                     <div>
                                         <h3 class="text-sm font-black text-slate-900">Smart TrxID Lock &amp; Filter</h3>
-                                        <p class="text-[11px] text-slate-500 font-medium">ফোনের সম্পূর্ণ SMS পেস্ট করুন অথবা সরাসরি TrxID দিন</p>
+                                        <p class="text-[11px] text-slate-500 font-medium">ফোনের সম্পূর্ণ SMS পেস্ট করুন
+                                            অথবা সরাসরি TrxID দিন</p>
                                     </div>
                                 </div>
-                                <button type="button" onclick="closeAdminAddTrxModal()" style="width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; color: #475569; border: none; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+                                <button type="button" onclick="closeAdminAddTrxModal()"
+                                    style="width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; color: #475569; border: none; font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
                             </div>
-                            
+
                             <div class="space-y-3">
                                 <div>
-                                    <label class="block text-[11px] font-black text-slate-700 mb-1">Paste Full SMS or Type TrxID *</label>
-                                    <textarea id="smartGwInput" rows="3" oninput="parseSmartGwInput(this.value)" placeholder="যেমন: bKash/Nagad/Rocket থেকে আসা পুরো মেসেজটি এখানে পেস্ট করুন, অথবা সরাসরি TrxID লিখুন..." style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 10px 12px; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#4f46e5'" onblur="this.style.borderColor='#cbd5e1'"></textarea>
-                                    
+                                    <label class="block text-[11px] font-black text-slate-700 mb-1">Paste Full SMS or
+                                        Type TrxID *</label>
+                                    <textarea id="smartGwInput" rows="3" oninput="parseSmartGwInput(this.value)"
+                                        placeholder="যেমন: bKash/Nagad/Rocket থেকে আসা পুরো মেসেজটি এখানে পেস্ট করুন, অথবা সরাসরি TrxID লিখুন..."
+                                        style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 10px 12px; font-family: monospace; font-size: 12px; font-weight: 700; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.2s;"
+                                        onfocus="this.style.borderColor='#4f46e5'"
+                                        onblur="this.style.borderColor='#cbd5e1'"></textarea>
+
                                     <!-- Method Selector Pills (Auto-selected with manual override) -->
                                     <div class="flex items-center gap-1.5 pt-2 overflow-x-auto pb-0.5">
-                                        <span class="text-[11px] font-black text-slate-500 flex items-center gap-1 flex-shrink-0">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                                        <span
+                                            class="text-[11px] font-black text-slate-500 flex items-center gap-1 flex-shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="2.5">
+                                                <rect width="20" height="14" x="2" y="5" rx="2" />
+                                                <line x1="2" x2="22" y1="10" y2="10" />
+                                            </svg>
                                             <span>পদ্ধতি:</span>
                                         </span>
-                                        <button type="button" id="gwBtn_bKash" onclick="selectGwMethodManual('bKash')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
-                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                        <button type="button" id="gwBtn_bKash" onclick="selectGwMethodManual('bKash')"
+                                            class="gw-method-btn"
+                                            style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10"
+                                                style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
                                             <span>bKash</span>
                                         </button>
-                                        <button type="button" id="gwBtn_Nagad" onclick="selectGwMethodManual('Nagad')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
-                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                        <button type="button" id="gwBtn_Nagad" onclick="selectGwMethodManual('Nagad')"
+                                            class="gw-method-btn"
+                                            style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10"
+                                                style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
                                             <span>Nagad</span>
                                         </button>
-                                        <button type="button" id="gwBtn_Rocket" onclick="selectGwMethodManual('Rocket')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
-                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                        <button type="button" id="gwBtn_Rocket" onclick="selectGwMethodManual('Rocket')"
+                                            class="gw-method-btn"
+                                            style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10"
+                                                style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
                                             <span>Rocket</span>
                                         </button>
-                                        <button type="button" id="gwBtn_Upay" onclick="selectGwMethodManual('Upay')" class="gw-method-btn" style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
-                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10" style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
+                                        <button type="button" id="gwBtn_Upay" onclick="selectGwMethodManual('Upay')"
+                                            class="gw-method-btn"
+                                            style="padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; transition: all 0.15s; display: flex; align-items: center; gap: 5px;">
+                                            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1Uq4qFvYkM2_29f-zW_Qd7Q&s=10"
+                                                style="width: 14px; height: 14px; border-radius: 4px; object-fit: contain;">
                                             <span>Upay</span>
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Live Smart Parser Output Card -->
-                                <div id="gwSmartPreview" class="p-3.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-2">
+                                <div id="gwSmartPreview"
+                                    class="p-3.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 space-y-2">
                                     <div class="flex items-center justify-between">
                                         <span class="text-[11px] font-black text-indigo-950 flex items-center gap-1.5">
                                             <span>✨ Auto Detection Preview</span>
                                         </span>
-                                        <span id="gwDetectStatus" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">Waiting for input</span>
+                                        <span id="gwDetectStatus"
+                                            class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">Waiting
+                                            for input</span>
                                     </div>
                                     <div id="gwDetectDetails" class="text-xs text-slate-500 font-medium">
-                                        💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।
+                                        💡 কোনো কিছু আলাদা টাইপ করতে হবে না—ফোনে আসা মেসেজ পেস্ট করলেই TrxID, টাকা ও
+                                        মেথড স্বয়ংক্রিয়ভাবে ফিল্টার হয়ে যাবে।
                                     </div>
                                 </div>
 
                                 <!-- Optional Credit User -->
                                 <div class="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2">
-                                    <div class="flex items-center justify-between cursor-pointer" onclick="toggleGwUserCreditField()">
-                                        <label class="text-[11px] font-black text-slate-700 cursor-pointer flex items-center gap-1">
+                                    <div class="flex items-center justify-between cursor-pointer"
+                                        onclick="toggleGwUserCreditField()">
+                                        <label
+                                            class="text-[11px] font-black text-slate-700 cursor-pointer flex items-center gap-1">
                                             <span>👤 Credit User Wallet? (Optional)</span>
                                         </label>
-                                        <span id="gwCreditToggleTxt" class="text-[10.5px] font-bold text-indigo-600 underline">Show</span>
+                                        <span id="gwCreditToggleTxt"
+                                            class="text-[10.5px] font-bold text-indigo-600 underline">Show</span>
                                     </div>
-                                    <div id="gwUserCreditWrap" class="hidden space-y-2 pt-1 border-t border-slate-200/60">
-                                        <input id="addGwUser" placeholder="User UID or Email (optional)" class="fld font-medium text-xs py-1.5 px-3 w-full bg-white" style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
-                                        <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                                    <div id="gwUserCreditWrap"
+                                        class="hidden space-y-2 pt-1 border-t border-slate-200/60">
+                                        <input id="addGwUser" placeholder="User UID or Email (optional)"
+                                            class="fld font-medium text-xs py-1.5 px-3 w-full bg-white"
+                                            style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
+                                        <div
+                                            class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
                                             <span>Coins to credit:</span>
-                                            <input id="addGwCoins" type="number" placeholder="Auto (৳/7)" class="fld font-bold text-xs py-1 px-2 w-28 bg-white text-right" style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
+                                            <input id="addGwCoins" type="number" placeholder="Auto (৳/7)"
+                                                class="fld font-bold text-xs py-1 px-2 w-28 bg-white text-right"
+                                                style="border: 1.5px solid #cbd5e1; border-radius: 10px;">
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                                <button type="button" onclick="closeAdminAddTrxModal()" style="background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; font-weight: 800; font-size: 12px; padding: 8px 16px; border-radius: 12px; cursor: pointer;">Cancel</button>
-                                <button type="button" onclick="submitSmartLockTrx()" id="btnSubmitAddGwTrx" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; font-weight: 800; font-size: 12px; padding: 8px 18px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                <button type="button" onclick="closeAdminAddTrxModal()"
+                                    style="background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; font-weight: 800; font-size: 12px; padding: 8px 16px; border-radius: 12px; cursor: pointer;">Cancel</button>
+                                <button type="button" onclick="submitSmartLockTrx()" id="btnSubmitAddGwTrx"
+                                    style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff !important; font-weight: 800; font-size: 12px; padding: 8px 18px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
                                     <span>Lock TrxID Now</span>
                                 </button>
                             </div>
@@ -2496,12 +2621,15 @@
                     <div class="glass p-4 sm:p-6">
                         <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-blue-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
+                                <div
+                                    class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-blue-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
                                     <i data-lucide="package-check" class="w-6 h-6"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Task Orders Queue</h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Track orders, credentials & fulfillment</p>
+                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Task Orders Queue
+                                    </h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Track orders, credentials &
+                                        fulfillment</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
@@ -2529,7 +2657,8 @@
                         <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                             <div>
                                 <h3 class="text-sm font-extrabold text-slate-900">Master Ledger & Balance Audit</h3>
-                                <p class="text-xs text-slate-500 font-medium">লেনদেনের আগের ব্যালেন্স (Before Bal) সহ সমস্ত আর্থিক গতিবিধির লাইভ অডিট</p>
+                                <p class="text-xs text-slate-500 font-medium">লেনদেনের আগের ব্যালেন্স (Before Bal) সহ
+                                    সমস্ত আর্থিক গতিবিধির লাইভ অডিট</p>
                             </div>
                             <div id="flt_scrTx" class="flex gap-2 overflow-x-auto"></div>
                         </div>
@@ -2544,12 +2673,14 @@
                     <div class="glass p-4 sm:p-6">
                         <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-purple-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
+                                <div
+                                    class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-purple-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
                                     <i data-lucide="users" class="w-6 h-6"></i>
                                 </div>
                                 <div>
                                     <h3 class="text-base font-black text-slate-900 tracking-tight">User Management</h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Balances, ban/unban status & activity history</p>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Balances, ban/unban status &
+                                        activity history</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
@@ -2994,12 +3125,16 @@
                 <!-- ===== 9. OFFERS ===== -->
                 <div id="scrOf" class="ascreen hidden space-y-5" style="display:none !important;">
                     <div class="glass p-6 sm:p-8 text-center border-2 border-emerald-500/20 bg-emerald-50/10">
-                        <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <div
+                            class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
                             <i data-lucide="gamepad-2" class="w-7 h-7"></i>
                         </div>
-                        <h3 class="text-lg font-black text-slate-900 mb-2">Centralized Public Portal Quest Engine Active</h3>
+                        <h3 class="text-lg font-black text-slate-900 mb-2">Centralized Public Portal Quest Engine Active
+                        </h3>
                         <p class="text-sm text-slate-600 font-medium max-w-xl mx-auto mb-6">
-                            পুরাতন ফায়ারবেস Offers সিস্টেম স্থায়ীভাবে পরিবর্তন করা হয়েছে। এখন থেকে সমস্ত গেম কোয়েস্ট, অ্যাচিভমেন্ট, শ্যাডো মোড (No Data) এবং অন/অফ স্ট্যাটাস সরাসরি <strong>PP Quest Server (Public Portal)</strong> থেকে নিয়ন্ত্রিত ও লাইভ সিঙ্ক হচ্ছে।
+                            পুরাতন ফায়ারবেস Offers সিস্টেম স্থায়ীভাবে পরিবর্তন করা হয়েছে। এখন থেকে সমস্ত গেম কোয়েস্ট,
+                            অ্যাচিভমেন্ট, শ্যাডো মোড (No Data) এবং অন/অফ স্ট্যাটাস সরাসরি <strong>PP Quest Server
+                                (Public Portal)</strong> থেকে নিয়ন্ত্রিত ও লাইভ সিঙ্ক হচ্ছে।
                         </p>
                         <div class="flex flex-wrap items-center justify-center gap-3">
                             <a href="https://pp-mod-auto-quest.onrender.com" target="_blank"
@@ -3014,7 +3149,7 @@
                     </div>
                 </div>
 
-<!-- ===== EARN TASKS MANAGER (Direct Link & Ad Pages) ===== -->
+                <!-- ===== EARN TASKS MANAGER (Direct Link & Ad Pages) ===== -->
                 <div id="scrEarn" class="ascreen hidden space-y-5">
                     <!-- Top Action / Stats Header -->
                     <div class="glass p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
@@ -3038,12 +3173,15 @@
 
                     <!-- Monthly Leaderboard & Top 1 Reward Control (10 Coins) -->
                     <div class="glass p-4 sm:p-5 space-y-3.5 border-2 border-amber-300 bg-amber-50/40 rounded-2xl">
-                        <div class="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-amber-200/80">
+                        <div
+                            class="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-amber-200/80">
                             <div class="flex items-center gap-2">
                                 <span class="text-xl">👑</span>
                                 <div>
-                                    <h4 class="text-sm font-black text-slate-900 leading-tight">Monthly Leaderboard &amp; Top 1 Prize (10 Coins)</h4>
-                                    <p class="text-[10px] text-amber-900 font-semibold mt-0.5">১ম স্থান অধিকারী পাবেন ১০ কয়েন (কোনো মিনিমাম পয়েন্টের শর্ত নেই)</p>
+                                    <h4 class="text-sm font-black text-slate-900 leading-tight">Monthly Leaderboard
+                                        &amp; Top 1 Prize (10 Coins)</h4>
+                                    <p class="text-[10px] text-amber-900 font-semibold mt-0.5">১ম স্থান অধিকারী পাবেন ১০
+                                        কয়েন (কোনো মিনিমাম পয়েন্টের শর্ত নেই)</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
@@ -3057,11 +3195,15 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="adminLdrTop1InfoBox" class="p-3 bg-white/90 rounded-xl border border-amber-200 text-xs text-slate-700">
+                        <div id="adminLdrTop1InfoBox"
+                            class="p-3 bg-white/90 rounded-xl border border-amber-200 text-xs text-slate-700">
                             <div class="flex items-center justify-between flex-wrap gap-2">
-                                <span class="font-bold text-slate-500">চলতি সিজন: <strong id="adminLdrSeasonKey" class="text-slate-900 font-mono font-black">—</strong></span>
-                                <span class="font-bold text-slate-500">শীর্ষ #১ ইউজার: <strong id="adminLdrTop1User" class="text-amber-800 font-black">—</strong></span>
-                                <span class="font-bold text-slate-500">পয়েন্ট: <strong id="adminLdrTop1Pts" class="text-emerald-700 font-mono font-black tabular-nums">0 Pts</strong></span>
+                                <span class="font-bold text-slate-500">চলতি সিজন: <strong id="adminLdrSeasonKey"
+                                        class="text-slate-900 font-mono font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">শীর্ষ #১ ইউজার: <strong id="adminLdrTop1User"
+                                        class="text-amber-800 font-black">—</strong></span>
+                                <span class="font-bold text-slate-500">পয়েন্ট: <strong id="adminLdrTop1Pts"
+                                        class="text-emerald-700 font-mono font-black tabular-nums">0 Pts</strong></span>
                             </div>
                         </div>
                     </div>
@@ -3210,7 +3352,7 @@
 
                 </div>
 
-                
+
 
                 <!-- ===== 10. REWARD CODES ===== -->
                 <div id="scrCode" class="ascreen hidden space-y-5">
@@ -3504,39 +3646,60 @@
                                     <h5 class="text-xs font-black text-slate-700 uppercase tracking-wider">Current
                                         Slides</h5>
                                     <span id="bannerSlideCount"
-                                        class="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">2 Slides</span>
+                                        class="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">2
+                                        Slides</span>
                                 </div>
                                 <div id="adminBannerSlidesList" class="space-y-2">
-                                    <div class="flex items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                                    <div
+                                        class="flex items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
                                         <div class="flex items-center gap-3 min-w-0">
-                                            <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1792901314066_file_00000000544c8211aa889742d609c8e6.png" class="w-16 h-10 object-cover rounded-lg border border-slate-200 flex-shrink-0 bg-slate-100">
+                                            <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1792901314066_file_00000000544c8211aa889742d609c8e6.png"
+                                                class="w-16 h-10 object-cover rounded-lg border border-slate-200 flex-shrink-0 bg-slate-100">
                                             <div class="min-w-0 flex-1">
-                                                <p class="text-xs font-black text-slate-800 truncate select-all">https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1792901314066_file_00000000544c8211aa889742d609c8e6.png</p>
-                                                <p class="text-[10px] text-indigo-600 font-bold mt-0.5">Action: 🚫 None</p>
+                                                <p class="text-xs font-black text-slate-800 truncate select-all">
+                                                    https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1792901314066_file_00000000544c8211aa889742d609c8e6.png
+                                                </p>
+                                                <p class="text-[10px] text-indigo-600 font-bold mt-0.5">Action: 🚫 None
+                                                </p>
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-1.5 flex-shrink-0">
-                                            <button type="button" onclick="moveAdminSlide(0, -1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↑</button>
-                                            <button type="button" onclick="moveAdminSlide(0, 1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↓</button>
-                                            <button type="button" onclick="toggleAdminSlideActive(0)" class="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-100 text-emerald-800 cursor-pointer">ON</button>
-                                            <button type="button" onclick="editAdminSlide(0)" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer">✎</button>
-                                            <button type="button" onclick="deleteAdminSlide(0)" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer">✕</button>
+                                            <button type="button" onclick="moveAdminSlide(0, -1)"
+                                                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↑</button>
+                                            <button type="button" onclick="moveAdminSlide(0, 1)"
+                                                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↓</button>
+                                            <button type="button" onclick="toggleAdminSlideActive(0)"
+                                                class="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-100 text-emerald-800 cursor-pointer">ON</button>
+                                            <button type="button" onclick="editAdminSlide(0)"
+                                                class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer">✎</button>
+                                            <button type="button" onclick="deleteAdminSlide(0)"
+                                                class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer">✕</button>
                                         </div>
                                     </div>
-                                    <div class="flex items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                                    <div
+                                        class="flex items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
                                         <div class="flex items-center gap-3 min-w-0">
-                                            <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1794544644744_file_00000000256482119072c88c772aff63.png" class="w-16 h-10 object-cover rounded-lg border border-slate-200 flex-shrink-0 bg-slate-100">
+                                            <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1794544644744_file_00000000256482119072c88c772aff63.png"
+                                                class="w-16 h-10 object-cover rounded-lg border border-slate-200 flex-shrink-0 bg-slate-100">
                                             <div class="min-w-0 flex-1">
-                                                <p class="text-xs font-black text-slate-800 truncate select-all">https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1794544644744_file_00000000256482119072c88c772aff63.png</p>
-                                                <p class="text-[10px] text-indigo-600 font-bold mt-0.5">Action: 🌐 https://t.me/blackmoney54</p>
+                                                <p class="text-xs font-black text-slate-800 truncate select-all">
+                                                    https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1794544644744_file_00000000256482119072c88c772aff63.png
+                                                </p>
+                                                <p class="text-[10px] text-indigo-600 font-bold mt-0.5">Action: 🌐
+                                                    https://t.me/blackmoney54</p>
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-1.5 flex-shrink-0">
-                                            <button type="button" onclick="moveAdminSlide(1, -1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↑</button>
-                                            <button type="button" onclick="moveAdminSlide(1, 1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↓</button>
-                                            <button type="button" onclick="toggleAdminSlideActive(1)" class="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-100 text-emerald-800 cursor-pointer">ON</button>
-                                            <button type="button" onclick="editAdminSlide(1)" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer">✎</button>
-                                            <button type="button" onclick="deleteAdminSlide(1)" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer">✕</button>
+                                            <button type="button" onclick="moveAdminSlide(1, -1)"
+                                                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↑</button>
+                                            <button type="button" onclick="moveAdminSlide(1, 1)"
+                                                class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black text-xs cursor-pointer">↓</button>
+                                            <button type="button" onclick="toggleAdminSlideActive(1)"
+                                                class="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-100 text-emerald-800 cursor-pointer">ON</button>
+                                            <button type="button" onclick="editAdminSlide(1)"
+                                                class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer">✎</button>
+                                            <button type="button" onclick="deleteAdminSlide(1)"
+                                                class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer">✕</button>
                                         </div>
                                     </div>
                                 </div>
@@ -3572,7 +3735,8 @@
                                 <div
                                     class="flex items-center justify-between text-[11px] font-bold text-indigo-800 pt-1">
                                     <span>লাইভ চার্জ হিসাব:</span>
-                                    <span id="taskFeePreview" class="font-mono font-black text-indigo-950">১টি টাস্ক = ২ Coins</span>
+                                    <span id="taskFeePreview" class="font-mono font-black text-indigo-950">১টি টাস্ক = ২
+                                        Coins</span>
                                 </div>
                             </div>
 
@@ -3626,7 +3790,8 @@
                             <div
                                 class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-bold text-slate-700">
                                 <span>হিসাব প্রিভিউ:</span>
-                                <span id="depositPricingPreview" class="text-emerald-700 font-black">মিনিমাম ১৫ টাকায় প্রায় ৩ কয়েন (রেট: ৫ ৳/Coin)</span>
+                                <span id="depositPricingPreview" class="text-emerald-700 font-black">মিনিমাম ১৫ টাকায়
+                                    প্রায় ৩ কয়েন (রেট: ৫ ৳/Coin)</span>
                             </div>
 
                             <!-- Bulk Coin Purchase Discount Settings -->
@@ -3786,10 +3951,10 @@
                                 Bots</button>
                         </div>
 
-                                                
-                            
 
-<div class="glass p-4 sm:p-6 space-y-3" data-cfgsec="links">
+
+
+                        <div class="glass p-4 sm:p-6 space-y-3" data-cfgsec="links">
                             <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2">Community
                                 &amp; Support Links</h4>
                             <p class="kaj">💡 <b>কাজ:</b> User app-এর Support ও Group বাটন এই লিংকে যাবে। Ticker খালি
@@ -3814,12 +3979,14 @@
                         <div class="glass p-4 sm:p-6 space-y-4" data-cfgsec="services">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                                 <div>
-                                    <h4 class="text-xs font-black uppercase tracking-wider text-indigo-700 flex items-center gap-2">
+                                    <h4
+                                        class="text-xs font-black uppercase tracking-wider text-indigo-700 flex items-center gap-2">
                                         <i data-lucide="sliders" class="w-4 h-4"></i>
                                         Task Credential Methods (Server Code &amp; Gmail/Pass Toggle)
                                     </h4>
                                     <p class="text-[11px] text-slate-500 font-semibold mt-0.5">
-                                        ইউজার অ্যাপে 6-Digit Server Code অথবা Gmail &amp; Password মেথড চালু/বন্ধ রাখুন। অফ থাকলে ইউজার স্ক্রিনে ঝাপসা (Blur) হয়ে আপনার দেওয়া নোটিশ ভেসে থাকবে।
+                                        ইউজার অ্যাপে 6-Digit Server Code অথবা Gmail &amp; Password মেথড চালু/বন্ধ রাখুন।
+                                        অফ থাকলে ইউজার স্ক্রিনে ঝাপসা (Blur) হয়ে আপনার দেওয়া নোটিশ ভেসে থাকবে।
                                     </p>
                                 </div>
                             </div>
@@ -3835,12 +4002,15 @@
                                     </div>
                                     <div class="tgl-row !bg-white !border-slate-200 !py-2 flex-shrink-0">
                                         <span id="cfgServerCodeStatus" class="tgl-status on">ON</span>
-                                        <button id="cfgServerCodeBtn" type="button" onclick="toggleServerCodeMethod()" class="tgl" role="switch" aria-checked="true" aria-label="Server Code Method"><span class="knob"></span></button>
+                                        <button id="cfgServerCodeBtn" type="button" onclick="toggleServerCodeMethod()"
+                                            class="tgl" role="switch" aria-checked="true"
+                                            aria-label="Server Code Method"><span class="knob"></span></button>
                                     </div>
                                 </div>
                                 <div>
                                     <label class="lbl">Server Code বন্ধ থাকলে নোটিশ (ইউজারদের যা দেখাবে)</label>
-                                    <textarea id="cfgServerCodeOffMsg" rows="2" class="fld text-xs" placeholder="সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে Gmail ও Password পদ্ধতি ব্যবহার করুন।"></textarea>
+                                    <textarea id="cfgServerCodeOffMsg" rows="2" class="fld text-xs"
+                                        placeholder="সার্ভার কোড পদ্ধতি সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে Gmail ও Password পদ্ধতি ব্যবহার করুন।"></textarea>
                                 </div>
                             </div>
 
@@ -3855,16 +4025,20 @@
                                     </div>
                                     <div class="tgl-row !bg-white !border-slate-200 !py-2 flex-shrink-0">
                                         <span id="cfgEmailPassStatus" class="tgl-status on">ON</span>
-                                        <button id="cfgEmailPassBtn" type="button" onclick="toggleEmailPassMethod()" class="tgl" role="switch" aria-checked="true" aria-label="Email Pass Method"><span class="knob"></span></button>
+                                        <button id="cfgEmailPassBtn" type="button" onclick="toggleEmailPassMethod()"
+                                            class="tgl" role="switch" aria-checked="true"
+                                            aria-label="Email Pass Method"><span class="knob"></span></button>
                                     </div>
                                 </div>
                                 <div>
                                     <label class="lbl">Gmail/Pass বন্ধ থাকলে নোটিশ (ইউজারদের যা দেখাবে)</label>
-                                    <textarea id="cfgEmailPassOffMsg" rows="2" class="fld text-xs" placeholder="জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট কোড ব্যবহার করুন।"></textarea>
+                                    <textarea id="cfgEmailPassOffMsg" rows="2" class="fld text-xs"
+                                        placeholder="জিমেইল ও পাসওয়ার্ড সাবমিশন সাময়িকভাবে বন্ধ আছে। দ্রুত কাজের জন্য PPM SERVER অ্যাপ থেকে ৬-ডিজিট কোড ব্যবহার করুন।"></textarea>
                                 </div>
                             </div>
 
-                            <button onclick="saveCredMethodSettings(this)" class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold w-full py-2.5 btn-save-premium">
+                            <button onclick="saveCredMethodSettings(this)"
+                                class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold w-full py-2.5 btn-save-premium">
                                 💾 Save Credential Methods Settings
                             </button>
                         </div>
@@ -4431,37 +4605,60 @@
     </div>
 
     <!-- Admin Ban Notice Modal -->
-    <div id="adminBanModal" class="sheet hidden" style="z-index:99999;" onclick="if(event.target===this)closeBanModal()">
+    <div id="adminBanModal" class="sheet hidden" style="z-index:99999;"
+        onclick="if(event.target===this)closeBanModal()">
         <div style="position:relative; width:100%; max-width:480px; margin:auto;">
             <div class="sheet-card bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 space-y-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 flex-shrink-0">
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 flex-shrink-0">
                         <i data-lucide="shield-alert" class="w-6 h-6"></i>
                     </div>
                     <div>
-                        <h3 id="banModalTitle" class="text-base font-black text-rose-600">🚫 অ্যাকাউন্ট সাসপেন্ড / ব্যান করুন</h3>
-                        <p id="banModalUserEmail" class="text-xs font-mono font-bold text-slate-500 truncate max-w-[280px]">User</p>
+                        <h3 id="banModalTitle" class="text-base font-black text-rose-600">🚫 অ্যাকাউন্ট সাসপেন্ড / ব্যান
+                            করুন</h3>
+                        <p id="banModalUserEmail"
+                            class="text-xs font-mono font-bold text-slate-500 truncate max-w-[280px]">User</p>
                     </div>
                 </div>
 
                 <div class="space-y-1.5">
-                    <label id="banModalReasonLbl" class="text-xs font-black text-slate-700">ব্যান করার কারণ / নোটিশ (ইউজার অ্যাপে দেখতে পাবে):</label>
-                    <textarea id="banModalReasonInp" rows="3" class="fld w-full text-xs font-medium resize-none leading-relaxed" placeholder="ব্যান করার কারণ লিখুন..."></textarea>
+                    <label id="banModalReasonLbl" class="text-xs font-black text-slate-700">ব্যান করার কারণ / নোটিশ
+                        (ইউজার অ্যাপে দেখতে পাবে):</label>
+                    <textarea id="banModalReasonInp" rows="3"
+                        class="fld w-full text-xs font-medium resize-none leading-relaxed"
+                        placeholder="ব্যান করার কারণ লিখুন..."></textarea>
                 </div>
 
                 <div class="space-y-1.5">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">কুইক সিলেক্ট (Quick Reasons):</p>
+                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">কুইক সিলেক্ট (Quick
+                        Reasons):</p>
                     <div class="flex flex-wrap gap-1.5">
-                        <button type="button" onclick="setBanPresetReason('ভুল বা ফেক TrxID সাবমিট করার কারণে অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Fake TrxID</button>
-                        <button type="button" onclick="setBanPresetReason('একাধিক ফেক অ্যাকাউন্ট ও রেফারেল অপব্যবহারের কারণে অ্যাকাউন্ট স্থগিত করা হয়েছে।')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Multiple Accounts</button>
-                        <button type="button" onclick="setBanPresetReason('নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে। বিস্তারিত জানতে সাপোর্টে যোগাযোগ করুন।')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">General Rules</button>
-                        <button type="button" onclick="setBanPresetReason('সন্দেহজনক কার্যকলাপ পরিলক্ষিত হওয়ায় অ্যাকাউন্ট যাচাইয়ের জন্য স্থগিত করা হয়েছে।')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Suspicious</button>
+                        <button type="button"
+                            onclick="setBanPresetReason('ভুল বা ফেক TrxID সাবমিট করার কারণে অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।')"
+                            class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Fake
+                            TrxID</button>
+                        <button type="button"
+                            onclick="setBanPresetReason('একাধিক ফেক অ্যাকাউন্ট ও রেফারেল অপব্যবহারের কারণে অ্যাকাউন্ট স্থগিত করা হয়েছে।')"
+                            class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Multiple
+                            Accounts</button>
+                        <button type="button"
+                            onclick="setBanPresetReason('নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে। বিস্তারিত জানতে সাপোর্টে যোগাযোগ করুন।')"
+                            class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">General
+                            Rules</button>
+                        <button type="button"
+                            onclick="setBanPresetReason('সন্দেহজনক কার্যকলাপ পরিলক্ষিত হওয়ায় অ্যাকাউন্ট যাচাইয়ের জন্য স্থগিত করা হয়েছে।')"
+                            class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200 transition-all cursor-pointer">Suspicious</button>
                     </div>
                 </div>
 
                 <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeBanModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer">বাতিল (Cancel)</button>
-                    <button id="btnConfirmBan" type="button" onclick="confirmBanUserAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer">🚫 নিশ্চিত ব্যান করুন</button>
+                    <button type="button" onclick="closeBanModal()"
+                        class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer">বাতিল
+                        (Cancel)</button>
+                    <button id="btnConfirmBan" type="button" onclick="confirmBanUserAction()"
+                        class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer">🚫
+                        নিশ্চিত ব্যান করুন</button>
                 </div>
             </div>
         </div>
@@ -4485,14 +4682,10 @@
         function esc(s) {
             return (s == null ? '' : s).toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
-        function roundCoin(n) {
-            const num = Number(n) || 0;
-            return Math.round((num + Number.EPSILON) * 100) / 100;
-        }
         function money(n, isCoin) {
-            return roundCoin(n) + (isCoin ? ' Coins' : ' BDT');
+            return Number(n || 0) + (isCoin ? ' Coins' : ' BDT');
         }
-        function coins(n) { return roundCoin(n) + ' Coins'; }
+        function coins(n) { return Number(n || 0) + ' Coins'; }
         function toJsDate(ts) {
             if (!ts) return null;
             if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
@@ -4603,7 +4796,7 @@
             const logged = !document.getElementById('adminApp').classList.contains('hidden');
             nav.classList.toggle('hidden', !logged);
         }
-                        /* --- Cloudflare Config & Banner Sliders Global Store --- */
+        /* --- Cloudflare Config & Banner Sliders Global Store --- */
         const DEFAULT_BANNER_SLIDES = [
             {
                 id: 'b_1792901327876',
@@ -4625,14 +4818,14 @@
         let _adminSlides = JSON.parse(JSON.stringify(DEFAULT_BANNER_SLIDES));
         window._adminSlides = _adminSlides;
 
-        window.updTaskFeePrev = function() {
+        window.updTaskFeePrev = function () {
             const elInp = document.getElementById('cfgFee');
             const fee = elInp ? (Number(elInp.value) || 2) : 2;
             const el = document.getElementById('taskFeePreview');
             if (el) el.textContent = '১টি টাস্ক = ' + fee + ' Coins';
         };
 
-        window.updDepositPricingPrev = function() {
+        window.updDepositPricingPrev = function () {
             const elRate = document.getElementById('cfgCoinRate');
             const elMin = document.getElementById('cfgMinDeposit');
             const rate = elRate ? (Number(elRate.value) || 5) : 5;
@@ -4642,7 +4835,7 @@
             if (el) el.textContent = 'মিনিমাম ' + minDep + ' ৳ এ ইউজার পাবে প্রায় ' + coinsEst + ' Coins (রেট: ' + rate + ' ৳/Coin)';
         };
 
-        window.renderAdminBannerSlidesList = function() {
+        window.renderAdminBannerSlidesList = function () {
             const box = document.getElementById('adminBannerSlidesList');
             const count = document.getElementById('bannerSlideCount');
             if (count) count.textContent = (_adminSlides.length) + ' Slides';
@@ -4675,10 +4868,10 @@
                     </div>
                 </div>
             `).join('');
-            if (window.lucide) { try { lucide.createIcons(); } catch(e){} }
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
         };
 
-        window.fillConfigForm = function() {
+        window.fillConfigForm = function () {
             const c = (window.S && window.S.cfg) ? window.S.cfg : (window._cachedConfig || {});
             const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v === undefined || v === null) ? '' : v; };
             set('cfgSliderInterval', c.sliderIntervalSec || 4);
@@ -4769,8 +4962,8 @@
                     const totBal = d.totalUserBalance !== undefined ? d.totalUserBalance : 0;
                     const totAppDep = d.totalApprovedDeposit !== undefined ? Number(d.totalApprovedDeposit) : 0;
                     const totRev = d.totalRevenue !== undefined ? Number(d.totalRevenue) : 0;
-                    const liveOffers = (window.S && Array.isArray(window.S.offers) && window.S.offers.length) 
-                        ? window.S.offers.filter(o => o.active !== false).length 
+                    const liveOffers = (window.S && Array.isArray(window.S.offers) && window.S.offers.length)
+                        ? window.S.offers.filter(o => o.active !== false).length
                         : 35;
 
                     set('statDep', pDep);
@@ -6441,7 +6634,7 @@
                         const ud = uSnap.data() || {};
                         const cReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
                         const rAmt = Number(o.coinsCost) || 0;
-                        t.update(uRef, { 
+                        t.update(uRef, {
                             balance: (Number(ud.balance) || 0) + rAmt,
                             realBalance: cReal + rAmt
                         });
@@ -7502,21 +7695,37 @@
                     })
                 });
                 const cfData = await cfRes.json();
-                if (!cfData.ok) {
-                    if (cfData.alreadyApproved) {
-                        toast('⚠️ এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ হয়ে গেছে!');
-                        targetDep.status = 'approved';
-                        renderDeposits();
-                        updateStats();
-                        return;
-                    }
-                    throw new Error(cfData.error || "Cloudflare approve failed");
+                if (!cfData.ok) throw new Error(cfData.error || "Cloudflare approve failed");
+
+                // যদি Cloudflare D1-এ আগে ভুল লক থাকার কারণে alreadyApproved এসে থাকে, তবে সরাসরি নিশ্চিত ক্রেডিট পাঠানো
+                if (cfData.alreadyApproved) {
+                    try {
+                        await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                uid: targetDep.uid,
+                                coins: coinsToAdd,
+                                type: "real"
+                            })
+                        });
+                    } catch (ignCr) { }
                 }
 
                 // ২. ব্যাকগ্রাউন্ডে ফায়ারস্টোর আপডেট (কোটা ফুরিয়ে গেলেও এরর দেবে না)
-                let curBal = 0;
-                let newTotal = coinsToAdd;
                 try {
+                    await updateDoc(doc(db, 'deposits', id), {
+                        status: 'approved',
+                        coins: coinsToAdd,
+                        approvedAt: serverTimestamp()
+                    });
+                    await setDoc(doc(db, 'used_trx', cleanTrx), {
+                        trxId: cleanTrx,
+                        uid: targetDep.uid,
+                        amount: targetDep.amount,
+                        usedAt: serverTimestamp()
+                    }, { merge: true });
+
                     // ইউজার ব্যালেন্স ও Leaderboard deposit point (+1.0 point per approved deposit)
                     try {
                         const curMonthKey = (new Date()).toISOString().slice(0, 7);
@@ -7524,8 +7733,8 @@
                         const uSnap = await getDoc(uRef);
                         if (uSnap.exists()) {
                             const ud = uSnap.data() || {};
-                            curBal = Math.round(((Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0)) + Number.EPSILON) * 100) / 100;
-                            newTotal = Math.round((curBal + coinsToAdd + Number.EPSILON) * 100) / 100;
+                            const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                            const newTotal = Math.round((curBal + coinsToAdd + Number.EPSILON) * 100) / 100;
                             const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                             const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || Number(ud.monthlyTasksCount) || 0) : 0;
                             const depPoints = Math.max(1, Math.floor(coinsToAdd));
@@ -7539,8 +7748,6 @@
                             }, { merge: true });
                         } else {
                             const depPoints = Math.max(1, Math.floor(coinsToAdd));
-                            curBal = 0;
-                            newTotal = coinsToAdd;
                             await setDoc(uRef, {
                                 uid: targetDep.uid,
                                 name: targetDep.name || 'User',
@@ -7557,35 +7764,6 @@
                     } catch (e) {
                         console.warn('[FIRESTORE USER BALANCE ERR]:', e);
                     }
-
-                    await updateDoc(doc(db, 'deposits', id), {
-                        status: 'approved',
-                        coins: coinsToAdd,
-                        balance_before: curBal,
-                        balance_after: newTotal,
-                        approvedAt: serverTimestamp()
-                    });
-                    await setDoc(doc(db, 'used_trx', cleanTrx), {
-                        trxId: cleanTrx,
-                        uid: targetDep.uid,
-                        amount: targetDep.amount,
-                        usedAt: serverTimestamp()
-                    }, { merge: true });
-
-                    // ট্রানজ্যাকশন লগ সেভ
-                    try {
-                        await addDoc(collection(db, 'transactions'), {
-                            uid: targetDep.uid,
-                            type: 'deposit',
-                            title: `ডিপোজিট অ্যাপ্রুভ (${targetDep.method || 'Gateway'})`,
-                            amount: coinsToAdd,
-                            balance_before: curBal,
-                            balance_after: newTotal,
-                            note: `TrxID: ${cleanTrx} • ${targetDep.amount} BDT`,
-                            status: 'approved',
-                            createdAt: serverTimestamp()
-                        });
-                    } catch (txErr) { }
                 } catch (ignFb) {
                     console.warn('[FIRESTORE QUOTA SAFE]: Approved on Cloudflare directly');
                 }
@@ -7593,13 +7771,11 @@
                 // লোকাল স্টেট আপডেট যাতে ইনস্ট্যান্ট টেবিল থেকে চলে যায়
                 targetDep.status = 'approved';
                 targetDep.coins = coinsToAdd;
-                targetDep.balance_before = curBal;
-                targetDep.balance_after = newTotal;
                 const uObj = S.users.find(x => x.id === targetDep.uid || x.uid === targetDep.uid);
                 if (uObj) {
-                    uObj.balance = newTotal;
-                    uObj.realBalance = newTotal;
-                    uObj.bonusBalance = 0;
+                    const r = Number(uObj.realBalance !== undefined ? uObj.realBalance : (uObj.balance || 0));
+                    uObj.realBalance = r + coinsToAdd;
+                    uObj.balance = (Number(uObj.balance) || 0) + coinsToAdd;
                 }
                 renderDeposits();
                 updateStats();
@@ -7615,16 +7791,13 @@
                         const cleanTg = String(uTg).replace(/^@/, '').trim();
                         if (/^\d{5,}$/.test(cleanTg)) {
                             const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
-                            const depMsg = `🎉 <b>ডিপোজিট সফল হয়েছে! (Deposit Approved)</b>\n` +
-                                `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                                `🪙 <b>প্যাকেজ:</b> +${coinsToAdd} PP Coins যোগ হয়েছে ✅\n` +
-                                `💵 <b>পরিমাণ:</b> ${targetDep.amount} BDT\n` +
-                                `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
-                                `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins\n` +
-                                `💳 <b>মেথড:</b> ${targetDep.method || 'bKash'}\n` +
+                            const depMsg = `✅ <b>আপনার ডিপোজিট অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+                                `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
+                                `🪙 <b>Coin:</b> +${coinsToAdd} PP Coins\n` +
                                 `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
-                                `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                                `🚀 <i>আপনার ওয়ালেটে কয়েন যুক্ত হয়েছে। এখনই আপনার পছন্দের গেমের টাস্ক শুরু করতে পারেন!</i>`;
+                                `👤 <b>Account Name:</b> ${targetDep.name || 'User'}\n` +
+                                `📧 <b>Mail:</b> ${targetDep.email || '—'}\n` +
+                                `🆔 <b>UID:</b> <code>${targetDep.uid}</code>`;
                             fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -7635,16 +7808,19 @@
 
                     // অ্যাডমিনকে সরাসরি টেলিগ্রামে নোটিফিকেশন পাঠানো (Admin Notification on Bot)
                     const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
-                    const adminDepMsg = `💎 <b>DEPOSIT APPROVED FROM ADMIN PANEL!</b>\n\n` +
-                        `👤 <b>User:</b> ${targetDep.name || 'User'} (<code>${targetDep.email || '—'}</code>)\n` +
-                        `🆔 <b>UID:</b> <code>${targetDep.uid}</code>\n` +
-                        `🆔 <b>Dep ID:</b> <code>${id}</code>\n` +
+                    const adminDepMsg = `💎 <b>DEPOSIT APPROVED (ADMIN AUDIT)</b> ✅\n\n` +
+                        `🆔 <b>User ID:</b> <code>${targetDep.uid}</code>\n` +
+                        `👤 <b>Account Name:</b> ${targetDep.name || 'User'}\n` +
+                        `📧 <b>Email:</b> ${targetDep.email || '—'}\n` +
+                        `💬 <b>Telegram:</b> ${uTg ? `<code>${uTg}</code>` : 'Not Connected'}\n` +
                         `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
                         `🪙 <b>Coins Credited:</b> +${coinsToAdd} PP Coins\n` +
-                        `💰 <b>Balance:</b> ${curBal} ➔ ${newTotal}\n` +
+                        `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                        `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins\n` +
                         `💳 <b>Method:</b> ${targetDep.method || 'bKash'}\n` +
                         `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
-                        `✅ <b>Status:</b> APPROVED by Admin`;
+                        `🕒 <b>Time:</b> ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })}\n` +
+                        `🛡️ <b>Status:</b> Approved`;
                     fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -7840,7 +8016,7 @@
         let _gwPollTimer = null;
         let _smartParsed = { trxId: '', amount: 0, method: 'bKash', sender: '' };
 
-        window.setGwFilter = function(f) {
+        window.setGwFilter = function (f) {
             _gwFilter = f || 'all';
             const group = document.getElementById('gwFilterGroup');
             if (group) {
@@ -7856,7 +8032,7 @@
             renderGwTable();
         };
 
-        window.filterGwTableSearch = function() {
+        window.filterGwTableSearch = function () {
             renderGwTable();
         };
 
@@ -7972,7 +8148,7 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        window.renderGatewayScreen = async function(forceToast) {
+        window.renderGatewayScreen = async function (forceToast) {
             // Auto Deposit Switch Status
             const adEl = document.getElementById('gwAutoDepStatus');
             if (adEl) {
@@ -8074,7 +8250,7 @@
         // Smart SMS & Trx Parser & Live Method Selector
         let _userManualMethod = null;
 
-        window.updateGwMethodButtons = function(activeMethod) {
+        window.updateGwMethodButtons = function (activeMethod) {
             const mStyles = {
                 bKash: { border: '#f43f5e', bg: '#fff1f2', text: '#e11d48' },
                 Nagad: { border: '#f97316', bg: '#fff7ed', text: '#ea580c' },
@@ -8099,7 +8275,7 @@
             });
         };
 
-        window.selectGwMethodManual = function(m) {
+        window.selectGwMethodManual = function (m) {
             _userManualMethod = m;
             if (_smartParsed) {
                 _smartParsed.method = m;
@@ -8108,7 +8284,7 @@
             renderGwSmartPreview();
         };
 
-        window.renderGwSmartPreview = function() {
+        window.renderGwSmartPreview = function () {
             const statusEl = document.getElementById('gwDetectStatus');
             const detailsEl = document.getElementById('gwDetectDetails');
             if (!_smartParsed || !_smartParsed.trxId) {
@@ -8155,7 +8331,7 @@
             }
         };
 
-        window.parseSmartGwInput = function(raw) {
+        window.parseSmartGwInput = function (raw) {
             const text = (raw || '').trim();
             const statusEl = document.getElementById('gwDetectStatus');
             const detailsEl = document.getElementById('gwDetectDetails');
@@ -8230,8 +8406,8 @@
 
             // 3. Extract Amount
             let amount = 0;
-            const amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || 
-                             text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
+            const amtMatch = text.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) ||
+                text.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
             if (amtMatch) {
                 amount = Math.round(parseFloat(amtMatch[1].replace(/,/g, '')));
             }
@@ -8251,7 +8427,7 @@
             renderGwSmartPreview();
         };
 
-        window.openAdminAddTrxModal = function() {
+        window.openAdminAddTrxModal = function () {
             const m = document.getElementById('modalAdminAddTrx');
             if (!m) return;
             _userManualMethod = null;
@@ -8266,12 +8442,12 @@
             setTimeout(() => input?.focus(), 100);
         };
 
-        window.closeAdminAddTrxModal = function() {
+        window.closeAdminAddTrxModal = function () {
             const m = document.getElementById('modalAdminAddTrx');
             if (m) m.classList.add('hidden');
         };
 
-        window.toggleGwUserCreditField = function() {
+        window.toggleGwUserCreditField = function () {
             const wrap = document.getElementById('gwUserCreditWrap');
             const txt = document.getElementById('gwCreditToggleTxt');
             if (!wrap) return;
@@ -8285,7 +8461,7 @@
             }
         };
 
-        window.submitSmartLockTrx = async function() {
+        window.submitSmartLockTrx = async function () {
             const cleanTrx = (_smartParsed.trxId || document.getElementById('smartGwInput')?.value || '').trim().toUpperCase();
             if (!cleanTrx) {
                 alert('অনুগ্রহ করে Transaction ID (TrxID) লিখুন অথবা মেসেজ পেস্ট করুন!');
@@ -8360,7 +8536,7 @@
             }
         };
 
-        window.adminClaimGatewayTrx = async function(trxId, amount) {
+        window.adminClaimGatewayTrx = async function (trxId, amount) {
             if (!trxId) return;
             const targetUid = prompt(`🛡️ অ্যাডমিন TrxID ক্লেইম\nTrxID: ${trxId}\nAmount: ৳${amount}\n\nযে ইউজারের অ্যাকাউন্টে কয়েন যোগ করতে চান তার UID বা Email দিন (খালি রাখলে শুধু TrxID টি অ্যাডমিন ক্লেইম হিসেবে লক হবে, কোনো ইউজারে কয়েন যোগ হবে না):`, '');
             if (targetUid === null) return; // user cancelled
@@ -8443,7 +8619,7 @@
                     + '<td><div class="flex gap-1.5 flex-wrap" onclick="event.stopPropagation()">'
                     + (d.status === 'paid' || d.status === 'pending'
                         ? '<button onclick="completeOrder(\'' + d.id + '\')" class="btn bg-sky-600 hover:bg-sky-700 text-white shadow-sm font-bold">Complete</button>'
-                          + '<button onclick="refundOrder(\'' + d.id + '\')" class="btn bg-rose-600 hover:bg-rose-700 text-white shadow-sm font-bold">Refund</button>'
+                        + '<button onclick="refundOrder(\'' + d.id + '\')" class="btn bg-rose-600 hover:bg-rose-700 text-white shadow-sm font-bold">Refund</button>'
                         : '<button onclick="deleteRow(\'orders\',\'' + d.id + '\')" class="btn bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200">Delete</button>')
                     + '<button onclick="notifyUserOffline(\'' + (uTg) + '\',\'' + (uEmail) + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold">Notify TG</button>'
                     + '</div></td></tr>';
@@ -8540,9 +8716,9 @@
                                 setDoc(uRef, {
                                     monthlyPoints: newPts,
                                     monthlyPointsMonth: curMonthKey
-                                }, { merge: true }).catch(() => {});
+                                }, { merge: true }).catch(() => { });
                             }
-                        }).catch(() => {});
+                        }).catch(() => { });
                     } catch (ptErr) {
                         console.warn('[DELIVER ORDER POINTS ERR]:', ptErr);
                     }
@@ -8588,14 +8764,14 @@
                         status: 'refunded',
                         adminMsg: refundMsg
                     })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // ৩. Firestore এ ব্যাকগ্রাউন্ড আপডেট
                 updateDoc(doc(db, 'orders', id), {
                     status: 'refunded',
                     refundedAt: serverTimestamp(),
                     adminMsg: refundMsg
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // ৪. এডমিন টেলিগ্রামে বিস্তারিত অডিট লগ পাঠানো
                 const u = (S.users || []).find(x => x.id === ord.uid) || {};
@@ -8611,9 +8787,9 @@
                     `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
                     (prevBal != null
                         ? `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${prevBal} Coins</b>\n` +
-                          `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${refundAmount} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balAfterDeduct} Coins</b>)\n` +
-                          `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundAmount} Coins</b>\n` +
-                          `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n`
+                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${refundAmount} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balAfterDeduct} Coins</b>)\n` +
+                        `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundAmount} Coins</b>\n` +
+                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n`
                         : `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundAmount} Coins</b>\n\n`) +
                     `✅ <b>Action by Admin</b>`;
 
@@ -8630,7 +8806,7 @@
                                 text: auditMsg,
                                 parse_mode: 'HTML'
                             })
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
                 }
 
@@ -8880,7 +9056,7 @@
                             const uData = us.data() || {};
                             const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
                             const refundAmt = Number(od.amount) || 0;
-                            t.update(uref, { 
+                            t.update(uref, {
                                 balance: (Number(uData.balance) || 0) + refundAmt,
                                 realBalance: curReal + refundAmt
                             });
@@ -8961,7 +9137,7 @@
             const totLine = (f === 'all')
                 ? list.length + ' entries <span class="text-slate-400">(Top-up BDT • Task/Reward Coins • Withdraw/Sell Pts • Buy Coins)</span>'
                 : list.length + ' entries &middot; Total ' + (f === 'topup' ? money(sum(list)) : f === 'withdraw' || f === 'sell' ? (sum(list) + ' Pts') : coins(sum(list)));
-            
+
             // coin source summary (upore choto cards)
             const srcDaily = sum(R.filter(d => redeemKind(d.code) === 'daily'));
             const srcRef = sum(R.filter(d => redeemKind(d.code) === 'referral'));
@@ -8970,7 +9146,7 @@
             const srcTopup = (S.deposits || []).filter(d => d.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0);
             const kindPill = { topup: 'st-pending', task: 'st-paid', code: 'st-completed', daily: 'st-completed', referral: 'st-open', exchange: 'st-open', withdraw: 'st-rejected', sell: 'st-pending', buy: 'st-paid' };
             const kindUnit = (k, v) => k === 'topup' ? money(v) : (k === 'withdraw' || k === 'sell') ? (Number(v || 0) + ' Pts') : coins(v);
-            
+
             // 10 PER PAGE PAGINATION
             const totalTx = list.length;
             const totalPages = Math.ceil(totalTx / _txLimit) || 1;
@@ -9017,13 +9193,13 @@
                         : `<span class="text-slate-400 font-mono text-[10.5px]">—</span>`;
 
                     return '<tr data-search="' + sa(d.title, d.sub, d.info, d.uid) + '">'
-                    + '<td><span class="st ' + (kindPill[d.kind] || 'st-off') + '">' + d.kind.toUpperCase() + '</span></td>'
-                    + '<td><div class="flex items-center gap-2.5">' + thumb(d.logo || '', d.logoName || d.title) + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[180px]">' + esc(d.title) + '</p><div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 font-mono truncate max-w-[150px]">' + esc(d.info) + '</p>' + cpBtn(d.info, 'Copy') + '</div></div></div></td>'
-                    + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-xs text-slate-600 truncate max-w-[110px]">' + esc(d.sub) + '</span>' + cpBtn(d.sub, 'Copy User') + '</div>' + (d.uid ? '<div class="cpline mt-0.5"><span class="grow text-[10px] font-mono text-indigo-500 truncate max-w-[110px]">' + esc(d.uid) + '</span>' + cpBtn(d.uid, 'Copy UID') + '</div>' : '') + '</td>'
-                    + '<td class="text-center whitespace-nowrap">' + prevBalText + '</td>'
-                    + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(d.createdAt) + '</td>'
-                    + '<td class="text-right font-extrabold text-slate-900 whitespace-nowrap">' + kindUnit(d.kind, d.amount) + '</td>'
-                    + '<td>' + pill(d.status) + '</td></tr>';
+                        + '<td><span class="st ' + (kindPill[d.kind] || 'st-off') + '">' + d.kind.toUpperCase() + '</span></td>'
+                        + '<td><div class="flex items-center gap-2.5">' + thumb(d.logo || '', d.logoName || d.title) + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[180px]">' + esc(d.title) + '</p><div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 font-mono truncate max-w-[150px]">' + esc(d.info) + '</p>' + cpBtn(d.info, 'Copy') + '</div></div></div></td>'
+                        + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-xs text-slate-600 truncate max-w-[110px]">' + esc(d.sub) + '</span>' + cpBtn(d.sub, 'Copy User') + '</div>' + (d.uid ? '<div class="cpline mt-0.5"><span class="grow text-[10px] font-mono text-indigo-500 truncate max-w-[110px]">' + esc(d.uid) + '</span>' + cpBtn(d.uid, 'Copy UID') + '</div>' : '') + '</td>'
+                        + '<td class="text-center whitespace-nowrap">' + prevBalText + '</td>'
+                        + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(d.createdAt) + '</td>'
+                        + '<td class="text-right font-extrabold text-slate-900 whitespace-nowrap">' + kindUnit(d.kind, d.amount) + '</td>'
+                        + '<td>' + pill(d.status) + '</td></tr>';
                 }), 760)
                 + paginationBar;
 
@@ -9093,13 +9269,13 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ uid: uid, banned: banned, banReason: reason })
-                }).catch(() => {});
+                }).catch(() => { });
 
                 await setDoc(doc(db, 'users', uid), {
                     banned: banned,
                     banReason: reason,
                     bannedAt: banned ? serverTimestamp() : null
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
 
                 toast(banned ? (isEdit ? '✅ ব্যান নোটিশ সফলভাবে আপডেট হয়েছে!' : '🚫 User banned with notice!') : '✅ User unbanned successfully!');
                 logIt(banned ? (isEdit ? 'user_ban_edit' : 'user_ban') : 'user_unban', `${uid} ${reason}`);
@@ -9198,7 +9374,7 @@
                             + '<button onclick="setUserBalance(\'' + uid + '\')" class="btn bg-slate-800 hover:bg-slate-900 text-white">Set</button>'
                             + (isBanned
                                 ? '<button onclick="toggleBanWithNotice(\'' + uid + '\', true)" class="btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold">Unban</button>'
-                                  + '<button onclick="openBanModal(\'' + uid + '\', \'' + esc(u.email || u.name || uid) + '\', \'' + esc(u.banReason || '') + '\', true)" class="btn bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 font-bold" title="ব্যান নোটিশ এডিট করুন">✏️ নোটিশ</button>'
+                                + '<button onclick="openBanModal(\'' + uid + '\', \'' + esc(u.email || u.name || uid) + '\', \'' + esc(u.banReason || '') + '\', true)" class="btn bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 font-bold" title="ব্যান নোটিশ এডিট করুন">✏️ নোটিশ</button>'
                                 : '<button onclick="openBanModal(\'' + uid + '\', \'' + esc(u.email || u.name || uid) + '\', \'\', false)" class="btn bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold">Ban</button>'
                             )
                             + '<button onclick="userSheet(\'' + uid + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold">Sheet</button>'
@@ -9912,8 +10088,6 @@
                     title: t.title || t.taskTitle || 'Activity Log',
                     note: t.note || t.game || '',
                     amount: Number(t.amount || 0),
-                    balance_before: t.balance_before !== undefined ? roundCoin(t.balance_before) : (t.previousBalance !== undefined ? roundCoin(t.previousBalance) : null),
-                    balance_after: t.balance_after !== undefined ? roundCoin(t.balance_after) : null,
                     status: t.status || 'completed',
                     ts: t.createdAt
                 });
@@ -9921,15 +10095,12 @@
 
             // 2. Orders from Cloudflare / Firestore
             ord.forEach(o => {
-                const oAmt = -Math.abs(Number(o.amount || o.coins || 2));
                 unifiedHist.push({
                     badge: '🎮 QUEST',
                     badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
                     title: o.game || 'Game Quest Order',
                     note: o.adminMsg || (o.accEmail ? 'Account: ' + o.accEmail : ''),
-                    amount: oAmt,
-                    balance_before: o.balance_before !== undefined ? roundCoin(o.balance_before) : (o.previousBalance !== undefined ? roundCoin(o.previousBalance) : null),
-                    balance_after: o.balance_after !== undefined ? roundCoin(o.balance_after) : null,
+                    amount: -Math.abs(Number(o.amount || o.coins || 2)),
                     status: o.status || 'completed',
                     ts: o.createdAt
                 });
@@ -9943,8 +10114,6 @@
                     title: `ডিপোজিট (${d.method || 'Gateway'})`,
                     note: `TrxID: ${d.trxId || '—'} • ${d.amount || 0} BDT`,
                     amount: Math.abs(Number(d.coins || 0)),
-                    balance_before: d.balance_before !== undefined ? roundCoin(d.balance_before) : (d.previousBalance !== undefined ? roundCoin(d.previousBalance) : null),
-                    balance_after: d.balance_after !== undefined ? roundCoin(d.balance_after) : null,
                     status: d.status || 'approved',
                     ts: d.createdAt
                 });
@@ -9959,8 +10128,6 @@
                     title: codeUpper === 'DAILY' ? 'ডেইলি বোনাস ক্লেইম' : ('প্রোমো কোড: ' + (r.code || '')),
                     note: r.note || '',
                     amount: Math.abs(Number(r.amount || 0)),
-                    balance_before: r.balance_before !== undefined ? roundCoin(r.balance_before) : (r.previousBalance !== undefined ? roundCoin(r.previousBalance) : null),
-                    balance_after: r.balance_after !== undefined ? roundCoin(r.balance_after) : null,
                     status: r.status || 'approved',
                     ts: r.createdAt
                 });
@@ -9989,22 +10156,14 @@
 
             const historyHtml = filteredHist.length > 0 ? filteredHist.slice(0, 50).map(item => {
                 const isPlus = item.amount > 0;
-                const amtTxt = (isPlus ? '+' : '') + roundCoin(item.amount) + ' Coins';
+                const amtTxt = (isPlus ? '+' : '') + item.amount + ' Coins';
                 const amtCls = isPlus ? 'text-emerald-600' : (item.amount < 0 ? 'text-amber-600' : 'text-slate-500');
-                let balAuditHtml = '';
-                if (item.balance_before !== null && item.balance_before !== undefined && item.balance_after !== null && item.balance_after !== undefined) {
-                    balAuditHtml = `<div class="mt-1 flex items-center gap-1.5"><span class="text-[9.5px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">আগে: ${item.balance_before}c ➔ পরে: ${item.balance_after}c</span></div>`;
-                } else if (item.balance_before !== null && item.balance_before !== undefined) {
-                    const inferredAfter = roundCoin(Number(item.balance_before) + Number(item.amount || 0));
-                    balAuditHtml = `<div class="mt-1 flex items-center gap-1.5"><span class="text-[9.5px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">আগে: ${item.balance_before}c ➔ পরে: ${inferredAfter}c</span></div>`;
-                }
                 return `<div class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-between gap-2 text-xs">
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <span class="px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase shrink-0 ${item.badgeCls}">${item.badge}</span>
                         <div class="min-w-0 flex-1">
                             <p class="font-extrabold text-slate-900 truncate leading-tight">${esc(item.title)}</p>
                             ${item.note ? `<p class="text-[10px] text-slate-500 truncate font-semibold mt-0.5">${esc(item.note)}</p>` : ''}
-                            ${balAuditHtml}
                         </div>
                     </div>
                     <div class="text-right shrink-0">
@@ -10152,7 +10311,7 @@
             r.readAsDataURL(f);
         };
 
-        
+
         /* ======================================================================
            PUBLIC PORTAL LIVE SERVICE MATCHER & BADGE ENGINE
            Matches Admin Offers against configured Public Portal Services
@@ -11009,7 +11168,7 @@
                     bonusBalance: 0,
                     realBalance: newTotal,
                     balance: newTotal
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
 
                 // 3. Log transaction
                 const curMonthKey = (new Date()).toISOString().slice(0, 7);
@@ -11020,7 +11179,7 @@
                     title: 'লিডারবোর্ড ১ম পুরষ্কার (১০ কয়েন)',
                     note: `${curMonthKey} সিজনে শীর্ষ #১ স্থান অধিকার করায় ১০ কয়েন পুরষ্কার (Admin Awarded)`,
                     createdAt: serverTimestamp()
-                }).catch(() => {});
+                }).catch(() => { });
 
                 // 4. Update season record
                 const nextMonth = new Date();
@@ -11034,7 +11193,7 @@
                     lastWinnerPoints: u.points,
                     rewardedAt: serverTimestamp(),
                     currentSeason: nextMonthKey
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
 
                 toast(`🎉 সফল! ${u.name} কে ১০ কয়েন পুরষ্কার দেওয়া হয়েছে!`);
                 logIt('leaderboard_top1_reward', `${u.name} awarded 10 coins (${u.points} pts)`);
@@ -11511,7 +11670,7 @@
             const p = document.getElementById('starPreview');
             if (p) p.textContent = '3 Coins = ' + x + ' Stars · 6 Coins = ' + (2 * x) + ' Stars · 9 Coins = ' + (3 * x) + ' Stars · 12 Coins = ' + (4 * x) + ' Stars';
         };
-        
+
         // --- Task Credential Methods (Server Code & Gmail/Pass Toggle) ---
         function syncCredMethodBtns() {
             const scOn = S.cfg && S.cfg.serverCodeOn !== false;
@@ -11535,7 +11694,7 @@
                 if (!S.cfg) S.cfg = {};
                 S.cfg.serverCodeOn = nv;
                 syncCredMethodBtns();
-                await setDoc(doc(db, 'config', 'app'), { serverCodeOn: nv }, { merge: true }).catch(() => {});
+                await setDoc(doc(db, 'config', 'app'), { serverCodeOn: nv }, { merge: true }).catch(() => { });
                 await triggerCloudflareCachePurge();
                 toast('Server Code Method: ' + (nv ? 'ON' : 'OFF'));
                 logIt('toggle_server_code', nv ? 'ON' : 'OFF');
@@ -11548,7 +11707,7 @@
                 if (!S.cfg) S.cfg = {};
                 S.cfg.emailPassOn = nv;
                 syncCredMethodBtns();
-                await setDoc(doc(db, 'config', 'app'), { emailPassOn: nv }, { merge: true }).catch(() => {});
+                await setDoc(doc(db, 'config', 'app'), { emailPassOn: nv }, { merge: true }).catch(() => { });
                 await triggerCloudflareCachePurge();
                 toast('Gmail/Pass Method: ' + (nv ? 'ON' : 'OFF'));
                 logIt('toggle_email_pass', nv ? 'ON' : 'OFF');
@@ -11616,7 +11775,7 @@
                 if (!S.cfg) S.cfg = {};
                 S.cfg.maintenance = nv;
                 syncMaintButtons();
-                await setDoc(doc(db, 'config', 'app'), { maintenance: nv }, { merge: true }).catch(() => {});
+                await setDoc(doc(db, 'config', 'app'), { maintenance: nv }, { merge: true }).catch(() => { });
                 await triggerCloudflareCachePurge();
                 toast('Maintenance set to ' + (nv ? 'ACTIVE' : 'OFF'));
                 logIt('maintenance', nv ? 'ON' : 'OFF');
@@ -12014,9 +12173,9 @@
             if (window.setConn) window.setConn('offline', 'Admin Firebase login missing — save kaj korbe na. <button onclick="retryConn()" class="underline font-extrabold ml-1">Retry login</button>');
             return false;
         }
-                
 
-async function secSave(btn, payload, msg) {
+
+        async function secSave(btn, payload, msg) {
             if (!needAdmin()) return;
             const runSave = async () => {
                 if (!S.cfg) S.cfg = {};
@@ -12699,8 +12858,8 @@ async function secSave(btn, payload, msg) {
         }
         window.deleteLicenseKey = deleteLicenseKey;
 
-    
-        window.adminDeleteAllVaultAccounts = async function(uid) {
+
+        window.adminDeleteAllVaultAccounts = async function (uid) {
             if (!confirm('আপনি কি নিশ্চিত এই ইউজারের সব কানেক্টেড Google Account মুছে দিতে চান?')) return;
             toast('অ্যাকাউন্টগুলো মোছা হচ্ছে...');
             try {
@@ -12721,7 +12880,7 @@ async function secSave(btn, payload, msg) {
             }
         };
 
-        window.adminDeleteVaultAccount = async function(code, uid) {
+        window.adminDeleteVaultAccount = async function (code, uid) {
             if (!confirm('আপনি কি এই অ্যাকাউন্টটি মুছে ফেলতে চান? (QID: ' + code + ')')) return;
             toast('অ্যাকাউন্ট মোছা হচ্ছে...');
             try {
@@ -12741,7 +12900,7 @@ async function secSave(btn, payload, msg) {
                 toast('❌ এরর: ' + e.message);
             }
         };
-</script>
+    </script>
 </body>
 
 </html>
