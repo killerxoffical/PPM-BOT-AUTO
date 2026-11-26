@@ -7791,13 +7791,14 @@
                         const cleanTg = String(uTg).replace(/^@/, '').trim();
                         if (/^\d{5,}$/.test(cleanTg)) {
                             const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
-                            const depMsg = `✅ <b>আপনার ডিপোজিট অ্যাপ্রুভ হয়েছে!</b>\n\n` +
-                                `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
-                                `🪙 <b>Coin:</b> +${coinsToAdd} PP Coins\n` +
+                            const depMsg = `🎉 <b>ডিপোজিট সফল হয়েছে! (Deposit Approved)</b>\n` +
+                                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                `🪙 <b>প্যাকেজ:</b> +${coinsToAdd} PP Coins যোগ হয়েছে ✅\n` +
+                                `💵 <b>পরিমাণ:</b> ${targetDep.amount} BDT\n` +
+                                `💳 <b>মেথড:</b> ${targetDep.method || 'bKash'}\n` +
                                 `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
-                                `👤 <b>Account Name:</b> ${targetDep.name || 'User'}\n` +
-                                `📧 <b>Mail:</b> ${targetDep.email || '—'}\n` +
-                                `🆔 <b>UID:</b> <code>${targetDep.uid}</code>`;
+                                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                `🚀 <i>আপনার ওয়ালেটে কয়েন যুক্ত হয়েছে। এখনই আপনার পছন্দের গেমের টাস্ক শুরু করতে পারেন!</i>`;
                             fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -7808,19 +7809,15 @@
 
                     // অ্যাডমিনকে সরাসরি টেলিগ্রামে নোটিফিকেশন পাঠানো (Admin Notification on Bot)
                     const tok = ((S.cfg && S.cfg.botToken) || '').trim() || BOT_TOKEN;
-                    const adminDepMsg = `💎 <b>DEPOSIT APPROVED (ADMIN AUDIT)</b> ✅\n\n` +
-                        `🆔 <b>User ID:</b> <code>${targetDep.uid}</code>\n` +
-                        `👤 <b>Account Name:</b> ${targetDep.name || 'User'}\n` +
-                        `📧 <b>Email:</b> ${targetDep.email || '—'}\n` +
-                        `💬 <b>Telegram:</b> ${uTg ? `<code>${uTg}</code>` : 'Not Connected'}\n` +
+                    const adminDepMsg = `💎 <b>DEPOSIT APPROVED FROM ADMIN PANEL!</b>\n\n` +
+                        `👤 <b>User:</b> ${targetDep.name || 'User'} (<code>${targetDep.email || '—'}</code>)\n` +
+                        `🆔 <b>UID:</b> <code>${targetDep.uid}</code>\n` +
+                        `🆔 <b>Dep ID:</b> <code>${id}</code>\n` +
                         `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
                         `🪙 <b>Coins Credited:</b> +${coinsToAdd} PP Coins\n` +
-                        `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
-                        `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins\n` +
                         `💳 <b>Method:</b> ${targetDep.method || 'bKash'}\n` +
                         `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
-                        `🕒 <b>Time:</b> ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })}\n` +
-                        `🛡️ <b>Status:</b> Approved`;
+                        `✅ <b>Status:</b> APPROVED by Admin`;
                     fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
