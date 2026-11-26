@@ -9958,170 +9958,44 @@
             window.toggleBanWithNotice(uid, cur);
         };
 
-        window.userSheet = async (uid) => {
-            // 0. Instant Visual Response: তড়িৎ লোডিং স্পিনার ও শিট ওপেন
-            const initialUser = (S.users || []).find(x => x.id === uid || x.uid === uid) || { name: 'User', email: '', balance: 0 };
-            openSheet(`
-                <div class="p-6 sm:p-8 text-center space-y-4">
-                    <div class="relative w-14 h-14 mx-auto flex items-center justify-center">
-                        <div class="w-14 h-14 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin"></div>
-                        <div class="absolute inset-0 flex items-center justify-center text-lg">⚡</div>
-                    </div>
-                    <div>
-                        <h4 class="text-sm font-black text-slate-900">${esc(initialUser.name || 'User Profile')}</h4>
-                        <p class="text-xs text-indigo-600 font-bold mt-0.5">Fetching live data from Cloudflare D1...</p>
-                        <p class="text-[11px] text-slate-400 font-medium">Synced Google Accounts, Orders & Live Balance লোড হচ্ছে</p>
-                    </div>
-                    <div class="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-mono text-slate-600 truncate max-w-xs mx-auto">
-                        UID: ${esc(uid)}
-                    </div>
-                    <button onclick="closeSheet()" class="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-200/60 rounded-lg">Cancel</button>
-                </div>
-            `);
-
-            // ১. প্যারালাল ফেচ (Parallel Fetch): একসাথে ৩টি এপিআই কল (১ সেকেন্ডের মধ্যে রেডি)
-            let u = {
-                id: uid,
-                uid: uid,
-                name: initialUser.name || 'User',
-                email: initialUser.email || '',
-                photo: initialUser.avatar || initialUser.photo || '',
-                balance: Number(initialUser.balance || 0),
-                realBalance: Number(initialUser.realBalance !== undefined ? initialUser.realBalance : initialUser.balance || 0),
-                bonusBalance: Number(initialUser.bonusBalance || 0),
-                playPoints: Number(initialUser.playPoints || 0),
-                pendingPoints: Number(initialUser.pendingPoints || 0),
-                loyaltyStars: Number(initialUser.loyaltyStars || 0),
-                                banned: (initialUser.banned === 1 || initialUser.banned === true),
-                banReason: initialUser.banReason || ''
-            };
-
+                function buildUserSheetHtml(u, ord, dep, red, cfTransactions, vAccounts, isSyncing) {
             let vaultHtml = '';
-            let ord = (S.orders || []).filter(d => d.uid === uid || (u.email && (d.accEmail === u.email || d.email === u.email)));
-
-            try {
-                const fetchWithTimeout = (url, timeoutMs = 6000) => {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-                    return fetch(url, { signal: controller.signal })
-                        .then(r => { clearTimeout(timeoutId); return r.json(); })
-                        .catch(() => null);
-                };
-
-                const [walletRes, ordRes, vaultRes, histRes] = await Promise.allSettled([
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/wallet?uid=${encodeURIComponent(uid)}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/history?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`)
-                ]);
-
-                // Cloudflare History Transactions
-                const cfHistRes = histRes.status === 'fulfilled' ? histRes.value : null;
-                const cfTransactions = (cfHistRes && cfHistRes.ok && Array.isArray(cfHistRes.history)) ? cfHistRes.history : [];
-
-                // Wallet Data
-                const walletData = walletRes.status === 'fulfilled' ? walletRes.value : null;
-                if (walletData && walletData.ok && walletData.wallet) {
-                    const w = walletData.wallet;
-                    u = {
-                        id: uid,
-                        uid: uid,
-                        name: w.name || initialUser.name || 'User',
-                        email: w.email || initialUser.email || '',
-                        photo: w.avatar || initialUser.photo || '',
-                        balance: Number(w.balance || 0),
-                        realBalance: Number(w.realBalance !== undefined ? w.realBalance : w.balance),
-                        bonusBalance: Number(w.bonusBalance || 0),
-                        playPoints: Number(w.playPoints || 0),
-                        pendingPoints: Number(w.pendingPoints || 0),
-                        loyaltyStars: Number(w.loyaltyStars || 0),
-                                                banned: (w.banned === 1 || w.banned === true),
-                        banReason: w.banReason || ''
-                    };
-                }
-
-                // Orders Data
-                const cfOrdRes = ordRes.status === 'fulfilled' ? ordRes.value : null;
-                if (cfOrdRes && cfOrdRes.ok && Array.isArray(cfOrdRes.orders)) {
-                    const ordMap = new Map();
-                    ord.forEach(o => ordMap.set(o.id, o));
-                    cfOrdRes.orders.forEach(o => {
-                        ordMap.set(o.id, {
-                            id: o.id,
-                            uid: o.uid,
-                            name: o.name || 'User',
-                            email: o.email || '',
-                            accEmail: o.accEmail || '',
-                            accPass: o.accPass || '',
-                            game: o.game || 'Task',
-                            logo: o.logo || '',
-                            amount: Number(o.amount) || 2,
-                            status: o.status || 'pending',
-                            adminMsg: o.adminMsg || '',
-                            gamerName: o.gamerName || '',
-                            userTgId: o.userTgId || '',
-                            createdAt: o.createdAt ? new Date(Number(o.createdAt) || o.createdAt) : new Date()
-                        });
-                    });
-                    ord = Array.from(ordMap.values()).sort((x, y) => msOf(y) - msOf(x));
-                }
-
-                // Connected Vault Accounts
-                const vData = vaultRes.status === 'fulfilled' ? vaultRes.value : null;
-                const vAccounts = (vData && vData.accounts) || [];
-                if (vAccounts.length > 0) {
-                    vaultHtml = `
-                        <div class="mt-4 p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/50 space-y-2.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                    <span>📱 Connected Google Accounts (${vAccounts.length})</span>
-                                </span>
-                                <button type="button" onclick="adminDeleteAllVaultAccounts('${uid}')" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; padding:3px 8px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">
-                                    🗑️ Delete All Accounts
-                                </button>
-                            </div>
-                            <div class="space-y-1.5 max-h-48 overflow-y-auto">
-                                ${vAccounts.map(acc => `
-                                    <div class="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-xs">
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-1.5">
-                                                <span class="font-bold text-slate-900 truncate">${esc(acc.email)}</span>
-                                                ${acc.code ? `<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-mono text-[10px] font-bold">Code: ${acc.code}</span>` : ''}
-                                            </div>
-                                            <div class="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
-                                                <span>Added: ${fmtDate(acc.createdAt)}</span>
-                                                ${acc.country ? `<span>• ${acc.country}</span>` : ''}
-                                            </div>
-                                        </div>
-                                        <button type="button" onclick="adminDeleteVaultAccount('${acc.id}', '${uid}')" style="color:#ef4444; padding:2px 6px; font-size:11px;" title="Delete this account">🗑️</button>
-                                    </div>
-                                `).join('')}
-                            </div>
+            if (vAccounts && vAccounts.length > 0) {
+                vaultHtml = `
+                    <div class="mt-4 p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/50 space-y-2.5 text-left">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <span>📱 Connected Google Accounts (${vAccounts.length})</span>
+                            </span>
+                            <button type="button" onclick="adminDeleteAllVaultAccounts('${u.id}')" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; padding:3px 8px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">
+                                🗑️ Delete All Accounts
+                            </button>
                         </div>
-                    `;
-                }
-            } catch (e) {
-                console.warn('[userSheet parallel fetch warn]:', e);
+                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                            ${vAccounts.map(acc => `
+                                <div class="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-xs">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="font-bold text-slate-900 truncate">${esc(acc.email)}</span>
+                                            ${acc.code ? `<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-mono text-[10px] font-bold">Code: ${acc.code}</span>` : ''}
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                                            <span>Added: ${fmtDate(acc.createdAt)}</span>
+                                            ${acc.country ? `<span>• ${acc.country}</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <button type="button" onclick="adminDeleteVaultAccount('${acc.id}', '${u.id}')" style="color:#ef4444; padding:2px 6px; font-size:11px;" title="Delete this account">🗑️</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
             }
 
-            const dep = (S.deposits || []).filter(d => d.uid === uid || (u.email && (d.userEmail === u.email || d.email === u.email)));
-            const red = (S.redemptions || []).filter(d => d.uid === uid);
             const sum = arr => arr.reduce((a, b) => a + (Number(b.amount) || 0), 0);
-
-            // Fetch live transactions from Firestore for this user
-            let userTxs = [];
-            try {
-                const txSnap = await getDocs(query(collection(db, 'transactions'), where('uid', '==', uid)));
-                txSnap.forEach(docSnap => {
-                    userTxs.push({ id: docSnap.id, ...docSnap.data() });
-                });
-            } catch (e) {
-                console.warn('userSheet tx fetch err:', e);
-            }
-
             const unifiedHist = [];
 
-            // 0. Cloudflare D1 Transactions (Highest accuracy for balance before/after audit)
+            // 0. Cloudflare Transactions
             (cfTransactions || []).forEach(t => {
                 const kind = (t.kind || '').toUpperCase();
                 let badge = 'LOG';
@@ -10148,39 +10022,9 @@
                 });
             });
 
-            // 1. Transactions from Firestore (Quest unlocks, Level-ups, Daily claims, Task rewards, Promo codes, etc.)
-            userTxs.forEach(t => {
-                if ((cfTransactions || []).some(c => c.id === t.id)) return;
-                const type = (t.type || t.kind || '').toLowerCase();
-                let badge = 'LOG';
-                let badgeCls = 'bg-slate-100 text-slate-700 border border-slate-300';
-                if (type.includes('quest')) { badge = '🎮 QUEST'; badgeCls = 'bg-indigo-100 text-indigo-800 border border-indigo-200'; }
-                else if (type.includes('daily')) { badge = '⭐ DAILY'; badgeCls = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; }
-                else if (type.includes('task') || type.includes('earn')) { badge = '⚡ TASK'; badgeCls = 'bg-purple-100 text-purple-800 border border-purple-200'; }
-                else if (type.includes('level')) { badge = '🚀 LEVEL'; badgeCls = 'bg-blue-100 text-blue-800 border border-blue-200'; }
-                else if (type.includes('deposit') || type.includes('top-up')) { badge = '🪙 DEPOSIT'; badgeCls = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; }
-                else if (type.includes('promo') || type.includes('code')) { badge = '🎟️ PROMO'; badgeCls = 'bg-amber-100 text-amber-800 border border-amber-200'; }
-                else if (type.includes('reward')) { badge = '🎁 REWARD'; badgeCls = 'bg-rose-100 text-rose-800 border border-rose-200'; }
-
-                const balBefore = t.balance_before !== undefined && t.balance_before !== null ? Number(t.balance_before) : (t.previousBalance !== undefined && t.previousBalance !== null ? Number(t.previousBalance) : null);
-                const balAfter = t.balance_after !== undefined && t.balance_after !== null ? Number(t.balance_after) : null;
-
-                unifiedHist.push({
-                    id: t.id,
-                    badge,
-                    badgeCls,
-                    title: t.title || t.taskTitle || 'Activity Log',
-                    note: t.note || t.game || t.info || '',
-                    amount: Number(t.amount || 0),
-                    status: t.status || 'completed',
-                    ts: t.createdAt,
-                    balBefore,
-                    balAfter
-                });
-            });
-
-            // 2. Orders from Cloudflare / Firestore
-            ord.forEach(o => {
+            // 1. Orders
+            (ord || []).forEach(o => {
+                if ((cfTransactions || []).some(c => c.id === o.id)) return;
                 unifiedHist.push({
                     badge: '🎮 QUEST',
                     badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
@@ -10192,8 +10036,9 @@
                 });
             });
 
-            // 3. Deposits
-            dep.forEach(d => {
+            // 2. Deposits
+            (dep || []).forEach(d => {
+                if ((cfTransactions || []).some(c => c.id === d.id || (c.info && d.trxId && c.info.includes(d.trxId)))) return;
                 unifiedHist.push({
                     badge: '🪙 DEPOSIT',
                     badgeCls: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
@@ -10205,8 +10050,9 @@
                 });
             });
 
-            // 4. Redemptions (Daily, Codes)
-            red.forEach(r => {
+            // 3. Redemptions
+            (red || []).forEach(r => {
+                if ((cfTransactions || []).some(c => c.id === r.id)) return;
                 const codeUpper = (r.code || '').toUpperCase();
                 unifiedHist.push({
                     badge: codeUpper === 'DAILY' ? '⭐ DAILY' : '🎟️ CODE',
@@ -10229,7 +10075,6 @@
             };
             unifiedHist.sort((a, b) => ms(b.ts) - ms(a.ts));
 
-            // Unique deduplicate by title + time slice
             const seenKeys = new Set();
             const filteredHist = [];
             for (const item of unifiedHist) {
@@ -10269,12 +10114,15 @@
                 </div>`;
             }).join('') : '<p class="text-xs text-slate-400 font-semibold py-4 text-center">কোনো ট্রানজ্যাকশন বা ক্লেইম হিস্ট্রি পাওয়া যায়নি</p>';
 
-            openSheet(
-                '<div class="flex items-center gap-3">'
+            const syncBadgeHtml = isSyncing
+                ? '<span class="text-[9.5px] px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 font-bold animate-pulse flex items-center gap-1 shrink-0">⚡ Syncing...</span>'
+                : '<span class="text-[9.5px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold flex items-center gap-1 shrink-0">● Live</span>';
+
+            return '<div class="flex items-center gap-3">'
                 + thumb(u.photo || '', u.name, 48)
-                + '<div class="grow min-w-0"><h3 class="font-bold text-base text-slate-900 truncate">' + esc(u.name || u.email || u.id)
+                + '<div class="grow min-w-0"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-base text-slate-900 truncate">' + esc(u.name || u.email || u.id)
                 + (u._virtual ? ' <span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold" title="Auto-detected from deposits/orders">Unsynced</span>' : '')
-                + '</h3>'
+                + '</h3>' + syncBadgeHtml + '</div>'
                 + '<div class="cpline"><p class="grow text-xs text-slate-500 truncate">' + esc(u.email || 'No email') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div>'
                 + '<div class="cpline"><p class="grow text-[11px] font-mono text-slate-400 truncate">' + esc(u.id) + '</p>' + cpBtn(u.id, 'Copy UID') + '</div>'
                 + '</div></div>'
@@ -10349,8 +10197,89 @@
                 + '<div class="space-y-1.5 max-h-[380px] overflow-y-auto pr-0.5">'
                 + historyHtml
                 + '</div></div>'
-                + '<button onclick="closeSheet()" class="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl text-xs cursor-pointer transition-all">Close</button>'
-            );
+                + '<button onclick="closeSheet()" class="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl text-xs cursor-pointer transition-all">Close</button>';
+        }
+
+        window.userSheet = async (uid) => {
+            try {
+                // ১. INSTANT ZERO-LATENCY OPENING (০ সেকেন্ডের মধ্যে শিট ওপেন - কোনো স্পিনার আটকে থাকবে না!)
+                const initialUser = (S.users || []).find(x => x.id === uid || x.uid === uid) || { id: uid, uid: uid, name: 'User', email: '', balance: 0, loyaltyStars: 0 };
+                let u = {
+                    id: uid,
+                    uid: uid,
+                    name: initialUser.name || 'User',
+                    email: initialUser.email || '',
+                    photo: initialUser.avatar || initialUser.photo || '',
+                    balance: Number(initialUser.balance || 0),
+                    realBalance: Number(initialUser.realBalance !== undefined ? initialUser.realBalance : initialUser.balance || 0),
+                    bonusBalance: Number(initialUser.bonusBalance || 0),
+                    playPoints: Number(initialUser.playPoints || 0),
+                    pendingPoints: Number(initialUser.pendingPoints || 0),
+                    loyaltyStars: Number(initialUser.loyaltyStars || 0),
+                    banned: (initialUser.banned === 1 || initialUser.banned === true),
+                    banReason: initialUser.banReason || '',
+                    _virtual: initialUser._virtual
+                };
+
+                let ord = (S.orders || []).filter(d => d.uid === uid || (u.email && (d.accEmail === u.email || d.email === u.email)));
+                let dep = (S.deposits || []).filter(d => d.uid === uid || (u.email && (d.userEmail === u.email || d.email === u.email)));
+                let red = (S.redemptions || []).filter(d => d.uid === uid);
+
+                // তাৎক্ষণিক সম্পূর্ণ শিট প্রদর্শন (Instant Render - 0ms)
+                openSheet(buildUserSheetHtml(u, ord, dep, red, [], [], true));
+
+                // ২. ব্যাকগ্রাউন্ডে ক্লাউডফ্লেয়ার লাইভ ডাটা সিঙ্ক (Fast Parallel Fetch - Non-blocking)
+                const fetchWithTimeout = (url, timeoutMs = 3500) => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                    return fetch(url, { signal: controller.signal })
+                        .then(r => { clearTimeout(timeoutId); return r.json(); })
+                        .catch(() => null);
+                };
+
+                const [walletRes, ordRes, vaultRes, histRes] = await Promise.allSettled([
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/wallet?uid=${encodeURIComponent(uid)}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/history?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`)
+                ]);
+
+                // Wallet Data
+                const walletData = walletRes.status === 'fulfilled' ? walletRes.value : null;
+                if (walletData && walletData.ok && walletData.wallet) {
+                    const w = walletData.wallet;
+                    u.name = w.name || u.name;
+                    u.email = w.email || u.email;
+                    u.photo = w.avatar || u.photo;
+                    u.balance = Number(w.balance || 0);
+                    u.realBalance = Number(w.realBalance !== undefined ? w.realBalance : w.balance);
+                    u.loyaltyStars = Number(w.loyaltyStars || 0);
+                    u.banned = (w.banned === 1 || w.banned === true);
+                    u.banReason = w.banReason || u.banReason;
+                }
+
+                // Orders Data
+                const cfOrdRes = ordRes.status === 'fulfilled' ? ordRes.value : null;
+                if (cfOrdRes && cfOrdRes.ok && Array.isArray(cfOrdRes.orders)) {
+                    const ordMap = new Map();
+                    ord.forEach(o => ordMap.set(o.id, o));
+                    cfOrdRes.orders.forEach(o => ordMap.set(o.id, o));
+                    ord = Array.from(ordMap.values());
+                }
+
+                // Vault Accounts
+                const vData = vaultRes.status === 'fulfilled' ? vaultRes.value : null;
+                const vAccounts = (vData && vData.accounts) || [];
+
+                // History
+                const cfHistRes = histRes.status === 'fulfilled' ? histRes.value : null;
+                const cfTransactions = (cfHistRes && cfHistRes.ok && Array.isArray(cfHistRes.history)) ? cfHistRes.history : [];
+
+                // ৩. লাইভ ডাটা দিয়ে স্মুথ আপডেট
+                openSheet(buildUserSheetHtml(u, ord, dep, red, cfTransactions, vAccounts, false));
+            } catch (err) {
+                console.error('userSheet error:', err);
+            }
         };
 
         function rowLine(k, t, a, s, ts, prevBal = null) {
