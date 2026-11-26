@@ -555,6 +555,57 @@ export default {
       if (path === "/api/sync/accounts" && request.method === "GET") {
         const uid = (url.searchParams.get("uid") || "").trim();
         const ownerEmail = (url.searchParams.get("owner_email") || url.searchParams.get("email") || "").trim().toLowerCase();
+        const all = url.searchParams.get("all") === "true";
+
+        if (all) {
+          const map = new Map();
+          try {
+            const vRes = await env.DB.prepare(`
+              SELECT 
+                v.id, v.uid, v.code, v.email, v.country, v.createdAt, v.updatedAt,
+                u.name AS user_name, u.email AS user_email, u.balance AS user_balance, u.avatar AS user_avatar
+              FROM pp_sync_vault v
+              LEFT JOIN user_wallets u ON (v.uid = u.uid OR LOWER(v.email) = LOWER(u.email))
+              WHERE v.status = 'active'
+              ORDER BY v.createdAt DESC
+              LIMIT 500
+            `).all();
+            (vRes.results || []).forEach(r => {
+              const key = (r.code || r.id || r.email);
+              map.set(key, {
+                ...r,
+                country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+                user_name: r.user_name || "User",
+                user_email: r.user_email || ""
+              });
+            });
+          } catch(e) {}
+
+          try {
+            const gRes = await env.DB.prepare(`
+              SELECT 
+                g.id, g.uid, g.code, g.email, g.country, g.createdAt, g.updatedAt,
+                u.name AS user_name, u.email AS user_email, u.balance AS user_balance, u.avatar AS user_avatar
+              FROM g_tokens g
+              LEFT JOIN user_wallets u ON (g.uid = u.uid OR LOWER(g.email) = LOWER(u.email))
+              WHERE g.status = 'active'
+              ORDER BY g.createdAt DESC
+              LIMIT 500
+            `).all();
+            (gRes.results || []).forEach(r => {
+              const key = (r.code || r.id || r.email);
+              map.set(key, {
+                ...r,
+                country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+                user_name: r.user_name || "User",
+                user_email: r.user_email || ""
+              });
+            });
+          } catch(e) {}
+
+          const list = Array.from(map.values());
+          return json({ ok: true, total: list.length, accounts: list });
+        }
 
         if (!uid && !ownerEmail) {
           return json({ ok: true, accounts: [] });
@@ -567,6 +618,12 @@ export default {
             if (userRec && userRec.uid) targetUid = userRec.uid;
           } catch (_) {}
         }
+        if (targetUid && !ownerEmail) {
+          try {
+            const uRow = await env.DB.prepare("SELECT email FROM user_wallets WHERE uid = ? LIMIT 1").bind(targetUid).first();
+            if (uRow && uRow.email) ownerEmail = uRow.email.trim().toLowerCase();
+          } catch (_) {}
+        }
 
         // Fetch from clean g_tokens first
         let gRes = null;
@@ -574,9 +631,9 @@ export default {
           try {
             gRes = await env.DB.prepare(`
               SELECT id, uid, code, email, token, country, android_id, createdAt, updatedAt FROM g_tokens
-              WHERE uid = ? AND status = 'active'
+              WHERE (uid = ? OR (LOWER(email) = ? AND ? != '')) AND status = 'active'
               ORDER BY createdAt DESC LIMIT 100
-            `).bind(targetUid).all();
+            `).bind(targetUid, ownerEmail || '', ownerEmail || '').all();
           } catch(e) {}
         } else if (ownerEmail) {
           try {
@@ -740,6 +797,58 @@ export default {
             ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
           `).bind(raw, Date.now()).run();
           return json({ ok: true, message: "Registered devices permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/games-levelup" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'games_levelup' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/games-levelup" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('games_levelup', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Games levelup permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/level-up-config" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'level_up_config' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/level-up-config" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('level_up_config', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Level up config permanently backed up to Cloudflare D1!" });
         } catch(e) {
           return json({ ok: false, error: e.message }, 500);
         }
