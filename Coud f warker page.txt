@@ -1,39 +1,16 @@
 /**
- * PPM CLOUD - Pure Serverless Cloudflare Worker API
- * 100% Native Cloudflare D1 SQL - Zero Firebase Dependencies
- * Features:
- *   - 8-Character Unique PP ID (e.g. 9JO38FH4)
- *   - Plain Password storage accessible to Admin
- *   - Single Coin Balance (PP Coin only)
- *   - Device Lock (App active device verification + Admin reset)
- *   - Persistent Portal Games Cloud Storage (Render restart proof)
- *   - Transaction History with 10-item Pagination
- *   - Real Monthly Quest Leaderboard
- *   - Telegram Alerts
+ * PP MOD Cloudflare D1 + Worker Edge API Gateway
+ * URL: ppmod-api.tredarskvt.workers.dev
+ * Fully Optimized for Single Unified PP Coin Balance,
+ * Auto Payment Gateway, Quest Orders, and Strict Privacy
  */
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-  "Access-Control-Max-Age": "86400"
+  "Access-Control-Max-Age": "86400",
 };
-
-const DEFAULT_AVATARS = [
-  "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzn6uplqxLbkia4Sy_PoGkzeqrCFqHgEJaGjCBG1nSkg&s=10",
-  "https://i.pinimg.com/736x/c1/a8/79/c1a879739da4e3f95e30f69db944c737.jpg",
-  "https://i.pinimg.com/474x/28/2d/f2/282df29c592fc83f709894d7d196cb46.jpg?nii=t",
-  "https://img.magnific.com/premium-vector/proanto-design_863867-2048.jpg?semt=ais_hybrid&w=740&q=80",
-  "https://i.pinimg.com/736x/8f/e0/77/8fe0770f3100072c2498b29e83125bac.jpg",
-  "https://i.pinimg.com/474x/16/22/ec/1622ec20148ae8fd1085d2dda1606227.jpg",
-  "https://i.pinimg.com/474x/90/97/31/90973171a4c8bd2aa954a467dd0a237b.jpg",
-  "https://i.pinimg.com/474x/a7/0b/b3/a70bb3a3b2734ae168dd1fa2535b1103.jpg",
-  "https://i.pinimg.com/474x/2b/da/b3/2bdab370fcda0c4b39a900af7718eb88.jpg",
-  "https://i.pinimg.com/474x/30/96/1d/30961dfef844ab4bde18f62c338ba01b.jpg",
-  "https://i.pinimg.com/474x/a5/b8/3b/a5b83bd1af5e44300b9d36d39d439978.jpg",
-  "https://i.pinimg.com/474x/b6/33/49/b63349870c0e2781089cd79cc0497c70.jpg",
-  "https://i.pinimg.com/474x/e9/b8/42/e9b842f910a968a7deef0e1c7f7a74d1.jpg"
-];
 
 const TG_BOT_TOKEN = "8906230491:AAGdST6cFQmE71kUkGX6NVnwImzUwA27wh4";
 const ADMIN_TG_ID = "7504616242";
@@ -44,25 +21,21 @@ function json(data, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      ...CORS_HEADERS
-    }
+      ...CORS_HEADERS,
+    },
   });
 }
 
-function generatePPId() {
-  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // exclude 0, 1, I, O to avoid confusion
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+function roundCoin(n) {
+  const num = Number(n) || 0.0;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
 async function sendTelegram(chatId, text) {
   if (!chatId || !text) return;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 3500);
     await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -75,1316 +48,2073 @@ async function sendTelegram(chatId, text) {
   }
 }
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const method = request.method.toUpperCase();
-    const path = url.pathname;
+// 60-day auto-cleanup: keeps pending forever, purges records older than 60 days
+async function autoPruneOldTransactions(db) {
+  try {
+    const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
+    await db.prepare(`
+      DELETE FROM transactions WHERE status != 'pending' AND createdAt < ?
+    `).bind(sixtyDaysAgo).run();
+    await db.prepare(`
+      DELETE FROM orders WHERE status != 'pending' AND createdAt < ?
+    `).bind(sixtyDaysAgo).run();
+  } catch (e) {
+    // ignore if tables not yet created
+  }
+}
 
-    if (method === "OPTIONS") {
+async function ensureTables(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id TEXT PRIMARY KEY, uid TEXT, game TEXT, logo TEXT, accEmail TEXT, accPass TEXT,
+      userTgId TEXT, amount REAL, status TEXT, adminMsg TEXT, timeElapsed INTEGER, gamerName TEXT,
+      promptNumber TEXT DEFAULT '',
+      captchaImage TEXT DEFAULT '', captchaId TEXT DEFAULT '', captchaAnswer TEXT DEFAULT '',
+      inQueue INTEGER DEFAULT 0, queuePosition INTEGER DEFAULT 0, queuePercent INTEGER DEFAULT 0,
+      createdAt INTEGER, completedAt INTEGER
+    )
+  `).run();
+
+  try {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN promptNumber TEXT DEFAULT '';`).run();
+  } catch (e) { }
+  try {
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaImage TEXT DEFAULT '';`).run();
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaId TEXT DEFAULT '';`).run();
+    await db.prepare(`ALTER TABLE orders ADD COLUMN captchaAnswer TEXT DEFAULT '';`).run();
+  } catch (e) { }
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY, uid TEXT, kind TEXT, title TEXT, game TEXT, info TEXT,
+      amount REAL, status TEXT, proofUrl TEXT, previousBalance REAL DEFAULT 0,
+      balance_before REAL DEFAULT 0, balance_after REAL DEFAULT 0, createdAt INTEGER
+    )
+  `).run();
+
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN previousBalance REAL DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN balance_before REAL DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN balance_after REAL DEFAULT 0;`).run(); } catch (e) { }
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS app_cache (
+      id TEXT PRIMARY KEY, data TEXT, updatedAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS used_trx (
+      trxId TEXT PRIMARY KEY, uid TEXT, amount REAL, usedAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS deposits (
+      id TEXT PRIMARY KEY, uid TEXT, name TEXT, email TEXT, method TEXT, amount REAL, coins REAL, trxId TEXT, status TEXT, adminMsg TEXT, createdAt INTEGER
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS user_wallets (
+      uid TEXT PRIMARY KEY,
+      name TEXT DEFAULT 'User',
+      email TEXT DEFAULT '',
+      avatar TEXT DEFAULT '',
+      tgChatId TEXT DEFAULT '',
+      balance REAL DEFAULT 0,
+      realBalance REAL DEFAULT 0,
+      bonusBalance REAL DEFAULT 0,
+      playPoints INTEGER DEFAULT 0,
+      pendingPoints INTEGER DEFAULT 0,
+      loyaltyStars INTEGER DEFAULT 0,
+      banned INTEGER DEFAULT 0,
+      banReason TEXT DEFAULT '',
+      updatedAt INTEGER
+    )
+  `).run();
+
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banned INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
+
+  // Dedicated Clean Google Tokens Table (g_tokens) - High Performance & Strict Privacy
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS g_tokens (
+      id TEXT PRIMARY KEY,
+      uid TEXT NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT NOT NULL,
+      code TEXT UNIQUE,
+      country TEXT DEFAULT 'US',
+      android_id TEXT DEFAULT '46e14d2451d85c3f',
+      status TEXT DEFAULT 'active',
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_uid ON g_tokens(uid);`).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_email ON g_tokens(email);`).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_gtokens_code ON g_tokens(code);`).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS pp_sync_vault (
+      id TEXT PRIMARY KEY,
+      uid TEXT DEFAULT '',
+      code TEXT UNIQUE,
+      email TEXT,
+      token TEXT,
+      country TEXT DEFAULT 'GLOBAL',
+      status TEXT DEFAULT 'active',
+      android_id TEXT DEFAULT '46e14d2451d85c3f',
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS gateway_sms (
+      trxId TEXT PRIMARY KEY,
+      sender TEXT,
+      raw TEXT,
+      method TEXT,
+      amount REAL,
+      balance REAL DEFAULT 0,
+      claimed INTEGER DEFAULT 0,
+      claimType TEXT DEFAULT 'none',
+      claimedByUid TEXT DEFAULT '',
+      claimedByName TEXT DEFAULT '',
+      claimedAt INTEGER DEFAULT 0,
+      coinsAdded REAL DEFAULT 0,
+      adminMsg TEXT DEFAULT '',
+      receivedAt INTEGER
+    )
+  `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS tg_bot_users (
+      id TEXT PRIMARY KEY,
+      name TEXT DEFAULT 'User',
+      username TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      websiteUid TEXT DEFAULT '',
+      inviterId TEXT DEFAULT '',
+      isVerified INTEGER DEFAULT 0,
+      referralCount INTEGER DEFAULT 0,
+      refBalance REAL DEFAULT 0,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+}
+
+export default {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    const db = env.DB;
-    if (!db && path.startsWith("/api/")) {
-      return json({ ok: false, error: "Cloudflare D1 Database binding 'DB' not configured" }, 500);
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // ==================== 0. RENDER VPS BRIDGE PROXY ====================
+    if (path.startsWith("/render/") || path === "/render") {
+      const targetPath = path.replace(/^\/render/, "") || "/";
+      const targetUrl = "https://pp-mod-auto-quest.onrender.com" + targetPath + url.search;
+
+      const newHeaders = new Headers(request.headers);
+      newHeaders.set("Host", "pp-mod-auto-quest.onrender.com");
+      newHeaders.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+
+      const newReq = new Request(targetUrl, {
+        method: request.method,
+        headers: newHeaders,
+        body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+        redirect: "follow"
+      });
+
+      const resp = await fetch(newReq);
+      const respHeaders = new Headers(resp.headers);
+      for (const [k, v] of Object.entries(CORS_HEADERS)) {
+        respHeaders.set(k, v);
+      }
+      return new Response(resp.body, {
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: respHeaders
+      });
     }
 
     try {
-      // -------------------------------------------------------------
-      // 1. HEALTH & STATUS
-      // -------------------------------------------------------------
+      // 1. Health Check
       if (path === "/" || path === "/api/health") {
-        return json({
-          ok: true,
-          service: "PPM Cloud Pure Serverless API",
-          version: "2.0.0",
-          status: "online",
-          hasD1: Boolean(db),
-          timestamp: Date.now()
-        });
+        return json({ status: "online", engine: "Cloudflare D1", version: "5.0", time: Date.now() });
       }
 
-      if (path === "/api/init-db") {
-        const statements = [
-          `CREATE TABLE IF NOT EXISTS users (
-            pp_id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            name TEXT NOT NULL DEFAULT 'User',
-            avatar_url TEXT DEFAULT '',
-            coins REAL NOT NULL DEFAULT 0.0,
-            monthly_points REAL NOT NULL DEFAULT 0.0,
-            monthly_points_month TEXT DEFAULT '',
-            device_id TEXT DEFAULT '',
-            role TEXT NOT NULL DEFAULT 'user',
-            is_banned INTEGER NOT NULL DEFAULT 0,
-            ban_reason TEXT DEFAULT '',
-            telegram_chat_id TEXT DEFAULT '',
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
-          `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`,
-          `CREATE INDEX IF NOT EXISTS idx_users_device ON users(device_id)`,
-          `CREATE TABLE IF NOT EXISTS orders (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            user_email TEXT,
-            game TEXT NOT NULL,
-            logo TEXT DEFAULT '',
-            coins REAL NOT NULL DEFAULT 2.0,
-            status TEXT NOT NULL DEFAULT 'pending',
-            qid TEXT DEFAULT '',
-            sync_code TEXT DEFAULT '',
-            admin_msg TEXT DEFAULT '',
-            time_elapsed INTEGER DEFAULT 1,
-            retry_count INTEGER DEFAULT 1,
-            created_at INTEGER NOT NULL,
-            completed_at INTEGER,
-            refunded_at INTEGER
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_orders_uid ON orders(user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`,
-          `CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC)`,
-          `CREATE TABLE IF NOT EXISTS deposits (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            user_email TEXT,
-            method TEXT NOT NULL,
-            amount_taka REAL NOT NULL,
-            coins REAL NOT NULL,
-            trx_id TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            admin_msg TEXT DEFAULT '',
-            created_at INTEGER NOT NULL,
-            reviewed_at INTEGER
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_deposits_uid ON deposits(user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_deposits_trx ON deposits(trx_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status)`,
-          `CREATE TABLE IF NOT EXISTS transactions (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            type TEXT NOT NULL,
-            coins REAL NOT NULL,
-            balance_before REAL NOT NULL,
-            balance_after REAL NOT NULL,
-            title TEXT NOT NULL,
-            details TEXT DEFAULT '',
-            created_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_tx_uid ON transactions(user_id)`,
-          `CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at DESC)`,
-          `CREATE TABLE IF NOT EXISTS portal_games (
-            game_id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            package_name TEXT NOT NULL,
-            icon_url TEXT DEFAULT '',
-            quests_json TEXT NOT NULL DEFAULT '[]',
-            cost_coins REAL NOT NULL DEFAULT 2.0,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            sort_order INTEGER NOT NULL DEFAULT 0,
-            updated_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_games_active ON portal_games(is_active, sort_order)`,
-          `CREATE TABLE IF NOT EXISTS redemptions (
-            id TEXT PRIMARY KEY,
-            code TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            coins REAL NOT NULL,
-            created_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_redemptions_uid_code ON redemptions(user_id, code)`,
-          `CREATE TABLE IF NOT EXISTS promo_codes (
-            code TEXT PRIMARY KEY,
-            coins REAL NOT NULL,
-            max_uses INTEGER NOT NULL DEFAULT 100,
-            used_count INTEGER NOT NULL DEFAULT 0,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            created_at INTEGER NOT NULL
-          )`,
-          `CREATE TABLE IF NOT EXISTS cloud_store (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
-          )`,
-          `CREATE TABLE IF NOT EXISTS pp_sync_vault (
-            code TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            token TEXT NOT NULL,
-            country TEXT DEFAULT 'GLOBAL',
-            uid TEXT DEFAULT '',
-            owner_email TEXT DEFAULT '',
-            android_id TEXT DEFAULT '',
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS idx_sync_uid ON pp_sync_vault(uid)`,
-          `CREATE INDEX IF NOT EXISTS idx_sync_owner ON pp_sync_vault(owner_email)`,
-          `CREATE INDEX IF NOT EXISTS idx_sync_email ON pp_sync_vault(email)`
-        ];
-
-        for (const sql of statements) {
-          await db.prepare(sql).run();
-        }
-
-        return json({ ok: true, message: "PPM Cloud D1 Database Tables & Indexes Initialized Successfully!" });
-      }
-
-      // -------------------------------------------------------------
-      // 2. AUTHENTICATION (Email + Password + 8-char PP ID)
-      // -------------------------------------------------------------
-      if (path === "/api/auth/register" && method === "POST") {
+      // 1a. TrxID Duplicate Check & Lock (Edge Lock against duplicate abuse with Amount Guard)
+      if (path === "/api/trx/check-lock" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
-        const email = (body.email || "").trim().toLowerCase();
-        const password = (body.password || "").trim();
-        const name = (body.name || "").trim() || email.split("@")[0] || "User";
+        const trxId = (body.trxId || "").trim().toUpperCase();
+        const uid = body.uid || "";
+        const amount = Number(body.amount) || 0;
+        if (!trxId) return json({ ok: false, error: "Missing trxId" }, 400);
 
-        if (!email || !email.includes("@")) {
-          return json({ ok: false, error: "একটি সঠিক ইমেইল এড্রেস লিখুন" }, 400);
-        }
-        if (!password || password.length < 4) {
-          return json({ ok: false, error: "পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে" }, 400);
-        }
-
-        const existing = await db.prepare("SELECT pp_id FROM users WHERE email = ?").bind(email).first();
-        if (existing) {
-          return json({ ok: false, error: "এই ইমেইল দিয়ে ইতিমধ্যে একাউন্ট খোলা আছে! দয়া করে লগইন করুন।" }, 400);
-        }
-
-        // Generate unique 8-char PP ID
-        let ppId = generatePPId();
-        let idCheck = await db.prepare("SELECT pp_id FROM users WHERE pp_id = ?").bind(ppId).first();
-        while (idCheck) {
-          ppId = generatePPId();
-          idCheck = await db.prepare("SELECT pp_id FROM users WHERE pp_id = ?").bind(ppId).first();
-        }
-
-        const avatarUrl = DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)];
-        const now = Date.now();
-
-        await db.prepare(`
-          INSERT INTO users (pp_id, email, password, name, avatar_url, coins, monthly_points, monthly_points_month, role, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 0.0, 0.0, '', 'user', ?, ?)
-        `).bind(ppId, email, password, name, avatarUrl, now, now).run();
-
-        // Welcome transaction
-        const txId = "TX-INIT-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'welcome', 0.0, 0.0, 0.0, 'Account Created', 'Welcome to PPM Cloud', ?)
-        `).bind(txId, ppId, now).run();
-
-        sendTelegram(ADMIN_TG_ID, `👤 <b>NEW USER REGISTERED!</b>\n\n🆔 <b>PP ID:</b> <code>${ppId}</code>\n📧 <b>Email:</b> <code>${email}</code>\n🔑 <b>Password:</b> <code>${password}</code>\n👤 <b>Name:</b> ${name}`);
-
-        return json({
-          ok: true,
-          message: "Account created successfully",
-          user: {
-            pp_id: ppId,
-            email,
-            name,
-            avatar_url: avatarUrl,
-            coins: 0.0,
-            monthly_points: 0.0,
-            role: "user"
-          }
-        });
-      }
-
-      if (path === "/api/auth/sync-user" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const email = (body.email || "").trim().toLowerCase();
-        const firebaseUid = (body.firebase_uid || body.uid || "").trim();
-        const password = (body.password || "").trim();
-        const name = (body.name || "").trim() || email.split("@")[0] || "User";
-
-        if (!email || !email.includes("@")) {
-          return json({ ok: false, error: "একটি সঠিক ইমেইল এড্রেস প্রয়োজন" }, 400);
-        }
-
-        let user = await db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").bind(email).first();
-        if (user) {
-          if (password && password !== user.password) {
-            await db.prepare("UPDATE users SET password = ?, updated_at = ? WHERE pp_id = ?").bind(password, Date.now(), user.pp_id).run();
-            user.password = password;
-          }
-        } else {
-          let ppId = generatePPId();
-          let idCheck = await db.prepare("SELECT pp_id FROM users WHERE pp_id = ?").bind(ppId).first();
-          while (idCheck) {
-            ppId = generatePPId();
-            idCheck = await db.prepare("SELECT pp_id FROM users WHERE pp_id = ?").bind(ppId).first();
-          }
-
-          const avatarUrl = (body.avatar_url && !body.avatar_url.includes('dicebear'))
-            ? body.avatar_url
-            : DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)];
-          const now = Date.now();
-
-          await db.prepare(`
-            INSERT INTO users (pp_id, email, password, name, avatar_url, coins, monthly_points, monthly_points_month, role, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 0.0, 0.0, '', 'user', ?, ?)
-          `).bind(ppId, email, password || "none", name, avatarUrl, now, now).run();
-
-          const txId = "TX-INIT-" + now;
-          await db.prepare(`
-            INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-            VALUES (?, ?, 'welcome', 0.0, 0.0, 0.0, 'Account Created', 'Welcome to PPM Cloud', ?)
-          `).bind(txId, ppId, now).run();
-
-          sendTelegram(ADMIN_TG_ID, `👤 <b>NEW USER REGISTERED VIA FIREBASE AUTH!</b>\n\n🆔 <b>PP ID:</b> <code>${ppId}</code>\n📧 <b>Email:</b> <code>${email}</code>\n🔑 <b>Password:</b> <code>${password}</code>\n👤 <b>Name:</b> ${name}`);
-
-          user = await db.prepare("SELECT * FROM users WHERE pp_id = ?").bind(ppId).first();
-        }
-
-        if (user.is_banned) {
-          const reason = user.ban_reason || 'পলিসি লঙ্ঘন';
+        // ১. Check used_trx table
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        if (usedTrx) {
           return json({
             ok: false,
-            is_banned: true,
-            ban_reason: reason,
-            error: `আপনার অ্যাকাউন্টটি স্থগিত করা হয়েছে! কারণ: ${reason}`
-          }, 403);
+            duplicate: true,
+            error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার বা ভেরিফাই করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।"
+          }, 400);
         }
 
-        return json({
-          ok: true,
-          user: {
-            pp_id: user.pp_id,
-            email: user.email,
-            name: user.name,
-            avatar_url: user.avatar_url,
-            coins: Number(user.coins) || 0.0,
-            monthly_points: Number(user.monthly_points) || 0.0,
-            role: user.role || "user"
-          }
-        });
-      }
-
-      if (path === "/api/auth/login" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const identifier = (body.email || body.identifier || "").trim().toLowerCase();
-        const password = (body.password || "").trim();
-
-        if (!identifier || !password) {
-          return json({ ok: false, error: "ইমেইল ও পাসওয়ার্ড প্রদান করুন" }, 400);
-        }
-
-        const user = await db.prepare(`
-          SELECT pp_id, email, password, name, avatar_url, coins, monthly_points, role, is_banned, ban_reason
-          FROM users
-          WHERE (LOWER(email) = ? OR UPPER(pp_id) = ?)
-        `).bind(identifier, identifier.toUpperCase()).first();
-
-        if (!user || user.password !== password) {
-          return json({ ok: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" }, 401);
-        }
-
-        if (user.is_banned) {
-          const reason = user.ban_reason || 'পলিসি লঙ্ঘন';
+        // ২. Check already approved deposit
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(trxId).first();
+        if (approvedDep) {
           return json({
             ok: false,
-            is_banned: true,
-            ban_reason: reason,
-            error: `আপনার অ্যাকাউন্টটি স্থগিত করা হয়েছে! কারণ: ${reason}`
-          }, 403);
+            duplicate: true,
+            error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।"
+          }, 400);
         }
 
-        return json({
-          ok: true,
-          user: {
-            pp_id: user.pp_id,
-            email: user.email,
-            name: user.name,
-            avatar_url: user.avatar_url,
-            coins: Number(user.coins) || 0.0,
-            monthly_points: Number(user.monthly_points) || 0.0,
-            role: user.role || "user"
-          }
-        });
-      }
-
-      if ((path === "/api/auth/me" || path === "/api/user/profile") && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || url.searchParams.get("uid") || "").trim().toUpperCase();
-        if (!uid) return json({ ok: false, error: "User ID missing" }, 400);
-
-        const user = await db.prepare(`
-          SELECT pp_id, email, name, avatar_url, coins, monthly_points, role, is_banned, ban_reason, device_id
-          FROM users WHERE pp_id = ?
-        `).bind(uid).first();
-
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
-
-        return json({
-          ok: true,
-          user: {
-            pp_id: user.pp_id,
-            email: user.email,
-            name: user.name,
-            avatar_url: user.avatar_url,
-            coins: Number(user.coins) || 0.0,
-            monthly_points: Number(user.monthly_points) || 0.0,
-            role: user.role || "user",
-            is_banned: Boolean(user.is_banned),
-            ban_reason: user.ban_reason || "",
-            hasDeviceLock: Boolean(user.device_id)
-          }
-        });
-      }
-
-      // -------------------------------------------------------------
-      // 3. APP AUTH & 2-DEVICE LOCK PROTECTION
-      // -------------------------------------------------------------
-      if (path === "/api/app/login" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const identifier = (body.email || body.pp_id || "").trim().toLowerCase();
-        const password = (body.password || "").trim();
-        const deviceId = (body.device_id || "").trim();
-
-        if (!identifier || !password) {
-          return json({ ok: false, error: "ইমেইল/পাসওয়ার্ড প্রদান করুন" }, 400);
+        // ৩. Check if locked or claimed in gateway_sms
+        const smsRow = await env.DB.prepare(`SELECT claimed, claimType FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        if (smsRow && (smsRow.claimed === 1 || smsRow.claimType === 'admin' || smsRow.claimType === 'user')) {
+          const isAdm = smsRow.claimType === 'admin';
+          return json({
+            ok: false,
+            duplicate: true,
+            error: isAdm ? "⚠️ এই ট্রানজ্যাকশন আইডিটি অ্যাডমিন কর্তৃক লক করা হয়েছে।" : "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!"
+          }, 400);
         }
 
-        const user = await db.prepare(`
-          SELECT pp_id, email, password, name, is_banned, device_id
-          FROM users WHERE (LOWER(email) = ? OR UPPER(pp_id) = ?)
-        `).bind(identifier, identifier.toUpperCase()).first();
-
-        if (!user || user.password !== password) {
-          return json({ ok: false, error: "ভুল ক্রেডেনশিয়াল!" }, 401);
-        }
-
-        if (user.is_banned) {
-          return json({ ok: false, error: "অ্যাকাউন্ট সাসপেন্ডেড" }, 403);
-        }
-
-        // 2-Device Lock Check
-        if (deviceId) {
-          if (!user.device_id) {
-            // First time login on this app -> Bind device!
-            await db.prepare("UPDATE users SET device_id = ? WHERE pp_id = ?").bind(deviceId, user.pp_id).run();
-          } else if (user.device_id !== deviceId) {
+        // ৪. If lockNow is requested, atomically reserve it
+        if (body.lockNow === true && uid) {
+          const lockRes = await env.DB.prepare(`
+            INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(trxId) DO NOTHING
+          `).bind(trxId, uid, amount, Date.now()).run();
+          if (!lockRes || lockRes.meta?.changes === 0) {
             return json({
               ok: false,
-              code: "DEVICE_LOCKED",
-              error: "⚠️ এই অ্যাকাউন্টটি ইতিমধ্যে অন্য একটি ফোনে লগইন করা আছে! একসাথে দুটি ডিভাইসে ব্যবহার করা নিষিদ্ধ। ডিভাইস পরিবর্তন করতে অ্যাডমিনের সাথে যোগাযোগ করে ডিভাইস রিসেট করান।"
-            }, 403);
+              duplicate: true,
+              error: "⚠️ এই TrxID বর্তমানে অন্য একটি রিকোয়েস্টে ব্যবহৃত হয়েছে!"
+            }, 400);
           }
         }
 
-        return json({
-          ok: true,
-          pp_id: user.pp_id,
-          email: user.email,
-          name: user.name
-        });
+        return json({ ok: true, duplicate: false, verifiedAmount: amount });
       }
 
-      // Admin: Reset Device Lock
-      if (path === "/api/admin/reset-device" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || body.uid || "").trim().toUpperCase();
-        if (!uid) return json({ ok: false, error: "User ID required" }, 400);
-
-        await db.prepare("UPDATE users SET device_id = '' WHERE pp_id = ?").bind(uid).run();
-        return json({ ok: true, message: `Device lock for user ${uid} has been cleared.` });
+      // Lazy schema initialization
+      if (path === "/api/system/init-schema" && request.method === "POST" && env.DB) {
+        await ensureTables(env.DB);
+        return json({ ok: true, message: "Database schema verified." });
       }
 
-      // -------------------------------------------------------------
-      // 4. WALLET & SINGLE BALANCE (PP Coin)
-      // -------------------------------------------------------------
-      if (path === "/api/wallet" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || url.searchParams.get("uid") || "").trim().toUpperCase();
-        const user = await db.prepare("SELECT pp_id, coins, monthly_points FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
+      // ==================== CLOUDFLARE D1 EDGE WALLET & DATA SHIFT ENGINE ====================
 
-        return json({
-          ok: true,
-          wallet: {
-            pp_id: user.pp_id,
-            coins: Number(user.coins) || 0.0,
-            monthly_points: Number(user.monthly_points) || 0.0
-          }
-        });
+      // 1b. Fetch User Wallet (50 Lakh Daily Free Reads)
+      if (path === "/api/wallet" && request.method === "GET") {
+        const uid = url.searchParams.get("uid");
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let row = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!row) {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, banReason, updatedAt)
+            VALUES (?, 0, 0, 0, 0, 0, 0, 0, '', ?)
+            ON CONFLICT(uid) DO NOTHING
+          `).bind(uid, Date.now()).run();
+          row = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, banned: 0, banReason: "" };
+        }
+        row.balance = roundCoin(row.balance);
+        row.realBalance = roundCoin(row.balance);
+        row.bonusBalance = 0;
+        return json({ ok: true, wallet: row });
       }
 
-      // Single Deduction on Payment Confirm
-      if (path === "/api/wallet/pay-task" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || body.uid || "").trim().toUpperCase();
-        const fee = Number(body.fee_coins !== undefined ? body.fee_coins : body.amount) || 2.0;
-        const orderId = body.order_id || ("ORD-" + Date.now());
-        const game = body.game || "Quest";
+      // 1c. Fast Task Payment (Instant deduction directly on D1 with 2-decimal precision)
+      if (path === "/api/wallet/pay-task" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, feeCoins, isFree } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
-        const user = await db.prepare("SELECT pp_id, coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
-
-        const currentCoins = Number(user.coins) || 0.0;
-        if (currentCoins < fee) {
-          return json({ ok: false, error: "insufficient", message: "পর্যাপ্ত PP Coins নেই! দয়া করে কয়েন টপ-আপ করুন।" }, 400);
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, loyaltyStars: 0 };
         }
 
-        const newBalance = Math.round((currentCoins - fee + Number.EPSILON) * 100) / 100;
-        const now = Date.now();
+        const fee = isFree ? 0 : roundCoin(feeCoins || 3);
+        const curBal = roundCoin(w.balance !== undefined ? w.balance : w.realBalance);
 
-        await db.prepare("UPDATE users SET coins = ?, updated_at = ? WHERE pp_id = ?").bind(newBalance, now, uid).run();
-
-        const txId = "TX-PAY-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'pay_task', ?, ?, ?, ?, ?, ?)
-        `).bind(txId, uid, -fee, currentCoins, newBalance, `${game} Quest`, orderId, now).run();
-
-        return json({
-          ok: true,
-          balance: newBalance,
-          deducted: fee,
-          order_id: orderId
-        });
-      }
-
-      // Coin Credit (Refund, Deposit, Promo, Admin Adjust)
-      if ((path === "/api/wallet/credit" || path === "/api/wallet/adjust") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || body.uid || "").trim().toUpperCase();
-        const coins = Number(body.coins) || 0.0;
-        const type = body.type || "admin_adjust";
-        const note = body.note || body.title || "Coin Adjustment";
-        const orderId = body.order_id || "";
-
-        if (isNaN(coins) || coins === 0) return json({ ok: false, error: "Invalid coin amount" }, 400);
-
-        const user = await db.prepare("SELECT pp_id, coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
-
-        const currentCoins = Number(user.coins) || 0.0;
-        const newBalance = Math.max(0, Math.round((currentCoins + coins + Number.EPSILON) * 100) / 100);
-        const now = Date.now();
-
-        await db.prepare("UPDATE users SET coins = ?, updated_at = ? WHERE pp_id = ?").bind(newBalance, now, uid).run();
-
-        const txId = (coins > 0 ? "TX-CR-" : "TX-DR-") + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(txId, uid, type, coins, currentCoins, newBalance, note, orderId, now).run();
-
-        return json({
-          ok: true,
-          balance: newBalance,
-          adjusted: coins
-        });
-      }
-
-      // -------------------------------------------------------------
-      // 5. TRANSACTIONS & HISTORY (10 per page pagination)
-      // -------------------------------------------------------------
-      if (path === "/api/transactions" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || "").toUpperCase();
-        if (!uid) return json({ ok: false, error: "User ID required" }, 400);
-
-        const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
-        const limit = Math.min(20, Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10)));
-        const offset = (page - 1) * limit;
-
-        const totalRow = await db.prepare("SELECT COUNT(*) as total FROM transactions WHERE user_id = ?").bind(uid).first();
-        const total = totalRow ? totalRow.total : 0;
-
-        const rows = await db.prepare(`
-          SELECT id, user_id, type, coins, balance_before, balance_after, title, details, created_at
-          FROM transactions
-          WHERE user_id = ?
-          ORDER BY created_at DESC
-          LIMIT ? OFFSET ?
-        `).bind(uid, limit, offset).all();
-
-        const list = (rows && rows.results) || [];
-        const hasMore = (offset + list.length) < Math.min(200, total);
-
-        const cappedTotal = Math.min(200, total);
-        const totalPages = Math.max(1, Math.ceil(cappedTotal / limit));
-        return json({
-          ok: true,
-          transactions: list,
-          total: cappedTotal,
-          pagination: {
-            page,
-            limit,
-            total: cappedTotal,
-            total_pages: totalPages,
-            has_more: page < totalPages
-          }
-        });
-      }
-
-      // Legacy fallback endpoint for app compatibility
-      if (path === "/api/history" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("uid") || url.searchParams.get("pp_id") || "").toUpperCase();
-        const rows = await db.prepare(`
-          SELECT id, user_id, type as kind, coins as amount, title as game, details as info, created_at
-          FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50
-        `).bind(uid).all();
-        return json({ ok: true, history: (rows && rows.results) || [] });
-      }
-
-      // -------------------------------------------------------------
-      // 6. PORTAL GAMES & QUESTS (Cloud Persistence for Render!)
-      // -------------------------------------------------------------
-      if (path === "/api/portal/games" && method === "GET") {
-        const rows = await db.prepare(`
-          SELECT game_id, title, package_name, icon_url, quests_json, cost_coins, is_active
-          FROM portal_games
-          WHERE is_active = 1
-          ORDER BY sort_order ASC, title ASC
-        `).all();
-
-        const games = ((rows && rows.results) || []).map(g => {
-          let quests = [];
-          try { quests = JSON.parse(g.quests_json); } catch (e) { quests = []; }
-          return {
-            game_id: g.game_id,
-            id: g.game_id,
-            title: g.title,
-            package_name: g.package_name,
-            icon_url: g.icon_url,
-            cost_coins: g.cost_coins,
-            all_quests: quests
-          };
-        });
-
-        return json({ ok: true, services: games, count: games.length });
-      }
-
-      // Admin: Upsert Game & its Quests into Cloud D1
-      if (path === "/api/admin/portal/games" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const gameId = (body.game_id || body.id || "").trim();
-        const title = (body.title || "").trim();
-        const pkg = (body.package_name || "").trim();
-        const icon = body.icon_url || "";
-        const cost = Number(body.cost_coins) || 2.0;
-        const questsJson = typeof body.quests_json === "string" ? body.quests_json : JSON.stringify(body.all_quests || body.quests || []);
-
-        if (!gameId || !title) return json({ ok: false, error: "game_id and title required" }, 400);
-
-        const now = Date.now();
-        await db.prepare(`
-          INSERT INTO portal_games (game_id, title, package_name, icon_url, quests_json, cost_coins, is_active, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-          ON CONFLICT(game_id) DO UPDATE SET
-            title = excluded.title,
-            package_name = excluded.package_name,
-            icon_url = excluded.icon_url,
-            quests_json = excluded.quests_json,
-            cost_coins = excluded.cost_coins,
-            updated_at = excluded.updated_at
-        `).bind(gameId, title, pkg, icon, questsJson, cost, now).run();
-
-        return json({ ok: true, message: `Game ${title} saved permanently in Cloud D1` });
-      }
-
-      // -------------------------------------------------------------
-      // 7. ORDERS (Quest Unlocks)
-      // -------------------------------------------------------------
-      if (path === "/api/orders/create" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const id = body.id || ("ORD-" + Date.now());
-        const uid = (body.user_id || body.pp_id || "").toUpperCase();
-        const email = body.user_email || body.email || "";
-        const game = body.game || "Task";
-        const logo = body.logo || "";
-        const coins = Number(body.coins || body.amount) || 2.0;
-        const qid = body.qid || body.sync_code || "";
-        const now = Date.now();
-
-        await db.prepare(`
-          INSERT INTO orders (id, user_id, user_email, game, logo, coins, status, qid, sync_code, admin_msg, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'সার্ভার কাজ শুরু করেছে...', ?)
-        `).bind(id, uid, email, game, logo, coins, qid, qid, now).run();
-
-        return json({ ok: true, order_id: id });
-      }
-
-      if (path === "/api/orders/update" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const orderId = body.order_id || body.id || "";
-        const status = body.status || "completed";
-        const adminMsg = body.admin_msg || "";
-        const timeElapsed = Number(body.time_elapsed) || 1;
-        const now = Date.now();
-
-        const order = await db.prepare("SELECT * FROM orders WHERE id = ?").bind(orderId).first();
-        if (!order) return json({ ok: false, error: "Order not found" }, 404);
-
-        if (status === "completed") {
-          await db.prepare(`
-            UPDATE orders SET status = 'completed', admin_msg = ?, time_elapsed = ?, completed_at = ? WHERE id = ?
-          `).bind(adminMsg, timeElapsed, now, orderId).run();
-
-          // Increment Leaderboard monthly point +1.0
-          await db.prepare("UPDATE users SET monthly_points = monthly_points + 1.0 WHERE pp_id = ?").bind(order.user_id).run();
-
-          sendTelegram(ORDER_LOG_CHANNEL, `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n🎮 <b>Game:</b> ${order.game}\n👤 <b>User PP ID:</b> <code>${order.user_id}</code>\n🪙 <b>Coins:</b> ${order.coins} Coins\n⏱️ <b>Time:</b> ~${timeElapsed}s\n✅ <b>Status:</b> COMPLETED`);
-        } else if (status === "refunded") {
-          await db.prepare(`
-            UPDATE orders SET status = 'refunded', admin_msg = ?, refunded_at = ? WHERE id = ?
-          `).bind(adminMsg, now, orderId).run();
-
-          // Auto-refund coins if not already refunded
-          if (order.status !== "refunded" && order.coins > 0) {
-            const user = await db.prepare("SELECT pp_id, coins FROM users WHERE pp_id = ?").bind(order.user_id).first();
-            if (user) {
-              const curCoins = Number(user.coins) || 0.0;
-              const newCoins = Math.round((curCoins + order.coins + Number.EPSILON) * 100) / 100;
-              await db.prepare("UPDATE users SET coins = ?, updated_at = ? WHERE pp_id = ?").bind(newCoins, now, order.user_id).run();
-              const txId = "TX-REFUND-" + now;
-              await db.prepare(`
-                INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-                VALUES (?, ?, 'auto_refund', ?, ?, ?, ?, ?, ?)
-              `).bind(txId, order.user_id, order.coins, curCoins, newCoins, `Refund: ${order.game} Quest`, orderId, now).run();
-            }
-          }
-
-          sendTelegram(ORDER_LOG_CHANNEL, `↩️ <b>QUEST AUTO-REFUNDED!</b> 🪙\n\n🎮 <b>Game:</b> ${order.game}\n👤 <b>User PP ID:</b> <code>${order.user_id}</code>\n🪙 <b>Coins Back:</b> +${order.coins} Coins\n↩️ <b>Status:</b> 100% AUTO-REFUNDED`);
+        if (!isFree && curBal < fee) {
+          return json({ ok: false, error: "insufficient", balance: curBal }, 400);
         }
 
-        return json({ ok: true });
+        const newBal = Math.max(0, roundCoin(curBal - fee));
+        let newStars = Number(w.loyaltyStars || 0);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, 0, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.balance,
+            bonusBalance = 0,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newBal, newBal, newStars, Date.now()).run();
+
+        return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, loyaltyStars: newStars });
       }
 
-      if (path === "/api/orders" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || "").toUpperCase();
-        const rows = await db.prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").bind(uid).all();
-        return json({ ok: true, orders: (rows && rows.results) || [] });
-      }
+      // 1d. Credit Wallet Balance (Deposits, Refunds, Task Stars, Daily Claims)
+      if (path === "/api/wallet/credit" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, coins, type, playPoints, pendingPoints, loyaltyStarsInc } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
-      if (path === "/api/admin/orders" && method === "GET") {
-        const rows = await db.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 100").all();
-        return json({ ok: true, orders: (rows && rows.results) || [] });
-      }
-
-      // -------------------------------------------------------------
-      // 8. DEPOSITS (Top-up PP Coins)
-      // -------------------------------------------------------------
-      if ((path === "/api/deposits/create" || path === "/api/deposits") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || "").toUpperCase();
-        const methodPay = body.method || "bKash";
-        const taka = Number(body.amount_taka !== undefined ? body.amount_taka : body.amount) || 0.0;
-        const coins = Number(body.coins) || 0.0;
-        const trxId = (body.trx_id || "").trim().toUpperCase();
-
-        if (!uid || taka <= 0 || coins <= 0 || !trxId) {
-          return json({ ok: false, error: "সঠিক পেমেন্ট তথ্য দিন" }, 400);
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0 };
         }
 
-        const existingTrx = await db.prepare("SELECT id FROM deposits WHERE trx_id = ?").bind(trxId).first();
-        if (existingTrx) {
-          return json({ ok: false, error: "এই TrxID দিয়ে ইতিমধ্যে ডিপোজিট সাবমিট করা হয়েছে!" }, 400);
+        const curBal = roundCoin(w.balance !== undefined ? w.balance : w.realBalance);
+        const addCoins = roundCoin(coins || 0);
+        const newBal = roundCoin(curBal + addCoins);
+
+        let newPlayPoints = playPoints !== undefined ? Number(playPoints) : Number(w.playPoints || 0);
+        let newPendingPoints = pendingPoints !== undefined ? Number(pendingPoints) : Number(w.pendingPoints || 0);
+
+        let curStars = Number(w.loyaltyStars || 0);
+        let newStars = body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.min(10, curStars + Number(loyaltyStarsInc)) : curStars);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, 0, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.balance,
+            bonusBalance = 0,
+            playPoints = excluded.playPoints,
+            pendingPoints = excluded.pendingPoints,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newBal, newBal, newPlayPoints, newPendingPoints, newStars, Date.now()).run();
+
+        // Audit Trail in transactions table
+        if (addCoins !== 0 && body.skipTxLog !== true) {
+          const txId = body.txId || `TX-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+          const isAdd = addCoins > 0;
+          const adminTag = body.adminEmail ? ` by ${body.adminEmail}` : (body.byAdmin ? " by Admin" : "");
+          const txKind = body.kind || (isAdd ? 'ADMIN_CREDIT' : 'ADMIN_DEDUCT');
+          const txTitle = body.title || (isAdd ? `Admin Manual Credit${adminTag}` : `Admin Balance Deduction${adminTag}`);
+          const txInfo = body.info || (isAdd
+            ? `Admin/System Credit${adminTag} | Bal: ${curBal} ➔ ${newBal} (+${addCoins} Coins)`
+            : `Admin/System Deduct${adminTag} | Bal: ${curBal} ➔ ${newBal} (${addCoins} Coins)`);
+
+          await env.DB.prepare(`
+            INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
+            VALUES (?, ?, ?, ?, 'WALLET', ?, ?, 'approved', ?, ?, ?, ?)
+          `).bind(txId, uid, txKind, txTitle, txInfo, Math.abs(addCoins), curBal, curBal, newBal, Date.now()).run().catch(() => { });
         }
 
-        const user = await db.prepare("SELECT email FROM users WHERE pp_id = ?").bind(uid).first();
-        const depId = "DEP-" + Date.now();
-        const now = Date.now();
-
-        await db.prepare(`
-          INSERT INTO deposits (id, user_id, user_email, method, amount_taka, coins, trx_id, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-        `).bind(depId, uid, (user && user.email) || "", methodPay, taka, coins, trxId, now).run();
-
-        sendTelegram(ADMIN_TG_ID, `💰 <b>NEW DEPOSIT REQUEST!</b>\n\n🆔 <b>PP ID:</b> <code>${uid}</code>\n📱 <b>Method:</b> ${methodPay}\n💵 <b>Amount:</b> ৳${taka} (${coins} PP Coins)\n🧾 <b>TrxID:</b> <code>${trxId}</code>`);
-
-        return json({ ok: true, deposit_id: depId, message: "ডিপোজিট সফলভাবে সাবমিট হয়েছে। এডমিন ভেরিফাই করে কয়েন যুক্ত করে দিবে।" });
+        return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, loyaltyStars: newStars, previousBalance: curBal });
       }
 
-      if (path === "/api/deposits" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || "").toUpperCase();
-        const rows = await db.prepare("SELECT * FROM deposits WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").bind(uid).all();
-        return json({ ok: true, deposits: (rows && rows.results) || [] });
-      }
-
-      if (path === "/api/admin/deposits" && method === "GET") {
-        const rows = await db.prepare("SELECT * FROM deposits ORDER BY created_at DESC LIMIT 100").all();
-        return json({ ok: true, deposits: (rows && rows.results) || [] });
-      }
-
-      // Admin Deposit Approve / Reject
-      if ((path === "/api/admin/deposits/review" || path === "/api/deposits/approve" || path === "/api/deposits/reject") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const depId = body.deposit_id || body.id || body.dep_id || body.depId || "";
-        let action = body.action;
-        if (!action) {
-          if (path.includes("approve")) action = "approve";
-          else if (path.includes("reject")) action = "reject";
-        }
-        const adminMsg = body.admin_msg || (action === 'approve' ? "Approved by Admin" : "Rejected");
-        const now = Date.now();
-
-        const dep = await db.prepare("SELECT * FROM deposits WHERE id = ?").bind(depId).first();
-        if (!dep) return json({ ok: false, error: "Deposit not found" }, 404);
-
-        if (action === "approve") {
-          // Strict duplicate prevention: if already approved, never credit again!
-          if (dep.status === "approved") {
-            return json({ ok: false, error: "⚠️ এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!", alreadyApproved: true }, 400);
-          }
-
-          await db.prepare("UPDATE deposits SET status = 'approved', admin_msg = ?, reviewed_at = ? WHERE id = ?").bind(adminMsg, now, depId).run();
-
-          // Credit coins to user with clean 2-decimal precision
-          const user = await db.prepare("SELECT coins, telegram_chat_id, name, email FROM users WHERE pp_id = ?").bind(dep.user_id).first();
-          if (user) {
-            const currentCoins = Math.round(((Number(user.coins) || 0.0) + Number.EPSILON) * 100) / 100;
-            const addCoins = Math.round(((Number(dep.coins) || 0.0) + Number.EPSILON) * 100) / 100;
-            const newCoins = Math.round((currentCoins + addCoins + Number.EPSILON) * 100) / 100;
-            await db.prepare("UPDATE users SET coins = ? WHERE pp_id = ?").bind(newCoins, dep.user_id).run();
-
-            const txId = "TX-DEP-" + now;
-            await db.prepare(`
-              INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-              VALUES (?, ?, 'deposit', ?, ?, ?, 'Wallet Top-up', ?, ?)
-            `).bind(txId, dep.user_id, addCoins, currentCoins, newCoins, `${dep.method} TrxID: ${dep.trx_id}`, now).run();
-
-            // Send Telegram Notification on deposit approval
-            try {
-              const depTgMsg = `💎 <b>DEPOSIT APPROVED!</b> ✅\n\n` +
-                `🆔 <b>User ID:</b> <code>${dep.user_id}</code>\n` +
-                `💵 <b>Amount:</b> ${dep.amount_taka || 0} BDT\n` +
-                `🪙 <b>Coins Credited:</b> +${addCoins} PP Coins\n` +
-                `💰 <b>পূর্বের ব্যালেন্স:</b> ${currentCoins} Coins\n` +
-                `✨ <b>নতুন ব্যালেন্স:</b> ${newCoins} Coins\n` +
-                `💳 <b>Method:</b> ${dep.method || 'bKash'}\n` +
-                `🔖 <b>TrxID:</b> <code>${dep.trx_id}</code>`;
-
-              sendTelegram(ADMIN_TG_ID, depTgMsg);
-              sendTelegram(ORDER_LOG_CHANNEL, depTgMsg);
-
-              if (user.telegram_chat_id) {
-                sendTelegram(user.telegram_chat_id,
-                  `🎉 <b>আপনার ডিপোজিট সফলভাবে অ্যাপ্রুভ হয়েছে!</b> 💎\n\n` +
-                  `💵 <b>টাকা:</b> ${dep.amount_taka || 0} BDT\n` +
-                  `🪙 <b>যোগ হয়েছে:</b> +${addCoins} PP Coins\n` +
-                  `💰 <b>পূর্বের ব্যালেন্স:</b> ${currentCoins} Coins\n` +
-                  `✨ <b>বর্তমান ব্যালেন্স:</b> ${newCoins} Coins\n` +
-                  `🔖 <b>TrxID:</b> <code>${dep.trx_id}</code>\n\n` +
-                  `🚀 <i>এখনই আপনার পছন্দের গেমের কোয়েস্ট আনলক করুন!</i>`
-                );
-              }
-            } catch (tgErr) {
-              console.warn("Telegram deposit approval alert error:", tgErr);
-            }
-          }
-        } else {
-          await db.prepare("UPDATE deposits SET status = 'rejected', admin_msg = ?, reviewed_at = ? WHERE id = ?").bind(adminMsg, now, depId).run();
-        }
-
-        return json({ ok: true, status: action === 'approve' ? 'approved' : 'rejected' });
-      }
-
-      // -------------------------------------------------------------
-      // 9. LEADERBOARD & REWARDS
-      // -------------------------------------------------------------
-      if (path === "/api/leaderboard" && method === "GET") {
-        const rows = await db.prepare(`
-          SELECT pp_id, name, avatar_url, monthly_points
-          FROM users
-          WHERE monthly_points > 0
-          ORDER BY monthly_points DESC
-          LIMIT 25
-        `).all();
-
-        return json({ ok: true, leaderboard: (rows && rows.results) || [] });
-      }
-
-      if (path === "/api/earn/daily-claim" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || "").toUpperCase();
-
-        const lastTx = await db.prepare(`
-          SELECT created_at FROM transactions
-          WHERE user_id = ? AND type = 'daily_claim'
-          ORDER BY created_at DESC LIMIT 1
-        `).bind(uid).first();
-
-        const now = Date.now();
-        if (lastTx && (now - lastTx.created_at) < 86400000) {
-          const waitHrs = Math.ceil((86400000 - (now - lastTx.created_at)) / 3600000);
-          return json({ ok: false, error: `আজকের ক্লেইম ইতিমধ্যে নেওয়া হয়েছে! দয়া করে ${waitHrs} ঘণ্টা পর আবার চেষ্টা করুন।` }, 400);
-        }
-
-        const user = await db.prepare("SELECT coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
-
-        const currentCoins = Number(user.coins) || 0.0;
-        const newCoins = Math.round((currentCoins + 1.0 + Number.EPSILON) * 100) / 100;
-
-        await db.prepare("UPDATE users SET coins = ? WHERE pp_id = ?").bind(newCoins, uid).run();
-
-        const txId = "TX-DAILY-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'daily_claim', 1.0, ?, ?, 'Daily Check-in Bonus', 'Free +1 PP Coin', ?)
-        `).bind(txId, uid, currentCoins, newCoins, now).run();
-
-        return json({ ok: true, balance: newCoins, message: "🎉 অভিনন্দন! আপনি +১ PP Coin ডেইলি বোনাস পেয়েছেন!" });
-      }
-
-      // Promo Code Redeem
-      if ((path === "/api/promo/redeem" || path === "/api/redeem") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || body.uid || "").toUpperCase();
-        const code = (body.code || "").trim().toUpperCase();
-
-        if (!uid || !code) {
-          return json({ ok: false, error: "ইউজার আইডি ও প্রোমো কোড দিন" }, 400);
-        }
-
-        const user = await db.prepare("SELECT coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) {
-          return json({ ok: false, error: "ইউজার একাউন্ট খুঁজে পাওয়া যায়নি" }, 404);
-        }
-
-        // Check if already redeemed by this user
-        const alreadyRedeemed = await db.prepare("SELECT id FROM redemptions WHERE user_id = ? AND UPPER(code) = ?").bind(uid, code).first();
-        if (alreadyRedeemed) {
-          return json({ ok: false, error: "আপনি ইতিমধ্যে এই প্রোমো কোডটি ব্যবহার করে ফেলেছেন!" }, 400);
-        }
-
-        // Check promo_codes table first, or fall back to preset promo codes
-        let promo = await db.prepare("SELECT * FROM promo_codes WHERE UPPER(code) = ? AND is_active = 1").bind(code).first();
-        let rewardCoins = 0;
-
-        if (promo) {
-          if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
-            return json({ ok: false, error: "এই প্রোমো কোডটির ব্যবহারের সর্বোচ্চ সীমা শেষ হয়ে গেছে!" }, 400);
-          }
-          rewardCoins = Number(promo.coins) || 0;
-        } else {
-          const PRESET_CODES = {
-            "WELCOME5": 5.0,
-            "PPM2026": 10.0,
-            "BONUS1": 1.0,
-            "FREEPLAY": 2.0,
-            "PPMOD": 3.0
-          };
-          if (PRESET_CODES[code]) {
-            rewardCoins = PRESET_CODES[code];
-          } else {
-            return json({ ok: false, error: "অবৈধ প্রোমো কোড! কোডটি সঠিক নয় বা মেয়াদোত্তীর্ণ।" }, 400);
-          }
-        }
-
-        const currentCoins = Number(user.coins) || 0.0;
-        const newCoins = Math.round((currentCoins + rewardCoins + Number.EPSILON) * 100) / 100;
-        const now = Date.now();
-
-        await db.prepare("UPDATE users SET coins = ? WHERE pp_id = ?").bind(newCoins, uid).run();
-
-        if (promo) {
-          await db.prepare("UPDATE promo_codes SET used_count = used_count + 1 WHERE UPPER(code) = ?").bind(code).run();
-        }
-
-        const redId = "RED-" + now + "-" + Math.random().toString(36).substring(2, 6);
-        await db.prepare("INSERT INTO redemptions (id, user_id, code, coins, created_at) VALUES (?, ?, ?, ?, ?)").bind(redId, uid, code, rewardCoins, now).run();
-
-        const txId = "TX-PROMO-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'promo_redeem', ?, ?, ?, 'Promo Code Reward', ?, ?)
-        `).bind(txId, uid, rewardCoins, currentCoins, newCoins, `Code: ${code}`, now).run();
-
-        sendTelegram(ADMIN_TG_ID, `🎁 <b>PROMO CODE REDEEMED!</b>\n\n👤 <b>User:</b> <code>${uid}</code>\n🎟️ <b>Code:</b> <code>${code}</code>\n🪙 <b>Reward:</b> +${rewardCoins} Coins\n💰 <b>New Balance:</b> ${newCoins} Coins`);
-
-        return json({
-          ok: true,
-          amount: rewardCoins,
-          balance: newCoins,
-          message: `🎉 অভিনন্দন! '${code}' প্রোমো কোডের মাধ্যমে +${rewardCoins} Coins পেয়েছেন!`
-        });
-      }
-
-      // User Redemptions History
-      if (path === "/api/promo/history" && method === "GET") {
-        const uid = (url.searchParams.get("user_id") || url.searchParams.get("pp_id") || "").toUpperCase();
-        if (!uid) return json({ ok: false, error: "user_id required" }, 400);
-        const rows = await db.prepare("SELECT code, coins, created_at FROM redemptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20").bind(uid).all();
-        return json({ ok: true, redemptions: (rows && rows.results) || [] });
-      }
-
-      // Earn Tasks List
-      if (path === "/api/earn/tasks" && method === "GET") {
-        const DEFAULT_TASKS = [
-          {
-            id: "daily_checkin",
-            title: "দৈনিক বোনাস ক্লেইম",
-            desc: "প্রতিদিন লগইন করে ফ্রি ১টি PP Coin উপহার নিন",
-            reward: 1.0,
-            resetType: "daily",
-            icon: "🎁",
-            actionType: "claim"
-          },
-          {
-            id: "tg_channel",
-            title: "Join Official Telegram",
-            desc: "অফিশিয়াল টেলিগ্রাম চ্যানেলে জয়েন হয়ে আপডেট থাকুন",
-            reward: 2.0,
-            resetType: "once",
-            icon: "📢",
-            actionType: "link",
-            url: "https://t.me/ppmodsofficial"
-          },
-          {
-            id: "yt_channel",
-            title: "Subscribe YouTube Channel",
-            desc: "আমাদের ইউটিউব চ্যানেলে সাবস্ক্রাইব করুন",
-            reward: 1.0,
-            resetType: "once",
-            icon: "▶️",
-            actionType: "link",
-            url: "https://youtube.com/@ppmods"
-          },
-          {
-            id: "app_download",
-            title: "Download PPM Server App",
-            desc: "PPM কানেক্টর অ্যাপ v4.5 ডাউনলোড ও ইনস্টল করুন",
-            reward: 5.0,
-            resetType: "once",
-            icon: "📲",
-            actionType: "link",
-            url: "https://t.me/ppmodsofficial"
-          }
-        ];
-        return json({ ok: true, tasks: DEFAULT_TASKS });
-      }
-
-      // Claim Task Reward
-      if (path === "/api/earn/claim-task" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || "").toUpperCase();
-        const taskId = body.task_id || "";
-
-        if (!uid || !taskId) return json({ ok: false, error: "user_id and task_id required" }, 400);
-
-        const taskRewards = {
-          "tg_channel": { coins: 2.0, title: "Telegram Channel Join Reward" },
-          "yt_channel": { coins: 1.0, title: "YouTube Subscribe Reward" },
-          "app_download": { coins: 5.0, title: "PPM Server App Install Reward" }
-        };
-
-        const taskInfo = taskRewards[taskId];
-        if (!taskInfo) return json({ ok: false, error: "অবৈধ টাস্ক আইডি" }, 400);
-
-        // Check if once task already completed
-        const existingTx = await db.prepare("SELECT id FROM transactions WHERE user_id = ? AND type = 'task_reward' AND details = ?").bind(uid, taskId).first();
-        if (existingTx) {
-          return json({ ok: false, error: "আপনি ইতিমধ্যে এই টাস্কটি সম্পন্ন করে রিওয়ার্ড নিয়েছেন!" }, 400);
-        }
-
-        const user = await db.prepare("SELECT coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!user) return json({ ok: false, error: "User not found" }, 404);
-
-        const currentCoins = Number(user.coins) || 0.0;
-        const newCoins = Math.round((currentCoins + taskInfo.coins + Number.EPSILON) * 100) / 100;
-        const now = Date.now();
-
-        await db.prepare("UPDATE users SET coins = ? WHERE pp_id = ?").bind(newCoins, uid).run();
-
-        const txId = "TX-TASK-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'task_reward', ?, ?, ?, ?, ?, ?)
-        `).bind(txId, uid, taskInfo.coins, currentCoins, newCoins, taskInfo.title, taskId, now).run();
-
-        return json({ ok: true, balance: newCoins, reward: taskInfo.coins, message: `🎉 অভিনন্দন! +${taskInfo.coins} Coins রিওয়ার্ড যুক্ত হয়েছে!` });
-      }
-
-      // -------------------------------------------------------------
-      // 10. ADMIN MANAGEMENT
-      // -------------------------------------------------------------
-      // Public Config and Cache
-      if ((path === "/api/cache/public-data" || path === "/api/config" || path === "/api/app/config") && method === "GET") {
-        const row = await db.prepare("SELECT value FROM cloud_store WHERE key = 'config'").first();
-        let cfg = {};
-        if (row && row.value) {
-          try { cfg = JSON.parse(row.value); } catch (e) { }
-        }
-        return json({ ok: true, config: cfg });
-      }
-
-      if ((path === "/api/cache/sync" || path === "/api/config/save" || path === "/api/admin/config") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const cfg = body.config || body;
-        const now = Date.now();
-        await db.prepare(`
-          INSERT INTO cloud_store (key, value, updated_at)
-          VALUES ('config', ?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-        `).bind(JSON.stringify(cfg), now).run();
-        return json({ ok: true, message: "Config saved to Cloudflare D1" });
-      }
-
-      // Cloud Store persistent sync for Render GPGS Quest Server
-      if (path.startsWith("/api/cloud/") && method === "GET") {
-        const key = path.replace("/api/cloud/", "");
-        const row = await db.prepare("SELECT value FROM cloud_store WHERE key = ?").bind(key).first();
-        if (!row) return json({ ok: true, data: [] });
-        try {
-          return json(JSON.parse(row.value));
-        } catch (e) {
-          return json({ ok: true, data: row.value });
-        }
-      }
-
-      if (path.startsWith("/api/cloud/") && method === "POST") {
-        const key = path.replace("/api/cloud/", "");
-        const body = await request.json().catch(() => ({}));
-        const valStr = JSON.stringify(body.data !== undefined ? body.data : body);
-        const now = Date.now();
-        await db.prepare(`
-          INSERT INTO cloud_store (key, value, updated_at)
-          VALUES (?, ?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-        `).bind(key, valStr, now).run();
-        return json({ ok: true, message: `Synced ${key} to Cloudflare D1 successfully` });
-      }
-
-      // -------------------------------------------------------------
-      // SYNC VAULT (Token & Pairing Code Management - Strict User Isolation)
-      // -------------------------------------------------------------
-      if (path === "/api/sync/save" && method === "POST") {
+      // 1d-sync. PP Server Cloudflare D1 Account & Token Sync Engine (Clean Credentials Only)
+      if (path === "/api/sync/save" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         let email = (body.email || "").trim().toLowerCase();
         let token = (body.token || body.oauth_token || body.master_token || "").trim();
         let code = (body.code || "").trim();
         let country = (body.country || "GLOBAL").trim();
-        let uid = (body.uid || body.user_id || "").trim().toUpperCase();
-        let ownerEmail = (body.owner_email || "").trim().toLowerCase();
-        let androidId = (body.android_id || "").trim();
+        let uid = (body.uid || "").trim();
+        let android_id = (body.android_id || "").trim() || "46e14d2451d85c3f";
 
-        if (!code || !email || !token) {
-          return json({ ok: false, error: "Missing required fields (code, email, token)" }, 400);
+        if (!token && !code) {
+          return json({ ok: false, error: "Token or code required" }, 400);
         }
 
+        // Auto-Exchange temporary oauth_token cookie to permanent Google Master Token (aas_et/...)
+        if (token && !token.startsWith("aas_et/") && !token.startsWith("oauth2rt_1/")) {
+          try {
+            const cleanTok = token.includes("oauth_token=") ? (token.match(/oauth_token=([a-zA-Z0-9_\-]+)/)?.[1] || token.replace("oauth_token=", "")) : token;
+            const postBody = new URLSearchParams({
+              Email: email && email.includes("@") ? email : "",
+              Token: cleanTok,
+              androidId: android_id,
+              service: "ac2dm",
+              app: "com.google.android.gms",
+              client_sig: "38918a453d07199354f8b19af05ec6562ced5788",
+              has_permission: "1",
+              device_country: "us",
+              operatorCountry: "us",
+              lang: "en",
+              sdk_version: "28"
+            });
+            const gRes = await fetch("https://android.clients.google.com/auth", {
+              method: "POST",
+              headers: {
+                "User-Agent": "GoogleAuth/1.4 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001)",
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              body: postBody.toString()
+            });
+            const gText = await gRes.text();
+            for (const line of gText.split("\n")) {
+              const [k, ...v] = line.split("=");
+              if (k === "Token" && v.length) {
+                token = v.join("=");
+              } else if (k === "Email" && v.length && (!email || !email.includes("@"))) {
+                email = v.join("=").toLowerCase();
+              }
+            }
+          } catch(e) {}
+        }
+
+        let existing = null;
+        if (code) {
+          existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first().catch(() => null);
+        }
+        if (!existing && email && email.includes("@")) {
+          existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).first().catch(() => null);
+        }
+
+        if (country === "GB") country = "UK";
+        if (!token && existing?.token) token = existing.token;
+        if (!code || code.length !== 6) {
+          code = existing?.code || String(Math.floor(100000 + Math.random() * 900000));
+        }
+
+        const id = existing?.id || body.id || `VAULT-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+        const finalAndroidId = (body.android_id || existing?.android_id || android_id || "").trim() || "46e14d2451d85c3f";
         const now = Date.now();
-        await db.prepare(`
-          INSERT INTO pp_sync_vault (code, email, token, country, uid, owner_email, android_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+        // 1. Save to clean pp_sync_vault without fake points/tier/balance
+        await env.DB.prepare(`
+          INSERT INTO pp_sync_vault (id, uid, code, email, token, country, status, android_id, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
           ON CONFLICT(code) DO UPDATE SET
+            uid = excluded.uid,
             email = excluded.email,
             token = excluded.token,
             country = excluded.country,
-            uid = excluded.uid,
-            owner_email = excluded.owner_email,
             android_id = excluded.android_id,
-            updated_at = excluded.updated_at
-        `).bind(code, email, token, country, uid, ownerEmail, androidId, now, now).run();
+            status = 'active',
+            updatedAt = excluded.updatedAt
+        `).bind(id, uid, code, email, token, country, finalAndroidId, existing?.createdAt || now, now).run();
 
-        return json({ ok: true, code, message: "Account synced to cloud vault successfully" });
+        // 2. Dedicated g_tokens permanent storage
+        try {
+          await env.DB.prepare(`
+            INSERT INTO g_tokens (id, uid, email, token, code, country, android_id, status, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            ON CONFLICT(code) DO UPDATE SET
+              uid = excluded.uid,
+              email = excluded.email,
+              token = excluded.token,
+              country = excluded.country,
+              android_id = excluded.android_id,
+              status = 'active',
+              updatedAt = excluded.updatedAt
+          `).bind(id, uid, email, token, code, country, finalAndroidId, existing?.createdAt || now, now).run();
+        } catch(e) {}
+
+        return json({ ok: true, code, email, id, master_token: token, android_id: finalAndroidId, country, message: "Account saved to Cloud Vault with permanent Master Token" });
       }
 
-      if (path === "/api/sync/accounts" && method === "GET") {
-        const uid = (url.searchParams.get("uid") || url.searchParams.get("user_id") || "").trim().toUpperCase();
+      if (path === "/api/sync/update_country" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        const email = (body.email || "").trim().toLowerCase();
+        let country = (body.country || "GLOBAL").trim().toUpperCase();
+        if (country === "GB") country = "UK";
+        if (!code && !email) return json({ ok: false, error: "Missing code or email" }, 400);
+
+        if (code) {
+          await env.DB.prepare(`UPDATE pp_sync_vault SET country = ?, updatedAt = ? WHERE code = ?`).bind(country, Date.now(), code).run();
+          await env.DB.prepare(`UPDATE g_tokens SET country = ?, updatedAt = ? WHERE code = ?`).bind(country, Date.now(), code).run().catch(() => {});
+        }
+        if (email) {
+          await env.DB.prepare(`UPDATE pp_sync_vault SET country = ?, updatedAt = ? WHERE LOWER(email) = ?`).bind(country, Date.now(), email).run();
+          await env.DB.prepare(`UPDATE g_tokens SET country = ?, updatedAt = ? WHERE LOWER(email) = ?`).bind(country, Date.now(), email).run().catch(() => {});
+        }
+        return json({ ok: true, code, country, message: "Country updated in Cloudflare D1 persistent vault" });
+      }
+
+      if (path === "/api/sync/accounts" && request.method === "GET") {
+        const uid = (url.searchParams.get("uid") || "").trim();
         const ownerEmail = (url.searchParams.get("owner_email") || url.searchParams.get("email") || "").trim().toLowerCase();
 
-        // STRICT PRIVACY GUARD: Never return accounts if neither uid nor owner_email is provided!
         if (!uid && !ownerEmail) {
           return json({ ok: true, accounts: [] });
         }
 
-        let rows;
-        if (uid && ownerEmail) {
-          rows = await db.prepare(`
-            SELECT code, email, token, country, uid, owner_email, created_at, updated_at
-            FROM pp_sync_vault
-            WHERE (uid = ? OR owner_email = ? OR email = ?)
-            ORDER BY updated_at DESC
-          `).bind(uid, ownerEmail, ownerEmail).all();
-        } else if (uid) {
-          rows = await db.prepare(`
-            SELECT code, email, token, country, uid, owner_email, created_at, updated_at
-            FROM pp_sync_vault
-            WHERE uid = ?
-            ORDER BY updated_at DESC
-          `).bind(uid).all();
-        } else {
-          rows = await db.prepare(`
-            SELECT code, email, token, country, uid, owner_email, created_at, updated_at
-            FROM pp_sync_vault
-            WHERE (owner_email = ? OR email = ?)
-            ORDER BY updated_at DESC
-          `).bind(ownerEmail, ownerEmail).all();
+        let targetUid = uid;
+        if (!targetUid && ownerEmail) {
+          try {
+            const userRec = await env.DB.prepare("SELECT uid FROM user_wallets WHERE LOWER(email) = ? LIMIT 1").bind(ownerEmail).first();
+            if (userRec && userRec.uid) targetUid = userRec.uid;
+          } catch (_) {}
         }
 
-        return json({ ok: true, accounts: (rows && rows.results) || [] });
+        // Fetch from clean g_tokens first
+        let gRes = null;
+        if (targetUid) {
+          try {
+            gRes = await env.DB.prepare(`
+              SELECT id, uid, code, email, token, country, android_id, createdAt, updatedAt FROM g_tokens
+              WHERE uid = ? AND status = 'active'
+              ORDER BY createdAt DESC LIMIT 100
+            `).bind(targetUid).all();
+          } catch(e) {}
+        } else if (ownerEmail) {
+          try {
+            gRes = await env.DB.prepare(`
+              SELECT id, uid, code, email, token, country, android_id, createdAt, updatedAt FROM g_tokens
+              WHERE LOWER(email) = ? AND status = 'active'
+              ORDER BY createdAt DESC LIMIT 100
+            `).bind(ownerEmail).all();
+          } catch(e) {}
+        }
+
+        if (gRes && gRes.results && gRes.results.length > 0) {
+          const accounts = gRes.results.map(r => ({
+            ...r,
+            country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+            android_id: r.android_id || "46e14d2451d85c3f"
+          }));
+          return json({ ok: true, accounts });
+        }
+
+        // Fallback to pp_sync_vault
+        let res;
+        if (targetUid) {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, status, android_id, createdAt, updatedAt FROM pp_sync_vault
+            WHERE uid = ? AND status = 'active'
+            ORDER BY createdAt DESC LIMIT 100
+          `).bind(targetUid).all();
+        } else if (ownerEmail) {
+          res = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, status, android_id, createdAt, updatedAt FROM pp_sync_vault
+            WHERE LOWER(email) = ? AND status = 'active'
+            ORDER BY createdAt DESC LIMIT 100
+          `).bind(ownerEmail).all();
+        } else {
+          return json({ ok: true, accounts: [] });
+        }
+
+        const accounts = (res.results || []).map(r => ({
+          ...r,
+          country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+          android_id: r.android_id || "46e14d2451d85c3f"
+        }));
+        return json({ ok: true, accounts });
       }
 
-      if (path === "/api/sync/get" && method === "GET") {
-        const code = (url.searchParams.get("code") || "").trim();
+      if (path === "/api/sync/get" && request.method === "GET") {
+        const code = url.searchParams.get("code") || "";
         if (!code) return json({ ok: false, error: "Missing code" }, 400);
 
-        const row = await db.prepare("SELECT * FROM pp_sync_vault WHERE code = ?").bind(code).first();
+        let gRow = null;
+        try {
+          gRow = await env.DB.prepare(`SELECT * FROM g_tokens WHERE code = ?`).bind(code).first();
+        } catch(e) {}
+        if (gRow) {
+          gRow.country = (gRow.country && gRow.country !== "GLOBAL") ? gRow.country : "US";
+          gRow.android_id = gRow.android_id || "46e14d2451d85c3f";
+          return json({ ok: true, account: gRow });
+        }
+
+        const row = await env.DB.prepare(`
+          SELECT id, uid, code, email, token, country, status, android_id, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
+        `).bind(code).first();
         if (!row) return json({ ok: false, error: "Code not found" }, 404);
+        row.country = (row.country && row.country !== "GLOBAL") ? row.country : "US";
+        row.android_id = row.android_id || "46e14d2451d85c3f";
+        return json({ ok: true, account: row });
+      }
+
+      if (path === "/api/sync/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const code = (body.code || "").trim();
+        const email = (body.email || "").trim().toLowerCase();
+        const uid = (body.uid || body.targetUid || "").trim();
+        if (uid) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(uid).run().catch(() => {});
+        }
+        if (code) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE code = ?`).bind(code).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE code = ?`).bind(code).run().catch(() => {});
+        }
+        if (email) {
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE LOWER(email) = ?`).bind(email).run().catch(() => {});
+        }
+        return json({ ok: true, message: "Account(s) permanently deleted from Cloud Vault" });
+      }
+
+      // Cloudflare D1 Persistent Cloud Backup for Games & Portal Services (Survives Render Redeploys)
+      if (path === "/api/cloud/portal-services" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'portal_services' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/portal-services" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('portal_services', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Portal services permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/custom-games" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'custom_games' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/custom-games" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('custom_games', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Custom games permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/registered-devices" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'registered_devices' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/registered-devices" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('registered_devices', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Registered devices permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      if (path === "/api/cloud/unlock-history" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'unlock_history' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+            });
+          }
+        } catch(e) {}
+        return json({ ok: false, error: "Not found" }, 404);
+      }
+
+      if (path === "/api/cloud/unlock-history" && request.method === "POST") {
+        try {
+          const raw = await request.text();
+          await env.DB.prepare(`
+            INSERT INTO app_cache (id, data, updatedAt) VALUES ('unlock_history', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+          `).bind(raw, Date.now()).run();
+          return json({ ok: true, message: "Unlock history permanently backed up to Cloudflare D1!" });
+        } catch(e) {
+          return json({ ok: false, error: e.message }, 500);
+        }
+      }
+
+      // 1d-gw. PP Auto Payment Gateway Edge API (Professional Security + 30-Min Expiration Rule)
+      if (path === "/api/gateway/sms" && request.method === "POST") {
+        const secret = request.headers.get("x-gateway-secret") || "";
+        const body = await request.json().catch(() => ({}));
+        const reqSecret = secret || body.secret || "";
+
+        if (reqSecret !== "PPMOD_GATEWAY_SEC_2025") {
+          return json({ ok: false, error: "Unauthorized Gateway App" }, 401);
+        }
+
+        const sender = body.sender || "Gateway";
+        const message = body.message || body.raw || "";
+        let trxId = (body.trxId || "").trim().toUpperCase();
+        let amount = Number(body.amount) || 0;
+        let balance = Number(body.balance) || 0;
+        let method = body.method || "bKash";
+
+        const rawText = (message || "").toLowerCase();
+        const snd = (sender || "").toLowerCase();
+        if (snd.includes("rocket") || snd.includes("16216") || snd.includes("dbbl") || snd.includes("nexus") || snd.includes("dutch-bangla") ||
+            rawText.includes("nexuspay") || rawText.includes("nexus") || rawText.includes("bit.ly/nexuspay") ||
+            rawText.includes("rocket") || rawText.includes("রকেট") || rawText.includes("dbbl") || rawText.includes("16216") || rawText.includes("dutch-bangla") ||
+            rawText.includes("a/c:***") || rawText.includes("a/c:") || (rawText.includes("fee:tk") && (rawText.includes("txnid") || rawText.includes("balance"))) ||
+            /txnid[:\s]*\d{8,12}\b/i.test(rawText)) {
+          method = "Rocket";
+        } else if (snd.includes("nagad") || snd.includes("16167") || snd.includes("nagad-bd") ||
+                   rawText.includes("nagad") || rawText.includes("নগদ") ||
+                   (rawText.includes("ref:") && (rawText.includes("txnid") || rawText.includes("balance:"))) ||
+                   /txnid[:\s]*[A-Za-z0-9]{8}\b/i.test(rawText)) {
+          method = "Nagad";
+        } else if (snd.includes("upay") || snd.includes("16268") || snd.includes("ucb") ||
+                   rawText.includes("upay") || rawText.includes("উপায়") || rawText.includes("উপায়") || rawText.includes("16268") || rawText.includes("ucb")) {
+          method = "Upay";
+        } else if (snd.includes("bkash") || snd.includes("16247") ||
+                   rawText.includes("bkash") || rawText.includes("বিকাশ") || rawText.includes("16247") ||
+                   /trxid[:\s]*[A-Za-z0-9]{10}\b/i.test(rawText) || rawText.includes("trxid")) {
+          method = "bKash";
+        } else if (body.method && body.method !== "bKash") {
+          method = body.method;
+        } else if (trxId) {
+          const clean = trxId.replace(/[^A-Za-z0-9]/g, "");
+          if (/^\d{9,12}$/.test(clean)) method = "Rocket";
+          else if (clean.length === 8) method = "Nagad";
+          else if (clean.length === 10) method = "bKash";
+        }
+        const now = Date.now();
+        const timestamp = body.timestamp ? Number(body.timestamp) : now;
+        const expiryCutoff = now - 30 * 60 * 1000;
+
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto expired: 30 minutes elapsed without user claim'
+          WHERE (claimed = 0 OR claimType IS NULL OR claimType = 'none') AND receivedAt < ?
+        `).bind(expiryCutoff).run().catch(() => {});
+
+        if (!trxId && message) {
+          const m = message.match(/(?:TrxID|TxnID|Txn|ID|Ref|আইডি)[:\s]*([A-Za-z0-9]{7,14})/i) || message.match(/\b([A-Z0-9]{8,12})\b/i);
+          if (m) trxId = m[1].trim().toUpperCase();
+        }
+        if (!amount && message) {
+          const a = message.match(/(?:Tk|Amount|received|টাকা|BDT)[:\s]*([\d,]+(?:\.\d+)?)/i) || message.match(/([\d,]+(?:\.\d+)?)\s*(?:Tk|টাকা|BDT)/i);
+          if (a) amount = Math.round(parseFloat(a[1].replace(/,/g, "")));
+        }
+
+        if (!trxId || !amount) {
+          return json({ ok: true, matched: false, message: "Ignored (non-payment SMS or missing TrxID/amount)" });
+        }
+
+        const isIncomingExpired = (timestamp < expiryCutoff);
+        const initClaimed = isIncomingExpired ? 1 : 0;
+        const initClaimType = isIncomingExpired ? 'time_expired' : 'none';
+        const initAdminMsg = isIncomingExpired ? 'Auto Expired (30+ min old SMS)' : '';
+
+        await env.DB.prepare(`
+          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, claimType, adminMsg, receivedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(trxId) DO UPDATE SET
+            amount = excluded.amount,
+            balance = excluded.balance,
+            receivedAt = excluded.receivedAt
+        `).bind(trxId, sender, message, method, amount, balance, initClaimed, initClaimType, initAdminMsg, timestamp).run();
+
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(trxId).first();
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(trxId).first();
+
+        if (usedTrx || approvedDep) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        if (isIncomingExpired) {
+          return json({ ok: true, matched: true, autoApproved: false, expired: true, message: "SMS saved but marked expired (>30 mins old)" });
+        }
+
+        const pendingDep = await env.DB.prepare(`SELECT * FROM deposits WHERE trxId = ? AND status = 'pending' ORDER BY createdAt DESC LIMIT 1`).bind(trxId).first();
+
+        if (pendingDep) {
+          const depTime = pendingDep.createdAt || now;
+          if (Math.abs(now - depTime) > 30 * 60 * 1000 || Math.abs(now - timestamp) > 30 * 60 * 1000) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ সময়সীমা পার হয়ে গেছে! টাকা পাঠানোর ৩০ মিনিটের মধ্যে সাবমিট করতে হবে।' WHERE id = ?`).bind(pendingDep.id).run();
+            await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1, claimType = 'time_expired', adminMsg = 'Expired (>30m)' WHERE trxId = ?`).bind(trxId).run();
+            return json({ ok: false, error: "Deposit submission expired (>30m)" }, 400);
+          }
+
+          if (Number(pendingDep.amount) === amount) {
+            const coinRate = 7;
+            const coinsToAdd = roundCoin(pendingDep.coins || Math.max(1, Math.floor(amount / coinRate)));
+
+            const lockRes = await env.DB.prepare(`
+              INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+              ON CONFLICT(trxId) DO NOTHING
+            `).bind(trxId, pendingDep.uid, amount, now).run();
+
+            if (!lockRes || lockRes.meta?.changes === 0) {
+              return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য ডিভাইস বা অ্যাকাউন্টে ব্যবহার করা হয়েছে!" }, 400);
+            }
+
+            const uWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(pendingDep.uid).first();
+            const curBal = roundCoin(uWallet ? uWallet.balance : 0);
+            const newBal = roundCoin(curBal + coinsToAdd);
+
+            await env.DB.prepare(`
+              UPDATE user_wallets 
+              SET balance = ?, realBalance = ?, bonusBalance = 0, playPoints = playPoints + ?, updatedAt = ?
+              WHERE uid = ?
+            `).bind(newBal, newBal, Math.round(amount), now, pendingDep.uid).run();
+
+            await env.DB.prepare(`
+              UPDATE deposits SET status = 'approved', adminMsg = 'Auto Verified & Approved by PP Gateway', coins = ?, amount = ? WHERE id = ? AND status != 'approved'
+            `).bind(coinsToAdd, amount, pendingDep.id).run();
+
+            await env.DB.prepare(`
+              UPDATE gateway_sms 
+              SET claimed = 1, claimType = 'user', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?
+              WHERE trxId = ?
+            `).bind(pendingDep.uid, pendingDep.name || pendingDep.email || 'User', now, coinsToAdd, trxId).run();
+
+            // Send Telegram Notifications on auto gateway deposit
+            try {
+              const uRec = await env.DB.prepare("SELECT name, email, tgChatId FROM user_wallets WHERE uid = ?").bind(pendingDep.uid).first();
+              const uName = uRec?.name || pendingDep.name || 'User';
+              const uEmail = uRec?.email || pendingDep.email || '—';
+              const uTg = uRec?.tgChatId || pendingDep.userTgId;
+
+              const adminMsg = `💎 <b>AUTO-DEPOSIT APPROVED (GATEWAY)</b> ✅\n\n` +
+                `🆔 <b>User ID:</b> <code>${pendingDep.uid}</code>\n` +
+                `👤 <b>Name:</b> ${uName}\n` +
+                `📧 <b>Email:</b> ${uEmail}\n` +
+                `💵 <b>Amount:</b> ${amount} BDT\n` +
+                `🪙 <b>Coins:</b> +${coinsToAdd} PP Coins\n` +
+                `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                `✨ <b>নতুন ব্যালেন্স:</b> ${newBal} Coins\n` +
+                `💳 <b>Method:</b> ${method}\n` +
+                `🔖 <b>TrxID:</b> <code>${trxId}</code>`;
+              sendTelegram(ADMIN_TG_ID, adminMsg);
+              sendTelegram(ORDER_LOG_CHANNEL, adminMsg);
+
+              if (uTg) {
+                const userMsg = `✅ <b>আপনার ডিপোজিট অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+                  `💵 <b>Amount:</b> ${amount} BDT\n` +
+                  `🪙 <b>Coin:</b> +${coinsToAdd} PP Coins\n` +
+                  `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
+                  `👤 <b>Account Name:</b> ${uName}\n` +
+                  `📧 <b>Mail:</b> ${uEmail}\n` +
+                  `🆔 <b>UID:</b> <code>${pendingDep.uid}</code>`;
+                sendTelegram(uTg, userMsg);
+              }
+            } catch (ignTg) {}
+
+            return json({ ok: true, matched: true, autoApproved: true, depId: pendingDep.id, amount, coinsAdded: coinsToAdd });
+          } else {
+            await env.DB.prepare(`
+              UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ?
+            `).bind(`❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${amount} BDT কিন্তু সাবমিট করেছেন ${pendingDep.amount} BDT`, pendingDep.id).run();
+
+            return json({ ok: false, matched: true, autoApproved: false, error: "Amount mismatch" }, 400);
+          }
+        }
+
+        return json({ ok: true, matched: true, autoApproved: false, message: "Payment SMS recorded in Cloudflare D1, awaiting user submission" });
+      }
+
+      // 1d-verify. PP Auto Payment Gateway Verify Deposit
+      if (path === "/api/gateway/verify-deposit" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { depId, trxId, amount, uid, email, name } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing TrxID" }, 400);
+
+        const now = Date.now();
+        const userAmt = Math.round(Number(amount) || 0);
+
+        const usedTrx = await env.DB.prepare(`SELECT 1 FROM used_trx WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+        const approvedDep = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(cleanTrx).first();
+        if (usedTrx || approvedDep) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার বা ভেরিফাই করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        const smsRow = await env.DB.prepare(`SELECT * FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+
+        if (!smsRow) {
+          return json({
+            ok: true,
+            autoApproved: false,
+            pending: true,
+            message: "⏳ পেমেন্ট এসএমএস সার্ভারে আসার অপেক্ষা চলছে... ফোনে এসএমএস আসার সাথে সাথে কয়েন যোগ হবে।"
+          });
+        }
+
+        const smsTime = Number(smsRow.receivedAt) || now;
+
+        if (now - smsTime > 30 * 60 * 1000 || smsRow.claimType === 'time_expired') {
+          await env.DB.prepare(`UPDATE gateway_sms SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto Expired (>30m)' WHERE trxId = ?`).bind(cleanTrx).run().catch(() => {});
+          if (depId) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = '❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণযোগ্য নয়।' WHERE id = ?`).bind(depId).run().catch(() => {});
+          }
+          return json({ ok: false, error: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণ করা হয় না।" }, 400);
+        }
+
+        if (smsRow.claimed === 1 || smsRow.claimType === 'user' || smsRow.claimType === 'admin') {
+          if (smsRow.claimType === 'admin') {
+            return json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি অ্যাডমিন কর্তৃক ভেরিফাই/লক করা হয়েছে।" }, 400);
+          }
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+
+        const realSmsAmt = Math.round(Number(smsRow.amount) || 0);
+        if (realSmsAmt !== userAmt) {
+          const mismatchMsg = `❌ টাকার পরিমাণ মিলেনি! আসল পেমেন্ট ছিল ${realSmsAmt} BDT কিন্তু সাবমিট করেছেন ${userAmt} BDT`;
+          if (depId) {
+            await env.DB.prepare(`UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ?`).bind(mismatchMsg, depId).run().catch(() => {});
+          }
+          return json({ ok: false, error: mismatchMsg }, 400);
+        }
+
+        let targetUid = uid;
+        if (!targetUid && depId) {
+          const dRow = await env.DB.prepare(`SELECT uid FROM deposits WHERE id = ? LIMIT 1`).bind(depId).first();
+          if (dRow) targetUid = dRow.uid;
+        }
+        if (!targetUid && email) {
+          const uRow = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1`).bind(email.trim()).first();
+          if (uRow) targetUid = uRow.uid;
+        }
+        if (!targetUid) {
+          return json({ ok: false, error: "Missing user UID for crediting" }, 400);
+        }
+
+        const lockRes = await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, targetUid, realSmsAmt, now).run();
+
+        if (!lockRes || lockRes.meta?.changes === 0) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য ডিভাইস বা ট্যাবে ব্যবহার করা হয়েছে!" }, 400);
+        }
+
+        const coinRate = 7;
+        const coinsToAdd = roundCoin(Math.max(1, Math.floor(realSmsAmt / coinRate)));
+
+        let userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(targetUid).first();
+        const curBal = roundCoin(userWallet ? userWallet.balance : 0);
+        const newBal = roundCoin(curBal + coinsToAdd);
+
+        await env.DB.prepare(`
+          UPDATE user_wallets 
+          SET balance = ?, realBalance = ?, bonusBalance = 0, playPoints = playPoints + ?, updatedAt = ?
+          WHERE uid = ?
+        `).bind(newBal, newBal, realSmsAmt, now, targetUid).run();
+
+        const finalDepId = depId || `DEP-${cleanTrx}`;
+        await env.DB.prepare(`
+          INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'Auto Verified by PP Gateway', ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins, amount = excluded.amount, adminMsg = 'Auto Verified by PP Gateway'
+        `).bind(finalDepId, targetUid, name || 'User', email || '', smsRow.method || 'bKash', realSmsAmt, coinsToAdd, cleanTrx, now).run().catch(() => {});
+
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'approved', ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'approved', amount = excluded.amount
+        `).bind(
+          finalDepId,
+          targetUid,
+          `Wallet Top-up (${smsRow.method || 'bKash'})`,
+          `Top-up: ${smsRow.method || 'bKash'}`,
+          `${smsRow.method || 'bKash'} • ${cleanTrx}`,
+          realSmsAmt,
+          curBal,
+          curBal,
+          newBal,
+          now
+        ).run().catch(() => {});
+
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'user', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?, adminMsg = 'Auto Claimed via Portal'
+          WHERE trxId = ?
+        `).bind(targetUid, name || email || 'User', now, coinsToAdd, cleanTrx).run();
 
         return json({
           ok: true,
-          code: row.code,
-          email: row.email,
-          token: row.token,
-          master_token: row.token,
-          country: row.country,
-          uid: row.uid,
-          owner_email: row.owner_email,
-          android_id: row.android_id || ""
+          autoApproved: true,
+          depId: finalDepId,
+          amount: realSmsAmt,
+          coinsAdded: coinsToAdd,
+          balance: newBal,
+          message: "পেমেন্ট সফলভাবে ভেরিফাই হয়েছে এবং ওয়ালেটে কয়েন যুক্ত হয়েছে!"
         });
       }
 
-      if (path === "/api/sync/delete" && (method === "POST" || method === "DELETE")) {
-        const body = await request.json().catch(() => ({}));
-        const code = (body.code || url.searchParams.get("code") || "").trim();
-        const uid = (body.uid || body.user_id || url.searchParams.get("uid") || "").trim().toUpperCase();
-        const email = (body.email || body.owner_email || url.searchParams.get("email") || "").trim().toLowerCase();
+      // 1d-recent. Gateway SMS Recent List & 30-Min Audit Stats
+      if (path === "/api/gateway/recent" && request.method === "GET") {
+        const now = Date.now();
+        const cutoff30m = now - 30 * 60 * 1000;
 
-        if (!code) return json({ ok: false, error: "Missing code" }, 400);
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'time_expired', adminMsg = 'Auto expired: 30 minutes elapsed'
+          WHERE (claimed = 0 OR claimType IS NULL OR claimType = 'none') AND receivedAt < ?
+        `).bind(cutoff30m).run().catch(() => {});
 
-        if (uid && email) {
-          await db.prepare("DELETE FROM pp_sync_vault WHERE code = ? AND (uid = ? OR owner_email = ? OR email = ?)").bind(code, uid, email, email).run();
-        } else if (uid) {
-          await db.prepare("DELETE FROM pp_sync_vault WHERE code = ? AND uid = ?").bind(code, uid).run();
-        } else if (email) {
-          await db.prepare("DELETE FROM pp_sync_vault WHERE code = ? AND (owner_email = ? OR email = ?)").bind(code, email, email).run();
-        } else {
-          await db.prepare("DELETE FROM pp_sync_vault WHERE code = ?").bind(code).run();
-        }
+        const res = await env.DB.prepare(`
+          SELECT trxId, sender, raw, method, amount, balance, claimed, claimType, claimedByUid, claimedByName, claimedAt, coinsAdded, adminMsg, receivedAt 
+          FROM gateway_sms 
+          ORDER BY receivedAt DESC 
+          LIMIT 100
+        `).all();
 
-        return json({ ok: true, message: `Account ${code} deleted permanently` });
-      }
+        const list = res.results || [];
+        let last30MinTaka = 0, last30MinCount = 0;
+        let totalUserClaimedTaka = 0, totalUserClaimedCoins = 0, totalUserClaimedCount = 0;
+        let totalAdminClaimedTaka = 0, totalAdminClaimedCoins = 0, totalAdminClaimedCount = 0;
+        let totalExpiredTaka = 0, totalExpiredCount = 0;
+        let totalAllTaka = 0, totalAllCount = list.length;
 
+        list.forEach(item => {
+          const amt = Number(item.amount) || 0;
+          const coins = Number(item.coinsAdded) || Math.floor(amt / 7) || 0;
+          const rTime = Number(item.receivedAt) || 0;
+          totalAllTaka += amt;
 
-      // Admin Stats Dashboard
-      if (path === "/api/admin/stats" && method === "GET") {
-        const uCount = (await db.prepare("SELECT COUNT(*) as c FROM users").first())?.c || 0;
-        const oCount = (await db.prepare("SELECT COUNT(*) as c FROM orders").first())?.c || 0;
-        const pDep = (await db.prepare("SELECT COUNT(*) as c FROM deposits WHERE status = 'pending'").first())?.c || 0;
-        const totCoins = (await db.prepare("SELECT SUM(coins) as s FROM users").first())?.s || 0.0;
-        const totalBal = Math.round((Number(totCoins) + Number.EPSILON) * 100) / 100;
+          if (rTime >= cutoff30m) {
+            last30MinTaka += amt;
+            last30MinCount++;
+          }
+
+          if (item.claimType === 'user' || (item.claimed === 1 && !item.claimType)) {
+            totalUserClaimedTaka += amt;
+            totalUserClaimedCoins += coins;
+            totalUserClaimedCount++;
+          } else if (item.claimType === 'admin') {
+            totalAdminClaimedTaka += amt;
+            totalAdminClaimedCoins += coins;
+            totalAdminClaimedCount++;
+          } else if (item.claimType === 'time_expired') {
+            totalExpiredTaka += amt;
+            totalExpiredCount++;
+          }
+        });
+
         return json({
           ok: true,
-          totalUsers: uCount,
-          totalOrders: oCount,
-          pendingDeposits: pDep,
-          totalUserBalance: totalBal,
+          transactions: list,
+          list: list,
           stats: {
-            totalUsers: uCount,
-            totalOrders: oCount,
-            pendingDeposits: pDep,
-            totalCoins: totalBal
+            last30MinTaka,
+            last30MinCount,
+            userClaimedTaka,
+            userClaimedCoins,
+            userClaimedCount,
+            adminClaimedTaka,
+            adminClaimedCoins,
+            adminClaimedCount,
+            timeExpiredTaka,
+            timeExpiredCount,
+            totalTaka: totalAllTaka,
+            totalCount: totalAllCount,
+            serverTime: now
           }
         });
       }
 
-      // Admin Users List & Pagination
-      if ((path === "/api/admin/users" || path === "/api/users/list") && method === "GET") {
-        const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "100", 10)));
-        const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10));
-        const search = (url.searchParams.get("search") || "").trim().toLowerCase();
+      // 1d-claim. Admin Manual Claim Single SMS
+      if (path === "/api/gateway/admin-claim" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { trxId, uid, targetUid, coins, adminName, adminEmail } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing trxId" }, 400);
 
-        let countRow;
-        let rows;
+        const now = Date.now();
+        const userUid = (targetUid || uid || "").trim();
 
-        if (search) {
-          const sPattern = `%${search}%`;
-          countRow = await db.prepare("SELECT COUNT(*) as total, SUM(coins) as total_bal FROM users WHERE LOWER(email) LIKE ? OR UPPER(pp_id) LIKE ? OR LOWER(name) LIKE ?").bind(sPattern, sPattern, sPattern).first();
-          rows = await db.prepare(`
-            SELECT pp_id, email, password, name, avatar_url, coins, monthly_points, role, device_id, is_banned, ban_reason, created_at
-            FROM users
-            WHERE LOWER(email) LIKE ? OR UPPER(pp_id) LIKE ? OR LOWER(name) LIKE ?
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-          `).bind(sPattern, sPattern, sPattern, limit, offset).all();
-        } else {
-          countRow = await db.prepare("SELECT COUNT(*) as total, SUM(coins) as total_bal FROM users").first();
-          rows = await db.prepare(`
-            SELECT pp_id, email, password, name, avatar_url, coins, monthly_points, role, device_id, is_banned, ban_reason, created_at
-            FROM users
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-          `).bind(limit, offset).all();
+        const smsRow = await env.DB.prepare(`SELECT * FROM gateway_sms WHERE trxId = ? LIMIT 1`).bind(cleanTrx).first();
+        if (!smsRow) return json({ ok: false, error: "SMS not found" }, 404);
+
+        if (smsRow.claimed === 1 || smsRow.claimType === 'user' || smsRow.claimType === 'admin') {
+          return json({ ok: false, error: "⚠️ এই ট্রানজ্যাকশনটি ইতিমধ্যে ক্লেইম বা লক করা হয়েছে!" }, 400);
         }
 
-        const rawList = (rows && rows.results) || [];
-        const users = rawList.map(u => ({
+        const amt = Number(smsRow.amount) || 0;
+        const finalCoins = roundCoin(coins || (amt > 0 ? Math.floor(amt / 7) : 3));
+
+        await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, userUid || 'admin_claim', amt, now).run();
+
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'admin', claimedByUid = ?, claimedByName = ?, claimedAt = ?, coinsAdded = ?, adminMsg = ?
+          WHERE trxId = ?
+        `).bind(userUid || 'admin', adminEmail || adminName || 'Admin', now, finalCoins, 'Admin Manual Claim', cleanTrx).run();
+
+        if (userUid && userUid !== 'admin' && userUid !== 'admin_claim') {
+          let uWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(userUid).first();
+          const curBal = roundCoin(uWallet ? uWallet.balance : 0);
+          const newBal = roundCoin(curBal + finalCoins);
+
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = ?, realBalance = ?, bonusBalance = 0, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(newBal, newBal, Math.round(amt), now, userUid).run();
+
+          await env.DB.prepare(`
+            INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+            VALUES (?, ?, 'User', '', ?, ?, ?, ?, 'approved', 'Admin Manual Claim', ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+          `).bind(`DEP-${cleanTrx}`, userUid, smsRow.method || 'bKash', amt, finalCoins, cleanTrx, now).run().catch(() => {});
+        }
+
+        return json({ ok: true, message: `TrxID ${cleanTrx} successfully claimed and locked by Admin!` });
+      }
+
+      // 1d-add. Admin Manual Add & Lock TrxID
+      if (path === "/api/gateway/admin-add-trx" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const { trxId, amount, method, reason, targetUid, uid, coins, adminName, adminEmail } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "TrxID প্রদান করা বাধ্যতামূলক" }, 400);
+
+        const now = Date.now();
+        const amt = Number(amount) || 0;
+        const meth = method || "Manual";
+        const lockReason = (reason || "").trim() || "অ্যাডমিন কর্তৃক ট্রানজ্যাকশন আইডি লক করা হয়েছে";
+        const userUid = (targetUid || uid || "").trim();
+        const addCoins = roundCoin(coins || (amt > 0 ? Math.floor(amt / 7) : 0));
+
+        await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO UPDATE SET amount = excluded.amount, usedAt = excluded.usedAt
+        `).bind(cleanTrx, userUid || 'admin_locked', amt, now).run();
+
+        await env.DB.prepare(`
+          INSERT INTO gateway_sms (trxId, sender, raw, method, amount, balance, claimed, claimType, claimedByUid, claimedByName, claimedAt, coinsAdded, adminMsg, receivedAt)
+          VALUES (?, 'Admin Action', ?, ?, ?, 0, 1, 'admin', ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(trxId) DO UPDATE SET
+            claimed = 1,
+            claimType = 'admin',
+            amount = excluded.amount,
+            method = excluded.method,
+            claimedByUid = excluded.claimedByUid,
+            claimedByName = excluded.claimedByName,
+            claimedAt = excluded.claimedAt,
+            coinsAdded = excluded.coinsAdded,
+            adminMsg = excluded.adminMsg
+        `).bind(
+          cleanTrx,
+          `Admin Manual Entry: ${lockReason}`,
+          meth,
+          amt,
+          userUid || 'admin',
+          adminEmail || adminName || 'Admin',
+          now,
+          addCoins,
+          lockReason,
+          now
+        ).run();
+
+        if (userUid && userUid !== 'admin' && userUid !== 'admin_locked' && addCoins > 0) {
+          let resolvedUid = userUid;
+          if (userUid.includes("@")) {
+            const uRow = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1`).bind(userUid.trim()).first();
+            if (uRow && uRow.uid) resolvedUid = uRow.uid;
+          }
+
+          let uWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(resolvedUid).first();
+          const curBal = roundCoin(uWallet ? uWallet.balance : 0);
+          const newBal = roundCoin(curBal + addCoins);
+
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = ?, realBalance = ?, bonusBalance = 0, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(newBal, newBal, Math.round(amt), now, resolvedUid).run();
+
+          await env.DB.prepare(`
+            INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, adminMsg, createdAt)
+            VALUES (?, ?, 'User', ?, ?, ?, ?, ?, 'approved', ?, ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'approved', coins = excluded.coins
+          `).bind(`DEP-${cleanTrx}`, resolvedUid, userUid.includes("@") ? userUid : '', meth, amt, addCoins, cleanTrx, `Admin Credited: ${lockReason}`, now).run().catch(() => {});
+        }
+
+        return json({
+          ok: true,
+          message: `TrxID ${cleanTrx} সফলভাবে লক করা হয়েছে! কোনো ইউজার আর এই ট্রানজ্যাকশনটি ব্যবহার করতে পারবে না।`
+        });
+      }
+
+      // 1e. Auto-Migrate Single User on Login
+      if (path === "/api/wallet/sync" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, name, email, photo, fbBalance, fbTgChatId } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        if (!w) {
+          const b = roundCoin(fbBalance || 0);
+          const tg = fbTgChatId || "";
+
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, avatar, tgChatId, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?)
+          `).bind(uid, name || "User", email || "", photo || "", tg, b, b, Date.now()).run().catch(() => { });
+
+          w = { uid, name, email, avatar: photo, tgChatId: tg, balance: b, realBalance: b, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, banned: 0 };
+        }
+        return json({ ok: true, wallet: w });
+      }
+
+      // 1f. 1-Click Batch Migrate from Admin Panel
+      if (path === "/api/wallet/batch-migrate" && request.method === "POST") {
+        const body = await request.json();
+        const users = body.users || [];
+        let count = 0;
+        const stmts = [];
+
+        for (const u of users) {
+          if (!u || !u.uid) continue;
+          const bal = roundCoin(u.balance || u.realBalance || 0);
+          stmts.push(env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, avatar, tgChatId, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET
+              name = excluded.name,
+              email = excluded.email,
+              avatar = excluded.avatar,
+              tgChatId = excluded.tgChatId,
+              balance = excluded.balance,
+              realBalance = excluded.balance,
+              bonusBalance = 0,
+              playPoints = excluded.playPoints,
+              pendingPoints = excluded.pendingPoints,
+              loyaltyStars = excluded.loyaltyStars,
+              updatedAt = excluded.updatedAt
+          `).bind(
+            u.uid, u.name || "User", u.email || "", u.photo || "", u.tgChatId || "",
+            bal, bal,
+            Number(u.playPoints || 0), Number(u.pendingPoints || 0), Number(u.loyaltyStars || 0), Date.now()
+          ));
+          count++;
+        }
+
+        if (stmts.length > 0) {
+          await env.DB.batch(stmts);
+        }
+
+        return json({ ok: true, count });
+      }
+
+      // 1g. Profile Update on Cloudflare D1
+      if (path === "/api/user/update" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, name, avatar, tgChatId } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, name, avatar, tgChatId, updatedAt)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            name = COALESCE(excluded.name, user_wallets.name),
+            avatar = COALESCE(excluded.avatar, user_wallets.avatar),
+            tgChatId = COALESCE(excluded.tgChatId, user_wallets.tgChatId),
+            updatedAt = excluded.updatedAt
+        `).bind(uid, name || null, avatar || null, tgChatId || null, Date.now()).run();
+
+        return json({ ok: true });
+      }
+
+      // 1b. Public In-Memory Edge Cache
+      if (path === "/api/cache/public-data" && request.method === "GET") {
+        try {
+          const row = await env.DB.prepare(`SELECT data, updatedAt FROM app_cache WHERE id = 'public_bundle' LIMIT 1`).first();
+          if (row && row.data) {
+            return new Response(row.data, {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                ...CORS_HEADERS
+              }
+            });
+          }
+        } catch (e) { }
+        return json({ ok: false, error: "Cache empty or not initialized" }, 404);
+      }
+
+      if (path === "/api/cache/sync" && request.method === "POST") {
+        const body = await request.json();
+        const payloadStr = JSON.stringify({
+          ok: true,
+          config: body.config || {},
+          offers: body.offers || [],
+          updatedAt: Date.now()
+        });
+        await env.DB.prepare(`
+          INSERT INTO app_cache (id, data, updatedAt) VALUES ('public_bundle', ?, ?)
+          ON CONFLICT(id) DO UPDATE SET data = excluded.data, updatedAt = excluded.updatedAt
+        `).bind(payloadStr, Date.now()).run();
+        return json({ ok: true, message: "Edge cache synced and purged successfully!" });
+      }
+
+      // 2. টাস্ক অর্ডার তৈরি (Create Task Order with 2-Decimal Precision)
+      if (path === "/api/orders/create" && request.method === "POST") {
+        const body = await request.json();
+        const id = body.id || `ORD-${Date.now()}`;
+        const uid = body.uid;
+        if (!uid || !body.game) return json({ ok: false, error: "Missing uid or game" }, 400);
+
+        const now = Date.now();
+        const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        const prevBal = roundCoin(userWallet ? userWallet.balance : 0);
+        const isFree = body.isFreeTask === true || Number(body.amount) === 0;
+        const taskCost = isFree ? 0 : roundCoin(body.amount !== undefined ? body.amount : 2);
+
+        if (!isFree && prevBal < taskCost) {
+          return json({ ok: false, error: "insufficient_balance", message: "ইনসাফিসিয়েন্ট ব্যালেন্স! আপনার একাউন্টে পর্যাপ্ত কয়েন নেই।" }, 400);
+        }
+
+        const newBal = Math.max(0, roundCoin(prevBal - taskCost));
+
+        if (taskCost > 0) {
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = ?, realBalance = ?, bonusBalance = 0, updatedAt = ?
+            WHERE uid = ?
+          `).bind(newBal, newBal, now, uid).run();
+        }
+
+        await env.DB.prepare(`
+          INSERT INTO orders (id, uid, game, logo, accEmail, accPass, userTgId, amount, status, adminMsg, gamerName, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            game = excluded.game, logo = excluded.logo, accEmail = excluded.accEmail,
+            accPass = excluded.accPass, userTgId = excluded.userTgId, amount = excluded.amount,
+            status = 'pending', adminMsg = excluded.adminMsg, gamerName = COALESCE(excluded.gamerName, orders.gamerName)
+        `).bind(
+          id, uid, body.game, body.logo || "", body.accEmail || "",
+          body.accPass || "", body.userTgId || "", taskCost,
+          body.adminMsg || "সার্ভার কাজ শুরু করেছে...", body.gamerName || "", now
+        ).run();
+
+        const payType = isFree ? '⭐ Free Star Task (0 Coins)' : 'Coins';
+        const taskInfo = `Trx: ${id} | Game: ${body.game} | Pay: ${payType} | Bal: ${prevBal} ➔ ${newBal} (-${taskCost} Coins) | LOGO: ${body.logo || ''}`;
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
+          VALUES (?, ?, 'TASK', ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title, game = excluded.game, info = excluded.info, amount = excluded.amount, status = 'pending', previousBalance = excluded.previousBalance
+        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, prevBal, prevBal, newBal, now).run();
+
+        await autoPruneOldTransactions(env.DB);
+
+        return json({ ok: true, orderId: id, previousBalance: prevBal, currentBalance: newBal });
+      }
+
+      // 3. রেন্ডার বটের জন্য পেন্ডিং অর্ডার ফেচ (Fetch Pending for Render Bot & Admin)
+      if (path === "/api/orders/pending" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT * FROM orders WHERE status = 'pending' OR status = 'paid' ORDER BY createdAt DESC LIMIT 100
+        `).all();
+        return json({ ok: true, orders: results || [] });
+      }
+
+      // 3b. এডমিন প্যানেলের জন্য সমস্ত অর্ডার ফেচ
+      if (path === "/api/admin/orders" && request.method === "GET") {
+        const status = url.searchParams.get("status");
+        const reqUid = url.searchParams.get("uid");
+        let q = "SELECT * FROM orders";
+        const params = [];
+        const conds = [];
+        if (reqUid) {
+          conds.push("uid = ?");
+          params.push(reqUid);
+        }
+        if (status && status !== "all") {
+          conds.push("status = ?");
+          params.push(status);
+        }
+        if (conds.length > 0) {
+          q += " WHERE " + conds.join(" AND ");
+        }
+        q += " ORDER BY CASE WHEN status IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
+        const { results } = await env.DB.prepare(q).bind(...params).all();
+        return json({ ok: true, orders: results || [] });
+      }
+
+      // 4. অর্ডারের লাইভ স্ট্যাটাস আপডেট
+      if (path === "/api/orders/update" && request.method === "POST") {
+        const body = await request.json();
+        const {
+          orderId, status, adminMsg, timeElapsed, gamerName, promptNumber,
+          captchaImage, captchaId, captchaAnswer,
+          accEmail, accPass, userTgId, inQueue, queuePosition, queuePercent
+        } = body;
+        if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
+
+        if (status === "completed") {
+          const checkCompleted = await env.DB.prepare("SELECT status FROM orders WHERE id = ?").bind(orderId).first();
+          if (checkCompleted && checkCompleted.status === "completed") {
+            return json({ ok: true, message: "Order was already completed", alreadyCompleted: true });
+          }
+        }
+
+        let query = "UPDATE orders SET ";
+        const params = [];
+        const updates = [];
+
+        if (status) { updates.push("status = ?"); params.push(status); }
+        if (adminMsg !== undefined) { updates.push("adminMsg = ?"); params.push(adminMsg); }
+        if (promptNumber !== undefined) { updates.push("promptNumber = ?"); params.push(promptNumber === null ? "" : String(promptNumber)); }
+        if (captchaImage !== undefined) { updates.push("captchaImage = ?"); params.push(captchaImage === null ? "" : String(captchaImage)); }
+        if (captchaId !== undefined) { updates.push("captchaId = ?"); params.push(captchaId === null ? "" : String(captchaId)); }
+        if (captchaAnswer !== undefined) { updates.push("captchaAnswer = ?"); params.push(captchaAnswer === null ? "" : String(captchaAnswer)); }
+        if (timeElapsed !== undefined) {
+          updates.push("timeElapsed = ?");
+          params.push(timeElapsed);
+          await env.DB.prepare(`UPDATE transactions SET info = info || ' | TIME:' || ? WHERE id = ?`).bind(timeElapsed, orderId).run().catch(() => { });
+        }
+        if (body.qid || body.syncCode) {
+          const sQid = String(body.qid || body.syncCode).trim();
+          await env.DB.prepare(`UPDATE transactions SET info = info || ' | QID:' || ? WHERE id = ?`).bind(sQid, orderId).run().catch(() => { });
+        }
+        if (gamerName !== undefined) { updates.push("gamerName = ?"); params.push(gamerName); }
+        if (accEmail !== undefined) { updates.push("accEmail = ?"); params.push(accEmail); }
+        if (accPass !== undefined) { updates.push("accPass = ?"); params.push(accPass); }
+        if (userTgId !== undefined) { updates.push("userTgId = ?"); params.push(userTgId); }
+        if (inQueue !== undefined) { updates.push("inQueue = ?"); params.push(inQueue ? 1 : 0); }
+        if (queuePosition !== undefined) { updates.push("queuePosition = ?"); params.push(Number(queuePosition) || 0); }
+        if (queuePercent !== undefined) { updates.push("queuePercent = ?"); params.push(Number(queuePercent) || 0); }
+        if (status === "completed") { updates.push("completedAt = ?"); params.push(Date.now()); }
+
+        if (updates.length) {
+          query += updates.join(", ") + " WHERE id = ?";
+          params.push(orderId);
+          await env.DB.prepare(query).bind(...params).run();
+        }
+
+        if (status) {
+          await env.DB.prepare(`UPDATE transactions SET status = ? WHERE id = ?`).bind(status, orderId).run();
+        }
+
+        return json({ ok: true });
+      }
+
+      // 5. ইউজারের একক অর্ডার লাইভ ট্র্যাকিং
+      if (path === "/api/orders/status" && request.method === "GET") {
+        const id = url.searchParams.get("id");
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        const order = await env.DB.prepare(`SELECT * FROM orders WHERE id = ?`).bind(id).first();
+        if (!order) return json({ ok: false, error: "Not found" }, 404);
+        return json({ ok: true, order });
+      }
+
+      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড
+      if (path === "/api/history" && request.method === "GET") {
+        const uid = url.searchParams.get("uid");
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await autoPruneOldTransactions(env.DB);
+
+        const { results } = await env.DB.prepare(`
+          SELECT * FROM transactions WHERE uid = ? ORDER BY createdAt DESC LIMIT 100
+        `).bind(uid).all();
+
+        return json({ ok: true, history: results || [] });
+      }
+
+      // 7. নতুন ট্রানজ্যাকশন লগ করা
+      if (path === "/api/transactions/log" && request.method === "POST") {
+        const body = await request.json();
+        const id = body.id || `TX-${Date.now()}`;
+        const uid = body.uid;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let prevBal = body.previousBalance !== undefined ? roundCoin(body.previousBalance) : null;
+        if (prevBal === null) {
+          const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
+          prevBal = userWallet ? roundCoin(userWallet.balance) : 0;
+        }
+        const bBefore = body.balance_before !== undefined ? roundCoin(body.balance_before) : prevBal;
+        const bAfter = body.balance_after !== undefined ? roundCoin(body.balance_after) : null;
+
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, proofUrl, previousBalance, balance_before, balance_after, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status, info = excluded.info, amount = excluded.amount,
+            previousBalance = excluded.previousBalance, balance_before = excluded.balance_before, balance_after = excluded.balance_after
+        `).bind(
+          id, uid, body.kind || "TOP-UP", body.title || "Transaction",
+          body.game || body.title || "", body.info || "", roundCoin(body.amount),
+          body.status || "pending", body.proofUrl || "", prevBal, bBefore, bAfter, body.createdAt || Date.now()
+        ).run();
+
+        return json({ ok: true, id, previousBalance: prevBal });
+      }
+
+      // 8. ট্রানজ্যাকশন স্ট্যাটাস আপডেট
+      if (path === "/api/transactions/update" && request.method === "POST") {
+        const body = await request.json();
+        const { id, status } = body;
+        if (!id || !status) return json({ ok: false, error: "Missing id or status" }, 400);
+
+        await env.DB.prepare(`UPDATE transactions SET status = ? WHERE id = ?`).bind(status, id).run();
+        return json({ ok: true });
+      }
+
+      // 8a. Cloudflare D1 Create Deposit
+      if (path === "/api/deposits/create" && request.method === "POST") {
+        const body = await request.json();
+        const { id, uid, name, email, method, amount, coins, trxId } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!uid || !cleanTrx) return json({ ok: false, error: "Missing uid or trxId" }, 400);
+
+        const depId = id || `DEP-${cleanTrx}`;
+        const now = Date.now();
+        const amt = roundCoin(amount);
+        const c = roundCoin(coins || Math.floor(amt / 7) || 3);
+
+        const existingApp = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(cleanTrx).first();
+        if (existingApp) {
+          return json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!" }, 400);
+        }
+
+        await env.DB.prepare(`
+          INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+          ON CONFLICT(id) DO UPDATE SET
+            amount = excluded.amount,
+            coins = excluded.coins,
+            trxId = excluded.trxId
+        `).bind(depId, uid, name || "User", email || "", method || "bKash", amt, c, cleanTrx, now).run();
+
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'pending', ?)
+          ON CONFLICT(id) DO UPDATE SET
+            amount = excluded.amount,
+            status = 'pending'
+        `).bind(
+          depId,
+          uid,
+          `Wallet Top-up (${method || 'bKash'})`,
+          `Top-up: ${method || 'bKash'}`,
+          `${method || 'bKash'} • ${cleanTrx}`,
+          amt,
+          now
+        ).run().catch(() => { });
+
+        // Alert admin on Telegram
+        sendTelegram(ADMIN_TG_ID, `💰 <b>NEW DEPOSIT REQUEST!</b>\n\n🆔 <b>UID:</b> <code>${uid}</code>\n📱 <b>Method:</b> ${method || 'bKash'}\n💵 <b>Amount:</b> ৳${amt} (${c} PP Coins)\n🧾 <b>TrxID:</b> <code>${cleanTrx}</code>`);
+
+        return json({ ok: true, id: depId });
+      }
+
+      // 8a-2. Cloudflare D1 Pending Deposits Fetch
+      if (path === "/api/deposits/pending" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId
+          FROM deposits d
+          LEFT JOIN user_wallets u ON d.uid = u.uid
+          WHERE d.status = 'pending'
+          ORDER BY d.createdAt DESC LIMIT 50
+        `).all();
+        return json({ ok: true, deposits: results || [] });
+      }
+
+      // 8a-2b. Cloudflare D1 All Deposits for Admin
+      if (path === "/api/admin/deposits" && request.method === "GET") {
+        const status = url.searchParams.get("status");
+        let queryStr = `SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId FROM deposits d LEFT JOIN user_wallets u ON d.uid = u.uid`;
+        const params = [];
+        if (status && status !== "all") {
+          queryStr += ` WHERE d.status = ? ORDER BY d.createdAt DESC LIMIT 200`;
+          params.push(status);
+        } else {
+          queryStr += ` ORDER BY CASE WHEN d.status = 'pending' THEN 0 ELSE 1 END, d.createdAt DESC LIMIT 200`;
+        }
+        const { results } = await env.DB.prepare(queryStr).bind(...params).all();
+        return json({ ok: true, deposits: results || [] });
+      }
+
+      // 8a-3. Cloudflare D1 Deposit Reject
+      if (path === "/api/deposits/reject" && request.method === "POST") {
+        const body = await request.json();
+        const { id, trxId, reason } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        const rejectMsg = reason || "অ্যাডমিন প্যানেল থেকে ডিপোজিট বাতিল করা হয়েছে।";
+
+        await env.DB.prepare(`
+          UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ? OR trxId = ?
+        `).bind(rejectMsg, id || "none", cleanTrx || "none").run();
+
+        await env.DB.prepare(`
+          UPDATE transactions SET status = 'rejected' WHERE id = ? OR (kind = 'TOP-UP' AND info LIKE ?)
+        `).bind(id || "none", `%${cleanTrx}%`).run().catch(() => { });
+
+        return json({ ok: true });
+      }
+
+      // 8b. Cloudflare D1 Direct Deposit Approval (Zero Double Credit + Full Telegram Audit)
+      if (path === "/api/deposits/approve" && request.method === "POST") {
+        const body = await request.json();
+        let { depId, uid, email, trxId, amount, coins, method } = body;
+        const cleanTrx = (trxId || "").trim().toUpperCase();
+        if (!cleanTrx) return json({ ok: false, error: "Missing trxId" }, 400);
+
+        const finalDepId = depId || `DEP-${cleanTrx}`;
+        let targetUid = (uid || "").trim();
+
+        if (!targetUid || targetUid === "—" || targetUid === "undefined" || targetUid === "null") {
+          targetUid = "";
+          const depLookup = await env.DB.prepare(`
+            SELECT uid, email, coins, amount FROM deposits WHERE id = ? OR trxId = ? LIMIT 1
+          `).bind(finalDepId, cleanTrx).first();
+          if (depLookup && depLookup.uid && depLookup.uid !== "—") {
+            targetUid = depLookup.uid;
+            if (!email && depLookup.email) email = depLookup.email;
+            if (!coins && depLookup.coins) coins = depLookup.coins;
+            if (!amount && depLookup.amount) amount = depLookup.amount;
+          }
+        }
+
+        if (!targetUid && email) {
+          const uRow = await env.DB.prepare(`
+            SELECT uid FROM user_wallets WHERE LOWER(email) = LOWER(?) LIMIT 1
+          `).bind(email.trim()).first();
+          if (uRow && uRow.uid) targetUid = uRow.uid;
+        }
+
+        if (!targetUid) return json({ ok: false, error: "User not found in Cloudflare D1 by UID or Email" }, 400);
+
+        // Strict duplicate guard
+        const existingDep = await env.DB.prepare(`
+          SELECT status FROM deposits WHERE id = ? OR (trxId = ? AND status = 'approved') LIMIT 1
+        `).bind(finalDepId, cleanTrx).first();
+
+        if (existingDep && existingDep.status === 'approved') {
+          return json({ ok: false, error: "⚠️ এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!", alreadyApproved: true }, 400);
+        }
+
+        const amt = roundCoin(amount);
+        const addCoins = roundCoin(coins || Math.floor(amt / 7) || 3);
+        const now = Date.now();
+
+        // 1. Atomic Lock TrxID in used_trx
+        const lockRes = await env.DB.prepare(`
+          INSERT INTO used_trx (trxId, uid, amount, usedAt) VALUES (?, ?, ?, ?)
+          ON CONFLICT(trxId) DO NOTHING
+        `).bind(cleanTrx, targetUid, amt, now).run();
+
+        if (!lockRes || lockRes.meta?.changes === 0) {
+          const doubleCheck = await env.DB.prepare(`SELECT status FROM deposits WHERE id = ? OR (trxId = ? AND status = 'approved') LIMIT 1`).bind(finalDepId, cleanTrx).first();
+          if (doubleCheck && doubleCheck.status === 'approved') {
+            return json({ ok: false, error: "⚠️ এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ করা হয়েছে!", alreadyApproved: true }, 400);
+          }
+        }
+
+        // 2. Atomic Status Update on Deposit
+        await env.DB.prepare(`
+          UPDATE deposits SET status = 'approved', coins = ?, amount = ?, adminMsg = 'Approved by Admin'
+          WHERE id = ? OR trxId = ?
+        `).bind(addCoins, amt, finalDepId, cleanTrx).run();
+
+        // 3. User Wallet Balance Update with Clean 2-Decimal Precision
+        let userWallet = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ? LIMIT 1`).bind(targetUid).first();
+        const currentCoins = roundCoin(userWallet ? userWallet.balance : 0);
+        const newCoins = roundCoin(currentCoins + addCoins);
+
+        if (!userWallet) {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, name, email, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, banned, banReason, updatedAt)
+            VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0, 0, '', ?)
+            ON CONFLICT(uid) DO UPDATE SET balance = excluded.balance, realBalance = excluded.realBalance, bonusBalance = 0, updatedAt = excluded.updatedAt
+          `).bind(targetUid, "User", email || "", newCoins, newCoins, Math.round(amt), now).run();
+        } else {
+          await env.DB.prepare(`
+            UPDATE user_wallets 
+            SET balance = ?, realBalance = ?, bonusBalance = 0, playPoints = playPoints + ?, updatedAt = ?
+            WHERE uid = ?
+          `).bind(newCoins, newCoins, Math.round(amt), now, targetUid).run();
+        }
+
+        // 4. Mark claimed in gateway_sms if exists
+        await env.DB.prepare(`
+          UPDATE gateway_sms 
+          SET claimed = 1, claimType = 'admin', claimedByUid = ?, claimedAt = ?, coinsAdded = ?, adminMsg = 'Admin Approved'
+          WHERE trxId = ?
+        `).bind(targetUid, now, addCoins, cleanTrx).run().catch(() => {});
+
+        // 5. Update / Insert Transactions History Record with Before & After Balance
+        await env.DB.prepare(`
+          INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
+          VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'approved', ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            status = 'approved', amount = excluded.amount, balance_before = excluded.balance_before, balance_after = excluded.balance_after
+        `).bind(
+          finalDepId,
+          targetUid,
+          `Wallet Top-up (${method || 'bKash'})`,
+          `Top-up: ${method || 'bKash'}`,
+          `${method || 'bKash'} • ${cleanTrx}`,
+          amt,
+          currentCoins,
+          currentCoins,
+          newCoins,
+          now
+        ).run().catch(() => { });
+
+        // 6. Send Telegram Notifications
+        try {
+          const uName = userWallet?.name || 'User';
+          const uEmail = userWallet?.email || email || '—';
+          const uTg = userWallet?.tgChatId;
+
+          // Admin / Order Log Channel Notification (Full Audit Detail)
+          const adminDepTgMsg = `💎 <b>DEPOSIT APPROVED (FULL AUDIT)</b> ✅\n\n` +
+            `🆔 <b>User ID:</b> <code>${targetUid}</code>\n` +
+            `👤 <b>Account Name:</b> ${uName}\n` +
+            `📧 <b>Email:</b> ${uEmail}\n` +
+            `💬 <b>Telegram:</b> ${uTg ? `<code>${uTg}</code>` : 'Not Connected'}\n` +
+            `💵 <b>Amount:</b> ${amt} BDT\n` +
+            `🪙 <b>Coins Credited:</b> +${addCoins} PP Coins\n` +
+            `💰 <b>পূর্বের ব্যালেন্স:</b> ${currentCoins} Coins\n` +
+            `✨ <b>নতুন ব্যালেন্স:</b> ${newCoins} Coins\n` +
+            `💳 <b>Method:</b> ${method || 'bKash'}\n` +
+            `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+            `🕒 <b>Time:</b> ${new Date(now).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })}\n` +
+            `🛡️ <b>Status:</b> Approved`;
+
+          sendTelegram(ADMIN_TG_ID, adminDepTgMsg);
+          sendTelegram(ORDER_LOG_CHANNEL, adminDepTgMsg);
+
+          // User Notification (Clean, Normal Message)
+          if (uTg) {
+            const userTgMsg = `✅ <b>আপনার ডিপোজিট অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+              `💵 <b>Amount:</b> ${amt} BDT\n` +
+              `🪙 <b>Coin:</b> +${addCoins} PP Coins\n` +
+              `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+              `👤 <b>Account Name:</b> ${uName}\n` +
+              `📧 <b>Mail:</b> ${uEmail}\n` +
+              `🆔 <b>UID:</b> <code>${targetUid}</code>`;
+
+            sendTelegram(uTg, userTgMsg);
+          }
+        } catch (tgErr) {
+          console.warn("Telegram deposit alert error:", tgErr);
+        }
+
+        return json({ ok: true, balance: newCoins, realBalance: newCoins, coinsCredited: addCoins, uid: targetUid });
+      }
+
+      // 8b-1b. Check Single Deposit Status on Cloudflare D1
+      if (path === "/api/deposits/status" && request.method === "GET") {
+        const id = url.searchParams.get("id") || "";
+        const trx = (url.searchParams.get("trxId") || "").trim().toUpperCase();
+        let dep = null;
+        if (id) {
+          dep = await env.DB.prepare(`SELECT * FROM deposits WHERE id = ? LIMIT 1`).bind(id).first();
+        }
+        if (!dep && trx) {
+          dep = await env.DB.prepare(`SELECT * FROM deposits WHERE trxId = ? LIMIT 1`).bind(trx).first();
+        }
+        if (!dep && (id || trx)) {
+          const txRow = await env.DB.prepare(`SELECT * FROM transactions WHERE id = ? OR info LIKE ? LIMIT 1`).bind(id || "none", `%${trx || id}%`).first();
+          if (txRow) dep = txRow;
+        }
+        if (!dep) return json({ ok: false, error: "Not found" }, 404);
+        return json({ ok: true, deposit: dep });
+      }
+
+      // 8b-2. Direct Set User Balance in Cloudflare D1
+      if (path === "/api/wallet/set-balance" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, balance, loyaltyStars } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
+        const newBal = roundCoin(balance !== undefined ? balance : (w ? w.balance : 0));
+        let newStars = loyaltyStars !== undefined ? Number(loyaltyStars) : Number(w ? w.loyaltyStars : 0);
+
+        await env.DB.prepare(`
+          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, loyaltyStars, updatedAt)
+          VALUES (?, ?, ?, 0, ?, ?)
+          ON CONFLICT(uid) DO UPDATE SET
+            balance = excluded.balance,
+            realBalance = excluded.balance,
+            bonusBalance = 0,
+            loyaltyStars = excluded.loyaltyStars,
+            updatedAt = excluded.updatedAt
+        `).bind(uid, newBal, newBal, newStars, Date.now()).run();
+
+        return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, loyaltyStars: newStars });
+      }
+
+      // 8b-3. Find User by UID or Email in Cloudflare D1
+      if (path === "/api/user/find" && request.method === "GET") {
+        const q = (url.searchParams.get("q") || "").trim();
+        if (!q) return json({ ok: false, error: "Missing query" }, 400);
+
+        const row = await env.DB.prepare(`
+          SELECT * FROM user_wallets 
+          WHERE uid = ? OR email = ? OR uid LIKE ? OR email LIKE ?
+          LIMIT 1
+        `).bind(q, q, `%${q}%`, `%${q}%`).first();
+
+        if (!row) return json({ ok: false, error: "User not found in Cloudflare D1" }, 404);
+        row.balance = roundCoin(row.balance);
+        row.realBalance = roundCoin(row.balance);
+        row.bonusBalance = 0;
+        return json({ ok: true, user: row });
+      }
+
+      // 8b-4. Ban / Unban User in Cloudflare D1
+      if (path === "/api/user/ban" && request.method === "POST") {
+        const body = await request.json();
+        const { uid, banned, banReason } = body;
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        const banVal = (banned === true || banned === 1 || banned === "1") ? 1 : 0;
+        const reason = banReason !== undefined ? String(banReason).trim() : (banVal === 1 ? 'নিয়ম ভঙ্গের কারণে আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।' : '');
+        try {
+          await env.DB.prepare(`
+            UPDATE user_wallets SET banned = ?, banReason = ?, updatedAt = ? WHERE uid = ?
+          `).bind(banVal, reason, Date.now(), uid).run();
+        } catch (e) {
+          try {
+            await env.DB.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run();
+            await env.DB.prepare(`
+              UPDATE user_wallets SET banned = ?, banReason = ?, updatedAt = ? WHERE uid = ?
+            `).bind(banVal, reason, Date.now(), uid).run();
+          } catch (alterErr) {
+            console.error("Ban update error:", alterErr);
+          }
+        }
+
+        return json({ ok: true, banned: banVal === 1, banReason: reason });
+      }
+
+      // 8c. Paginated Users from Cloudflare D1 (Sorted by Balance Highest to Lowest)
+      if (path === "/api/users/list" && request.method === "GET") {
+        const limitCount = Math.min(Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10)), 50);
+        const offsetCount = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10));
+        const search = (url.searchParams.get("search") || "").trim();
+
+        if (search) {
+          const exactUser = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ? OR email = ? LIMIT 1`).bind(search, search).first();
+          if (exactUser) {
+            exactUser.balance = roundCoin(exactUser.balance);
+            exactUser.realBalance = roundCoin(exactUser.balance);
+            exactUser.bonusBalance = 0;
+            return json({
+              ok: true,
+              users: [exactUser],
+              total: 1,
+              totalBalance: exactUser.balance
+            });
+          }
+
+          const pattern = `%${search}%`;
+          const { results } = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid LIKE ? OR email LIKE ? OR name LIKE ? LIMIT ? OFFSET ?`).bind(pattern, pattern, pattern, limitCount, offsetCount).all();
+          const cleanUsers = (results || []).map(u => ({
+            ...u,
+            balance: roundCoin(u.balance),
+            realBalance: roundCoin(u.balance),
+            bonusBalance: 0
+          }));
+          return json({
+            ok: true,
+            users: cleanUsers,
+            total: cleanUsers.length,
+            totalBalance: 0
+          });
+        }
+
+        const { results } = await env.DB.prepare(`SELECT * FROM user_wallets ORDER BY balance DESC LIMIT ? OFFSET ?`).bind(limitCount, offsetCount).all();
+        const totalRow = await env.DB.prepare(`SELECT COUNT(*) as total, SUM(balance) as totalBal FROM user_wallets`).first();
+
+        const cleanUsers = (results || []).map(u => ({
           ...u,
-          uid: u.pp_id,
-          id: u.pp_id,
-          balance: Number(u.coins) || 0,
-          realBalance: Number(u.coins) || 0,
-          bonusBalance: 0,
-          banned: Boolean(u.is_banned),
-          banReason: u.ban_reason || ""
+          balance: roundCoin(u.balance),
+          realBalance: roundCoin(u.balance),
+          bonusBalance: 0
         }));
 
         return json({
           ok: true,
-          users,
-          total: countRow ? countRow.total : 0,
-          totalBalance: countRow ? (Number(countRow.total_bal) || 0) : 0
+          users: cleanUsers,
+          total: totalRow ? (totalRow.total || 0) : 0,
+          totalBalance: totalRow ? roundCoin(totalRow.totalBal || 0) : 0
         });
       }
 
-      // Admin Ban / Unban User
-      if (path === "/api/user/ban" && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.uid || body.pp_id || "").trim().toUpperCase();
-        const banned = body.banned ? 1 : 0;
-        const reason = banned ? (body.banReason || body.reason || "Suspended by Admin") : "";
-        if (!uid) return json({ ok: false, error: "user_id required" }, 400);
+      // 8c-2. Cascade Delete User & Wipe Data
+      if (path === "/api/admin/user/delete" && request.method === "POST") {
+        const body = await request.json();
+        const uid = body.uid;
+        const email = (body.email || "").toLowerCase().trim();
+        if (!uid && !email) return json({ ok: false, error: "Missing uid or email" }, 400);
 
-        await db.prepare("UPDATE users SET is_banned = ?, ban_reason = ? WHERE pp_id = ?").bind(banned, reason, uid).run();
-        return json({ ok: true, message: `User ${uid} ban status updated to ${banned ? 'BANNED' : 'ACTIVE'}`, banned, ban_reason: reason });
+        if (uid) {
+          await env.DB.prepare(`DELETE FROM user_wallets WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(uid).run().catch(() => {});
+          await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM orders WHERE uid = ?`).bind(uid).run();
+          await env.DB.prepare(`DELETE FROM transactions WHERE uid = ?`).bind(uid).run();
+        }
+
+        try {
+          const row = await env.DB.prepare(`SELECT data FROM app_cache WHERE id = 'registered_devices' LIMIT 1`).first();
+          if (row && row.data) {
+            let devObj = JSON.parse(row.data);
+            let changed = false;
+            if (typeof devObj === "object" && devObj !== null) {
+              for (const [dId, dVal] of Object.entries(devObj)) {
+                if (dVal) {
+                  const mUid = dVal.ppmod_uid;
+                  const mEmail = (dVal.ppmod_email || "").toLowerCase().trim();
+                  const accEmails = Array.isArray(dVal.accounts) ? dVal.accounts.map(a => (a.email || "").toLowerCase().trim()) : [];
+                  if ((uid && mUid === uid) || (email && (mEmail === email || accEmails.includes(email)))) {
+                    delete devObj[dId];
+                    changed = true;
+                  }
+                }
+              }
+              if (changed) {
+                await env.DB.prepare(`UPDATE app_cache SET data = ?, updatedAt = ? WHERE id = 'registered_devices'`)
+                  .bind(JSON.stringify(devObj), Date.now()).run();
+              }
+            }
+          }
+        } catch(e) {}
+
+        return json({ ok: true, message: "User, wallet, orders, devices, and synced accounts permanently cascade-deleted." });
       }
 
-      // Admin Direct Set Balance
-      if ((path === "/api/wallet/set-balance" || path === "/api/admin/set-balance") && method === "POST") {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.uid || body.pp_id || "").toUpperCase();
-        const newBal = Number(body.balance !== undefined ? body.balance : body.coins) || 0.0;
-        if (!uid) return json({ ok: false, error: "user_id required" }, 400);
+      // 8d. Realtime Dashboard Stats from Cloudflare D1
+      if (path === "/api/admin/stats" && request.method === "GET") {
+        const uStats = await env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first();
+        const dStats = await env.DB.prepare(`SELECT COUNT(*) as pendingDeposits, SUM(amount) as totalApprovedDeposit FROM deposits WHERE status = 'approved'`).first();
+        const pendDep = await env.DB.prepare(`SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'`).first();
+        const oStats = await env.DB.prepare(`SELECT COUNT(*) as pendingOrders FROM orders WHERE status = 'pending'`).first();
+        const compOrd = await env.DB.prepare(`SELECT COUNT(*) as completedOrders, SUM(amount) as totalRevenue FROM orders WHERE status = 'completed'`).first();
 
-        const curUser = await db.prepare("SELECT coins FROM users WHERE pp_id = ?").bind(uid).first();
-        if (!curUser) return json({ ok: false, error: "User not found" }, 404);
-
-        const curCoins = Number(curUser.coins) || 0.0;
-        await db.prepare("UPDATE users SET coins = ? WHERE pp_id = ?").bind(newBal, uid).run();
-
-        const now = Date.now();
-        const txId = "TX-SETBAL-" + now;
-        await db.prepare(`
-          INSERT INTO transactions (id, user_id, type, coins, balance_before, balance_after, title, details, created_at)
-          VALUES (?, ?, 'admin_adjust', ?, ?, ?, 'Admin Balance Set', 'Direct admin adjustment', ?)
-        `).bind(txId, uid, (newBal - curCoins), curCoins, newBal, now).run();
-
-        return json({ ok: true, balance: newBal });
+        return json({
+          ok: true,
+          totalUsers: uStats ? uStats.totalUsers : 0,
+          totalUserBalance: uStats ? roundCoin(uStats.totalBalance) : 0,
+          pendingDeposits: pendDep ? pendDep.count : 0,
+          totalApprovedDeposit: dStats ? (dStats.totalApprovedDeposit || 0) : 0,
+          pendingOrders: oStats ? oStats.pendingOrders : 0,
+          completedOrders: compOrd ? compOrd.completedOrders : 0,
+          totalRevenue: compOrd ? (compOrd.totalRevenue || 0) : 0
+        });
       }
 
-      if ((path === "/api/admin/user/delete" && method === "POST") || (path === "/api/admin/user" && method === "DELETE")) {
-        const body = await request.json().catch(() => ({}));
-        const uid = (body.user_id || body.pp_id || "").toUpperCase();
-        if (!uid) return json({ ok: false, error: "user_id required" }, 400);
+      // 8e. Telegram Bot Leaderboard
+      if (path === "/api/bot/leaderboard" && request.method === "GET") {
+        const { results } = await env.DB.prepare(`
+          SELECT id, COALESCE(NULLIF(name, ''), username, 'User') as name, username, referralCount, refBalance 
+          FROM tg_bot_users 
+          WHERE referralCount > 0 
+          ORDER BY referralCount DESC, updatedAt DESC 
+          LIMIT 10
+        `).all();
 
-        await db.prepare("DELETE FROM users WHERE pp_id = ?").bind(uid).run();
-        await db.prepare("DELETE FROM orders WHERE user_id = ?").bind(uid).run();
-        await db.prepare("DELETE FROM deposits WHERE user_id = ?").bind(uid).run();
-        await db.prepare("DELETE FROM transactions WHERE user_id = ?").bind(uid).run();
+        return json({ ok: true, leaderboard: results || [] });
+      }
 
-        return json({ ok: true, message: `User ${uid} deleted permanently from Cloudflare D1` });
+      // 8g. Telegram Bot User Sync in Cloudflare D1
+      if (path === "/api/bot/user" && request.method === "GET") {
+        const id = url.searchParams.get("id");
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        let row = await env.DB.prepare(`SELECT * FROM tg_bot_users WHERE id = ?`).bind(id).first();
+        if (!row) {
+          row = { id, name: "User", username: "", referralCount: 0, refBalance: 0, isVerified: 0, inviterId: "" };
+        }
+        return json({ ok: true, user: row });
+      }
+
+      if (path === "/api/bot/user/update" && request.method === "POST") {
+        const body = await request.json();
+        const { id, name, username, inviterId, phone, websiteUid, isVerified, addRefCount, addRefBalance, resetRefBalance, referralCount, refBalance } = body;
+        if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+        let u = await env.DB.prepare(`SELECT * FROM tg_bot_users WHERE id = ?`).bind(id).first();
+        let curCount = Number(u ? u.referralCount : 0);
+        let curBal = Number(u ? u.refBalance : 0);
+
+        let newCount = referralCount !== undefined ? Number(referralCount) : (addRefCount ? (curCount + Number(addRefCount)) : curCount);
+        let newBal = refBalance !== undefined ? Number(refBalance) : (resetRefBalance ? 0 : (addRefBalance ? roundCoin(curBal + Number(addRefBalance)) : curBal));
+        let ver = isVerified !== undefined ? (isVerified ? 1 : 0) : Number(u ? u.isVerified : 0);
+        let pVal = phone || (u ? (u.phone || '') : '');
+        let wVal = websiteUid || (u ? (u.websiteUid || '') : '');
+
+        await env.DB.prepare(`
+          INSERT INTO tg_bot_users (id, name, username, phone, websiteUid, inviterId, isVerified, referralCount, refBalance, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = CASE WHEN excluded.name != '' AND excluded.name != 'User' THEN excluded.name ELSE tg_bot_users.name END,
+            username = CASE WHEN excluded.username != '' THEN excluded.username ELSE tg_bot_users.username END,
+            phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE tg_bot_users.phone END,
+            websiteUid = CASE WHEN excluded.websiteUid != '' THEN excluded.websiteUid ELSE tg_bot_users.websiteUid END,
+            inviterId = CASE WHEN tg_bot_users.inviterId = '' OR tg_bot_users.inviterId IS NULL THEN excluded.inviterId ELSE tg_bot_users.inviterId END,
+            isVerified = CASE WHEN excluded.isVerified = 1 THEN 1 ELSE tg_bot_users.isVerified END,
+            referralCount = excluded.referralCount,
+            refBalance = excluded.refBalance,
+            updatedAt = excluded.updatedAt
+        `).bind(id, name || "User", username || "", pVal, wVal, inviterId || "", ver, newCount, newBal, Date.now()).run();
+
+        return json({ ok: true, referralCount: newCount, refBalance: newBal });
+      }
+
+      // 8h. Reset All Bot Referrals
+      if (path === "/api/bot/reset-all-referrals" && request.method === "POST") {
+        await env.DB.prepare(`UPDATE tg_bot_users SET referralCount = 0, refBalance = 0, isVerified = 0`).run();
+        return json({ ok: true, message: "All bot referrals reset in Cloudflare D1" });
+      }
+
+      // 9. ৬০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
+      if (path === "/api/cleanup") {
+        await autoPruneOldTransactions(env.DB);
+        return json({ ok: true, message: "Pruned non-pending transactions older than 60 days" });
       }
 
       return json({ ok: false, error: "Endpoint not found" }, 404);
-
     } catch (err) {
-      console.error("API error:", err);
-      return json({ ok: false, error: err.message || "Internal Worker Error" }, 500);
+      return json({ ok: false, error: err.message }, 500);
     }
-  }
+  },
 };
