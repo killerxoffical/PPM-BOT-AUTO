@@ -10203,6 +10203,10 @@
 
         async function autoRefundServerFailure(gameName, errorReason) {
             const orderId = window._currentOrderId;
+            if (typeof errorReason === 'string' && (errorReason.includes('already been redeemed') || errorReason.includes('already completed'))) {
+                console.log('[AutoRefund] Skipped refund because order was already completed:', orderId);
+                return;
+            }
             if (!orderId || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId))) return;
             if (typeof markOrderAsRefunded === 'function') markOrderAsRefunded(orderId);
 
@@ -10449,6 +10453,19 @@ async function executeServerQuestUnlock(isRetry = false) {
 
                 if (!data || !data.ok || data.status === 'PARTIAL') {
                     const errMsg = (data && data.error) ? data.error : (data && data.status === 'PARTIAL' ? 'সবগুলো কোয়েস্ট আনলক করা যায়নি (আংশিক সম্পন্ন)।' : 'Server error');
+
+                    // যদি সার্ভার জানায় এই অর্ডারটি ইতিমধ্যে রিডিম ও সম্পন্ন হয়েছে, তবে কোনো রিফান্ড হবে না — সরাসরি সাকসেস স্ক্রিন দেখানো হবে
+                    if (typeof errMsg === 'string' && (errMsg.includes('already been redeemed') || errMsg.includes('already completed'))) {
+                        if (orderId) {
+                            if (!window._completedOrders) window._completedOrders = new Set();
+                            window._completedOrders.add(orderId);
+                        }
+                        window._isOrderExecuting = false;
+                        toast('🎉 অভিনন্দন! আপনার এই অর্ডারটি ইতিমধ্যে সফলভাবে সম্পন্ন হয়েছে।');
+                        showScreen('screenSuccess');
+                        return;
+                    }
+
                     const isTransient = typeof errMsg === 'string' && (
                         errMsg.includes('Third-Party') ||
                         errMsg.includes('রেস্ট্রিক্টেড') ||
