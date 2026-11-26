@@ -3801,6 +3801,70 @@
                             </button>
                         </div>
 
+                        <!-- 1.5. LEVEL-UP BOOSTER SERVICE & DYNAMIC PRICING -->
+                        <div class="glass p-4 sm:p-6 space-y-3.5 border-2 border-amber-200 bg-amber-50/20" data-cfgsec="pricing">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                    <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                                        <span class="text-base">⚡</span> Level-Up Booster Service (লেভেল আপ সার্ভিস ও কয়েন রেট)
+                                    </h3>
+                                    <p class="text-xs text-slate-500 font-medium">গুগল প্লে গেমস লেভেল আপ বুস্টার সার্ভিসের কয়েন চার্জ ও প্যাকেজ নিয়ন্ত্রণ</p>
+                                </div>
+                                <span class="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-300 uppercase tracking-wider">Play Points Level Up</span>
+                            </div>
+
+                            <div class="p-3.5 bg-white border border-amber-200 rounded-xl space-y-3">
+                                <div>
+                                    <label class="lbl text-slate-900 font-bold text-xs">XP Rate per Coin (প্রতি কয়েনে কত XP) *</label>
+                                    <div class="relative mt-1">
+                                        <input type="number" id="cfgLevelUpXpRate" min="5000" step="5000" value="50000"
+                                            class="w-full p-2.5 bg-slate-50 border border-amber-300 rounded-xl font-mono text-sm font-black text-amber-950 focus:outline-none focus:border-amber-600">
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-700">XP / 1 Coin</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 mt-1 font-medium">💡 ডিফল্ট: <b>50,000 XP = 1 PP Coin</b> (বাকি থাকা XP এর উপর ডায়নামিক কয়েন হিসাব হয়)।</p>
+                                </div>
+
+                                <div class="border-t border-slate-200 pt-3 space-y-2.5">
+                                    <label class="lbl text-slate-900 font-bold text-xs">Active Level-Up Packages (প্যাকেজ অন/অফ)</label>
+                                    
+                                    <!-- Package 1: Level 1 to 10 -->
+                                    <div class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-black text-slate-900">Level 1 ➔ 10 Boost</span>
+                                                <span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded">GOLDEN (432K XP)</span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 font-medium">সাধারণ বা নতুন অ্যাকাউন্টকে লেভেল ১০ এ উন্নীত করার সার্ভিস</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="cfgLvlPkg1_10" checked class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Package 2: Level 10 to 20 -->
+                                    <div class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-black text-slate-900">Level 10 ➔ 20 Pro Boost</span>
+                                                <span class="text-[9px] bg-purple-600 text-white font-extrabold px-1.5 py-0.5 rounded">ULTRA PRO (2.5M XP)</span>
+                                            </div>
+                                            <p class="text-[10px] text-slate-500 font-medium">লেভেল ১০+ অ্যাকাউন্টকে আল্ট্রা-প্রো লেভেল ২০ পর্যন্ত বুস্ট সার্ভিস</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="cfgLvlPkg10_20" checked class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onclick="saveLevelUpConfig(this)"
+                                class="btn bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black w-full py-2.5 shadow-sm btn-save-premium">
+                                💾 Save Level-Up Settings
+                            </button>
+                        </div>
+
                         <!-- 2. DEDICATED DEPOSIT & COIN RATE PRICING CARD -->
                         <div class="glass p-4 sm:p-6 space-y-3.5 border-2 border-emerald-100" data-cfgsec="pricing">
                             <div>
@@ -5161,7 +5225,7 @@
                 if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
             }
             if (id === 'scrCfg') {
-                if (typeof window.fillConfigForm === 'function') window.fillConfigForm();
+                if (typeof window.fillConfigForm === 'function') window.fillConfigForm(); if (typeof window.loadLevelUpConfig === 'function') window.loadLevelUpConfig();
                 if (typeof window.renderAdminBannerSlidesList === 'function') window.renderAdminBannerSlidesList();
                 if (window.loadConfigFromCloudflareFallback) window.loadConfigFromCloudflareFallback();
             }
@@ -9783,16 +9847,23 @@
                 }
 
                 toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted!`);
-                logIt('balance_adjust', `${uid} ${v}`);
+                try { logIt('balance_adjust', `${uid} ${v}`); } catch(_) {}
 
                 // Sheet টি সাথে সাথে নতুন ব্যালেন্স সহ রিফ্রেশ
-                userSheet(uid);
+                try { userSheet(uid); } catch(sErr) { console.warn('userSheet refresh warn:', sErr); }
 
                 // বর্তমান সার্চ ধরে রেখে টেবিল রিফ্রেশ
-                const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
-                window.loadUsersFromCloudflare(_usrOffset, curSearch);
+                try {
+                    const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
+                    window.loadUsersFromCloudflare(_usrOffset, curSearch);
+                } catch(lErr) { console.warn('loadUsersFromCloudflare warn:', lErr); }
             } catch (e) {
-                toast('Adjustment failed: ' + e.message);
+                // If Cloudflare actually succeeded, do not display failure!
+                if (cfSuccess) {
+                    toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted on Cloudflare!`);
+                } else {
+                    toast('Adjustment failed: ' + e.message);
+                }
             }
         };
 
@@ -13312,6 +13383,71 @@
                 window.loadConnectedAccountsFromCloudflare(false);
             }
         }, 3000);
+    
+        /* ---------- LEVEL-UP SERVICE ADMIN CONTROLS ---------- */
+        window.loadLevelUpConfig = async function() {
+            try {
+                const res = await fetch("https://pp-mod-auto-quest.onrender.com/api/portal/level-up/config");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.ok && data.config) {
+                        const cfg = data.config;
+                        const rateInp = document.getElementById('cfgLevelUpXpRate');
+                        if (rateInp && cfg.xp_per_coin) rateInp.value = cfg.xp_per_coin;
+                        const p1 = document.getElementById('cfgLvlPkg1_10');
+                        if (p1 && cfg.packages && cfg.packages.lvl_1_10) {
+                            p1.checked = cfg.packages.lvl_1_10.enabled !== false;
+                        }
+                        const p2 = document.getElementById('cfgLvlPkg10_20');
+                        if (p2 && cfg.packages && cfg.packages.lvl_10_20) {
+                            p2.checked = cfg.packages.lvl_10_20.enabled !== false;
+                        }
+                    }
+                }
+            } catch(e) {
+                console.warn('loadLevelUpConfig warn:', e);
+            }
+        };
+
+        window.saveLevelUpConfig = async function(btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = 'Saving Level-Up Settings...';
+            }
+            try {
+                const rate = parseInt(document.getElementById('cfgLevelUpXpRate').value) || 50000;
+                const p1 = document.getElementById('cfgLvlPkg1_10').checked;
+                const p2 = document.getElementById('cfgLvlPkg10_20').checked;
+
+                const payload = {
+                    xp_per_coin: rate,
+                    packages: {
+                        lvl_1_10: { enabled: p1 },
+                        lvl_10_20: { enabled: p2 }
+                    }
+                };
+
+                const res = await fetch("https://pp-mod-auto-quest.onrender.com/api/portal/level-up/config", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast('✅ Level-Up Settings Saved Successfully!');
+                } else {
+                    toast('⚠️ Error: ' + (data.error || 'Failed to save'));
+                }
+            } catch(err) {
+                toast('❌ Error: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '💾 Save Level-Up Settings';
+                }
+            }
+        };
+
     </script>
 </body>
 

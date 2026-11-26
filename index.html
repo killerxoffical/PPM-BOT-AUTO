@@ -9555,9 +9555,13 @@
                     btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-emerald-300"></i> Connected';
                 }
 
-                // ৪. চেক করা নির্বাচিত গেমটি সার্ভারে আছে কিনা
+                // ৪. চেক করা নির্বাচিত গেমটি সার্ভারে আছে কিনা (Safe non-blocking check with Cloudflare Fallback)
                 const curGame = (window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '').trim();
-                await checkGameInPublicPortal(curGame);
+                try {
+                    await checkGameInPublicPortal(curGame);
+                } catch(gpErr) {
+                    console.warn('Game portal check non-fatal error:', gpErr);
+                }
 
             } catch (err) {
                 console.error('Portal connect error:', err);
@@ -9583,13 +9587,38 @@
             questBox.classList.remove('hidden');
 
             try {
-                // ১. লাইভ নো-ক্যাশ ফেচ (ব্রাউজার ক্যাশ এড়াতে timestamp যুক্ত)
-                const sRes = await fetch(`https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=${Date.now()}`, {
-                    cache: 'no-store',
-                    headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-                });
-                const sData = await sRes.json();
-                const services = (sData && sData.ok && Array.isArray(sData.services)) ? sData.services : [];
+                // ১. লাইভ নো-ক্যাশ ফেচ (Render direct + Cloudflare Zero-Downtime Fallback)
+                let services = [];
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    const sRes = await fetch(`https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=${Date.now()}`, {
+                        cache: 'no-store',
+                        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' },
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    const sData = await sRes.json();
+                    if (sData && sData.ok && Array.isArray(sData.services)) {
+                        services = sData.services;
+                    }
+                } catch(renderErr) {
+                    console.warn('Render services fetch timeout/error, using Cloudflare fallback:', renderErr);
+                }
+
+                // Cloudflare D1 Fallback if Render is sleeping or failed
+                if (!services || services.length === 0) {
+                    try {
+                        const cfRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/cloud/portal-services?_t=${Date.now()}`);
+                        const cfData = await cfRes.json();
+                        const cfObj = (cfData && cfData.data) ? cfData.data : cfData;
+                        if (cfObj && typeof cfObj === 'object') {
+                            services = Object.values(cfObj).filter(s => s && s.enabled !== false);
+                        }
+                    } catch(cfErr) {
+                        console.warn('Cloudflare services fallback error:', cfErr);
+                    }
+                }
 
                 // স্মার্ট গেম নাম নরম্যালাইজার ও ফাজি ম্যাচার
                 const normGame = (str) => {
