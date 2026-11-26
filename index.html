@@ -12409,32 +12409,6 @@ async function executeServerQuestUnlock(isRetry = false) {
                         }
                     }
                 } catch(cfErr) { console.warn('CF mirror sync error:', cfErr); }
-                    const cfData = await cfRes.json();
-                    let sMap = cfData && cfData.data ? cfData.data : cfData;
-                    if (sMap && typeof sMap === 'object') {
-                        const sList = Array.isArray(sMap) ? sMap : Object.values(sMap);
-                        if (sList.length) {
-                            const activeServices = sList.filter(ps => {
-                                if (ps.enabled === false) return false;
-                                if (ps.section === 'level_up' || ps.category === 'level_up') return false;
-                                return true;
-                            });
-                            const gamesList = activeServices.map((ps, idx) => {
-                                const cleanT = (ps.title || 'Game').replace(/\s*\(\d+\)|\s*\(all\)/gi, '').trim();
-                                return {
-                                    id: ps.id || ps.game_id || ps.package,
-                                    name: cleanT,
-                                    points: ps.price_points || 50,
-                                    logo: ps.icon || '',
-                                    no_data: !!ps.no_data,
-                                    order: idx + 1
-                                };
-                            });
-                            if (typeof renderOffers === 'function') renderOffers(gamesList);
-                            return true;
-                        }
-                    }
-                } catch (e) { }
 
                 return false;
             };

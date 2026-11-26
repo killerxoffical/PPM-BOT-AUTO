@@ -8279,14 +8279,6 @@
                             ${mBadge}
                             <span class="text-[11px] font-mono text-slate-600 truncate max-w-[110px]">${esc(item.sender || 'Unknown')}</span>
                         </div>
-                    </td>
-                    <td class="py-2.5 px-3">
-                        <div class="cpline flex items-center gap-1">
-                            <span class="font-mono font-black text-slate-900 select-all tracking-tight">${esc(item.trxId || '')}</span>
-                            ${cpBtn(item.trxId, 'Copy TrxID')}
-                        </div>
-                    </td>
-                    <td class="py-2.5 px-3 font-extrabold text-amber-600 whitespace-nowrap">৳${amount}</td>
                     <td class="py-2.5 px-3 font-extrabold text-indigo-600 whitespace-nowrap">🪙 ${coins}</td>
                     <td class="py-2.5 px-3">
                         <div class="text-[10.5px] font-mono text-slate-600">${fmtDate(recAt)}</div>
