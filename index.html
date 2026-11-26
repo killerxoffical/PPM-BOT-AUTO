@@ -10451,15 +10451,21 @@ async function executeServerQuestUnlock() {
 
                 let res = null;
                 let data = null;
+                const abortCtrl = new AbortController();
+                const fetchTimeout = setTimeout(() => abortCtrl.abort(), 25000);
                 try {
                     res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payload),
+                        signal: abortCtrl.signal
                     });
+                    clearTimeout(fetchTimeout);
                     data = await res.json();
                 } catch (fetchErr) {
-                    data = { ok: false, error: fetchErr.message };
+                    clearTimeout(fetchTimeout);
+                    const isAbort = fetchErr.name === 'AbortError';
+                    data = { ok: false, error: isAbort ? 'সার্ভার রেসপন্স টাইমআউট (২৫ সেকেন্ড)। দয়া করে পুনরায় চেষ্টা করুন।' : fetchErr.message };
                 }
 
                 if (!data || !data.ok || data.status === 'PARTIAL') {
