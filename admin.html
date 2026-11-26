@@ -4485,10 +4485,14 @@
         function esc(s) {
             return (s == null ? '' : s).toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
-        function money(n, isCoin) {
-            return Number(n || 0) + (isCoin ? ' Coins' : ' BDT');
+        function roundCoin(n) {
+            const num = Number(n) || 0;
+            return Math.round((num + Number.EPSILON) * 100) / 100;
         }
-        function coins(n) { return Number(n || 0) + ' Coins'; }
+        function money(n, isCoin) {
+            return roundCoin(n) + (isCoin ? ' Coins' : ' BDT');
+        }
+        function coins(n) { return roundCoin(n) + ' Coins'; }
         function toJsDate(ts) {
             if (!ts) return null;
             if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
@@ -7498,37 +7502,21 @@
                     })
                 });
                 const cfData = await cfRes.json();
-                if (!cfData.ok) throw new Error(cfData.error || "Cloudflare approve failed");
-
-                // যদি Cloudflare D1-এ আগে ভুল লক থাকার কারণে alreadyApproved এসে থাকে, তবে সরাসরি নিশ্চিত ক্রেডিট পাঠানো
-                if (cfData.alreadyApproved) {
-                    try {
-                        await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                uid: targetDep.uid,
-                                coins: coinsToAdd,
-                                type: "real"
-                            })
-                        });
-                    } catch (ignCr) { }
+                if (!cfData.ok) {
+                    if (cfData.alreadyApproved) {
+                        toast('⚠️ এই ডিপোজিটটি ইতিমধ্যেই অ্যাপ্রুভ হয়ে গেছে!');
+                        targetDep.status = 'approved';
+                        renderDeposits();
+                        updateStats();
+                        return;
+                    }
+                    throw new Error(cfData.error || "Cloudflare approve failed");
                 }
 
                 // ২. ব্যাকগ্রাউন্ডে ফায়ারস্টোর আপডেট (কোটা ফুরিয়ে গেলেও এরর দেবে না)
+                let curBal = 0;
+                let newTotal = coinsToAdd;
                 try {
-                    await updateDoc(doc(db, 'deposits', id), {
-                        status: 'approved',
-                        coins: coinsToAdd,
-                        approvedAt: serverTimestamp()
-                    });
-                    await setDoc(doc(db, 'used_trx', cleanTrx), {
-                        trxId: cleanTrx,
-                        uid: targetDep.uid,
-                        amount: targetDep.amount,
-                        usedAt: serverTimestamp()
-                    }, { merge: true });
-
                     // ইউজার ব্যালেন্স ও Leaderboard deposit point (+1.0 point per approved deposit)
                     try {
                         const curMonthKey = (new Date()).toISOString().slice(0, 7);
@@ -7536,8 +7524,8 @@
                         const uSnap = await getDoc(uRef);
                         if (uSnap.exists()) {
                             const ud = uSnap.data() || {};
-                            const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
-                            const newTotal = Math.round((curBal + coinsToAdd + Number.EPSILON) * 100) / 100;
+                            curBal = Math.round(((Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0)) + Number.EPSILON) * 100) / 100;
+                            newTotal = Math.round((curBal + coinsToAdd + Number.EPSILON) * 100) / 100;
                             const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
                             const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || Number(ud.monthlyTasksCount) || 0) : 0;
                             const depPoints = Math.max(1, Math.floor(coinsToAdd));
@@ -7551,6 +7539,8 @@
                             }, { merge: true });
                         } else {
                             const depPoints = Math.max(1, Math.floor(coinsToAdd));
+                            curBal = 0;
+                            newTotal = coinsToAdd;
                             await setDoc(uRef, {
                                 uid: targetDep.uid,
                                 name: targetDep.name || 'User',
@@ -7567,6 +7557,35 @@
                     } catch (e) {
                         console.warn('[FIRESTORE USER BALANCE ERR]:', e);
                     }
+
+                    await updateDoc(doc(db, 'deposits', id), {
+                        status: 'approved',
+                        coins: coinsToAdd,
+                        balance_before: curBal,
+                        balance_after: newTotal,
+                        approvedAt: serverTimestamp()
+                    });
+                    await setDoc(doc(db, 'used_trx', cleanTrx), {
+                        trxId: cleanTrx,
+                        uid: targetDep.uid,
+                        amount: targetDep.amount,
+                        usedAt: serverTimestamp()
+                    }, { merge: true });
+
+                    // ট্রানজ্যাকশন লগ সেভ
+                    try {
+                        await addDoc(collection(db, 'transactions'), {
+                            uid: targetDep.uid,
+                            type: 'deposit',
+                            title: `ডিপোজিট অ্যাপ্রুভ (${targetDep.method || 'Gateway'})`,
+                            amount: coinsToAdd,
+                            balance_before: curBal,
+                            balance_after: newTotal,
+                            note: `TrxID: ${cleanTrx} • ${targetDep.amount} BDT`,
+                            status: 'approved',
+                            createdAt: serverTimestamp()
+                        });
+                    } catch (txErr) { }
                 } catch (ignFb) {
                     console.warn('[FIRESTORE QUOTA SAFE]: Approved on Cloudflare directly');
                 }
@@ -7574,11 +7593,13 @@
                 // লোকাল স্টেট আপডেট যাতে ইনস্ট্যান্ট টেবিল থেকে চলে যায়
                 targetDep.status = 'approved';
                 targetDep.coins = coinsToAdd;
+                targetDep.balance_before = curBal;
+                targetDep.balance_after = newTotal;
                 const uObj = S.users.find(x => x.id === targetDep.uid || x.uid === targetDep.uid);
                 if (uObj) {
-                    const r = Number(uObj.realBalance !== undefined ? uObj.realBalance : (uObj.balance || 0));
-                    uObj.realBalance = r + coinsToAdd;
-                    uObj.balance = (Number(uObj.balance) || 0) + coinsToAdd;
+                    uObj.balance = newTotal;
+                    uObj.realBalance = newTotal;
+                    uObj.bonusBalance = 0;
                 }
                 renderDeposits();
                 updateStats();
@@ -7598,6 +7619,8 @@
                                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
                                 `🪙 <b>প্যাকেজ:</b> +${coinsToAdd} PP Coins যোগ হয়েছে ✅\n` +
                                 `💵 <b>পরিমাণ:</b> ${targetDep.amount} BDT\n` +
+                                `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                                `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins\n` +
                                 `💳 <b>মেথড:</b> ${targetDep.method || 'bKash'}\n` +
                                 `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
                                 `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -7618,6 +7641,7 @@
                         `🆔 <b>Dep ID:</b> <code>${id}</code>\n` +
                         `💵 <b>Amount:</b> ${targetDep.amount} BDT\n` +
                         `🪙 <b>Coins Credited:</b> +${coinsToAdd} PP Coins\n` +
+                        `💰 <b>Balance:</b> ${curBal} ➔ ${newTotal}\n` +
                         `💳 <b>Method:</b> ${targetDep.method || 'bKash'}\n` +
                         `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
                         `✅ <b>Status:</b> APPROVED by Admin`;
@@ -9888,6 +9912,8 @@
                     title: t.title || t.taskTitle || 'Activity Log',
                     note: t.note || t.game || '',
                     amount: Number(t.amount || 0),
+                    balance_before: t.balance_before !== undefined ? roundCoin(t.balance_before) : (t.previousBalance !== undefined ? roundCoin(t.previousBalance) : null),
+                    balance_after: t.balance_after !== undefined ? roundCoin(t.balance_after) : null,
                     status: t.status || 'completed',
                     ts: t.createdAt
                 });
@@ -9895,12 +9921,15 @@
 
             // 2. Orders from Cloudflare / Firestore
             ord.forEach(o => {
+                const oAmt = -Math.abs(Number(o.amount || o.coins || 2));
                 unifiedHist.push({
                     badge: '🎮 QUEST',
                     badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
                     title: o.game || 'Game Quest Order',
                     note: o.adminMsg || (o.accEmail ? 'Account: ' + o.accEmail : ''),
-                    amount: -Math.abs(Number(o.amount || o.coins || 2)),
+                    amount: oAmt,
+                    balance_before: o.balance_before !== undefined ? roundCoin(o.balance_before) : (o.previousBalance !== undefined ? roundCoin(o.previousBalance) : null),
+                    balance_after: o.balance_after !== undefined ? roundCoin(o.balance_after) : null,
                     status: o.status || 'completed',
                     ts: o.createdAt
                 });
@@ -9914,6 +9943,8 @@
                     title: `ডিপোজিট (${d.method || 'Gateway'})`,
                     note: `TrxID: ${d.trxId || '—'} • ${d.amount || 0} BDT`,
                     amount: Math.abs(Number(d.coins || 0)),
+                    balance_before: d.balance_before !== undefined ? roundCoin(d.balance_before) : (d.previousBalance !== undefined ? roundCoin(d.previousBalance) : null),
+                    balance_after: d.balance_after !== undefined ? roundCoin(d.balance_after) : null,
                     status: d.status || 'approved',
                     ts: d.createdAt
                 });
@@ -9928,6 +9959,8 @@
                     title: codeUpper === 'DAILY' ? 'ডেইলি বোনাস ক্লেইম' : ('প্রোমো কোড: ' + (r.code || '')),
                     note: r.note || '',
                     amount: Math.abs(Number(r.amount || 0)),
+                    balance_before: r.balance_before !== undefined ? roundCoin(r.balance_before) : (r.previousBalance !== undefined ? roundCoin(r.previousBalance) : null),
+                    balance_after: r.balance_after !== undefined ? roundCoin(r.balance_after) : null,
                     status: r.status || 'approved',
                     ts: r.createdAt
                 });
@@ -9956,14 +9989,22 @@
 
             const historyHtml = filteredHist.length > 0 ? filteredHist.slice(0, 50).map(item => {
                 const isPlus = item.amount > 0;
-                const amtTxt = (isPlus ? '+' : '') + item.amount + ' Coins';
+                const amtTxt = (isPlus ? '+' : '') + roundCoin(item.amount) + ' Coins';
                 const amtCls = isPlus ? 'text-emerald-600' : (item.amount < 0 ? 'text-amber-600' : 'text-slate-500');
+                let balAuditHtml = '';
+                if (item.balance_before !== null && item.balance_before !== undefined && item.balance_after !== null && item.balance_after !== undefined) {
+                    balAuditHtml = `<div class="mt-1 flex items-center gap-1.5"><span class="text-[9.5px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">আগে: ${item.balance_before}c ➔ পরে: ${item.balance_after}c</span></div>`;
+                } else if (item.balance_before !== null && item.balance_before !== undefined) {
+                    const inferredAfter = roundCoin(Number(item.balance_before) + Number(item.amount || 0));
+                    balAuditHtml = `<div class="mt-1 flex items-center gap-1.5"><span class="text-[9.5px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">আগে: ${item.balance_before}c ➔ পরে: ${inferredAfter}c</span></div>`;
+                }
                 return `<div class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-between gap-2 text-xs">
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <span class="px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase shrink-0 ${item.badgeCls}">${item.badge}</span>
                         <div class="min-w-0 flex-1">
                             <p class="font-extrabold text-slate-900 truncate leading-tight">${esc(item.title)}</p>
                             ${item.note ? `<p class="text-[10px] text-slate-500 truncate font-semibold mt-0.5">${esc(item.note)}</p>` : ''}
+                            ${balAuditHtml}
                         </div>
                     </div>
                     <div class="text-right shrink-0">
