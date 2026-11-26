@@ -10372,7 +10372,7 @@
         window.autoRefundServerFailure = autoRefundServerFailure;
 
         /* cancelAndRefundActiveOrder removed - admin only refund */
-async function executeServerQuestUnlock(isRetry = false) {
+async function executeServerQuestUnlock() {
             const acc = window._serverConnectedAccount;
             const srv = window._matchedPortalService;
             const orderId = window._currentOrderId;
@@ -10383,7 +10383,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                 if (typeof showScreen === 'function') showScreen('screenOffers');
                 return;
             }
-            if (window._isOrderExecuting && !isRetry) {
+            if (window._isOrderExecuting) {
                 return;
             }
             window._isOrderExecuting = true;
@@ -10402,9 +10402,9 @@ async function executeServerQuestUnlock(isRetry = false) {
             const btn = document.getElementById('btnConfirmServerUnlock');
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = isRetry 
-                    ? `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>Google সার্ভারে ভেরিফাই হচ্ছে... (২য় চেষ্টা)</span>`
-                    : `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>প্রসেসিং হচ্ছে...</span>`;
+                btn.style.pointerEvents = 'none';
+                btn.style.opacity = '0.7';
+                btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>প্রসেসিং হচ্ছে...</span>`;
             }
 
             try {
@@ -10466,20 +10466,6 @@ async function executeServerQuestUnlock(isRetry = false) {
                         return;
                     }
 
-                    const isTransient = typeof errMsg === 'string' && (
-                        errMsg.includes('Third-Party') ||
-                        errMsg.includes('রেস্ট্রিক্টেড') ||
-                        errMsg.includes('UnauthorizedThirdPartyApiAccess') ||
-                        errMsg.includes('401') ||
-                        errMsg.includes('timed out')
-                    );
-                    if (isTransient && !isRetry) {
-                        if (btn) {
-                            btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>Google সার্ভারে ভেরিফাই হচ্ছে... (পুনরায় চেষ্টা করা হচ্ছে)</span>`;
-                        }
-                        await new Promise(r => setTimeout(r, 1500));
-                        return await executeServerQuestUnlock(true);
-                    }
                     let cleanErrMsg = typeof errMsg === 'string' ? errMsg : 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি।';
                     if (cleanErrMsg.includes('fetch') || cleanErrMsg.includes('http') || cleanErrMsg.includes('{') || cleanErrMsg.includes('Server error')) {
                         cleanErrMsg = 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি। দয়া করে PPM Server অ্যাপ থেকে নতুন কোড দিন।';
@@ -10487,11 +10473,13 @@ async function executeServerQuestUnlock(isRetry = false) {
                     toast(`আনলক ব্যর্থ হয়েছে: ${cleanErrMsg}`);
                     if (btn) {
                         btn.disabled = false;
+                        btn.style.pointerEvents = 'auto';
+                        btn.style.opacity = '1';
                         btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
                     }
 
-                    // ২য় বার ব্যর্থ হলে সাথে সাথে কয়েন অটো-রিফান্ড!
-                    await autoRefundServerFailure(srv.title || curGame, errMsg || 'Quest unlock failed');
+                    // ১ বারই সার্ভারে কল হবে — ব্যর্থ হলে সাথে সাথে নির্দিষ্ট কারণ দেখিয়ে কয়েন অটো-রিফান্ড!
+                    await autoRefundServerFailure(srv.title || curGame, cleanErrMsg || 'Quest unlock failed');
 
                     const questBox = document.getElementById('serverGameQuestBox');
                     if (questBox) {
@@ -10503,7 +10491,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                                     <span class="text-xs font-black">কোয়েস্ট আনলক করতে সমস্যা হয়েছে!</span>
                                 </div>
                                 <div class="bg-white/90 p-3 rounded-xl border border-rose-200 text-xs font-semibold text-rose-950 space-y-1.5 leading-relaxed">
-                                    <p>⚠️ <b>সমস্যা হচ্ছে, তাই আপনার কাটা কয়েন স্বয়ংক্রিয়ভাবে ওয়ালেটে ফেরত (Auto-Refund) করে দেওয়া হয়েছে।</b></p>
+                                    <p>⚠️ কারণ: <b>${escapeHtml(cleanErrMsg)}</b></p>
+                                    <p class="text-rose-900 font-bold">টাস্ক ফেইল করায় আপনার কাটা কয়েন সাথে সাথে ওয়ালেটে ফেরত (Auto-Refund) করে দেওয়া হয়েছে।</p>
                                     <p class="text-slate-700">PPM SERVER অ্যাপ থেকে আপনার ইমেইলটি <b>Remove</b> করে পুনরায় <b>Login</b> করে নতুন QID কোড দিন অথবা এডমিনকে মেসেজ দিন।</p>
                                 </div>
                                 <div class="flex gap-2 pt-1">
@@ -10518,7 +10507,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                     return;
                 }
 
-                window._lastUnlockAttempts = isRetry ? 2 : 1;
+                window._lastUnlockAttempts = 1;
                 const successMsg = `🎉 অভিনন্দন! আপনার "${srv.title}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!`;
 
                 // Cloudflare D1 এ অর্ডার completed আপডেট
@@ -10534,8 +10523,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                                 isQid: true,
                                 loginMethod: 'qid',
                                 syncCode: acc.code || '',
-                                timeElapsed: isRetry ? 2 : 1,
-                                retryCount: isRetry ? 2 : 1,
+                                timeElapsed: 1,
+                                retryCount: 1,
                                 adminMsg: successMsg
                             })
                         });
@@ -10555,8 +10544,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                             isQid: true,
                             loginMethod: 'qid',
                             syncCode: acc.code || '',
-                            timeElapsed: isRetry ? 2 : 1,
-                            retryCount: isRetry ? 2 : 1,
+                            timeElapsed: 1,
+                            retryCount: 1,
                             adminMsg: successMsg,
                             completedAt: new Date()
                         }, { merge: true }).catch(() => {});
@@ -10588,7 +10577,7 @@ async function executeServerQuestUnlock(isRetry = false) {
                         `✈️ <b>Telegram:</b> ${userTgForComplete}\n` +
                         `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
                         `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
-                        `🎯 <b>Status:</b> Quest Unlocked (${isRetry ? '2nd Thread' : '1st Thread'})\n\n` +
+                        `🎯 <b>Status:</b> Quest Unlocked\n\n` +
                         `💰 <b>BALANCE AUDIT:</b>\n` +
                         `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
                         `${deductCostLine}\n` +
@@ -10600,7 +10589,7 @@ async function executeServerQuestUnlock(isRetry = false) {
 
                     // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড কমপ্লিট লগ পাঠানো
                     if (typeof sendTelegramMsg === 'function') {
-                        const elapsedSec = isRetry ? 2 : 1;
+                        const elapsedSec = 1;
                         const rawGamer = (data && data.account_name) || accName || '';
                         const gamerDisplay = maskProfileName(rawGamer);
                         const cleanGameName = (srv.title || curGame || 'Task').replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
@@ -10632,8 +10621,8 @@ async function executeServerQuestUnlock(isRetry = false) {
                     isQid: true,
                     qid: acc.code || '',
                     syncCode: acc.code || '',
-                    retryCount: isRetry ? 2 : 1,
-                    timeElapsed: isRetry ? 2 : 1
+                    retryCount: 1,
+                    timeElapsed: 1
                 });
 
                 if (window.fireConfetti) {
