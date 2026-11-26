@@ -2745,23 +2745,13 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-                <!-- Stacked Separate Balance Badges (100% Balanced & Symmetric) -->
-                <div class="flex flex-col items-end gap-1">
-                    <!-- 1. PP Coins Badge (Symmetric Pill) -->
+                <!-- Single Unified PP Coins Balance Badge -->
+                <div class="flex items-center">
                     <button onclick="enterTopup('coin')" title="PP Coins"
                         class="header-bal-btn coin-badge bal-entrance-pending active:scale-95 cursor-pointer">
                         <img src="PPCOIN.png" class="header-bal-icon w-3.5 h-3.5 object-contain flex-shrink-0" alt="Coin">
                         <span id="balanceAmt"
                             class="header-bal-text text-[10px] leading-none font-black text-amber-900 whitespace-nowrap tracking-tight tabular-nums">0</span>
-                    </button>
-                    <!-- 2. Taka Balance Badge (Symmetric Pill) -->
-                    <button onclick="enterTopup('points')" title="টাকা ওয়ালেট"
-                        class="header-bal-btn taka-badge bal-entrance-pending active:scale-95 cursor-pointer">
-                        <span
-                            class="header-bal-icon w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-black flex-shrink-0">৳</span>
-                        <span id="headerPlayPoints"
-                            class="header-bal-text text-[10px] leading-none font-black text-emerald-900 whitespace-nowrap tracking-tight tabular-nums">৳
-                            0</span>
                     </button>
                 </div>
 
@@ -2788,7 +2778,7 @@
                     </div>
                     <div>
                         <h2 class="text-xl font-extrabold text-slate-900 tracking-tight"><span class="brand-text">PP
-                                MOD</span> <span class="ver-badge">v4 PRO</span></h2>
+                                MOD</span> <span class="ver-badge">v5 PRO</span></h2>
                         <p class="text-[11px] font-semibold text-slate-400 mt-1">Play Points Task Automation</p>
                     </div>
                     <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200">
@@ -3396,27 +3386,14 @@
                             <p id="topupBalance"
                                 class="text-base font-extrabold text-amber-300 flex items-center justify-end gap-1 leading-none"><img
                                     src="PPCOIN.png" class="w-4 h-4 object-contain"> 0 Coins</p>
-                            <p id="walletPtsHero"
-                                class="hidden text-base font-extrabold text-emerald-300 items-center justify-end gap-1 leading-none"><span
-                                    class="w-4 h-4 rounded-full bg-white text-emerald-800 flex items-center justify-center text-[10px] font-black">৳</span>
-                                <span id="walletPtsHeroTx">৳ 0</span></p>
                         </div>
                     </div>
                 </div>
 
                 <div
-                    class="flex items-center gap-1.5 mt-3 relative z-10 bg-black/20 p-1 rounded-2xl border border-white/10 backdrop-blur-sm">
-                    <button id="wtabCoins" onclick="toggleWalletMode('coins')"
-                        class="wtab wtab-box on flex-1 h-9 !m-0 !py-0 flex items-center justify-center gap-1.5 transition-all"><img
-                            src="PPCOIN.png" class="w-4 h-4 object-contain flex-shrink-0"> PP Coins</button>
-                    <button onclick="openExchange()" title="টাকা দিয়ে কয়েন এক্সচেঞ্জ"
-                        class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-gradient-to-tr from-amber-500 to-orange-500 hover:brightness-110 active:scale-90 border border-white/30 shadow-xs flex-shrink-0 cursor-pointer transition-all">
-                        <i data-lucide="arrow-left-right" class="w-4 h-4 text-white"></i>
-                    </button>
-                    <button id="wtabPoints" onclick="toggleWalletMode('points')"
-                        class="wtab wtab-box flex-1 h-9 !m-0 !py-0 flex items-center justify-center gap-1.5 transition-all"><span
-                            class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">৳</span>
-                        টাকা ওয়ালেট</button>
+                    class="mt-3 relative z-10 text-center py-2 bg-black/20 rounded-2xl border border-white/10 backdrop-blur-sm">
+                    <span id="walletHeroRateSpan" class="text-xs font-black text-amber-300 flex items-center justify-center gap-1.5"><img
+                            src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = 5 BDT)</span>
                 </div>
 
                 <div class="mt-2.5 flex items-center min-h-[24px] relative z-10">
@@ -3615,142 +3592,7 @@
                 </div>
             </div><!-- /paneCoins -->
 
-            <!-- ===== TAKA WALLET PANE (Live + Pending + Withdraw) ===== -->
-            <div id="panePoints" class="wpane space-y-4 hidden">
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="bg-white border border-emerald-200/80 rounded-2xl p-3 shadow-sm">
-                        <p class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Live Balance</p>
-                        <p id="ptsLive" class="text-lg font-black text-emerald-600 mt-0.5">৳ 0</p>
-                        <p id="ptsLiveBdt" class="text-[10px] font-extrabold text-slate-400">উইথড্র ও এক্সচেঞ্জ উপযোগী
-                        </p>
-                        <span class="live-chip mt-1">● Withdrawable</span>
-                    </div>
-                    <div class="bg-white border border-amber-200/80 rounded-2xl p-3 shadow-sm">
-                        <div class="flex items-center justify-between gap-1">
-                            <p class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Pending</p>
-                            <i class="info-i" onclick="openPendingPanel()" title="Pending info">i</i>
-                        </div>
-                        <p id="ptsPending" class="text-lg font-black text-amber-600 mt-0.5">৳ 0</p>
-                        <span id="pendNote" class="pend-chip mt-1 count-pulse">—</span>
-                    </div>
-                </div>
-                <p id="ptsRateLine"
-                    class="text-center text-[10px] font-bold text-slate-500 bg-white border border-slate-200/80 rounded-xl px-3 py-2">
-                    কয়েন রেট অনুযায়ী হিসাব হচ্ছে...</p>
-
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
-                    <p class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Withdraw Taka (টাকা
-                        উত্তোলন)</p>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Payment
-                            Method</label>
-                        <div class="grid grid-cols-3 gap-1.5" id="wdMethodGrid">
-                            <button type="button" onclick="setWdMethod('bKash')" data-wd="bKash"
-                                class="wd-mbtn py-2 rounded-xl text-[11px] font-extrabold border-2 border-emerald-500 bg-emerald-50 text-emerald-800 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"><img
-                                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTdjxXCpOG7jJdpeVHm9R_xCZ6hrcRr23H-Y99mIloKRA&s=10"
-                                    class="w-6 h-6 rounded-lg object-contain bg-white border border-slate-100">bKash</button>
-                            <button type="button" onclick="setWdMethod('Nagad')" data-wd="Nagad"
-                                class="wd-mbtn py-2 rounded-xl text-[11px] font-extrabold border border-slate-200 bg-slate-50 text-slate-600 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"><img
-                                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU9xlcZDT6VNZ0dLPxDpO6t-kCTbGa1om1cAuXVCNboA&s=10"
-                                    class="w-6 h-6 rounded-lg object-contain bg-white border border-slate-100">Nagad</button>
-                            <button type="button" onclick="setWdMethod('Rocket')" data-wd="Rocket"
-                                class="wd-mbtn py-2 rounded-xl text-[11px] font-extrabold border border-slate-200 bg-slate-50 text-slate-600 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"><img
-                                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTP0eawh77HPEryf218TiXutIyR4EXTAJhbiWHg_ManMg&s=10"
-                                    class="w-6 h-6 rounded-lg object-contain bg-white border border-slate-100">Rocket</button>
-                        </div>
-                        <input type="hidden" id="wdMethod" value="bKash">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Your Account
-                            Number *</label>
-                        <input id="wdNumber" inputmode="numeric" placeholder="01XXXXXXXXX"
-                            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">টাকার পরিমাণ
-                                (৳) *</label>
-                            <input id="wdPoints" type="number" min="1" placeholder="100" oninput="wdCalc()"
-                                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-500">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">You Get (90%
-                                BDT)</label>
-                            <input id="wdBdt" readonly placeholder="0 BDT"
-                                class="w-full p-2.5 bg-emerald-50/50 border border-emerald-200 text-emerald-700 font-black text-xs rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-                    <!-- 10% Fee Breakdown -->
-                    <div
-                        class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-600 flex justify-between items-center">
-                        <span>প্ল্যাটফর্ম উইথড্র ফি (10%):</span>
-                        <span id="wdFeeLabel" class="font-mono text-rose-600">0 BDT</span>
-                    </div>
-                    <p id="wdMinLine" class="text-[10px] font-bold text-slate-400"></p>
-                    <button id="btnWithdraw" onclick="submitWithdraw()"
-                        class="w-full py-3.5 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer flex items-center justify-center gap-2">
-                        <i data-lucide="banknote" class="w-4 h-4"></i> <span>Withdraw Now</span>
-                    </button>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
-                    <p class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Withdraw History (টাকা
-                        তোলার হিসাব)</p>
-                    <div id="wdHistList" class="space-y-2">
-                        <p class="text-center text-[11px] text-slate-400 py-3">No withdrawals yet</p>
-                    </div>
-                </div>
-            </div><!-- /panePoints -->
             </div><!-- /walletPaneSlot -->
-
-            <!-- Exchange popup (Taka to PP Coins based on Coin Rate) -->
-            <div id="exModal" class="pop-overlay" style="display:none">
-                <div class="pop-card space-y-2.5 text-left max-h-[90vh] overflow-y-auto">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h3 class="text-sm font-extrabold text-slate-900">টাকা দিয়ে কয়েন এক্সচেঞ্জ</h3>
-                        <button onclick="closeExchange()"
-                            class="text-slate-400 hover:text-slate-700 font-black cursor-pointer">✕</button>
-                    </div>
-                    <div
-                        class="p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs font-black">
-                        <span id="exRateBadgeTaka" class="text-slate-700 font-black">৭ ৳</span>
-                        <span class="text-slate-400 font-black">⇄</span>
-                        <span class="text-amber-700 flex items-center gap-1 font-black"><img src="PPCOIN.png"
-                                class="w-4 h-4 object-contain"> 1 PP Coin</span>
-                    </div>
-                    <p id="exLiveLine" class="text-[11px] font-bold text-slate-500"></p>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">কত টাকা দিয়ে কয়েন
-                            কিনবেন? (৳) *</label>
-                        <input id="exPoints" type="number" min="7" step="1" placeholder="৭ বা ১৪ বা ২১..."
-                            oninput="exCalc()"
-                            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-amber-500">
-                        <p id="exErr" class="hidden text-[10px] font-bold text-rose-600 pt-1"></p>
-                    </div>
-                    <div id="exPrev"
-                        class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-extrabold text-emerald-700 text-center">
-                        —</div>
-                    <button id="btnExchange" onclick="exchangeGo()"
-                        class="w-full py-3 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-                        style="background:linear-gradient(135deg,#f59e0b,#f97316);box-shadow:0 12px 24px -10px rgba(249,115,22,.65)">
-                        <i data-lucide="arrow-left-right" class="w-4 h-4"></i> <span>Exchange to Coins Now</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Pending info panel -->
-            <div id="pendModal" class="pop-overlay"
-                ontouchmove="if(!event.target.closest('.pop-card'))event.preventDefault()" style="display:none">
-                <div class="pop-card space-y-2.5 text-left max-h-[90vh] overflow-y-auto">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h3 class="text-sm font-extrabold text-slate-900">Pending Taka (পেন্ডিং টাকা)</h3>
-                        <button onclick="closePendingPanel()"
-                            class="text-slate-400 hover:text-slate-700 font-black cursor-pointer">✕</button>
-                    </div>
-                    <p id="pendModalInfo" class="text-[11px] font-semibold text-slate-500 leading-relaxed"></p>
-                    <div id="pendList" class="space-y-2"></div>
-                </div>
-            </div>
 
             <button onclick="payBack()"
                 class="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold rounded-xl transition-all text-xs cursor-pointer">
@@ -3771,12 +3613,15 @@
             </div>
 
             <div
-                class="bg-gradient-to-r from-amber-500 to-orange-500 p-4 rounded-2xl text-white shadow-sm flex items-center gap-3">
-                <img id="credGameLogo" class="w-11 h-11 rounded-xl object-cover bg-white/20 p-1 flex-shrink-0" alt="">
-                <div class="flex-1 min-w-0">
-                    <p id="credFeeBadge" class="text-[10px] font-bold uppercase tracking-wider text-amber-100">Task Paid: 3 Coins</p>
-                    <p id="credGameTitle" class="text-sm font-black truncate">—</p>
+                class="bg-gradient-to-r from-amber-500 to-orange-500 p-4 rounded-2xl text-white shadow-sm flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <img id="credGameLogo" class="w-11 h-11 rounded-xl object-cover bg-white/20 p-1 flex-shrink-0" alt="">
+                    <div class="flex-1 min-w-0">
+                        <p id="credFeeBadge" class="text-[10px] font-bold uppercase tracking-wider text-amber-100">Task Paid: 3 Coins</p>
+                        <p id="credGameTitle" class="text-sm font-black truncate">—</p>
+                    </div>
                 </div>
+                
             </div>
 
             <!-- Credential Method Switcher (2 Options: Server Code vs Gmail & Pass) -->
@@ -3821,7 +3666,7 @@
                     <a id="btnDownloadPpmApk" href="https://t.me/Blackmoney54" target="_blank" onclick="claimAppDownloadReward(event)"
                         class="py-2.5 px-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-[11px] rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span>Download APK v4.5</span>
+                        <span id="btnDownloadPpmApkTxt">Download APK v5.0</span>
                     </a>
                 </div>
 
@@ -4363,20 +4208,13 @@
                     </div>
 
                     <div
-                        class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-3 mt-2.5 shadow-md space-y-2">
+                        class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-3 mt-2.5 shadow-md">
                         <div class="flex items-center justify-between">
                             <span class="text-[11px] font-extrabold text-slate-300 flex items-center gap-1.5"><img
                                     src="PPCOIN.png" class="w-4 h-4 object-contain flex-shrink-0"> PP Coins</span>
                             <span id="profileBalance"
                                 class="text-sm font-black text-amber-400 flex items-center gap-1.5"><img
                                     src="PPCOIN.png" class="w-4 h-4 object-contain flex-shrink-0"> 0 Coins</span>
-                        </div>
-                        <div class="flex items-center justify-between pt-2 border-t border-slate-700/60">
-                            <span class="text-[11px] font-extrabold text-slate-300 flex items-center gap-1.5"><span
-                                    class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center">৳</span>
-                                টাকা ওয়ালেট</span>
-                            <span id="profilePlayPoints"
-                                class="text-sm font-black text-emerald-400 flex items-center gap-1">৳ 0</span>
                         </div>
                     </div>
 
@@ -4425,7 +4263,7 @@
                 <a id="btnDownloadPpmApkProfile" href="https://pp-mod-auto-quest.onrender.com/download/PP_Server.apk" target="_blank" onclick="claimAppDownloadReward(event)"
                     class="py-2 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer whitespace-nowrap">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                    <span id="btnDownloadPpmApkProfileTxt">Download v4.5</span>
+                    <span id="btnDownloadPpmApkProfileTxt">Download v5.0</span>
                 </a>
             </div>
 
@@ -4738,23 +4576,13 @@
                     </div>
                 </div>
 
-                <!-- Real vs Bonus Coins Breakdown (Only shown in Edit Profile) -->
+                <!-- Unified Coins Balance -->
                 <div class="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-2xs space-y-2 text-left">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                            <img src="PPCOIN.png" class="w-3.5 h-3.5 object-contain"> কয়েন ব্যালেন্স বিস্তারিত
+                            <img src="PPCOIN.png" class="w-3.5 h-3.5 object-contain"> কয়েন ব্যালেন্স
                         </span>
                         <span id="editProfileTotalCoins" class="text-xs font-black text-amber-500 font-mono">0 Coins</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-100">
-                        <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5">
-                            <span class="text-[9px] font-extrabold uppercase text-slate-400 block tracking-wider">Real Coins (আসল)</span>
-                            <p id="editProfileRealCoins" class="text-sm font-black text-slate-800 font-mono mt-0.5">0</p>
-                        </div>
-                        <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-2.5">
-                            <span class="text-[9px] font-extrabold uppercase text-indigo-500 block tracking-wider">Bonus Coins (বোনাস)</span>
-                            <p id="editProfileBonusCoins" class="text-sm font-black text-indigo-600 font-mono mt-0.5">0</p>
-                        </div>
                     </div>
                 </div>
 
@@ -5874,7 +5702,7 @@
                             class="w-8 h-8 rounded-2xl bg-white/20 backdrop-blur-md border border-white/25 flex items-center justify-center text-base shadow-2xs flex-shrink-0">⚡</span>
                         <div class="min-w-0">
                             <h2 class="text-base sm:text-lg font-black tracking-tight leading-tight text-white truncate">Task &amp; Earn Coins</h2>
-                            <p class="text-[10.5px] text-amber-100/90 font-medium leading-tight truncate">টাস্ক সম্পন্ন করে সরাসরি Bonus Coins আয় করুন</p>
+                            <p class="text-[10.5px] text-amber-100/90 font-medium leading-tight truncate">টাস্ক সম্পন্ন করে সরাসরি PP Coins আয় করুন</p>
                         </div>
                     </div>
                     <!-- Monthly User Completed Tasks Pill -->
@@ -5884,11 +5712,11 @@
                     </div>
                 </div>
 
-                <!-- Live Bonus Wallet Strip (Row 2) -->
+                <!-- Live Coins Wallet Strip (Row 2) -->
                 <div class="relative z-10 mt-3 pt-2.5 border-t border-white/20 flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 bg-white/15 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/25">
                         <img src="PPCOIN.png" class="w-4 h-4 object-contain">
-                        <span class="text-[11px] font-extrabold text-white">Bonus:</span>
+                        <span class="text-[11px] font-extrabold text-white">Coins:</span>
                         <span id="earnBonusBalDisplay" class="font-mono font-black text-xs text-amber-200">0.00 Coins</span>
                     </div>
                     <button type="button" onclick="openEarnRulesModal()"
@@ -6222,6 +6050,65 @@
                 class="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold rounded-xl text-xs transition-all shadow-md cursor-pointer">
                 ঠিক আছে, বুঝতে পেরেছি
             </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: CONNECT TELEGRAM DEFAULT TASK POPUP
+         ========================================== -->
+    <div id="connectTgTaskModal" class="pop-overlay flex items-center justify-center p-4" style="display:none; z-index:99999;">
+        <div class="pop-card text-left space-y-4 py-6 px-5 max-w-[360px] w-full shadow-2xl rounded-3xl bg-white border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center text-xl shadow-md">
+                        ✈️
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900 leading-tight">টেলিগ্রাম কানেক্ট টাস্ক</h3>
+                        <p class="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1">
+                            <span>🎁 রিওয়ার্ড: +1.00 PP Coin</span>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeConnectTelegramTaskModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="p-3 bg-sky-50 border border-sky-200 rounded-2xl text-[11px] text-sky-950 font-semibold space-y-1">
+                <p>💡 আপনার টেলিগ্রাম ইউজারনেম ও চ্যাট আইডি দিন। কানেক্ট হলেই আপনার ওয়ালেটে <b>১টি কয়েন</b> জমা হবে এবং এই টাস্কটি কমপ্লিট হয়ে যাবে!</p>
+                <p class="text-[10px] text-rose-600 font-bold">⚠️ একটি টেলিগ্রাম অ্যাকাউন্ট শুধু একটি PP MOD আইডিতেই ব্যবহার করা যাবে।</p>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Telegram Username *</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">@</span>
+                        <input id="tgTaskUsername" type="text" placeholder="username" class="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs font-bold text-slate-700">Telegram Chat ID *</label>
+                        <a href="https://t.me/userinfobot" target="_blank" class="text-[10px] font-extrabold text-sky-600 hover:text-sky-700 flex items-center gap-0.5">
+                            <span>ID জানুন (@userinfobot)</span> <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                        </a>
+                    </div>
+                    <input id="tgTaskChatId" type="text" inputmode="numeric" placeholder="e.g. 7504616242" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-black text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500">
+                </div>
+            </div>
+
+            <div class="pt-1 space-y-2">
+                <button type="button" id="btnSubmitTgTask" onclick="submitConnectTelegramTask()" class="w-full py-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    <span>ভেরিফাই ও ১ কয়েন ক্লেইম করুন</span>
+                </button>
+                <button type="button" onclick="closeConnectTelegramTaskModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                    বাতিল
+                </button>
+            </div>
         </div>
     </div>
 
@@ -6674,8 +6561,7 @@
                     স্বয়ংক্রিয়ভাবে মেসেজ ডিলিট ও ওয়ার্নিং আসবে।
                 </p>
                 <p class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
-                    ✅ <b>সেলার পেমেন্ট পাবেন:</b> উভয় পক্ষের স্লাইড কনফার্মেশনের পর বায়ারের কয়েন অনুযায়ী টাকা (Play
-                    Points) সরাসরি সেলারের টাকা ওয়ালেটে যুক্ত হয়ে যাবে।
+                    ✅ <b>সেলার পেমেন্ট পাবেন:</b> উভয় পক্ষের স্লাইড কনফার্মেশনের পর বায়ারের কয়েন সরাসরি সেলারের ওয়ালেটে যুক্ত হয়ে যাবে।
                 </p>
             </div>
             <button onclick="document.getElementById('adellRuleModal').style.display='none'"
@@ -8604,207 +8490,28 @@
             return Math.max(1, base - amt);
         }
         function toggleWalletMode(mode) {
-            window._walletMode = (mode === 'points') ? 'points' : 'coins';
-            const isPts = window._walletMode === 'points';
+            window._walletMode = 'coins';
             const pc = document.getElementById('paneCoins');
-            const pp = document.getElementById('panePoints');
-            if (pc) {
-                pc.classList.toggle('hidden', isPts);
-                if (!isPts) {
-                    pc.classList.remove('hero-swap-fade');
-                    void pc.offsetWidth;
-                    pc.classList.add('hero-swap-fade');
-                }
-            }
-            if (pp) {
-                pp.classList.toggle('hidden', !isPts);
-                if (isPts) {
-                    pp.classList.remove('hero-swap-fade');
-                    void pp.offsetWidth;
-                    pp.classList.add('hero-swap-fade');
-                }
-            }
-            const t1 = document.getElementById('wtabCoins');
-            const t2 = document.getElementById('wtabPoints');
-            if (t1) t1.classList.toggle('on', !isPts);
-            if (t2) t2.classList.toggle('on', isPts);
+            if (pc) pc.classList.remove('hidden');
             const ht = document.getElementById('walletHeroTitle');
-            if (ht) ht.textContent = isPts ? 'টাকা ওয়ালেট' : 'Add Money';
+            if (ht) ht.textContent = 'Add Money';
             const hn = document.getElementById('walletHeroNote');
-            if (hn) hn.textContent = isPts ? (getCoinRate() + ' ৳ = 1 PP Coin • ১০% উইথড্র ফি') : 'Minimum buy 3 Coins';
+            if (hn) hn.textContent = 'Minimum buy 3 Coins';
             const tb = document.getElementById('topupBalance');
-            const ph = document.getElementById('walletPtsHero');
-            if (tb) tb.classList.toggle('hidden', isPts);
-            if (ph) { ph.classList.toggle('hidden', !isPts); ph.classList.toggle('flex', isPts); }
-            refreshWalletPointsUI();
-            if (window.lucide) lucide.createIcons();
-            if (isPts) {
-                if (window.ppfb && window.ppfb.claimPending) { try { window.ppfb.claimPending(); } catch (e) { } }
-                if (window.ppfb && window.ppfb.refreshWithdrawals) { try { window.ppfb.refreshWithdrawals(); } catch (e) { } }
-            }
-        }
-        function setWdMethod(v) {
-            const h = document.getElementById('wdMethod');
-            if (h) h.value = v;
-            document.querySelectorAll('.wd-mbtn').forEach(b => {
-                const on = b.dataset.wd === v;
-                b.className = 'wd-mbtn py-2 rounded-xl text-[11px] font-extrabold border transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ' + (on ? 'border-2 border-emerald-500 bg-emerald-50 text-emerald-800' : 'border border-slate-200 bg-slate-50 text-slate-600');
-            });
-            wdCalc();
-        }
-        function wdCalc() {
-            const taka = Math.max(0, Math.floor(Number((document.getElementById('wdPoints') || {}).value) || 0));
-            const grossBdt = taka;
-            const feeBdt = Math.round(grossBdt * 0.10); // 10% fee deducted
-            const netBdt = Math.max(0, grossBdt - feeBdt);
-
-            const out = document.getElementById('wdBdt');
-            const feeLbl = document.getElementById('wdFeeLabel');
-            if (out) out.value = grossBdt ? (netBdt + ' BDT') : '';
-            if (feeLbl) feeLbl.textContent = grossBdt ? `-${feeBdt} BDT (10%)` : '0 BDT';
-            refreshWalletPointsUI();
-        }
-        function refreshWalletPointsUI() {
-            const live = Number(window.ppfb && window.ppfb.playPoints) || 0;
-            const pend = Number(window.ppfb && window.ppfb.pendingPoints) || 0;
-            const rate = getCoinRate();
-            const minWd = getWithdrawMin();
-            const el1 = document.getElementById('ptsLive');
-            if (el1) el1.innerHTML = '৳ ' + live;
-            const elb = document.getElementById('ptsLiveBdt');
-            if (elb) elb.textContent = 'উইথড্র ও কয়েন এক্সচেঞ্জ উপযোগী';
-            const el2 = document.getElementById('ptsPending');
-            if (el2) el2.innerHTML = '৳ ' + pend;
-            const ph = document.getElementById('walletPtsHero');
-            if (ph) ph.innerHTML = '<span class="text-emerald-400 font-black">৳</span> <span>৳ ' + (live + pend) + ' (মোট ব্যালেন্স)</span>';
-            const rl = document.getElementById('ptsRateLine');
-            if (rl) rl.textContent = 'এক্সচেঞ্জ রেট: ' + rate + ' ৳ = 1 PP Coin • সর্বনিম্ন উত্তোলন: ৳ ' + minWd;
-            const pn = document.getElementById('pendNote');
-            if (pn) pn.textContent = pend > 0 ? ('৳ ' + pend + ' পেন্ডিং (ট্যাপ করে দেখুন)') : 'কোনো পেন্ডিং নেই';
-            const ml = document.getElementById('wdMinLine');
-            if (ml) ml.textContent = 'সর্বনিম্ন উত্তোলন: ৳ ' + minWd + ' (লাইভ ব্যালেন্স থেকে কাটা হবে)';
-            const exBadge = document.getElementById('exRateBadgeTaka');
-            if (exBadge) exBadge.textContent = rate + ' ৳';
-            renderWdHist();
-        }
-        function wdStatusPill(s) {
-            s = (s || 'pending').toString();
-            const m = { pending: ['Pending', '#fef3c7:#92400e:#fcd34d'], approved: ['Approved', '#d1fae5:#065f46:#6ee7b7'], rejected: ['Rejected', '#fee2e2:#991b1b:#fca5a5'], paid: ['Paid', '#d1fae5:#065f46:#6ee7b7'] };
-            const v = m[s] || m.pending;
-            const c = v[1].split(':');
-            return '<span style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:9999px;white-space:nowrap;background:' + c[0] + ';color:' + c[1] + ';border:1px solid ' + c[2] + '">' + v[0] + '</span>';
-        }
-        function renderWdHist() {
-            const box = document.getElementById('wdHistList');
-            if (!box) return;
-            const ms = x => (x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : (x.createdAt ? new Date(x.createdAt).getTime() : 0));
-            const dtf = x => { try { return x.createdAt && x.createdAt.toDate ? x.createdAt.toDate().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' }) : ''; } catch (e) { return ''; } };
-            const wds = (window._wdList || []).slice();
-            const exs = (window._exList || []).slice().map(e => ({ _ex: true, ...e }));
-            const pend = wds.filter(w => (w.status || 'pending') === 'pending').sort((a, b) => ms(b) - ms(a)).slice(0, 15);
-            const done = wds.filter(w => (w.status || 'pending') !== 'pending').concat(exs).sort((a, b) => ms(b) - ms(a)).slice(0, 15);
-            const arr = pend.concat(done);
-            if (!arr.length) { box.innerHTML = '<p class="text-center text-[11px] text-slate-400 py-3">No transactions yet</p>'; return; }
-            box.innerHTML = arr.map((w, i) => {
-                if (w._ex) {
-                    return '<div class="wd-row flex items-center gap-2.5 bg-amber-50/60 border border-amber-200 rounded-xl px-3 py-2.5" style="animation-delay:' + Math.min(i * 60, 600) + 'ms">'
-                        + '<img src="PPCOIN.png" class="w-9 h-9 rounded-xl object-contain bg-white p-1 border border-amber-200 flex-shrink-0">'
-                        + '<div class="flex-1 min-w-0"><p class="text-xs font-extrabold text-slate-800">+' + Number(w.amount || 0) + ' PP Coins</p>'
-                        + '<p class="text-[10px] text-slate-400 font-mono truncate">Exchange • -৳ ' + Number(w.points || 0) + ' • ' + dtf(w) + '</p></div>'
-                        + '<div class="flex-shrink-0">' + wdStatusPill('approved') + '</div></div>';
-                }
-                return '<div class="wd-row flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5" style="animation-delay:' + Math.min(i * 60, 600) + 'ms">'
-                    + '<span class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0" style="background:linear-gradient(135deg,#059669,#047857)">৳</span>'
-                    + '<div class="flex-1 min-w-0"><p class="text-xs font-extrabold text-slate-800">উইথড্র: ৳ ' + Number(w.points || w.amount || 0) + ' (পেলেন ৳ ' + Number(w.amount || 0) + ')</p>'
-                    + '<p class="text-[10px] text-slate-400 font-mono truncate">' + (w.method || '') + ' • ' + (w.account || '') + ' • ' + dtf(w) + '</p></div>'
-                    + '<div class="flex-shrink-0">' + wdStatusPill(w.status) + '</div></div>';
-            }).join('');
-        }
-        function openPendingPanel() {
-            renderPendingPanel();
-            lockScroll();
-            document.getElementById('pendModal').style.display = 'flex';
+            if (tb) tb.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
         }
-        function closePendingPanel() {
-            document.getElementById('pendModal').style.display = 'none';
-            unlockScroll();
-        }
-        function exValidate() {
-            const inp = document.getElementById('exPoints');
-            const err = document.getElementById('exErr');
-            const out = document.getElementById('exPrev');
-            const taka = Math.max(0, Math.floor(Number((inp || {}).value) || 0));
-            const live = Number(window.ppfb && window.ppfb.playPoints) || 0;
-            const pend = Number(window.ppfb && window.ppfb.pendingPoints) || 0;
-            const totalAvailable = live + pend;
-            const rate = getCoinRate();
-            let msg = '';
-            if (taka) {
-                if (taka < rate) msg = 'কমপক্ষে ' + rate + ' ৳ দিতে হবে (১ কয়েন)';
-                else if (taka % rate !== 0) msg = rate + ' এর গুণিতক দিন (' + rate + ', ' + (rate * 2) + ', ' + (rate * 3) + ' ৳)';
-                else if (taka > totalAvailable) msg = 'টাকা ব্যালেন্স কম আছে (মোট ব্যালেন্স: ৳ ' + totalAvailable + ')';
-            }
-            if (inp) {
-                const bad = !!msg;
-                inp.style.borderColor = bad ? '#f43f5e' : '';
-                inp.style.color = bad ? '#e11d48' : '';
-                inp.style.background = bad ? '#fff1f2' : '';
-            }
-            if (err) {
-                if (msg) { err.textContent = msg; err.classList.remove('hidden'); }
-                else { err.textContent = ''; err.classList.add('hidden'); }
-            }
-            const coins = Math.floor(taka / rate);
-            if (out) out.textContent = taka ? ('৳ ' + taka + ' → ' + coins + ' PP Coin') : '—';
-            return { taka: taka, pts: taka, coins: coins, ok: !!taka && !msg };
-        }
-        function preventTouchScroll(e) {
-            // Jodi touch modal-card er vitore na hoy, background scroll 100% block koro
-            if (!e.target.closest('.pop-card')) {
-                e.preventDefault();
-            }
-        }
-        function lockScroll() {
-            document.body.classList.add('modal-open');
-            document.querySelectorAll('.screen:not(.hidden)').forEach(s => s.style.overflow = 'hidden');
-            window.addEventListener('touchmove', preventTouchScroll, { passive: false });
-        }
-        function unlockScroll() {
-            document.body.classList.remove('modal-open');
-            document.querySelectorAll('.screen').forEach(s => s.style.overflow = '');
-            window.removeEventListener('touchmove', preventTouchScroll);
-        }
-
-        function openExchange() {
-            if (!(window.ppfb && window.ppfb.user)) { toast('Please login first'); showScreen('screenLogin'); return; }
-            const live = Number(window.ppfb && window.ppfb.playPoints) || 0;
-            const pend = Number(window.ppfb && window.ppfb.pendingPoints) || 0;
-            const rate = getCoinRate();
-            const ll = document.getElementById('exLiveLine');
-            if (ll) ll.textContent = 'লাইভ: ৳ ' + live + ' • পেন্ডিং: ৳ ' + pend + ' (মোট: ৳ ' + (live + pend) + ')';
-            const exBadge = document.getElementById('exRateBadgeTaka');
-            if (exBadge) exBadge.textContent = rate + ' ৳';
-            const inp = document.getElementById('exPoints');
-            if (inp) {
-                inp.value = '';
-                inp.min = rate;
-                inp.step = rate;
-                inp.placeholder = rate + ' বা ' + (rate * 2) + ' বা ' + (rate * 3) + '...';
-                inp.style.borderColor = ''; inp.style.color = ''; inp.style.background = '';
-            }
-            const err = document.getElementById('exErr');
-            if (err) { err.textContent = ''; err.classList.add('hidden'); }
-            exCalc();
-            lockScroll();
-            document.getElementById('exModal').style.display = 'flex';
-            if (window.lucide) lucide.createIcons();
-        }
-        function closeExchange() {
-            document.getElementById('exModal').style.display = 'none';
-            unlockScroll();
-        }
-        function exCalc() { exValidate(); }
+        function setWdMethod() {}
+        function wdCalc() {}
+        function refreshWalletPointsUI() {}
+        function wdStatusPill() { return ''; }
+        function renderWdHist() {}
+        function openPendingPanel() {}
+        function closePendingPanel() {}
+        function exValidate() { return { ok: false }; }
+        function openExchange() { toast('এক্সচেঞ্জ সুবিধা বন্ধ আছে'); }
+        function closeExchange() {}
+        function exCalc() {}
         function renderPendingPanel() {
             const info = document.getElementById('pendModalInfo');
             const box = document.getElementById('pendList');
@@ -8868,7 +8575,7 @@
             const r = stars ? getStarRate() : getCoinRate();
             const unit = stars ? ' Stars' : ' BDT';
             const minDep = getMinDeposit();
-            const minCoins = Math.max(1, Math.ceil(minDep / (r || 7)));
+            const minCoins = Math.max(1, Math.ceil(minDep / (r || 5)));
             // মিনিমাম ডিপোজিট অনুযায়ী প্যাকগুলো অটো ক্যালকুলেট হবে
             const packs = stars ? [3, 6, 9, 12] : [minCoins, Math.max(minCoins + 10, 15), Math.max(minCoins + 25, 30)];
             const g = document.getElementById('coinPackGrid');
@@ -8884,6 +8591,24 @@
             if (lbl) lbl.textContent = stars ? 'Select PP Coins (3 Coins = ' + Math.round(3 * r) + ' Stars)' : 'Select PP Coins (1 Coin = ' + r + ' BDT)';
             const bdg = document.getElementById('coinRateBadge');
             if (bdg) bdg.textContent = stars ? ('Rate: ' + Math.round(3 * r) + '⭐ / 3 Coins') : ('Rate: ' + r + '৳/Coin');
+
+            // Hero banner rate text
+            const heroSpan = document.getElementById('walletHeroRateSpan');
+            if (heroSpan) {
+                heroSpan.innerHTML = `<img src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = ${r} ${unit})`;
+            }
+
+            // Sync inputs to match first pack
+            const coinEl = document.getElementById('topupCoins');
+            const amtEl = document.getElementById('topupAmount');
+            if (coinEl && amtEl) {
+                const cVal = Math.max(minCoins, parseInt(coinEl.value) || minCoins);
+                coinEl.value = cVal;
+                coinEl.min = minCoins;
+                amtEl.value = Math.round(cVal * r);
+                amtEl.min = minDep;
+            }
+
             if (window.lucide) lucide.createIcons();
         }
 
@@ -9403,19 +9128,31 @@
         async function updatePpmApkDownloadUrl() {
             try {
                 let targetLink = localStorage.getItem('pp_server_apk_download_link') || '';
+                let currentVer = localStorage.getItem('pp_app_version_name') || '5.0';
 
-                // Server Admin এপিআই থেকে সেন্ট্রাল ডাউনলোড লিংক ফেচ
+                // Server Admin এপিআই থেকে সেন্ট্রাল ডাউনলোড লিংক ও ভার্সন ফেচ
                 try {
                     const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/app/version', { cache: 'no-store' });
                     const verData = await res.json();
-                    if (verData && verData.ok && verData.download_url) {
-                        targetLink = verData.download_url.trim();
-                        localStorage.setItem('pp_server_apk_download_link', targetLink);
+                    if (verData && verData.ok) {
+                        if (verData.download_url) {
+                            targetLink = verData.download_url.trim();
+                            localStorage.setItem('pp_server_apk_download_link', targetLink);
+                        }
+                        if (verData.latest_version_name) {
+                            currentVer = String(verData.latest_version_name).trim();
+                            localStorage.setItem('pp_app_version_name', currentVer);
+                        }
                     }
                 } catch (e) { }
 
                 const btn = document.getElementById("btnDownloadPpmApk");
+                const btnTxt1 = document.getElementById("btnDownloadPpmApkTxt");
                 const btnProfile = document.getElementById("btnDownloadPpmApkProfile");
+                const btnTxt2 = document.getElementById('btnDownloadPpmApkProfileTxt');
+
+                if (btnTxt1) btnTxt1.textContent = `Download APK v${currentVer}`;
+                if (btnTxt2) btnTxt2.textContent = `Download v${currentVer}`;
 
                 const handleApkClick = function (e) {
                     if (!targetLink || targetLink === '#' || targetLink === '') {
@@ -9455,9 +9192,10 @@
             const badge = document.getElementById('appDownloadRewardBadge');
             const desc = document.getElementById('appDownloadRewardDesc');
             const btnTxt = document.getElementById('btnDownloadPpmApkProfileTxt');
+            const currentVer = localStorage.getItem('pp_app_version_name') || '5.0';
             if (badge) badge.classList.add('hidden');
             if (desc) desc.textContent = 'PPM SERVER অফিসিয়াল কানেক্টর অ্যাপ ডাউনলোড করুন';
-            if (btnTxt) btnTxt.textContent = 'Download v4.5';
+            if (btnTxt) btnTxt.textContent = `Download v${currentVer}`;
         }
         window.updateAppDownloadUI = updateAppDownloadUI;
 
@@ -9483,17 +9221,15 @@
 
                 // Strictly 1 time reward per account lifetime: +1 PP Coin
                 if (window.ppfb) window.ppfb.appDownloadRewarded = true;
-                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                const curBonus = Number(ud.bonusBalance || 0);
-                const newBonus = Math.round((curBonus + 1.0 + Number.EPSILON) * 100) / 100;
-                const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
+                const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                const newTotal = Math.round((curBal + 1.0 + Number.EPSILON) * 100) / 100;
 
                 // 1. Credit Cloudflare D1 wallet
                 const cfApi = window.CF_API || 'https://pp-mod-auto-quest.onrender.com';
                 await fetch(`${cfApi}/api/wallet/credit`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: u.uid, coins: 1, type: 'bonus' })
+                    body: JSON.stringify({ uid: u.uid, coins: 1, type: 'real' })
                 }).catch(() => { });
 
                 // 2. Update Firestore user balance
@@ -9501,7 +9237,8 @@
                     appDownloadRewarded: true,
                     appDownloadRewardedAt: new Date(),
                     balance: newTotal,
-                    bonusBalance: newBonus
+                    realBalance: newTotal,
+                    bonusBalance: 0
                 }).catch(() => {});
 
                 // 3. Save History / Redemption record
@@ -10026,8 +9763,9 @@
 
                     if (window.FB && window.FB.db) {
                         try {
-                            const newTotal = ((window.ppfb && window.ppfb.balance) || 0) + refundCoins;
-                            const newReal = ((window.ppfb && window.ppfb.realBalance) || 0) + refundCoins;
+                            const newTotal = Math.round((((window.ppfb && window.ppfb.balance) || 0) + refundCoins + Number.EPSILON) * 100) / 100;
+                            const newReal = Math.round((((window.ppfb && window.ppfb.realBalance) || 0) + refundCoins + Number.EPSILON) * 100) / 100;
+                            if (window.setBalanceUI) window.setBalanceUI(newTotal, 0, 0, newTotal, 0);
                             window.FB.setDoc(window.FB.doc(window.FB.db, 'users', curUid), {
                                 balance: newTotal,
                                 realBalance: newReal
@@ -10433,7 +10171,8 @@
         }
         window.autoRefundServerFailure = autoRefundServerFailure;
 
-        async function executeServerQuestUnlock(isRetry = false) {
+        /* cancelAndRefundActiveOrder removed - admin only refund */
+async function executeServerQuestUnlock(isRetry = false) {
             const acc = window._serverConnectedAccount;
             const srv = window._matchedPortalService;
             const orderId = window._currentOrderId;
@@ -10591,45 +10330,9 @@
                         console.warn('CF order update error:', cfErr);
                     }
 
-                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি (Cloudflare D1 + Firebase + UI - Instant Reward)
-                    try {
-                        if (!window.ppfb) window.ppfb = {};
-                        const curStars = Number(window.ppfb.loyaltyStars) || 0;
-                        const wasFreeTask = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree) || (curStars >= 9);
-
-                        // ১০ম ফ্রি টাস্ক সম্পন্ন হলে স্টার ০ এ রিসেট হবে, অন্যথায় ১ বাড়বে (সর্বোচ্চ ৯ পর্যন্ত)
-                        const nextStars = wasFreeTask ? 0 : Math.min(9, curStars + 1);
-                        window.ppfb.loyaltyStars = nextStars;
-                        if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
-                        await fetch(`${CF_API}/api/wallet/credit`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uid: webUid, ...(wasFreeTask ? { resetLoyaltyStars: true } : { loyaltyStarsInc: 1 }) })
-                        }).catch(e => console.warn('Credit star err:', e));
-
-                        if (window.FB && window.FB.db) {
-                            const curMonthKey = (new Date()).toISOString().slice(0, 7);
-                            let userPts = 1.0;
-                            try {
-                                const uSnap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'users', webUid));
-                                if (uSnap.exists()) {
-                                    const ud = uSnap.data() || {};
-                                    const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
-                                    const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
-                                    userPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
-                                }
-                            } catch (e) {
-                                userPts = Math.round(((Number(window.ppfb.monthlyPoints) || 0) + 1.0 + Number.EPSILON) * 10) / 10;
-                            }
-                            window.ppfb.monthlyPoints = userPts;
-                            window.FB.updateDoc(window.FB.doc(window.FB.db, 'users', webUid), {
-                                loyaltyStars: window.ppfb.loyaltyStars,
-                                monthlyPoints: userPts,
-                                monthlyPointsMonth: curMonthKey
-                            }).catch(() => {});
-                        }
-                    } catch (starErr) {
-                        console.warn('Loyalty star & quest point increment err:', starErr);
+                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি ও হিস্ট্রি লগ
+                    if (typeof window.addLoyaltyStarAndRecord === 'function') {
+                        await window.addLoyaltyStarAndRecord(srv.title || curGame, isFreeTaskUsed ? 0 : taskCost, isFreeTaskUsed);
                     }
 
                     if (window.FB && window.FB.db) {
@@ -11476,7 +11179,7 @@
                 // সুন্দর পাসওয়ার্ড ভুল অ্যানিমেশন (Red 3D Shaking Lock)
                 if (animBox) animBox.innerHTML = '<div class="passError3d"><span>🔑</span></div>';
                 if (title) { title.textContent = 'পাসওয়ার্ড ভুল হয়েছে!'; title.className = 'text-base font-extrabold text-rose-600 animate-pulse'; }
-                if (msg) msg.textContent = 'আপনার জিমেইল পাসওয়ার্ড সঠিক নয়। সম্পূর্ণ টাকা ওয়ালেটে রিফান্ড করা হয়েছে।';
+                if (msg) msg.textContent = 'আপনার জিমেইল পাসওয়ার্ড সঠিক নয়। সম্পূর্ণ কয়েন ওয়ালেটে রিফান্ড করা হয়েছে।';
             } else if (isCaptchaError) {
                 if (animBox) animBox.innerHTML = '<div class="passError3d"><span>🤖</span></div>';
                 if (title) { title.textContent = 'ক্যাপচা ভেরিফিকেশন ব্যর্থ!'; title.className = 'text-base font-extrabold text-rose-600 animate-pulse'; }
@@ -11965,6 +11668,9 @@
                     toast('কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
                     if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
                     if (window.playChime) { try { window.playChime(); } catch (e) { } }
+                    if (typeof window.addLoyaltyStarAndRecord === 'function') {
+                        await window.addLoyaltyStarAndRecord('Live Quest: ' + (questId || gameId), 0, false);
+                    }
                     await window.fetchLiveGameProgress(qid, gameId);
                 } else {
                     toast(data && data.error ? data.error : 'কোয়েস্ট সম্পন্ন করতে সমস্যা হয়েছে');
@@ -11997,6 +11703,9 @@
                     toast('সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!');
                     if (window.fireConfetti) { try { window.fireConfetti(); } catch (e) { } }
                     if (window.playChime) { try { window.playChime(); } catch (e) { } }
+                    if (typeof window.addLoyaltyStarAndRecord === 'function') {
+                        await window.addLoyaltyStarAndRecord('All Quests: ' + gameId, 0, false);
+                    }
                     await window.fetchLiveGameProgress(qid, gameId);
                 } else {
                     toast(data && data.error ? data.error : 'কোয়েস্ট আনলকে ত্রুটি ঘটেছে');
@@ -12746,11 +12455,10 @@
                 if (!tg || tg.length < 3) { toast('Telegram username দিন!'); return; }
 
                 const cost = Number(curBuyAccPack ? curBuyAccPack.coins : 10);
-                const realBal = Number((window.ppfb && window.ppfb.realBalance) !== undefined ? window.ppfb.realBalance : (window.ppfb.balance || 0));
-                const bonusBal = Number((window.ppfb && window.ppfb.bonusBalance) || 0);
+                const curBal = Number(window.ppfb && window.ppfb.balance || 0);
 
-                if (realBal < cost) {
-                    toast(`⚠️ অ্যাকাউন্ট কেনার জন্য Real Deposit কয়েন লাগবে! আপনার Real: ${realBal} Coins (Bonus: ${bonusBal} Coins)। অনুগ্রহ করে ডিপোজিট করুন।`);
+                if (curBal < cost) {
+                    toast(`⚠️ পর্যাপ্ত কয়েন নেই! প্রয়োজন: ${cost} Coins, আপনার আছে: ${curBal} Coins।`);
                     return;
                 }
 
@@ -12760,10 +12468,11 @@
 
                 const u = window.ppfb.user;
                 try {
-                    const newReal = realBal - cost;
+                    const newBal = Math.max(0, Math.round((curBal - cost) * 100) / 100);
                     await window.FB.setDoc(doc(db, 'users', u.uid), {
-                        realBalance: newReal,
-                        balance: newReal + bonusBal
+                        realBalance: newBal,
+                        bonusBalance: 0,
+                        balance: newBal
                     }, { merge: true });
 
                     await addDoc(collection(db, 'account_orders'), {
@@ -13809,10 +13518,9 @@
                 if (coins <= 0) { toast('কয়েনের পরিমাণ সঠিক দিন!'); return; }
                 if (!tg || tg.length < 3) { toast('আপনার Telegram Username অবশ্যই দিন!'); return; }
 
-                const realBal = Number(window.ppfb.realBalance !== undefined ? window.ppfb.realBalance : (window.ppfb.balance || 0));
-                const bonusBal = Number(window.ppfb.bonusBalance || 0);
-                if (realBal < total) {
-                    toast(`⚠️ P2P ডিলের জন্য Real Deposit ব্যালেন্স প্রয়োজন! আপনার Real: ${realBal} Coins (Bonus: ${bonusBal} Coins)। ডিপোজিট করে ডিল দিন।`);
+                const curBal = Number(window.ppfb && window.ppfb.balance || 0);
+                if (curBal < total) {
+                    toast(`⚠️ পর্যাপ্ত ব্যালেন্স নেই! প্রয়োজন: ${total} Coins, আপনার আছে: ${curBal} Coins।`);
                     return;
                 }
 
@@ -13821,19 +13529,19 @@
                 btn.innerHTML = `<span class="animate-spin">⏳</span> Publishing Ad...`;
 
                 try {
-                    // Escrow Transaction: deduct total from buyer's REAL balance
+                    // Escrow Transaction: deduct total from buyer's unified balance
                     await runTransaction(db, async (t) => {
                         const uRef = doc(db, 'users', u.uid);
                         const uSnap = await t.get(uRef);
                         const ud = uSnap.data() || {};
-                        const rBal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                        const bBal = Number(ud.bonusBalance || 0);
-                        if (rBal < total) throw new Error('insufficient');
+                        const uBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                        if (uBal < total) throw new Error('insufficient');
 
-                        const newReal = rBal - total;
+                        const newBal = Math.max(0, Math.round((uBal - total) * 100) / 100);
                         t.update(uRef, {
-                            realBalance: newReal,
-                            balance: newReal + bBal
+                            realBalance: newBal,
+                            bonusBalance: 0,
+                            balance: newBal
                         });
 
                         const dealRef = doc(collection(db, 'p2p_deals'));
@@ -14057,10 +13765,9 @@
                 if (coins <= 0) { toast('সঠিক কয়েন দিন!'); return; }
                 if (!_adellFoundPeer) { toast('আগে টার্গেট ইউজারের UID সার্চ করে সিলেক্ট করুন!'); return; }
 
-                const realBal = Number(window.ppfb.realBalance !== undefined ? window.ppfb.realBalance : (window.ppfb.balance || 0));
-                const bonusBal = Number(window.ppfb.bonusBalance || 0);
-                if (realBal < total) {
-                    toast(`⚠️ ADELL রুম তৈরির জন্য Real Deposit ব্যালেন্স প্রয়োজন! আপনার Real: ${realBal} Coins (Bonus: ${bonusBal} Coins)।`);
+                const curBal = Number(window.ppfb && window.ppfb.balance || 0);
+                if (curBal < total) {
+                    toast(`⚠️ পর্যাপ্ত ব্যালেন্স নেই! প্রয়োজন: ${total} Coins, আপনার আছে: ${curBal} Coins।`);
                     return;
                 }
 
@@ -14076,14 +13783,14 @@
                         const uRef = doc(db, 'users', u.uid);
                         const uSnap = await t.get(uRef);
                         const ud = uSnap.data() || {};
-                        const rBal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                        const bBal = Number(ud.bonusBalance || 0);
-                        if (rBal < total) throw new Error('low_balance');
+                        const uBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                        if (uBal < total) throw new Error('low_balance');
 
-                        const newReal = rBal - total;
+                        const newBal = Math.max(0, Math.round((uBal - total) * 100) / 100);
                         t.update(uRef, {
-                            realBalance: newReal,
-                            balance: newReal + bBal,
+                            realBalance: newBal,
+                            bonusBalance: 0,
+                            balance: newBal,
                             dealsCreated: (Number(ud.dealsCreated) || 0) + 1
                         });
 
@@ -15522,6 +15229,18 @@
                     });
                 } catch (recErr) { }
 
+                if (window.FB && window.FB.db) {
+                    window.FB.addDoc(window.FB.collection(window.FB.db, 'transactions'), {
+                        uid: window.ppfb.user.uid,
+                        type: 'level_up',
+                        title: 'প্লে গেমস লেভেল আপ (Level 10)',
+                        amount: -Math.abs(Number(coinsCost) || 2),
+                        note: `QID: ${qid} • Level ${execData.previous_level || 1} ➔ Level ${execData.new_level || 10}`,
+                        status: 'completed',
+                        createdAt: new Date()
+                    }).catch(() => { });
+                }
+
                 // ৪. অর্ডার মোডাল বন্ধ ও সাকসেস মোডাল ওপেন ("koto te chilo koto hoice")
                 closeLevelUpOrderModal();
 
@@ -15572,11 +15291,15 @@
                 };
                 // যদি ফায়ারবেসে পুরনো ব্যালেন্স থাকে তবে তা Cloudflare D1-এ ট্রান্সফারের জন্য পাঠানো
                 if (fbData) {
-                    payload.fbBalance = Number(fbData.balance !== undefined ? fbData.balance : 0);
-                    payload.fbReal = Number(fbData.realBalance !== undefined ? fbData.realBalance : payload.fbBalance);
-                    payload.fbBonus = Number(fbData.bonusBalance || 0);
-                    payload.fbPlayPoints = Number(fbData.playPoints || 0);
-                    payload.fbPendingPoints = Number(fbData.pendingPoints || 0);
+                    const fbBal = Number(fbData.balance !== undefined ? fbData.balance : 0);
+                    const fbReal = Number(fbData.realBalance !== undefined ? fbData.realBalance : fbBal);
+                    const fbBonus = Number(fbData.bonusBalance || 0);
+                    const unifiedTotal = (fbReal + fbBonus > fbBal) ? (fbReal + fbBonus) : Math.max(fbBal, fbReal + fbBonus);
+                    payload.fbBalance = unifiedTotal;
+                    payload.fbReal = unifiedTotal;
+                    payload.fbBonus = 0;
+                    payload.fbPlayPoints = 0;
+                    payload.fbPendingPoints = 0;
                     payload.fbStars = Number(fbData.loyaltyStars || 0);
                     payload.fbTgChatId = (fbData.tgChatId || '').toString().trim();
                 }
@@ -15589,7 +15312,8 @@
                 const data = await res.json();
                 if (data && data.ok && data.wallet) {
                     const w = data.wallet;
-                    setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                    const wBal = (Number(w.balance || 0)) + (Number(w.bonusBalance || 0));
+                    setBalanceUI(wBal, 0, 0, wBal, 0);
                     window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
                     if (w.banned === 1 || w.banned === true) {
                         window.ppfb.banned = true;
@@ -15709,6 +15433,55 @@
             }
         };
 
+        window.addLoyaltyStarAndRecord = async function (taskTitle, feeCoins = 0, isFree = false) {
+            try {
+                const curUser = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
+                const uid = (curUser && curUser.uid) || localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || '';
+                if (!uid) return;
+
+                // 1. Calculate next loyalty star: 1 to 9, 10th task is free and resets to 0
+                const curStars = Number(window.ppfb?.loyaltyStars || 0);
+                const nextStars = isFree ? 0 : ((curStars >= 9) ? 0 : (curStars + 1));
+                if (window.ppfb) window.ppfb.loyaltyStars = nextStars;
+                if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
+
+                // 2. Save to Firestore user doc
+                if (window.FB && window.FB.db) {
+                    const curMonthKey = (new Date()).toISOString().slice(0, 7);
+                    let userPts = 1.0;
+                    try {
+                        const uSnap = await window.FB.getDoc(window.FB.doc(window.FB.db, 'users', uid));
+                        if (uSnap.exists()) {
+                            const ud = uSnap.data() || {};
+                            const mKey = ud.monthlyPointsMonth || ud.monthlyTasksMonth;
+                            const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
+                            userPts = Math.round((curPts + 1.0 + Number.EPSILON) * 10) / 10;
+                        }
+                    } catch (e) { }
+
+                    await window.FB.setDoc(window.FB.doc(window.FB.db, 'users', uid), {
+                        loyaltyStars: nextStars,
+                        monthlyPoints: userPts,
+                        monthlyPointsMonth: curMonthKey
+                    }, { merge: true }).catch(() => { });
+
+                    // 3. Save detailed transaction history in Firestore
+                    const costNum = Math.abs(Number(feeCoins) || 0);
+                    await window.FB.addDoc(window.FB.collection(window.FB.db, 'transactions'), {
+                        uid: uid,
+                        type: 'quest_unlock',
+                        title: 'কোয়েস্ট সম্পন্ন: ' + (taskTitle || 'Play Games Quest'),
+                        amount: isFree ? 0 : -costNum,
+                        note: isFree ? '⭐ ১০ম লয়্যালটি ফ্রি টাস্ক (০ কয়েন)' : `${costNum} Coins • স্টার কাউন্ট: ${nextStars}/10`,
+                        starsCount: nextStars,
+                        createdAt: new Date()
+                    }).catch(() => { });
+                }
+            } catch (e) {
+                console.warn('addLoyaltyStarAndRecord error:', e);
+            }
+        };
+
         function fmtCoins(v) {
             const raw = Number(v) || 0;
             // JavaScript floating-point fix (5.699999997 -> 5.7 or 5.89 cleanly)
@@ -15716,29 +15489,23 @@
             return clean.toString();
         }
         function setBalanceUI(v, pts, pend, realVal, bonusVal) {
-            window.ppfb.realBalance = Number(realVal !== undefined ? realVal : (v || 0));
-            window.ppfb.bonusBalance = Number(bonusVal || 0);
-            window.ppfb.balance = window.ppfb.realBalance + window.ppfb.bonusBalance;
-            window.ppfb.playPoints = Number(pts) || 0;
-            window.ppfb.pendingPoints = Number(pend) || 0;
+            // Unify real balance and bonus balance into 1 total coin balance
+            const rawVal = Number(v !== undefined ? v : realVal) || 0;
+            const bVal = Number(bonusVal || 0);
+            const totalCoins = (realVal !== undefined && (Number(realVal) + bVal === rawVal))
+                ? rawVal
+                : (rawVal + bVal);
+
+            window.ppfb.balance = totalCoins;
+            window.ppfb.realBalance = totalCoins;
+            window.ppfb.bonusBalance = 0;
+            window.ppfb.playPoints = 0;
+            window.ppfb.pendingPoints = 0;
 
             const coins = fmtCoins(window.ppfb.balance);
-            const realCoins = fmtCoins(window.ppfb.realBalance);
-            const bonusCoins = fmtCoins(window.ppfb.bonusBalance);
-            const points = window.ppfb.playPoints;
-            const livePts = window.ppfb.playPoints;
-            const pendPts = window.ppfb.pendingPoints;
-            const totalPts = livePts + pendPts;
 
             const bEl = document.getElementById('balanceAmt');
             if (bEl) bEl.textContent = coins;
-
-            // Header-e shobshomoy Total (Live + Pending) dekhabe
-            const hpEl = document.getElementById('headerPlayPoints');
-            if (hpEl) {
-                hpEl.textContent = '৳ ' + totalPts;
-                hpEl.title = 'Total: ৳ ' + totalPts + ' (Live: ৳ ' + livePts + ', Pending: ৳ ' + pendPts + ')';
-            }
 
             // Trigger header balance reveal micro-animation when balance loads
             window._balDataReady = true;
@@ -15751,19 +15518,12 @@
 
             const epTot = document.getElementById('editProfileTotalCoins');
             if (epTot) epTot.textContent = coins + ' Coins';
-            const epReal = document.getElementById('editProfileRealCoins');
-            if (epReal) epReal.textContent = realCoins;
-            const epBon = document.getElementById('editProfileBonusCoins');
-            if (epBon) epBon.textContent = bonusCoins;
-
-            const ppEl = document.getElementById('profilePlayPoints');
-            if (ppEl) ppEl.innerHTML = '<span class="text-emerald-400 font-black">৳ ' + points + '</span>';
 
             const payEl = document.getElementById('payBalance');
             if (payEl) payEl.innerHTML = '<img src="PPCOIN.png" class="w-4 h-4 object-contain"> ' + coins + ' Coins';
             const tpEl = document.getElementById('topupBalance');
             if (tpEl) tpEl.innerHTML = '<img src="PPCOIN.png" class="w-4 h-4 object-contain"> ' + coins + ' Coins';
-            if (window.refreshWalletPointsUI) { try { refreshWalletPointsUI(); } catch (e) { } }
+
             refreshPayUI();
         }
         window.setBalanceUI = setBalanceUI;
@@ -15786,7 +15546,7 @@
             if (feeLabel) feeLabel.textContent = feeCoins;
 
             if (btn) {
-                btn.disabled = false; // সর্বদা সচল রাখা যাতে ইউজার ট্যাপ করলে সঙ্গে সঙ্গে দিকনির্দেশ পায়
+                btn.disabled = false;
                 if (isFree) {
                     btn.className = "w-full flex items-center justify-center gap-2 py-3.5 px-4 text-white font-extrabold rounded-xl transition-all text-sm cursor-pointer active:scale-97 bg-gradient-to-r from-emerald-500 to-teal-600 shadow-md shadow-emerald-500/20";
                     btn.innerHTML = '<i data-lucide="gift" class="w-4 h-4"></i> <span>🎁 Claim FREE Task (0 Coins)</span>';
@@ -15806,265 +15566,15 @@
         }
         window.ppfb.refreshPay = refreshPayUI;
 
-        /* ---- Play Points: pending auto-claim + withdrawals live ---- */
-        let unsubPend = null, unsubWd = null, unsubEx = null, ptsUid = null;
-        window._exList = window._exList || [];
-        function stopPointsLive() {
-            try { if (unsubPend) unsubPend(); } catch (e) { }
-            try { if (unsubWd) unsubWd(); } catch (e) { }
-            try { if (unsubEx) unsubEx(); } catch (e) { }
-            unsubPend = null; unsubWd = null; unsubEx = null; ptsUid = null;
-        }
-        window.ppfb.stopPointsLive = stopPointsLive;
-        window.ppfb.startPointsLive = (u) => {
-            if (!u || !db) return;
-            if (ptsUid === u.uid && unsubPend) return;
-            stopPointsLive();
-            ptsUid = u.uid;
-            try {
-                unsubPend = _snap(_q(_col(db, 'pending_points'), _where('uid', '==', u.uid), _limit(15)), (s) => {
-                    const a = [];
-                    s.forEach(d => a.push({ id: d.id, ...d.data() }));
-                    window._pendList = a.filter(x => (x.status || 'pending') === 'pending');
-                    window._pendMatured = a.filter(x => x.status === 'live');
-                    try { if (window.refreshWalletPointsUI) refreshWalletPointsUI(); } catch (e) { }
-                    try {
-                        const pm = document.getElementById('pendModal');
-                        if (pm && pm.style.display !== 'none' && window.renderPendingPanel) renderPendingPanel();
-                    } catch (e) { }
-                    try { if (window.ppfb.claimPending) window.ppfb.claimPending(); } catch (e) { }
-                }, () => { });
-                unsubWd = _snap(_q(_col(db, 'withdrawals'), _where('uid', '==', u.uid), _limit(30)), (s) => {
-                    const a = [];
-                    s.forEach(d => a.push({ id: d.id, ...d.data() }));
-                    window._wdList = a;
-                    try { pruneWdHist(); } catch (e) { }
-                    try { if (window.renderWdHist) renderWdHist(); } catch (e) { }
-                    try { if (window.refreshWalletPointsUI) refreshWalletPointsUI(); } catch (e) { }
-                }, () => { });
-                unsubEx = _snap(_q(_col(db, 'redemptions'), _where('uid', '==', u.uid), _limit(20)), (s) => {
-                    const a = [];
-                    s.forEach(d => { const v = d.data() || {}; if ((v.code || '') === 'EXCHANGE') a.push({ id: d.id, ...v }); });
-                    window._exList = a;
-                    try { if (window.renderWdHist) renderWdHist(); } catch (e) { }
-                }, () => { });
-            } catch (e) { console.warn('points live:', e); }
-        };
-        window.ppfb.refreshWithdrawals = () => {
-            const u = auth && auth.currentUser;
-            if (u) window.ppfb.startPointsLive(u);
-        };
-        try {
-            _onAuth(auth, (u) => {
-                if (u) window.ppfb.startPointsLive(u);
-                else { stopPointsLive(); window._pendList = []; window._wdList = []; window._exList = []; }
-            });
-        } catch (e) { }
-        window.ppfb.claimPending = async () => {
-            const u = auth && auth.currentUser;
-            if (!u || !db || window._claiming) return 0;
-            window._claiming = true;
-            try {
-                const qs = await _getDocs(_q(_col(db, 'pending_points'), _where('uid', '==', u.uid), _limit(15)));
-                const now = Date.now();
-                const matured = [];
-                qs.forEach(d => {
-                    const v = d.data() || {};
-                    if ((v.status || 'pending') !== 'pending') return;
-                    let ms = 0;
-                    const t = v.unlockAt;
-                    if (t && typeof t.toMillis === 'function') ms = t.toMillis();
-                    else if (t && typeof t.toDate === 'function') ms = t.toDate().getTime();
-                    else if (t) { const n = new Date(t).getTime(); if (!isNaN(n)) ms = n; }
-                    // unlockAt না থাকলে বা সময় বাকি থাকলে লাইভ করবে না
-                    if (ms > 0 && ms <= now) matured.push({ id: d.id, points: Number(v.points) || 0 });
-                });
-                let total = 0;
-                for (const m of matured.slice(0, 10)) {
-                    if (!m.points) continue;
-                    try {
-                        await _tx(db, async (t) => {
-                            const pref = _doc(db, 'pending_points', m.id);
-                            const ps = await t.get(pref);
-                            if (!ps.exists() || (ps.data().status || 'pending') !== 'pending') return;
-                            const uref = _doc(db, 'users', u.uid);
-                            const us = await t.get(uref);
-                            if (!us.exists()) return;
-                            const pts = Number(ps.data().points) || 0;
-                            if (!pts) return;
-                            t.update(pref, { status: 'live', movedAt: _ts() });
-                            t.update(uref, {
-                                playPoints: (Number(us.data().playPoints) || 0) + pts,
-                                pendingPoints: Math.max(0, (Number(us.data().pendingPoints) || 0) - pts)
-                            });
-                        });
-                        total += m.points;
-                    } catch (e) { }
-                }
-                if (total > 0) toast(total + ' Points Live balance-এ যোগ হয়েছে!');
-                return total;
-            } catch (e) { return 0; }
-            finally { window._claiming = false; }
-        };
-        function pruneWdHist() {
-            // 7 diner purono done withdraw auto-delete (pending kokhono na), run proti max 3
-            try {
-                const SEVEN_D = 7 * 24 * 3600 * 1000;
-                const nowMs = Date.now();
-                const arr = (window._wdList || []).slice();
-                const ms = x => (x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : 0);
-                const done = arr.filter(x => (x.status || 'pending') !== 'pending');
-                let n = 0;
-                for (const d of done) {
-                    if (n >= 3 || !d.id) continue;
-                    const m = ms(d);
-                    const ex = d.expiresAt && d.expiresAt.toMillis ? d.expiresAt.toMillis() : 0;
-                    if ((m && nowMs - m > SEVEN_D) || (ex && nowMs > ex)) { n++; _deleteDoc(_doc(db, 'withdrawals', d.id)).catch(() => { }); }
-                }
-            } catch (e) { }
-        }
-        window.exchangeGo = async () => {
-            const u = auth && auth.currentUser;
-            if (!u) { toast('Please login first'); return; }
-            const rate = getCoinRate();
-            let taka = 0;
-            if (window.exValidate) {
-                const r = exValidate();
-                if (!r || !r.ok) return;
-                taka = r.taka;
-            } else {
-                taka = Math.floor(Number((document.getElementById('exPoints') || {}).value) || 0);
-                if (!taka || taka < rate || taka % rate !== 0) return;
-            }
-            const coins = Math.floor(taka / rate);
-            const btn = document.getElementById('btnExchange');
-            let orig = '';
-            if (btn) { btn.disabled = true; orig = btn.innerHTML; btn.innerHTML = '<span class="pay-spinner"></span><span>Exchanging...</span>'; }
-            try {
-                await _tx(db, async (t) => {
-                    const uref = _doc(db, 'users', u.uid);
-                    const us = await t.get(uref);
-                    if (!us.exists()) throw new Error('nouser');
-                    const uData = us.data() || {};
-                    let curLive = Number(uData.playPoints) || 0;
-                    let curPend = Number(uData.pendingPoints) || 0;
-
-                    if ((curLive + curPend) < taka) throw new Error('low');
-
-                    // প্রথমে লাইভ থেকে কাটা হবে, বাকিটা পেন্ডিং থেকে
-                    let deductLive = Math.min(curLive, taka);
-                    let deductPend = taka - deductLive;
-
-                    t.update(uref, {
-                        playPoints: Math.max(0, curLive - deductLive),
-                        pendingPoints: Math.max(0, curPend - deductPend),
-                        balance: (Number(uData.balance) || 0) + coins
-                    });
-
-                    t.set(_doc(_col(db, 'redemptions')), {
-                        uid: u.uid, name: u.displayName || 'User', email: u.email || '',
-                        code: 'EXCHANGE', amount: coins, points: taka,
-                        note: '৳ ' + taka + ' → ' + coins + ' PP Coin (' + rate + ' ৳/কয়েন)',
-                        status: 'approved', createdAt: _ts(), expiresAt: new Date(Date.now() + 10 * 86400000)
-                    });
-                });
-                const inp = document.getElementById('exPoints'); if (inp) inp.value = '';
-                try { if (window.exCalc) exCalc(); } catch (e) { }
-                try { if (window.closeExchange) closeExchange(); } catch (e) { }
-                toast('+' + coins + ' PP Coin যোগ হয়েছে!');
-                if (window.ppfb.ev) window.ppfb.ev('points_exchange', { points: taka, coins: coins });
-            } catch (e) {
-                toast((e && e.message) === 'low' ? 'ব্যালেন্স কম আছে' : 'Exchange failed, আবার চেষ্টা করুন');
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = orig; try { if (window.lucide) lucide.createIcons(); } catch (e) { } }
-            }
-        };
-        window.submitWithdraw = async () => {
-            const u = auth && auth.currentUser;
-            if (!u) { toast('Please login first'); return; }
-            const method = ((document.getElementById('wdMethod') || {}).value || 'bKash').toString();
-            const num = (((document.getElementById('wdNumber') || {}).value || '').toString().replace(/[^0-9]/g, ''));
-            const taka = Math.floor(Number((document.getElementById('wdPoints') || {}).value) || 0);
-            let min = 50;
-            try { if (window.getWithdrawMin) min = getWithdrawMin(); } catch (e) { }
-            const live = Number(window.ppfb.playPoints) || 0;
-            if (num.length < 10) { toast('সঠিক অ্যাকাউন্ট নম্বর দিন (কমপক্ষে ১১ ডিজিট)'); return; }
-            if (!taka || taka < min) { toast('Minimum ৳ ' + min + ' withdraw করা যাবে'); return; }
-            if (taka > live) { toast('Live টাকা ব্যালেন্স কম আছে (Live: ৳ ' + live + ')'); return; }
-
-            const btn = document.getElementById('btnWithdraw');
-            let orig = '';
-            if (btn) { btn.disabled = true; orig = btn.innerHTML; btn.innerHTML = '<span class="pay-spinner"></span><span>চেক করা হচ্ছে...</span>'; }
-
-            try {
-                const pinOk = await ensureWdPin(u);
-                if (!pinOk) {
-                    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
-                    return;
-                }
-            } catch (e) {
-                console.warn('PIN error:', e);
-                if (btn) { btn.disabled = false; btn.innerHTML = orig; }
-                return;
-            }
-
-            if (btn) { btn.innerHTML = '<span class="pay-spinner"></span><span>রিকোয়েস্ট পাঠানো হচ্ছে...</span>'; }
-            const grossBdt = taka;
-            const feeBdt = Math.round(grossBdt * 0.10); // 10% Platform Fee
-            const bdt = Math.max(0, grossBdt - feeBdt);
-            try {
-                const uref = _doc(db, 'users', u.uid);
-                const us = await _getDoc(uref);
-                if (!us.exists()) throw new Error('nouser');
-                const cur = Number((us.data() && us.data().playPoints) || 0);
-                if (cur < taka) throw new Error('low');
-
-                // লাইভ ব্যালেন্স থেকে কাটা (Exact Safe Update)
-                await _setDoc(uref, { playPoints: Number(cur - taka) }, { merge: true });
-
-                // উইথড্রল রিকোয়েস্ট তৈরি করা
-                const newWid = 'WD_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-                await _setDoc(_doc(db, 'withdrawals', newWid), {
-                    uid: u.uid,
-                    name: u.displayName || 'User',
-                    email: u.email || '',
-                    method: method,
-                    account: num,
-                    points: Number(taka),
-                    amount: Number(bdt),
-                    fee: Number(feeBdt),
-                    status: 'pending',
-                    createdAt: _ts(),
-                    expiresAt: new Date(Date.now() + 10 * 86400000)
-                });
-
-                try {
-                    if (typeof sendTelegramMsg !== 'undefined' && typeof ADMIN_TG_ID !== 'undefined') {
-                        sendTelegramMsg(ADMIN_TG_ID,
-                            '💸 <b>NEW WITHDRAW REQUEST!</b>\n\n👤 <b>User:</b> ' + (u.displayName || 'User')
-                            + '\n💵 <b>Amount:</b> ৳ ' + taka + '\n🔻 <b>Fee (10%):</b> ৳ ' + feeBdt + '\n✅ <b>Net Pay:</b> ৳ ' + bdt
-                            + '\n📱 <b>' + method + ':</b> <code>' + num + '</code>');
-                    }
-                } catch (e) { }
-                const ni = document.getElementById('wdNumber'); if (ni) ni.value = '';
-                const pi = document.getElementById('wdPoints'); if (pi) pi.value = '';
-                try { if (window.wdCalc) wdCalc(); } catch (e) { }
-                toast('উইথড্র রিকোয়েস্ট পাঠানো হয়েছে! অ্যাডমিন অনুমোদন করলে টাকা পাবেন।');
-                if (window.ppfb.ev) window.ppfb.ev('withdraw_submit', { points: taka, amount: bdt });
-            } catch (e) {
-                console.error("WITHDRAW_ERROR_DETAIL:", e);
-                const m = (e && e.message) || '';
-                if (m === 'low') {
-                    toast('Live ব্যালেন্স কম আছে');
-                } else if (e && e.code === 'permission-denied') {
-                    toast('Permission Denied: Firebase Rules আপডেট করুন');
-                } else {
-                    toast('Withdraw failed: ' + (e.message || 'আবার চেষ্টা করুন'));
-                }
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = orig || '<span>Withdraw Now</span>'; try { if (window.lucide) lucide.createIcons(); } catch (e) { } }
-            }
-        };
+        /* ---- Play Points & Withdrawals: Disabled (Single Coin Balance) ---- */
+        window._exList = [];
+        window.ppfb.stopPointsLive = () => {};
+        window.ppfb.startPointsLive = () => {};
+        window.ppfb.refreshWithdrawals = () => {};
+        window.ppfb.claimPending = async () => 0;
+        function pruneWdHist() {}
+        window.exchangeGo = async () => { toast('এক্সচেঞ্জ সুবিধা বন্ধ আছে'); };
+        window.submitWithdraw = async () => { toast('উইথড্র সুবিধা বন্ধ আছে'); };
 
         const DEFAULT_USER_AVATAR = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzn6uplqxLbkia4Sy_PoGkzeqrCFqHgEJaGjCBG1nSkg&s=10';
         const AVATAR_PRESETS = [
@@ -16204,21 +15714,19 @@
                     const d = s.data();
                     const bonusC = Number(d.bonusBalance || 0);
                     const totalBal = Number(d.balance !== undefined ? d.balance : 0);
-                    const realC = (d.realBalance !== undefined && (Number(d.realBalance) + bonusC === totalBal))
-                        ? Number(d.realBalance)
-                        : Math.max(0, totalBal - bonusC);
-                    // Always display Firestore balance instantly — prevents 0 Coins glitch if Cloudflare is rate-limited!
-                    setBalanceUI(totalBal, d.playPoints || 0, d.pendingPoints || 0, realC, bonusC);
+                    const realC = Number(d.realBalance !== undefined ? d.realBalance : totalBal);
+                    const unifiedTotal = (realC + bonusC > totalBal) ? (realC + bonusC) : Math.max(totalBal, realC + bonusC);
+                    // Always display unified single Coin balance
+                    setBalanceUI(unifiedTotal, 0, 0, unifiedTotal, 0);
 
-                    // D1-এ যদি ব্যালেন্স অ্যাডমিনের মাধ্যমে আপডেট হয়ে থাকে, তবে আপডেট করা (কখনোই পজিটিভ ব্যালেন্স ০ দিয়ে ওভাররাইট করবে না)
+                    // D1-এ যদি ব্যালেন্স অ্যাডমিনের মাধ্যমে আপডেট হয়ে থাকে
                     fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(u.uid)}`).then(r => r.json()).then(res => {
                         if (res && res.ok && res.wallet) {
                             const w = res.wallet;
-                            if (Number(w.balance || 0) > 0 || totalBal === 0) {
-                                setBalanceUI(w.balance, w.playPoints, w.pendingPoints, w.realBalance, w.bonusBalance);
+                            const wTotal = (Number(w.balance || 0)) + (Number(w.bonusBalance || 0));
+                            if (wTotal > 0 || unifiedTotal === 0) {
+                                setBalanceUI(wTotal, 0, 0, wTotal, 0);
                             }
-                            window.ppfb.loyaltyStars = Number(w.loyaltyStars || 0);
-                            if (window.renderLoyaltyStars) window.renderLoyaltyStars();
                         }
                     }).catch(() => { });
                     window.ppfb.loyaltyStars = Number(s.data().loyaltyStars || 0);
@@ -16570,12 +16078,10 @@
             if (window.ppfb.banned) { toast('Account banned, support e contact korun'); return; }
             const isFree = window.isTenthTaskFree && window.isTenthTaskFree();
             const feeCoins = isFree ? 0 : getTaskCoinCost();
-            const curReal = Number(window.ppfb.realBalance !== undefined ? window.ppfb.realBalance : window.ppfb.balance) || 0;
-            const curBonus = Number(window.ppfb.bonusBalance || 0);
-            const curBalNow = Math.round((curReal + curBonus + Number.EPSILON) * 100) / 100;
+            const curBalNow = Math.round(((Number(window.ppfb.balance) || 0) + Number.EPSILON) * 100) / 100;
             if (!isFree && curBalNow < feeCoins) { toast('Insufficient PP Coins — please buy coins'); refreshPayUI(); return; }
-            const deductReal = isFree ? 0 : Math.min(curReal, feeCoins);
-            const deductBonus = isFree ? 0 : Math.max(0, feeCoins - deductReal);
+            const deductReal = isFree ? 0 : feeCoins;
+            const deductBonus = 0;
             if (window.ppfb && window.ppfb.config && window.ppfb.config.serviceOff === true) {
                 const sm = document.getElementById('serviceMsg');
                 if (sm) sm.textContent = (window.ppfb.config.serviceMsg || '').trim() || 'Game service ekhon bondho ache. Pore abar try korun.';
@@ -16609,21 +16115,17 @@
                 }
                 newBalData = payData;
 
-                // বোনাস একাউন্ট দিয়ে অফার নিলে লয়্যালটি স্টার পাবে না / বাড়বে না
-                if (deductBonus > 0) {
-                    console.log('[Loyalty] Paid with bonus coins — loyalty stars unchanged.');
-                } else {
-                    window.ppfb.loyaltyStars = Number(newBalData.loyaltyStars || 0);
-                }
-                setBalanceUI(newBalData.balance, window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0, newBalData.realBalance, newBalData.bonusBalance);
+                window.ppfb.loyaltyStars = Number(newBalData.loyaltyStars || 0);
+                const afterBal = Number(newBalData.balance !== undefined ? newBalData.balance : newBalData.coins) || 0;
+                setBalanceUI(afterBal, 0, 0, afterBal, 0);
                 if (window.renderLoyaltyStars) window.renderLoyaltyStars();
 
-                // ব্যাকগ্রাউন্ডে ফায়ারবেসে ব্যাকআপ রাইট (ফায়ারবেস কোটা ডাউন থাকলেও কোনো এরর দেবে না)
+                // ব্যাকগ্রাউন্ডে ফায়ারবেসে ব্যাকআপ রাইট
                 _doc && db && _setDoc(_doc(db, 'users', u.uid), {
-                    balance: newBalData.balance,
-                    realBalance: newBalData.realBalance,
-                    bonusBalance: newBalData.bonusBalance,
-                    ...(deductBonus > 0 ? {} : { loyaltyStars: newBalData.loyaltyStars })
+                    balance: afterBal,
+                    realBalance: afterBal,
+                    bonusBalance: 0,
+                    loyaltyStars: newBalData.loyaltyStars
                 }, { merge: true }).catch(() => { });
 
                 // Step B: Create pending order in Cloudflare D1 (Zero Firebase write/read cost with Previous Balance)
@@ -16873,12 +16375,12 @@
                     if (!us.exists()) throw new Error('nouser');
                     const ud = us.data() || {};
                     if (ud.lastRedeem === code || (ud.redeemed && ud.redeemed[code])) throw new Error('already');
-                    const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                    const curBonus = Number(ud.bonusBalance || 0);
-                    const newBonus = curBonus + amt;
+                    const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                    const newBal = curBal + amt;
                     t.update(uref, {
-                        bonusBalance: newBonus,
-                        balance: curReal + newBonus,
+                        bonusBalance: 0,
+                        realBalance: newBal,
+                        balance: newBal,
                         lastRedeem: code
                     });
                     t.update(cref, { used: _inc(1) });
@@ -16890,6 +16392,15 @@
                         uid: u.uid, name: u.displayName || 'User', email: u.email || '',
                         code: code, amount: credited, note: noteOut,
                         status: 'approved', createdAt: _ts(), expiresAt: new Date(Date.now() + 10 * 86400000)
+                    }).catch(() => { });
+                    _addDoc(_col(db, 'transactions'), {
+                        uid: u.uid,
+                        type: 'promo_code',
+                        title: 'প্রোমো কোড রিডিম: ' + code,
+                        amount: credited,
+                        note: noteOut || 'Promo Code Claim',
+                        status: 'approved',
+                        createdAt: new Date()
                     }).catch(() => { });
                 } catch (ign) { }
                 // Cloudflare D1 ওয়ালেটেও সাথে সাথে প্রোমো কোডের কয়েন সিঙ্ক করা
@@ -17698,10 +17209,8 @@
                 }
                 const curStreak = (ud.lastBonusDay === yesterday) ? (Number(ud.lastBonusStreak) || 0) + 1 : 1;
 
-                const curReal = Number(ud.realBalance !== undefined ? ud.realBalance : (ud.balance || 0));
-                const curBonus = Number(ud.bonusBalance || 0);
-                const newBonus = Math.round((curBonus + awardedAmt + Number.EPSILON) * 100) / 100;
-                const newTotal = Math.round((curReal + newBonus + Number.EPSILON) * 100) / 100;
+                const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                const newTotal = Math.round((curBal + awardedAmt + Number.EPSILON) * 100) / 100;
 
                 // Leaderboard points: +0.5 point for daily ad
                 const curMonthKey = (new Date()).toISOString().slice(0, 7);
@@ -17709,16 +17218,17 @@
                 const curPts = (mKey === curMonthKey) ? (Number(ud.monthlyPoints) || 0) : 0;
                 const newPts = Math.round((curPts + 0.5 + Number.EPSILON) * 10) / 10;
 
-                // ১. Cloudflare D1 ওয়ালেটে সাথে সাথে বোনাস কয়েন সিঙ্ক (Admin ও User একদম সমান দেখবে)
+                // ১. Cloudflare D1 ওয়ালেটেও সাথে সাথে কয়েন সিঙ্ক
                 await fetch(`${CF_API}/api/wallet/credit`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: u.uid, coins: awardedAmt, type: 'bonus' })
+                    body: JSON.stringify({ uid: u.uid, coins: awardedAmt, type: 'daily' })
                 }).catch(() => { });
 
                 // ২. ফায়ারবেসে ব্যবহারকারীর ব্যালেন্স ও পয়েন্ট আপডেট
                 await _setDoc(uref, {
-                    bonusBalance: newBonus,
+                    bonusBalance: 0,
+                    realBalance: newTotal,
                     balance: newTotal,
                     lastBonusDay: today,
                     lastBonusStreak: curStreak,
@@ -17728,21 +17238,59 @@
 
                 // Referral point commission disabled
 
-                // রিডেম্পশন কালেকশনে রেকর্ড সেভ
+                // রিডেম্পশন ও ট্রানজ্যাকশন কালেকশনে রেকর্ড সেভ (with Before & After balance)
                 await _addDoc(_col(db, 'redemptions'), {
                     uid: u.uid,
                     name: u.displayName || 'User',
                     email: u.email || '',
                     code: 'DAILY',
                     amount: awardedAmt,
+                    balance_before: curBal,
+                    balance_after: newTotal,
+                    previousBalance: curBal,
                     note: `Daily bonus +${awardedAmt} (Ad watched)`,
                     status: 'approved',
                     createdAt: _ts(),
                     expiresAt: new Date(Date.now() + 7 * 86400000)
                 }).catch(() => { });
 
+                await _addDoc(_col(db, 'transactions'), {
+                    uid: u.uid,
+                    type: 'daily_claim',
+                    title: `ডেইলি বোনাস ক্লেইম (Day ${curStreak})`,
+                    amount: awardedAmt,
+                    balance_before: curBal,
+                    balance_after: newTotal,
+                    previousBalance: curBal,
+                    note: `Daily bonus Day ${curStreak} (+${awardedAmt} Coins)`,
+                    status: 'approved',
+                    createdAt: new Date()
+                }).catch(() => { });
+
+                // টেলিগ্রাম বটে নোটিফিকেশন পাঠানো (Before & After Balance সহ)
+                try {
+                    const uTg = (window.ppfb && window.ppfb.tgChatId) || '';
+                    if (uTg && typeof sendTelegramMsg === 'function') {
+                        sendTelegramMsg(uTg,
+                            `🎁 <b>DAILY BONUS CLAIMED!</b> 🎉\n\n` +
+                            `🪙 <b>বোনাস:</b> +${awardedAmt} Coins (Day ${curStreak})\n` +
+                            `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                            `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins`
+                        ).catch(() => {});
+                    }
+                    if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                        sendTelegramMsg(ADMIN_TG_ID,
+                            `🎁 <b>USER DAILY CLAIMED!</b>\n\n` +
+                            `👤 <b>User:</b> ${u.displayName || 'User'} (<code>${u.email || ''}</code>)\n` +
+                            `🆔 <b>UID:</b> <code>${u.uid}</code>\n` +
+                            `🪙 <b>Claimed:</b> +${awardedAmt} Coins (Day ${curStreak})\n` +
+                            `💰 <b>Balance:</b> ${curBal} ➔ ${newTotal}`
+                        ).catch(() => {});
+                    }
+                } catch (tgErr) { }
+
                 // ইউজার ইন্টারফেসে লাইভ ব্যালেন্স রিফ্রেশ
-                setBalanceUI(newTotal, window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0, curReal, newBonus);
+                setBalanceUI(newTotal, 0, 0, newTotal, 0);
 
                 // ৩ডি কয়েন অ্যানিমেশন ও কনফেটি পপ
                 if (typeof triggerClaim3DSuccess === 'function') {
@@ -18772,10 +18320,10 @@
         };
 
         window.renderEarnUI = async () => {
-            // Live Bonus Wallet Display
+            // Live Coins Wallet Display
             const bBalEl = document.getElementById('earnBonusBalDisplay');
             if (bBalEl) {
-                const bVal = Number(window.ppfb?.bonusBalance || 0);
+                const bVal = Number(window.ppfb?.balance || 0);
                 bBalEl.textContent = `${bVal.toFixed(2)} Coins`;
             }
 
@@ -18850,9 +18398,55 @@
             const box = document.getElementById('earnTasksCardsList');
             if (!box) return;
 
+            const u = auth?.currentUser;
+            const compStore = window.getEarnCompletedStore ? window.getEarnCompletedStore(u?.uid) : (window._earnCompletedMap || {});
+            const isTgTaskDone = Boolean(compStore['task_connect_telegram'] || window._earnCompletedMap?.['task_connect_telegram'] || (window.ppfb && window.ppfb.tgRewardClaimed));
+
+            let tgDefaultCardHtml = '';
+            if (!isTgTaskDone) {
+                tgDefaultCardHtml = `
+                    <div class="p-4 rounded-2xl border-2 border-sky-400 bg-gradient-to-br from-sky-50/90 via-white to-blue-50/70 shadow-sm space-y-3 relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 w-20 h-20 bg-sky-400/10 rounded-full blur-xl pointer-events-none"></div>
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-sm">
+                                    ✈️
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">Default Special Task</span>
+                                    </div>
+                                    <h3 class="text-sm font-black text-slate-900 truncate leading-tight mt-0.5">টেলিগ্রাম কানেক্ট করুন (Connect Telegram)</h3>
+                                    <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Username ও Chat ID যুক্ত করে ইনস্ট্যান্ট ১ কয়েন উপহার নিন</p>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono font-black text-xs shadow-2xs">
+                                <span>+1.00</span>
+                                <img src="PPCOIN.png" class="w-3.5 h-3.5 object-contain">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap text-[10px] font-bold">
+                            <span class="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
+                                ⚡ ১ সেকেন্ড ইনস্ট্যান্ট
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                🎁 1.00 PP Coins Bonus
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                🔒 1 Account Strictly
+                            </span>
+                        </div>
+                        <button onclick="openConnectTelegramTaskModal()" class="w-full py-2.5 px-4 rounded-xl text-white font-black text-xs flex items-center justify-center gap-2 active:scale-[.98] transition-all cursor-pointer shadow-md bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:from-sky-600 hover:to-blue-700">
+                            <i data-lucide="link-2" class="w-4 h-4"></i>
+                            <span>টেলিগ্রাম কানেক্ট করে ১ কয়েন নিন</span>
+                        </button>
+                    </div>
+                `;
+            }
+
             const list = window._earnTasksCache || [];
 
-            if (!list.length) {
+            if (!list.length && !tgDefaultCardHtml) {
                 box.innerHTML = `
                     <div class="p-8 text-center text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200 shadow-sm">
                         <div class="text-3xl">🎁</div>
@@ -18869,7 +18463,7 @@
             const midnightMs = todayMidnight.getTime();
             let hasActiveCooldowns = false;
 
-            box.innerHTML = list.map(t => {
+            box.innerHTML = tgDefaultCardHtml + list.map(t => {
                 const compStore = window.getEarnCompletedStore ? window.getEarnCompletedStore(auth?.currentUser?.uid) : (window._earnCompletedMap || {});
                 const compTime = compStore[t.id] || window._earnCompletedMap?.[t.id];
                 let isDone = false;
@@ -18959,6 +18553,179 @@
             if (window.lucide) lucide.createIcons();
         };
 
+        window.openConnectTelegramTaskModal = function() {
+            const u = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user);
+            if (!u) {
+                toast('টাস্ক করতে অনুগ্রহ করে আগে লগইন করুন');
+                showScreen('screenLogin');
+                return;
+            }
+            const modal = document.getElementById('connectTgTaskModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                const inUser = document.getElementById('tgTaskUsername');
+                const inChat = document.getElementById('tgTaskChatId');
+                if (inUser && !inUser.value && window.ppfb?.tgUsername) inUser.value = window.ppfb.tgUsername;
+                if (inChat && !inChat.value && window.ppfb?.tgChatId) inChat.value = window.ppfb.tgChatId;
+                if (window.lucide) lucide.createIcons();
+            }
+        };
+
+        window.closeConnectTelegramTaskModal = function() {
+            const modal = document.getElementById('connectTgTaskModal');
+            if (modal) modal.style.display = 'none';
+        };
+
+        window.submitConnectTelegramTask = async function() {
+            const u = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user);
+            if (!u) return toast('Please login first');
+
+            const rawUser = (document.getElementById('tgTaskUsername')?.value || '').trim().replace(/^@+/, '');
+            const rawChat = (document.getElementById('tgTaskChatId')?.value || '').trim().replace(/[^0-9]/g, '');
+
+            if (!rawUser || rawUser.length < 3) {
+                return toast('সঠিক Telegram Username দিন (কমপক্ষে ৩ অক্ষর)');
+            }
+            if (!rawChat || rawChat.length < 5) {
+                return toast('সঠিক Telegram Chat ID দিন (কমপক্ষে ৫ সংখ্যার আইডি)');
+            }
+
+            const btn = document.getElementById('btnSubmitTgTask');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>ভেরিফাই করা হচ্ছে...</span>'; }
+
+            try {
+                // ১. অ্যান্টি-ফ্রড ও ডুপ্লিকেট অ্যাকাউন্ট যাচাই (Check if same Chat ID or Username is used by another account)
+                const lowerUser = rawUser.toLowerCase();
+                let isDuplicate = false;
+
+                if (window.FB && window.FB.db) {
+                    try {
+                        const qChat = window.FB.query(window.FB.collection(window.FB.db, 'users'), window.FB.where('tgChatId', '==', rawChat), window.FB.limit(3));
+                        const snapChat = await window.FB.getDocs(qChat);
+                        snapChat.forEach(docSnap => {
+                            if (docSnap.id !== u.uid) isDuplicate = true;
+                        });
+                    } catch (e) { console.warn('Chat ID check warn:', e); }
+
+                    if (!isDuplicate) {
+                        try {
+                            const qUser = window.FB.query(window.FB.collection(window.FB.db, 'users'), window.FB.where('tgUsernameLower', '==', lowerUser), window.FB.limit(3));
+                            const snapUser = await window.FB.getDocs(qUser);
+                            snapUser.forEach(docSnap => {
+                                if (docSnap.id !== u.uid) isDuplicate = true;
+                            });
+                        } catch (e) { }
+                    }
+                }
+
+                if (isDuplicate) {
+                    alert('⚠️ এই টেলিগ্রাম অ্যাকাউন্টটি (@' + rawUser + ' / ID: ' + rawChat + ') ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহার করা হয়েছে!\n\nএকই টেলিগ্রাম দিয়ে একাধিক অ্যাকাউন্ট কানেক্ট করা যাবে না।');
+                    return;
+                }
+
+                // ২. ব্যালেন্স হিসাব ও ১ কয়েন রিওয়ার্ড
+                const curBal = Math.round(((Number(window.ppfb?.balance) || 0) + Number.EPSILON) * 100) / 100;
+                const newTotal = Math.round((curBal + 1.0 + Number.EPSILON) * 100) / 100;
+
+                // Cloudflare D1-এ ক্রেডিট ও ইউজার তথ্য আপডেট
+                await fetch(`${CF_API}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, coins: 1.0, type: 'real' })
+                }).catch(() => null);
+
+                await fetch(`${CF_API}/api/user/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, tgChatId: rawChat, tgUsername: rawUser })
+                }).catch(() => null);
+
+                // ফায়ারবেস আপডেট
+                const now = Date.now();
+                if (window.FB && window.FB.db) {
+                    await window.FB.setDoc(window.FB.doc(window.FB.db, 'users', u.uid), {
+                        tgChatId: rawChat,
+                        tgUsername: rawUser,
+                        tgUsernameLower: lowerUser,
+                        tgRewardClaimed: true,
+                        balance: newTotal,
+                        realBalance: newTotal,
+                        bonusBalance: 0,
+                        [`completedEarnTasks.task_connect_telegram`]: now
+                    }, { merge: true });
+
+                    await window.FB.addDoc(window.FB.collection(window.FB.db, 'transactions'), {
+                        uid: u.uid,
+                        type: 'task_reward',
+                        title: 'টেলিগ্রাম কানেক্ট রিওয়ার্ড (+1 Coin)',
+                        taskId: 'task_connect_telegram',
+                        amount: 1.0,
+                        balance_before: curBal,
+                        balance_after: newTotal,
+                        previousBalance: curBal,
+                        note: `@${rawUser} (ChatID: ${rawChat})`,
+                        status: 'completed',
+                        createdAt: new Date()
+                    }).catch(() => {});
+                }
+
+                // লোকাল মেমোরি ও ব্যালেন্স UI আপডেট
+                window.saveEarnCompletedStore('task_connect_telegram', now, u.uid);
+                if (window.ppfb) {
+                    window.ppfb.tgChatId = rawChat;
+                    window.ppfb.tgUsername = rawUser;
+                    window.ppfb.tgRewardClaimed = true;
+                    window.ppfb.balance = newTotal;
+                    window.ppfb.realBalance = newTotal;
+                }
+                setBalanceUI(newTotal, 0, 0, newTotal, 0);
+
+                // টেলিগ্রাম বটে নোটিফিকেশন পাঠানো (Before & After Balance সহ)
+                try {
+                    sendTelegramMsg(rawChat,
+                        `🎉 <b>অভিনন্দন ${u.displayName || 'ইউজার'}!</b> 🎁\n\n` +
+                        `আপনার টেলিগ্রাম অ্যাকাউন্ট (@${rawUser}) সফলভাবে PP MOD অ্যাকাউন্টের সাথে যুক্ত হয়েছে!\n\n` +
+                        `🪙 <b>টাস্ক রিওয়ার্ড:</b> +1.00 PP Coin যুক্ত হয়েছে!\n` +
+                        `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                        `✨ <b>বর্তমান ব্যালেন্স:</b> ${newTotal} Coins\n\n` +
+                        `🚀 <i>এখন থেকে আপনার সকল কোয়েস্ট আনলক ও ডিপোজিট নোটিফিকেশন সরাসরি এখানে পাবেন!</i>`
+                    );
+                    if (typeof ADMIN_TG_ID !== 'undefined') {
+                        sendTelegramMsg(ADMIN_TG_ID,
+                            `✈️ <b>TELEGRAM CONNECT TASK COMPLETED!</b> 🎁\n\n` +
+                            `👤 <b>User:</b> ${u.displayName || 'User'} (<code>${u.email || ''}</code>)\n` +
+                            `🆔 <b>UID:</b> <code>${u.uid}</code>\n` +
+                            `✈️ <b>Username:</b> @${rawUser}\n` +
+                            `🆔 <b>Chat ID:</b> <code>${rawChat}</code>\n` +
+                            `🪙 <b>Reward:</b> +1.00 Coin\n` +
+                            `📊 <b>Balance:</b> ${curBal} ➔ ${newTotal}`
+                        );
+                    }
+                } catch (tgErr) { }
+
+                closeConnectTelegramTaskModal();
+
+                // টাস্ক পূরণ হওয়ায় এটি সরাসরি তালিকা থেকে গায়েব হয়ে যাবে
+                if (window.renderEarnCards) window.renderEarnCards();
+
+                // 3D কয়েন অ্যানিমেশন
+                if (window.openClaim3DModal) {
+                    window.openClaim3DModal(1.0, 'টেলিগ্রাম কানেক্ট রিওয়ার্ড');
+                } else {
+                    toast('🎉 অভিনন্দন! ১টি PP Coin সফলভাবে ওয়ালেটে যোগ হয়েছে!');
+                }
+            } catch (err) {
+                console.error('submitConnectTelegramTask err:', err);
+                toast('Error: ' + (err.message || 'আবার চেষ্টা করুন'));
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> <span>ভেরিফাই ও ১ কয়েন ক্লেইম করুন</span>';
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        };
+
         let _checkingLdrRollover = false;
         async function checkMonthlyLeaderboardRollover() {
             if (_checkingLdrRollover) return;
@@ -19006,13 +18773,14 @@
                     await fetch(`${CF_API}/api/wallet/credit`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uid: topWinner.uid, coins: 10, type: 'bonus' })
+                        body: JSON.stringify({ uid: topWinner.uid, coins: 10, type: 'real' })
                     }).catch(() => {});
 
-                    const newBonus = Math.round((topWinner.bonusBalance + 10 + Number.EPSILON) * 100) / 100;
-                    const newTotal = Math.round((topWinner.balance + 10 + Number.EPSILON) * 100) / 100;
+                    const curTot = Number(topWinner.balance || 0) + Number(topWinner.bonusBalance || 0);
+                    const newTotal = Math.round((curTot + 10 + Number.EPSILON) * 100) / 100;
                     await window.FB.updateDoc(window.FB.doc(window.FB.db, 'users', topWinner.uid), {
-                        bonusBalance: newBonus,
+                        bonusBalance: 0,
+                        realBalance: newTotal,
                         balance: newTotal
                     }).catch(() => {});
 
@@ -19469,14 +19237,13 @@
             }
 
             const reward = Math.max(0.01, parseFloat(rewardCoins) || 0.10);
-            const curBonus = Number(window.ppfb?.bonusBalance || 0);
-            const curReal = Number(window.ppfb?.realBalance || 0);
-            const newBonus = Number((curBonus + reward).toFixed(2));
-            const newTotal = Number((curReal + newBonus).toFixed(2));
+            const curBal = Number(window.ppfb?.balance || 0);
+            const newTotal = Number((curBal + reward).toFixed(2));
 
-            window.ppfb.bonusBalance = newBonus;
+            window.ppfb.bonusBalance = 0;
+            window.ppfb.realBalance = newTotal;
             window.ppfb.balance = newTotal;
-            setBalanceUI(newTotal, window.ppfb.playPoints || 0, window.ppfb.pendingPoints || 0, curReal, newBonus);
+            setBalanceUI(newTotal, 0, 0, newTotal, 0);
 
             // Update user completed store locally immediately (0ms sync to memory & localStorage)
             const now = Date.now();
@@ -19485,7 +19252,7 @@
             // Update UI
             window.renderEarnCards();
             const bDisplay = document.getElementById('earnBonusBalDisplay');
-            if (bDisplay) bDisplay.textContent = `${newBonus.toFixed(2)} Coins`;
+            if (bDisplay) bDisplay.textContent = `${newTotal.toFixed(2)} Coins`;
 
             // Open 3D Celebration Modal & chime
             window.openClaim3DModal(reward, taskTitle);
@@ -19519,7 +19286,8 @@
 
                 // Background update in Firestore with BOTH nested map and dotted key for 100% compatibility
                 _setDoc(uDocRef, {
-                    bonusBalance: newBonus,
+                    bonusBalance: 0,
+                    realBalance: newTotal,
                     balance: newTotal,
                     monthlyTasksCount: newMonthCount,
                     monthlyPoints: newTotalPoints,
@@ -19531,17 +19299,45 @@
 
                 // Referral task commission points disabled
 
-                // Log transaction
+                // Log transaction with before & after balance
                 _addDoc(_col(db, 'transactions'), {
                     uid: u.uid,
                     type: 'earn_task',
+                    title: `টাস্ক সম্পন্ন: ${taskTitle}`,
                     taskId,
                     taskTitle,
                     amount: reward,
-                    method: 'Task Reward (Bonus)',
+                    balance_before: curBal,
+                    balance_after: newTotal,
+                    previousBalance: curBal,
+                    note: 'Earn Task Reward',
                     status: 'completed',
                     createdAt: _ts()
                 }).catch(() => { });
+
+                // টেলিগ্রাম বটে নোটিফিকেশন পাঠানো (Before & After Balance সহ)
+                try {
+                    const uTg = (window.ppfb && window.ppfb.tgChatId) || '';
+                    if (uTg && typeof sendTelegramMsg === 'function') {
+                        sendTelegramMsg(uTg,
+                            `⚡ <b>TASK COMPLETED!</b> 🎉\n\n` +
+                            `📝 <b>টাস্ক:</b> ${taskTitle}\n` +
+                            `🪙 <b>রিওয়ার্ড:</b> +${reward} PP Coins\n` +
+                            `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                            `✨ <b>নতুন ব্যালেন্স:</b> ${newTotal} Coins`
+                        ).catch(() => {});
+                    }
+                    if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                        sendTelegramMsg(ADMIN_TG_ID,
+                            `⚡ <b>USER TASK COMPLETED!</b>\n\n` +
+                            `👤 <b>User:</b> ${u.displayName || 'User'} (<code>${u.email || ''}</code>)\n` +
+                            `🆔 <b>UID:</b> <code>${u.uid}</code>\n` +
+                            `📝 <b>Task:</b> ${taskTitle}\n` +
+                            `🪙 <b>Reward:</b> +${reward} Coins\n` +
+                            `💰 <b>Balance:</b> ${curBal} ➔ ${newTotal}`
+                        ).catch(() => {});
+                    }
+                } catch (tgErr) { }
             } catch (err) {
                 console.warn('Reward sync warn:', err);
             }
