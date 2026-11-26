@@ -135,6 +135,7 @@ async function ensureTables(db) {
 
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banned INTEGER DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN createdAt INTEGER;`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
 
@@ -342,7 +343,13 @@ export default {
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
         let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
-        if (!w) {
+        if (w) {
+          if ((!w.email || w.email === "") && email) {
+            await env.DB.prepare(`UPDATE user_wallets SET email = ?, name = COALESCE(NULLIF(name, 'User'), ?), updatedAt = ? WHERE uid = ?`).bind(email, name || "User", Date.now(), uid).run().catch(() => {});
+            w.email = email;
+            if (name && name !== "User") w.name = name;
+          }
+        } else {
           w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, loyaltyStars: 0 };
         }
 
@@ -1979,6 +1986,7 @@ export default {
 
         const cleanUsers = (results || []).map(u => ({
           ...u,
+          createdAt: u.createdAt || u.updatedAt || null,
           balance: roundCoin(u.balance),
           realBalance: roundCoin(u.balance),
           bonusBalance: 0

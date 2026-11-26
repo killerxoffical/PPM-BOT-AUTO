@@ -9299,6 +9299,60 @@
             }
         };
 
+        function resolveUserEmail(u, uid) {
+            let email = (u && u.email ? u.email : '').trim();
+            if (email) return email;
+
+            // 1. Check in S.users (Firestore cache)
+            const fbUser = (S.users || []).find(x => (x.id === uid || x.uid === uid) && x.email && x.email.trim());
+            if (fbUser && fbUser.email) return fbUser.email.trim();
+
+            // 2. Check in Cloudflare users cache map
+            if (window._cfUsersMap && window._cfUsersMap.has(uid)) {
+                const cfU = window._cfUsersMap.get(uid);
+                if (cfU && cfU.email && cfU.email.trim()) return cfU.email.trim();
+            }
+
+            // 3. Check in S.deposits (Many users entered email on deposit)
+            const dMatch = (S.deposits || []).find(d => (d.uid === uid) && (d.userEmail || d.email));
+            if (dMatch) {
+                const e = (dMatch.userEmail || dMatch.email || '').trim();
+                if (e) return e;
+            }
+
+            // 4. Check in S.orders (Many users entered email in quest orders)
+            const oMatch = (S.orders || []).find(o => (o.uid === uid) && (o.accEmail || o.email || o.userEmail));
+            if (oMatch) {
+                const e = (oMatch.email || oMatch.userEmail || oMatch.accEmail || '').trim();
+                if (e) return e;
+            }
+
+            return '';
+        }
+
+        function resolveUserJoinedDate(u, uid) {
+            let ts = u && (u.createdAt || u.updatedAt);
+            if (ts) return ts;
+
+            // 1. Check in S.users
+            const fbUser = (S.users || []).find(x => (x.id === uid || x.uid === uid) && (x.createdAt || x.updatedAt));
+            if (fbUser && (fbUser.createdAt || fbUser.updatedAt)) return fbUser.createdAt || fbUser.updatedAt;
+
+            // 2. Check in Cloudflare cache map
+            if (window._cfUsersMap && window._cfUsersMap.has(uid)) {
+                const cfU = window._cfUsersMap.get(uid);
+                if (cfU && (cfU.createdAt || cfU.updatedAt)) return cfU.createdAt || cfU.updatedAt;
+            }
+
+            // 3. Check earliest activity from deposits & orders
+            const userDeps = (S.deposits || []).filter(d => d.uid === uid && (d.createdAt || d.updatedAt));
+            const userOrds = (S.orders || []).filter(o => o.uid === uid && (o.createdAt || o.updatedAt));
+            const allTs = [...userDeps.map(d => msOf(d)), ...userOrds.map(o => msOf(o))].filter(t => t > 0);
+            if (allTs.length > 0) return Math.min(...allTs);
+
+            return null;
+        }
+
         let _usrLoading = false;
         let _lastUsrCacheKey = null;
 
@@ -9332,6 +9386,12 @@
                     _usrTotalInDb = data.total || 0;
                     const users = data.users || [];
 
+                    // Cache to window._cfUsersMap for instant cross-referencing
+                    window._cfUsersMap = window._cfUsersMap || new Map();
+                    users.forEach(cu => {
+                        if (cu.uid) window._cfUsersMap.set(cu.uid, cu);
+                    });
+
                     // ইউজার পেজের সামারি ব্যাজ আপডেট
                     const tCntEl = document.getElementById('usrTotalCount');
                     const tBalEl = document.getElementById('usrTotalBalance');
@@ -9358,12 +9418,14 @@
                         const rBal = Number(u.realBalance !== undefined ? u.realBalance : bal);
                         const bBal = Number(u.bonusBalance || 0);
                         const isBanned = (u.banned === 1 || u.banned === true);
-                        const joinedTime = (u.createdAt || u.updatedAt) ? fmtDate(u.createdAt || u.updatedAt) : "—";
+                        const email = resolveUserEmail(u, uid);
+                        const joinTs = resolveUserJoinedDate(u, uid);
+                        const joinedTime = joinTs ? fmtDate(joinTs) : "—";
 
-                        return '<tr data-search="' + sa(u.name, u.email, uid) + '" onclick="userSheet(\'' + uid + '\')" class="hover:bg-indigo-50/50 active:bg-indigo-100/60 transition-colors cursor-pointer" title="Click anywhere on card to open full panel">'
+                        return '<tr data-search="' + sa(u.name, email, uid) + '" onclick="userSheet(\'' + uid + '\')" class="hover:bg-indigo-50/50 active:bg-indigo-100/60 transition-colors cursor-pointer" title="Click anywhere on card to open full panel">'
                             + '<td><div class="flex items-center gap-2.5">' + thumb(u.avatar || '', u.name)
                             + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || 'User') + '</p>'
-                            + '<div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 truncate max-w-[130px]">' + esc(u.email || '') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div></div></div></td>'
+                            + '<div class="cpline mt-0.5"><p class="grow text-[11px] ' + (email ? 'text-slate-500 font-medium' : 'text-slate-400 italic') + ' truncate max-w-[130px]">' + (email ? esc(email) : 'No email') + '</p>' + (email ? cpBtn(email, 'Copy Email') : '') + '</div></div></div></td>'
                             + '<td><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(uid) + '</span>' + cpBtn(uid, 'Copy UID') + '</div></td>'
                             + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(bal) + '</p></td>'
                             + '<td>' + (isBanned ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
@@ -9450,25 +9512,29 @@
             const box = document.getElementById('adminUsers');
             if (!box) return;
             const sorted = S.users.slice().sort((a, b) => (Number(b.balance) || 0) - (Number(a.balance) || 0));
-            box.innerHTML = tbl(['User', 'UID', 'Balance', 'Status', 'Joined', 'Actions'], sorted.map(u =>
-                '<tr data-search="' + sa(u.name, u.email, u.id, u.lastRedeem) + '" onclick="userSheet(\'' + u.id + '\')" style="cursor:pointer" title="Tap for full panel">'
+            box.innerHTML = tbl(['User', 'UID', 'Balance', 'Status', 'Joined', 'Actions'], sorted.map(u => {
+                const uid = u.id || u.uid;
+                const email = resolveUserEmail(u, uid);
+                const joinTs = resolveUserJoinedDate(u, uid);
+                const joinedTime = joinTs ? fmtDate(joinTs) : "—";
+                return '<tr data-search="' + sa(u.name, email, uid, u.lastRedeem) + '" onclick="userSheet(\'' + uid + '\')" style="cursor:pointer" title="Tap for full panel">'
                 + '<td><div class="flex items-center gap-2.5">' + thumb((u.avatar || u.photo) || '', u.name)
-                + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || u.email || u.id)
+                + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || email || uid)
 
                 + (u._virtual ? ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold" title="Auto-detected from deposits/orders">Unsynced</span>' : '')
                 + '</p>'
-                + '<div class="cpline mt-0.5" onclick="event.stopPropagation()"><p class="grow text-[11px] text-slate-500 truncate max-w-[130px]">' + esc(u.email || '') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div></div></div></td>'
-                + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(u.id || '') + '</span>' + cpBtn(u.id, 'Copy UID') + '</div></td>'
+                + '<div class="cpline mt-0.5" onclick="event.stopPropagation()"><p class="grow text-[11px] ' + (email ? 'text-slate-500 font-medium' : 'text-slate-400 italic') + ' truncate max-w-[130px]">' + (email ? esc(email) : 'No email') + '</p>' + (email ? cpBtn(email, 'Copy Email') : '') + '</div></div></div></td>'
+                + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(uid) + '</span>' + cpBtn(uid, 'Copy UID') + '</div></td>'
                 + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(u.balance) + '</p></td>'
                 + '<td>' + (u.banned === true ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
-                + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(u.createdAt || u.updatedAt) + '</td>'
+                + '<td class="text-xs text-slate-500 whitespace-nowrap">' + joinedTime + '</td>'
                 + '<td onclick="event.stopPropagation()"><div class="flex gap-2 items-center">'
                 + '<input type="number" id="ubu-' + u.id + '" value="' + (Number(u.balance) || 0) + '" class="w-[80px] px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600">'
                 + '<button onclick="setUserBalance(\'' + u.id + '\')" class="btn bg-slate-800 hover:bg-slate-900 text-white">Set</button>'
                 + '<button onclick="toggleBan(\'' + u.id + '\',' + (u.banned === true) + ')" class="btn ' + (u.banned === true ? 'bg-emerald-600 text-white' : 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600') + '">' + (u.banned === true ? 'Unban' : 'Ban') + '</button>'
                 + '<button onclick="userSheet(\'' + u.id + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700">Sheet</button>'
-                + '</div></td></tr>'
-            ), 720);
+                + '</div></td></tr>';
+            }), 720);
             if (window.lucide) lucide.createIcons();
         }
 
@@ -10118,12 +10184,15 @@
                 ? '<span class="text-[9.5px] px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 font-bold animate-pulse flex items-center gap-1 shrink-0">⚡ Syncing...</span>'
                 : '<span class="text-[9.5px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold flex items-center gap-1 shrink-0">● Live</span>';
 
+            const resEmail = resolveUserEmail(u, u.id || u.uid);
+            const displayEmail = resEmail || u.email || '';
+
             return '<div class="flex items-center gap-3">'
                 + thumb(u.photo || '', u.name, 48)
-                + '<div class="grow min-w-0"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-base text-slate-900 truncate">' + esc(u.name || u.email || u.id)
+                + '<div class="grow min-w-0"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-base text-slate-900 truncate">' + esc(u.name || displayEmail || u.id)
                 + (u._virtual ? ' <span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold" title="Auto-detected from deposits/orders">Unsynced</span>' : '')
                 + '</h3>' + syncBadgeHtml + '</div>'
-                + '<div class="cpline"><p class="grow text-xs text-slate-500 truncate">' + esc(u.email || 'No email') + '</p>' + cpBtn(u.email, 'Copy Email') + '</div>'
+                + '<div class="cpline"><p class="grow text-xs ' + (displayEmail ? 'text-slate-500' : 'text-slate-400 italic') + ' truncate">' + (displayEmail ? esc(displayEmail) : 'No email') + '</p>' + (displayEmail ? cpBtn(displayEmail, 'Copy Email') : '') + '</div>'
                 + '<div class="cpline"><p class="grow text-[11px] font-mono text-slate-400 truncate">' + esc(u.id) + '</p>' + cpBtn(u.id, 'Copy UID') + '</div>'
                 + '</div></div>'
                 + vaultHtml
