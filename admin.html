@@ -1773,6 +1773,8 @@
             <p class="sgroup">People</p>
             <button data-nav="scrUsr" onclick="showAdminScreen('scrUsr')" class="snav"><i data-lucide="users"
                     class="w-4 h-4"></i>Users</button>
+            <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')" class="snav"><i data-lucide="smartphone"
+                    class="w-4 h-4 text-emerald-500"></i>Connected Accounts <span class="nbadge ml-auto bg-emerald-100 text-emerald-800" id="connectedNavBadge" style="display:none">0</span></button>
 
             <p class="sgroup">Content</p>
             <button data-nav="scrEarn" onclick="showAdminScreen('scrEarn')" class="snav"><i data-lucide="zap"
@@ -1937,6 +1939,7 @@
                         class="nbadge ordCount" style="display:none">0</span></button>
                 <button data-nav="scrTx" onclick="showAdminScreen('scrTx')" class="tnav">Transactions</button>
                 <button data-nav="scrUsr" onclick="showAdminScreen('scrUsr')" class="tnav">Users</button>
+                <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')" class="tnav">Connected</button>
                 <button data-nav="scrCode" onclick="showAdminScreen('scrCode')" class="tnav">Codes</button>
                 <button data-nav="scrExt" onclick="showAdminScreen('scrExt')" class="tnav">Extension</button>
                 <button data-nav="scrBc" onclick="showAdminScreen('scrBc')" class="tnav">Broadcast</button>
@@ -2751,7 +2754,57 @@
 
                 </div>
 
-                <!-- ===== STORE ITEMS & USER SELL REQUESTS (REMOVED) ===== -->
+                <!-- SCREEN: CONNECTED GOOGLE ACCOUNTS (DEDICATED SECTION) -->
+                <div id="scrConnected" class="ascreen hidden space-y-4">
+                    <div class="glass p-4 sm:p-6">
+                        <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
+                                    <i data-lucide="smartphone" class="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Connected Google Accounts</h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">যে সকল ইউজার PPM Server অ্যাপ থেকে গুগল একাউন্ট ও ৬-সংখ্যার QID কানেক্ট করেছে</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="loadConnectedAccountsFromCloudflare(true)" class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-extrabold flex items-center gap-1.5 rounded-lg border border-emerald-500 shadow-sm">
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh Accounts
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                            <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">Total Accounts</span>
+                                <p class="text-xl font-black text-slate-900 mt-1" id="statConnectedTotal">0</p>
+                            </div>
+                            <div class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Active QID Codes</span>
+                                <p class="text-xl font-black text-emerald-800 mt-1" id="statConnectedQIDs">0</p>
+                            </div>
+                            <div class="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 col-span-2 sm:col-span-1">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-indigo-700">Unique Users</span>
+                                <p class="text-xl font-black text-indigo-800 mt-1" id="statConnectedUsers">0</p>
+                            </div>
+                        </div>
+
+                        <!-- Search Bar -->
+                        <div class="relative mb-4">
+                            <input type="text" id="connectedAccsSearchInp" oninput="filterConnectedAccountsRows(this.value)" placeholder="🔍 Search by connected gmail, QID code, or user name..." class="fld w-full pl-10 pr-4 py-2.5 bg-slate-50 text-xs font-semibold rounded-xl border border-slate-200 focus:bg-white transition-all">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none"></i>
+                        </div>
+
+                        <!-- Table Container -->
+                        <div id="connectedAccountsTableBox" class="overflow-x-auto rounded-xl border border-slate-200 min-h-[220px]">
+                            <div class="text-center py-12 text-slate-400">
+                                <div class="inline-block w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                <p class="text-xs font-bold">Loading Connected Google Accounts from Cloud Vault...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="scrStore" class="ascreen hidden space-y-5" style="display:none !important;">
                     <!-- Store Categories (user app tabs: All + 2 category) -->
                     <div class="glass p-4 sm:p-6 space-y-3">
@@ -4775,6 +4828,7 @@
             scrOrd: ['Orders', 'Tasks queue, credentials & fulfillment'],
             scrTx: ['Transactions', 'Consolidated financial movements ledger'],
             scrUsr: ['Users', 'Balance control, ban status & activity sheets'],
+            scrConnected: ['Connected Google Accounts', 'Live Google Play accounts, 6-digit sync codes & country vaults'],
             scrOf: ['Offers', 'Game catalog, points pricing & banners'],
             scrEarn: ['Earn Tasks', 'Direct links, short URLs & ad page reward management'],
             scrStore: ['Store Management', 'Create, edit & manage Play Points sale posts'],
@@ -5085,7 +5139,7 @@
                 scrEarn: 'Search earn tasks by title, type...',
                 scrExt: 'Search extension license keys, device ID, customer note...',
                 scrLog: 'Search activity logs by action, admin...',
-
+                scrConnected: 'Search connected accounts by gmail, QID, user, UID...'
             };
             const sWrap = document.getElementById('headerSearchWrap');
             if (sWrap && si) {
@@ -5097,6 +5151,9 @@
                 }
             }
             if (window.renderAdminScreen) renderAdminScreen(id);
+            if (id === 'scrConnected') {
+                if (window.loadConnectedAccountsFromCloudflare) window.loadConnectedAccountsFromCloudflare();
+            }
             if (id === 'scrHome') {
                 if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
             }
@@ -5195,6 +5252,10 @@
                 const uInp = document.getElementById('adminUsrSearchInp');
                 if (uInp) uInp.value = q;
                 window.loadUsersFromCloudflare(0, q);
+            } else if (CURRENT === 'scrConnected') {
+                const cInp = document.getElementById('connectedSearchInp');
+                if (cInp) cInp.value = q;
+                if (window.filterConnectedAccountsRows) window.filterConnectedAccountsRows(q);
             } else {
                 filterRows(q);
             }
@@ -9659,47 +9720,66 @@
         window.adjUserDualBalance = async (uid, amt, type) => {
             const v = parseFloat(amt);
             if (!v || isNaN(v)) { toast('Enter adjustment amount'); return; }
-            toast('Adjusting balance...');
+            toast('Adjusting balance on Cloudflare...');
             try {
-                // ১. ফায়ারবেস Firestore এ ইউনিফায়েড ব্যালেন্স আপডেট
-                await runTransaction(db, async (t) => {
-                    const uref = doc(db, 'users', uid);
-                    const us = await t.get(uref);
-                    const ud = us.exists() ? (us.data() || {}) : {};
-                    let curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
-                    const newTotal = Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
-
-                    if (!us.exists()) {
-                        const cached = (S.users || []).find(x => x.id === uid) || {};
-                        t.set(uref, {
-                            uid: uid,
-                            name: cached.name || 'User',
-                            email: cached.email || '',
-                            balance: newTotal,
-                            realBalance: newTotal,
-                            bonusBalance: 0,
-                            playPoints: 0,
-                            pendingPoints: 0,
-                            createdAt: serverTimestamp()
-                        }, { merge: true });
-                    } else {
-                        t.update(uref, {
-                            balance: newTotal,
-                            realBalance: newTotal,
-                            bonusBalance: 0
-                        });
-                    }
-                });
-
-                // ২. Cloudflare D1 এ ব্যাকআপ সিঙ্ক
+                let cfSuccess = false;
+                let newBalFromCf = null;
+                let cfErrMsg = '';
+                // ১. Cloudflare D1 এ প্রাইমারি ব্যালেন্স আপডেট (Zero Quota Limit)
                 try {
-                    await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
+                    const cfRes = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ uid: uid, coins: v, type: 'real' })
                     });
+                    const cfData = await cfRes.json();
+                    if (cfData && cfData.ok) {
+                        cfSuccess = true;
+                        newBalFromCf = cfData.balance;
+                    } else if (cfData && cfData.error) {
+                        cfErrMsg = cfData.error;
+                    }
                 } catch (cfErr) {
                     console.warn('CF credit sync warn:', cfErr);
+                    cfErrMsg = cfErr.message;
+                }
+
+                // ২. ফায়ারবেস Firestore এ ব্যাকগ্রাউন্ড সিঙ্ক (Safe try/catch যাতে Quota Exceeded হলেও ক্র্যাশ না করে)
+                try {
+                    await runTransaction(db, async (t) => {
+                        const uref = doc(db, 'users', uid);
+                        const us = await t.get(uref);
+                        const ud = us.exists() ? (us.data() || {}) : {};
+                        let curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                        const newTotal = (newBalFromCf !== null) ? newBalFromCf : Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
+
+                        if (!us.exists()) {
+                            const cached = (S.users || []).find(x => x.id === uid) || {};
+                            t.set(uref, {
+                                uid: uid,
+                                name: cached.name || 'User',
+                                email: cached.email || '',
+                                balance: newTotal,
+                                realBalance: newTotal,
+                                bonusBalance: 0,
+                                playPoints: 0,
+                                pendingPoints: 0,
+                                createdAt: serverTimestamp()
+                            }, { merge: true });
+                        } else {
+                            t.update(uref, {
+                                balance: newTotal,
+                                realBalance: newTotal,
+                                bonusBalance: 0
+                            });
+                        }
+                    });
+                } catch (fbErr) {
+                    console.warn('Firebase quota warn:', fbErr);
+                }
+
+                if (!cfSuccess && cfErrMsg) {
+                    throw new Error(cfErrMsg);
                 }
 
                 toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted!`);
@@ -9844,30 +9924,37 @@
                     } catch (e) { }
 
                 } else {
-                    // Coins (Real coins) যোগ
-                    await updateDoc(doc(db, 'users', uid), {
-                        realBalance: increment(v),
-                        balance: increment(v)
-                    }).catch(async () => {
-                        await setDoc(doc(db, 'users', uid), { uid, realBalance: v, balance: v }, { merge: true });
-                    });
-
-                    await addDoc(collection(db, 'redemptions'), {
-                        uid: uid,
-                        code: 'BONUS',
-                        amount: v,
-                        note: cleanTitle,
-                        status: 'approved',
-                        createdAt: serverTimestamp()
-                    });
-
+                    // ১. Cloudflare D1 এ প্রাইমারি Coins ক্রেডিট (Zero Quota Limit)
                     try {
                         await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: uid, coins: v, type: 'real' })
                         });
-                    } catch (e) { }
+                    } catch (e) {
+                        console.warn('CF credit sync warn:', e);
+                    }
+
+                    // ২. ফায়ারবেস ব্যাকগ্রাউন্ড চেষ্টা (Safe try/catch)
+                    try {
+                        await updateDoc(doc(db, 'users', uid), {
+                            realBalance: increment(v),
+                            balance: increment(v)
+                        }).catch(async () => {
+                            await setDoc(doc(db, 'users', uid), { uid, realBalance: v, balance: v }, { merge: true });
+                        });
+
+                        await addDoc(collection(db, 'redemptions'), {
+                            uid: uid,
+                            code: 'BONUS',
+                            amount: v,
+                            note: cleanTitle,
+                            status: 'approved',
+                            createdAt: serverTimestamp()
+                        });
+                    } catch (fbErr) {
+                        console.warn('Firebase quota warn:', fbErr);
+                    }
                 }
 
                 toast(`🎉 সফলভাবে ${v} ${unit === 'taka' ? 'টাকা' : 'কয়েন'} পাঠানো হয়েছে!`);
@@ -9944,37 +10031,47 @@
 
         window.addUserBalance = async (uid, amt) => {
             if (!needAdmin()) return;
-            const v = Math.floor(Number(amt));
-            if (!v) { toast('Enter adjustment amount'); return; }
+            const v = parseFloat(amt);
+            if (!v || isNaN(v)) { toast('Enter adjustment amount'); return; }
+            if (window.adjUserDualBalance) {
+                return window.adjUserDualBalance(uid, v, 'coins');
+            }
             try {
-                await runTransaction(db, async (t) => {
-                    const uref = doc(db, 'users', uid);
-                    const us = await t.get(uref);
-                    if (!us.exists()) {
-                        if (v < 0) throw new Error('neg');
-                        const cached = S.users.find(x => x.id === uid) || {};
-                        t.set(uref, {
-                            uid: uid,
-                            name: cached.name || 'User',
-                            email: cached.email || '',
-                            photo: '',
-                            balance: v,
-                            realBalance: v,
-                            bonusBalance: 0,
-                            createdAt: serverTimestamp()
-                        });
-                    } else {
-                        const ud = us.data() || {};
-                        const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
-                        const nb = Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
-                        if (nb < 0) throw new Error('neg');
-                        t.update(uref, { balance: nb, realBalance: nb, bonusBalance: 0 });
-                    }
+                // ১. Cloudflare D1 ব্যালেন্স আপডেট
+                await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/credit", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: uid, coins: v, type: 'real' })
                 });
+                // ২. ফায়ারস্টোর ব্যাকগ্রাউন্ড চেষ্টা
+                try {
+                    await runTransaction(db, async (t) => {
+                        const uref = doc(db, 'users', uid);
+                        const us = await t.get(uref);
+                        if (!us.exists()) {
+                            const cached = (S.users || []).find(x => x.id === uid) || {};
+                            t.set(uref, {
+                                uid: uid,
+                                name: cached.name || 'User',
+                                email: cached.email || '',
+                                photo: '',
+                                balance: v,
+                                realBalance: v,
+                                bonusBalance: 0,
+                                createdAt: serverTimestamp()
+                            }, { merge: true });
+                        } else {
+                            const ud = us.data() || {};
+                            const curBal = Number(ud.balance !== undefined ? ud.balance : (ud.realBalance || 0)) + Number(ud.bonusBalance || 0);
+                            const nb = Math.max(0, Math.round((curBal + v + Number.EPSILON) * 100) / 100);
+                            t.update(uref, { balance: nb, realBalance: nb, bonusBalance: 0 });
+                        }
+                    });
+                } catch(e) {}
                 toast((v > 0 ? '+' : '') + v + ' coins adjusted');
                 logIt('balance_adjust', uid + ' ' + v);
                 closeSheet(); loadAll();
-            } catch (e) { toast(e && e.message === 'neg' ? 'Balance cannot be negative' : 'Adjustment failed: ' + (e.message || '')); }
+            } catch (e) { toast('Adjustment failed: ' + (e.message || '')); }
         };
 
         window.syncUserProfile = async (uid) => {
@@ -10372,11 +10469,22 @@
 
         window.resetUser = async (uid) => {
             try {
-                await setDoc(doc(db, 'users', uid), { balance: 0, realBalance: 0, bonusBalance: 0 }, { merge: true });
+                // ১. Cloudflare D1 ব্যালেন্স ০
+                try {
+                    await fetch("https://ppmod-api.tredarskvt.workers.dev/api/wallet/set-balance", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: uid, balance: 0, realBalance: 0, bonusBalance: 0 })
+                    });
+                } catch(e) {}
+                // ২. ফায়ারবেস ব্যাকগ্রাউন্ড চেষ্টা
+                try {
+                    await setDoc(doc(db, 'users', uid), { balance: 0, realBalance: 0, bonusBalance: 0 }, { merge: true });
+                } catch(e) {}
                 toast('User balance reset to 0');
                 logIt('balance_reset', uid);
                 closeSheet(); loadAll();
-            } catch (e) { toast('Reset failed'); }
+            } catch (e) { toast('Reset failed: ' + e.message); }
         };
 
         window.deleteRow = async (col, id) => {
@@ -13005,6 +13113,205 @@
                 toast('❌ এরর: ' + e.message);
             }
         };
+
+        /* === CONNECTED GOOGLE ACCOUNTS CONTROLLER === */
+        window._connectedAccountsCache = [];
+        window._connectedAccountsLoading = false;
+
+        window.loadConnectedAccountsFromCloudflare = async function (force = false) {
+            if (window._connectedAccountsLoading && !force) return;
+            window._connectedAccountsLoading = true;
+
+            const tbody = document.getElementById('connectedAccountsTableBody');
+            if (tbody && (!window._connectedAccountsCache || window._connectedAccountsCache.length === 0)) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-medium"><div class="flex items-center justify-center gap-2"><div class="w-4 h-4 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div> লোড হচ্ছে...</div></td></tr>`;
+            }
+
+            try {
+                const res = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?all=true&_t=${Date.now()}`);
+                const data = await res.json();
+                let accounts = (data && data.ok && Array.isArray(data.accounts)) ? data.accounts : [];
+
+                // Fallback: If D1 /api/sync/accounts?all=true is not yet published in worker, build from known users
+                if (accounts.length === 0 && window._cfUsersMap) {
+                    const fallbackAccounts = [];
+                    for (const [uid, u] of window._cfUsersMap.entries()) {
+                        try {
+                            const uRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}`);
+                            const uData = await uRes.json();
+                            if (uData && uData.ok && Array.isArray(uData.accounts)) {
+                                uData.accounts.forEach(acc => {
+                                    fallbackAccounts.push({
+                                        ...acc,
+                                        user_name: u.name || "User",
+                                        user_email: u.email || "",
+                                        user_balance: u.balance || 0
+                                    });
+                                });
+                            }
+                        } catch(_) {}
+                    }
+                    if (fallbackAccounts.length > 0) accounts = fallbackAccounts;
+                }
+
+                window._connectedAccountsCache = accounts;
+
+                // Update Stats Badges
+                const statTotal = document.getElementById('statConnectedTotal');
+                const statQIDs = document.getElementById('statConnectedQIDs');
+                const statUsers = document.getElementById('statConnectedUsers');
+                const navBadge = document.getElementById('connectedNavBadge');
+
+                const totalAcc = accounts.length;
+                const activeQids = accounts.filter(a => a.code).length;
+                const uniqueUsers = new Set(accounts.map(a => a.uid || a.user_email || a.email)).size;
+
+                if (statTotal) statTotal.textContent = totalAcc;
+                if (statQIDs) statQIDs.textContent = activeQids;
+                if (statUsers) statUsers.textContent = uniqueUsers;
+
+                if (navBadge) {
+                    navBadge.textContent = totalAcc;
+                    navBadge.style.display = totalAcc > 0 ? 'inline-flex' : 'none';
+                }
+
+                window.renderConnectedAccountsTable(accounts);
+            } catch (err) {
+                console.error('loadConnectedAccounts error:', err);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-500 font-bold">ডাটা লোড করতে সমস্যা হয়েছে: ${esc(err.message)}</td></tr>`;
+                }
+            } finally {
+                window._connectedAccountsLoading = false;
+            }
+        };
+
+        window.renderConnectedAccountsTable = function (list) {
+            const tbody = document.getElementById('connectedAccountsTableBody');
+            if (!tbody) return;
+
+            if (!list || list.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-12 text-center">
+                            <div class="max-w-sm mx-auto space-y-3">
+                                <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xl">📱</div>
+                                <h4 class="text-sm font-black text-slate-800">কোনো কানেক্টেড অ্যাকাউন্ট পাওয়া যায়নি</h4>
+                                <p class="text-xs text-slate-500">ইউজাররা যখন PPM SERVER অ্যাপ দিয়ে গুগল অ্যাকাউন্ট কানেক্ট করে ৬-সংখ্যার QID তৈরি করবে, তখন এখানে তালিকা দেখা যাবে।</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            list.forEach((acc, idx) => {
+                const uName = acc.user_name || 'User';
+                const uEmail = acc.user_email || '';
+                const uUid = acc.uid || '';
+                const cEmail = acc.email || '—';
+                const cCode = acc.code || '—';
+                const cCountry = (acc.country && acc.country !== 'GLOBAL') ? acc.country : 'US';
+                const cDate = acc.createdAt ? fmtDate(acc.createdAt) : (acc.updatedAt ? fmtDate(acc.updatedAt) : '—');
+
+                html += `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+                        <td class="p-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black text-xs shadow-xs flex-shrink-0">
+                                    ${esc(uName.charAt(0).toUpperCase())}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-bold text-slate-900 text-xs truncate max-w-[150px]">${esc(uName)}</div>
+                                    ${uEmail ? `<div class="text-[11px] text-slate-500 truncate max-w-[150px] font-medium">${esc(uEmail)}</div>` : ''}
+                                    ${uUid ? `<div class="text-[10px] font-mono text-slate-400 truncate max-w-[120px] flex items-center gap-1">${esc(uUid.slice(0, 10))}... ${cpBtn(uUid, 'UID')}</div>` : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-3">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="font-bold text-slate-800 text-xs font-mono">${esc(cEmail)}</span>
+                                ${cpBtn(cEmail, 'Gmail')}
+                            </div>
+                            <span class="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Google Play Live
+                            </span>
+                        </td>
+                        <td class="p-3">
+                            <div class="flex items-center gap-1.5">
+                                <span class="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-black text-xs tracking-wider shadow-xs">
+                                    ${esc(cCode)}
+                                </span>
+                                ${cCode !== '—' ? cpBtn(cCode, 'QID') : ''}
+                            </div>
+                        </td>
+                        <td class="p-3">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs">
+                                🌐 ${esc(cCountry)}
+                            </span>
+                        </td>
+                        <td class="p-3 text-xs text-slate-500 font-medium whitespace-nowrap">
+                            ${cDate}
+                        </td>
+                        <td class="p-3">
+                            <div class="flex items-center gap-1.5">
+                                ${uUid ? `<button type="button" onclick="userSheet('${esc(uUid)}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95" title="Open User Sheet">🔍 Sheet</button>` : ''}
+                                ${cCode !== '—' ? `<button type="button" onclick="adminDeleteVaultAccountFromList('${esc(cCode)}', '${esc(uUid)}')" class="p-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs transition-all active:scale-95" title="Delete Account">🗑️</button>` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+            if (window.lucide) lucide.createIcons();
+        };
+
+        window.filterConnectedAccountsRows = function (query) {
+            const q = (query || '').toLowerCase().trim();
+            if (!q) {
+                window.renderConnectedAccountsTable(window._connectedAccountsCache);
+                return;
+            }
+            const filtered = (window._connectedAccountsCache || []).filter(a => {
+                return (a.email && a.email.toLowerCase().includes(q))
+                    || (a.code && a.code.toLowerCase().includes(q))
+                    || (a.uid && a.uid.toLowerCase().includes(q))
+                    || (a.user_name && a.user_name.toLowerCase().includes(q))
+                    || (a.user_email && a.user_email.toLowerCase().includes(q))
+                    || (a.country && a.country.toLowerCase().includes(q));
+            });
+            window.renderConnectedAccountsTable(filtered);
+        };
+
+        window.adminDeleteVaultAccountFromList = async function (code, uid) {
+            if (!confirm(`আপনি কি এই কানেক্টেড অ্যাকাউন্টটি ডিলিট করতে চান? (QID: ${code})`)) return;
+            toast('অ্যাকাউন্ট মোছা হচ্ছে...');
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/sync/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast('✅ কানেক্টেড অ্যাকাউন্ট সফলভাবে মুছে ফেলা হয়েছে!');
+                    window.loadConnectedAccountsFromCloudflare(true);
+                } else {
+                    toast('❌ মুছতে সমস্যা হয়েছে: ' + ((data && data.error) || 'Failed'));
+                }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+
+        // Background pre-fetch badge count
+        setTimeout(() => {
+            if (window.loadConnectedAccountsFromCloudflare) {
+                window.loadConnectedAccountsFromCloudflare(false);
+            }
+        }, 3000);
     </script>
 </body>
 

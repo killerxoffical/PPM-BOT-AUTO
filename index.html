@@ -9441,13 +9441,48 @@
             if (unlockBtn) unlockBtn.style.display = 'none';
 
             try {
-                // ১. PP Server এ কোড ভ্যালিডেশন ও প্লেয়ার প্রোফাইল ফেচ (Fresh Live Check)
-                const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code, refresh: true })
-                });
-                const data = await res.json();
+                let data = null;
+                try {
+                    // ১. PP Server এ কোড ভ্যালিডেশন ও প্লেয়ার প্রোফাইল ফেচ (Fresh Live Check)
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 18000);
+                    const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: code, refresh: true }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    data = await res.json();
+                } catch(renderErr) {
+                    console.warn('Render direct connect failed, falling back to Cloudflare Vault:', renderErr);
+                    // Cloudflare Vault Fallback (Zero downtime!)
+                    try {
+                        const cfRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/sync/get?code=${encodeURIComponent(code)}`);
+                        const cfData = await cfRes.json();
+                        if (cfData && cfData.ok && cfData.account) {
+                            const acc = cfData.account;
+                            data = {
+                                ok: true,
+                                email: acc.email,
+                                master_token: acc.token,
+                                android_id: acc.android_id || "46e14d2451d85c3f",
+                                has_profile: true,
+                                profile: {
+                                    display_name: (acc.email && acc.email.includes('@')) ? acc.email.split('@')[0] : "Google Gamer",
+                                    current_level: 1,
+                                    current_xp: 0,
+                                    avatar_url: "https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512"
+                                }
+                            };
+                        }
+                    } catch(cfErr) {
+                        console.error('CF fallback error:', cfErr);
+                    }
+                    if (!data) {
+                        throw new Error('সার্ভার চালু হচ্ছে বা সংযোগ পাওয়া যায়নি। অনুগ্রহ করে ৫ সেকেন্ড পর আবার Connect চাপুন।');
+                    }
+                }
 
                 if (!data || !data.ok) {
                     if (loader) loader.classList.add('hidden');
