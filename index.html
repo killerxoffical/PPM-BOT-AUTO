@@ -192,24 +192,26 @@
             overflow-x: hidden;
         }
 
-        /* Desktop Mockup Stage - Only for large standalone PC monitors when NOT inside Android App */
-        @media (min-width: 1280px) {
-            body:not(.is-app-env) .app-body {
-                align-items: center;
-                justify-content: center;
-                padding: 20px 0;
-                background-color: #eef2f6;
+        /* Desktop Mockup Stage - Centered Crisp Executive Light Card on PC */
+        @media (min-width: 520px) {
+            body.app-body {
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 20px 0 !important;
+                background-color: #eef2f6 !important;
                 background-image:
                     radial-gradient(at 15% 15%, rgba(245, 158, 11, 0.08) 0px, transparent 45%),
                     radial-gradient(at 85% 20%, rgba(59, 130, 246, 0.08) 0px, transparent 45%),
                     radial-gradient(at 50% 90%, rgba(16, 185, 129, 0.06) 0px, transparent 50%),
-                    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+                    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%) !important;
             }
 
-            body:not(.is-app-env) .app-shell {
-                max-width: 30rem !important;
-                height: min(920px, calc(100dvh - 36px)) !important;
-                max-height: 920px !important;
+            .app-shell {
+                width: 100% !important;
+                max-width: 28rem !important;
+                margin-inline: auto !important;
+                height: min(900px, calc(100dvh - 36px)) !important;
+                max-height: 900px !important;
                 border-radius: 36px !important;
                 border: 1px solid rgba(226, 232, 240, 0.9) !important;
                 background: #ffffff !important;
@@ -221,41 +223,37 @@
                 position: relative;
             }
 
-            body:not(.is-app-env) .app-shell::before {
+            .app-shell::before {
                 display: none !important;
             }
         }
 
-        /* Fullscreen Viewport Immersion: Supports all Android Emulators (BlueStacks, LDPlayer, Nox), Foldables & Mobile Screens */
-        .app-body {
-            background: #f8fafc !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            min-height: 100vh !important;
-            min-height: 100dvh !important;
-        }
+        /* Mobile Viewport Immersion: Supports all mobile screens (320px to 519px) */
+        @media (max-width: 519px) {
+            body.app-body {
+                background: #f8fafc !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
 
-        .app-shell {
-            min-height: 100vh !important;
-            min-height: 100dvh !important;
-            height: 100vh !important;
-            height: 100dvh !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            background: #f8fafc !important;
-            padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
-            padding-left: max(0.6rem, env(safe-area-inset-left, 0px)) !important;
-            padding-right: max(0.6rem, env(safe-area-inset-right, 0px)) !important;
-            border-radius: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            gap: 0.5rem !important;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-            margin: 0 !important;
+            .app-shell {
+                min-height: 100vh !important;
+                min-height: 100dvh !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                background: #f8fafc !important;
+                padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+                padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+                padding-left: max(0.6rem, env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(0.6rem, env(safe-area-inset-right, 0px)) !important;
+                border-radius: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                gap: 0.5rem !important;
+                margin: 0 !important;
+            }
         }
 
         /* Extra small devices (iPhone SE, budget Android 320px - 375px) */
@@ -304,7 +302,7 @@
 
         .app-shell {
             width: 100%;
-            max-width: 100%;
+            max-width: 28rem;
             margin-inline: auto;
             display: flex;
             flex-direction: column;
@@ -2739,13 +2737,11 @@
         <header id="appHeader"
             class="app-header relative overflow-hidden flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-[1.4rem] border border-slate-200/80 shadow-sm"
             style="background:#ffffff url('hd.png') center center / 100% 100% no-repeat;">
-            <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
-                    class="user-header-avatar w-10 h-10 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
-                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
-                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
-                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="User">
-                </button>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <div class="logo-tile flex items-center justify-center overflow-hidden">
+                    <img id="mainBrandLogo" src="pp_quest_logo.png"
+                        class="w-8 h-8 object-contain" alt="PP QUEST" onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
+                </div>
                 <div class="min-w-0 flex-1 leading-tight">
                     <h1 class="text-[17px] font-extrabold text-slate-900 tracking-tight truncate"><span
                             id="mainBrandTitle" class="brand-text">PP QUEST</span></h1>
@@ -2762,6 +2758,14 @@
                             class="header-bal-text text-[10px] leading-none font-black text-amber-900 whitespace-nowrap tracking-tight tabular-nums">0</span>
                     </button>
                 </div>
+
+
+                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
+                    class="user-header-avatar w-9 h-9 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
+                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
+                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
+                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="">
+                </button>
             </div>
         </header>
 
