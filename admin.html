@@ -8309,10 +8309,15 @@
                     statusBadge = `<div><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">🟡 Waiting Claim</span><div class="text-[10px] text-amber-600 font-medium mt-0.5">ইউজারের ডিপোজিটের অপেক্ষায়</div></div>`;
                 }
 
-                // Action button
+                // Action buttons (1-Click Personal Lock + Admin Claim / Unlock)
                 let actionBtn = '';
                 if (!isClaimed && isWithin30 && cType !== 'time_expired') {
-                    actionBtn = `<button type="button" onclick="adminClaimGatewayTrx('${escJS(item.trxId)}', ${amount})" style="background: #4f46e5; color: #ffffff !important; border: none; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 6px rgba(79,70,229,0.3);">Admin Claim</button>`;
+                    actionBtn = `<div class="inline-flex items-center gap-1.5">
+                        <button type="button" onclick="adminQuickLockGatewayTrx('${escJS(item.trxId)}', ${amount})" title="পার্সোনাল লক করুন (কোনো ইউজার নিতে পারবে না)" style="background: #e11d48; color: #ffffff !important; border: none; font-size: 10.5px; font-weight: 800; padding: 5px 10px; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 6px rgba(225,29,72,0.28);">🔒 Lock</button>
+                        <button type="button" onclick="adminClaimGatewayTrx('${escJS(item.trxId)}', ${amount})" title="ইউজারকে কয়েন ক্রেডিট করে ক্লেইম করুন" style="background: #4f46e5; color: #ffffff !important; border: none; font-size: 10.5px; font-weight: 800; padding: 5px 10px; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 6px rgba(79,70,229,0.28);">Claim</button>
+                    </div>`;
+                } else if (cType === 'admin') {
+                    actionBtn = `<button type="button" onclick="adminUnlockGatewayTrx('${escJS(item.trxId)}')" title="আনলক করুন" style="background: #f1f5f9; color: #334155 !important; border: 1px solid #cbd5e1; font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 8px; cursor: pointer;">🔓 Unlock</button>`;
                 } else {
                     actionBtn = `<span style="font-size: 11px; font-weight: 700; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked</span>`;
                 }
@@ -8323,6 +8328,9 @@
                             ${mBadge}
                             <span class="text-[11px] font-mono text-slate-600 truncate max-w-[110px]">${esc(item.sender || 'Unknown')}</span>
                         </div>
+                    </td>
+                    <td class="py-2.5 px-3 font-mono font-black text-slate-900 text-[11.5px] whitespace-nowrap select-all">${esc(item.trxId || '—')}</td>
+                    <td class="py-2.5 px-3 font-black text-emerald-700 whitespace-nowrap">৳ ${amount}</td>
                     <td class="py-2.5 px-3 font-extrabold text-indigo-600 whitespace-nowrap">🪙 ${coins}</td>
                     <td class="py-2.5 px-3">
                         <div class="text-[10.5px] font-mono text-slate-600">${fmtDate(recAt)}</div>
@@ -8724,39 +8732,77 @@
             }
         };
 
-        window.adminClaimGatewayTrx = async function (trxId, amount) {
+        window.adminQuickLockGatewayTrx = async function (trxId, amount) {
             if (!trxId) return;
-            const targetUid = prompt(`🛡️ অ্যাডমিন TrxID ক্লেইম\nTrxID: ${trxId}\nAmount: ৳${amount}\n\nযে ইউজারের অ্যাকাউন্টে কয়েন যোগ করতে চান তার UID বা Email দিন (খালি রাখলে শুধু TrxID টি অ্যাডমিন ক্লেইম হিসেবে লক হবে, কোনো ইউজারে কয়েন যোগ হবে না):`, '');
-            if (targetUid === null) return; // user cancelled
-
+            if (!confirm(`🔒 পার্সোনাল TrxID লক\nTrxID: ${trxId} (৳${amount})\n\nএটি লক করলে কোনো ইউজার আর এই TrxID ব্যবহার করতে পারবে না। লক করতে চান?`)) return;
             const adminEmail = (auth.currentUser && auth.currentUser.email) || 'Admin';
-            toast('Processing Admin Claim...');
-
+            toast('TrxID লক করা হচ্ছে...');
             try {
-                let res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-claim", {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-claim", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         trxId: trxId.trim().toUpperCase(),
                         adminEmail: adminEmail,
-                        targetUid: targetUid.trim()
+                        lockOnly: true,
+                        reason: 'Admin Personal Payment Lock'
                     })
                 });
-                let data = await res.json().catch(() => ({}));
-
-                if (!data.ok) {
-                    // Try render fallback
-                    res = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/admin-claim", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            trxId: trxId.trim().toUpperCase(),
-                            adminEmail: adminEmail,
-                            targetUid: targetUid.trim()
-                        })
-                    });
-                    data = await res.json().catch(() => ({}));
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    toast(data.message || `🔒 TrxID ${trxId} পার্সোনাল হিসেবে লক হয়েছে!`);
+                    renderGatewayScreen(false);
+                } else {
+                    toast('⚠️ ' + (data.error || 'Lock failed'));
                 }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+
+        window.adminUnlockGatewayTrx = async function (trxId) {
+            if (!trxId) return;
+            if (!confirm(`🔓 TrxID ${trxId} আনলক করতে চান?`)) return;
+            toast('TrxID আনলক করা হচ্ছে...');
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-unlock-trx", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trxId: trxId.trim().toUpperCase() })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    toast(data.message || `🔓 TrxID ${trxId} আনলক হয়েছে!`);
+                    renderGatewayScreen(false);
+                    if (typeof loadUsedTrxList === 'function') loadUsedTrxList();
+                } else {
+                    toast('⚠️ ' + (data.error || 'Unlock failed'));
+                }
+            } catch (e) {
+                toast('❌ এরর: ' + e.message);
+            }
+        };
+
+        window.adminClaimGatewayTrx = async function (trxId, amount) {
+            if (!trxId) return;
+            const targetUid = prompt(`🛡️ অ্যাডমিন TrxID ক্লেইম\nTrxID: ${trxId}\nAmount: ৳${amount}\n\nযে ইউজারের অ্যাকাউন্টে কয়েন যোগ করতে চান তার UID বা Email দিন (খালি রাখলে শুধু TrxID টি অ্যাডমিন পার্সোনাল হিসেবে লক হবে):`, '');
+            if (targetUid === null) return;
+
+            const adminEmail = (auth.currentUser && auth.currentUser.email) || 'Admin';
+            toast('Processing Admin Claim...');
+
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-claim", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        trxId: trxId.trim().toUpperCase(),
+                        adminEmail: adminEmail,
+                        targetUid: targetUid.trim(),
+                        lockOnly: !targetUid.trim()
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
 
                 if (data.ok) {
                     toast(data.message || `✅ TrxID ${trxId} অ্যাডমিন ক্লেইম সম্পন্ন হয়েছে!`);
@@ -12647,35 +12693,50 @@
             tgStars: txtId('cfgTgStars') || txtId('cfgStarAdmin') || '@Blackmoney54'
         }, 'Payment numbers saved!');
 
-        /* --- 🚫 Used / Blocked TrxID Management --- */
+        /* --- 🚫 Used / Blocked TrxID Management (Cloudflare D1 Master) --- */
         window.adminAddUsedTrx = async function () {
             const inp = document.getElementById('adminUsedTrxInput');
             const trx = (inp ? inp.value : '').trim().toUpperCase();
             if (!trx || trx.length < 4) { toast('সঠিক TrxID দিন!'); return; }
             try {
+                const adminEmail = (auth.currentUser && auth.currentUser.email) || 'Admin';
+                const cfRes = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-add-trx", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trxId: trx, amount: 0, method: 'Personal Lock', reason: 'Admin Personal Lock', adminEmail })
+                });
+                const cfData = await cfRes.json().catch(() => ({}));
+                if (!cfData.ok) throw new Error(cfData.error || 'D1 lock failed');
                 await setDoc(doc(db, 'used_trx', trx), {
                     trxId: trx,
                     addedBy: 'admin',
                     source: 'admin_manual_block',
                     createdAt: serverTimestamp()
-                }, { merge: true });
+                }, { merge: true }).catch(() => {});
                 if (inp) inp.value = '';
-                toast(`✅ TrxID ${trx} সফলভাবে ব্লক করা হয়েছে! কোনো ইউজার আর এটি ব্যবহার করতে পারবে না।`);
+                toast(`🔒 TrxID ${trx} Cloudflare D1-এ সফলভাবে লক হয়েছে! কোনো ইউজার আর এটি ব্যবহার করতে পারবে না।`);
                 loadUsedTrxList();
+                if (typeof renderGatewayScreen === 'function') renderGatewayScreen(false);
             } catch (e) {
                 console.error(e);
-                toast('Failed to save used TrxID: ' + (e.message || ''));
+                toast('Failed to lock TrxID: ' + (e.message || ''));
             }
         };
 
         window.adminRemoveUsedTrx = async function (trx) {
             if (!confirm(`TrxID ${trx} আনব্লক/মুছে ফেলতে চান?`)) return;
             try {
-                await deleteDoc(doc(db, 'used_trx', trx));
-                toast(`TrxID ${trx} আনব্লক করা হয়েছে!`);
+                await fetch("https://ppmod-api.tredarskvt.workers.dev/api/gateway/admin-unlock-trx", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trxId: trx.trim().toUpperCase() })
+                }).catch(() => {});
+                await deleteDoc(doc(db, 'used_trx', trx)).catch(() => {});
+                toast(`🔓 TrxID ${trx} আনলক করা হয়েছে!`);
                 loadUsedTrxList();
+                if (typeof renderGatewayScreen === 'function') renderGatewayScreen(false);
             } catch (e) {
-                toast('Error deleting: ' + (e.message || ''));
+                toast('Error unlocking: ' + (e.message || ''));
             }
         };
 

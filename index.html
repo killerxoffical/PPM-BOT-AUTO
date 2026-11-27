@@ -17932,141 +17932,88 @@
             if (!u) return { ok: false, error: 'Please login first' };
             if (window.ppfb.banned) return { ok: false, error: 'Account banned' };
             const clean = (trxId || '').toString().trim().toUpperCase().slice(0, 64);
-            if (!clean) return { ok: false, error: 'TrxID din' };
+            if (!clean) return { ok: false, error: 'TrxID দিন' };
             const isStars = (method === 'Telegram Stars');
+            const coinAmount = Number(coins) || Math.max(1, Math.floor(Number(amount) / 7));
+
             try {
-                // ১. Cloudflare D1 Edge-এ TrxID পার্মানেন্ট লক ও ডুপ্লিকেট চেক (Instant Pre-check)
-                try {
+                // ১. Cloudflare D1 Edge-এ Read-Only ডুপ্লিকেট ও লক চেক (lockNow: false — কখনো নিজেকে লক করবে না!)
+                if (!isStars) {
                     const cfCheck = await fetch(`${CF_API}/api/trx/check-lock`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ trxId: clean, uid: u.uid, amount: Number(amount) })
-                    });
-                    const cfCheckData = await cfCheck.json().catch(() => ({}));
-                    if (cfCheckData && !cfCheckData.ok && cfCheckData.duplicate) {
-                        return { ok: false, error: cfCheckData.error || '⚠️ এই ট্রানজ্যাকশন আইডি (TrxID) টি ইতিমধ্যে একবার ব্যবহার হয়ে গেছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।' };
+                        body: JSON.stringify({ trxId: clean, uid: u.uid, amount: Number(amount), lockNow: false })
+                    }).then(r => r.json()).catch(() => null);
+                    if (cfCheck && !cfCheck.ok && cfCheck.duplicate) {
+                        return { ok: false, error: cfCheck.error || '⚠️ এই ট্রানজ্যাকশন আইডি (TrxID) টি ইতিমধ্যে ব্যবহার হয়ে গেছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।' };
                     }
-                } catch (cfErr) { }
-
-                // ফায়ারস্টোর ব্যবহৃত TrxID চেক (Double redundancy)
-                const usedSnap = await _getDoc(_doc(db, 'used_trx', clean)).catch(() => null);
-                if (usedSnap && usedSnap.exists()) {
-                    return { ok: false, error: '⚠️ এই ট্রানজ্যাকশন আইডি (TrxID) টি ইতিমধ্যে একবার ব্যবহার হয়ে গেছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।' };
                 }
 
-                // আগে পেন্ডিং থাকলে সেটি খুঁজে নেওয়া অথবা নতুন তৈরি
-                let targetDepId = null;
-                // single-field query (composite index lage na) + pending filter client-side
-                const duplicatePending = await _getDocs(_q(_col(db, 'deposits'), _where('trxId', '==', clean), _limit(5))).catch(() => null);
-                if (duplicatePending && !duplicatePending.empty) {
-                    const pendDoc = duplicatePending.docs.map(d => ({ id: d.id, ...d.data() })).find(x => (x.status || '') === 'pending');
-                    if (pendDoc) targetDepId = pendDoc.id;
-                }
+                const targetDepId = 'DEP-' + clean + '-' + Date.now().toString(36).toUpperCase();
 
-                // Ensure user doc exists in Firestore so admin sees the user immediately
-                const uref = _doc(db, 'users', u.uid);
-                const us = await _getDoc(uref).catch(() => null);
-                if (!us || !us.exists()) {
-                    await _setDoc(uref, {
+                // ২. সরাসরি Cloudflare D1-এ ডিপোজিট রেকর্ড তৈরি (১০০% Cloudflare D1 — কোনো Firebase ব্যালেন্স কনফ্লিক্ট নেই)
+                const createRes = await fetch(`${CF_API}/api/deposits/create`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: targetDepId,
                         uid: u.uid,
                         name: u.displayName || 'User',
                         email: u.email || '',
-                        photo: u.photoURL || '',
-                        createdAt: _ts()
-                    }, { merge: true }).catch(() => { });
-                }
-                const coinAmount = Number(coins) || Math.floor(Number(amount) / 7) || 3;
-                const body = {
-                    uid: u.uid,
-                    name: u.displayName || 'User',
-                    email: u.email || '',
-                    method: method,
-                    amount: Number(amount),
-                    coins: coinAmount,
-                    trxId: clean,
-                    status: 'pending',
-                    createdAt: _ts(),
-                    expiresAt: new Date(Date.now() + 7 * 86400000)
-                };
+                        method: method,
+                        amount: Number(amount),
+                        coins: coinAmount,
+                        trxId: clean
+                    })
+                }).then(r => r.json()).catch(() => null);
 
-                // যদি আগে পেন্ডিং না থাকে তবে নতুন তৈরি হবে (ফায়ারস্টোর কোটা সেফ)
-                if (!targetDepId) {
+                if (createRes && !createRes.ok && createRes.duplicate) {
+                    return { ok: false, error: createRes.error || '⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!' };
+                }
+
+                // Telegram Stars ম্যানুয়াল অর্ডার (অ্যাডমিন ভেরিফিকেশনের জন্য)
+                if (isStars) {
                     try {
-                        const createdDep = await _addDoc(_col(db, 'deposits'), body);
-                        targetDepId = createdDep.id;
-                    } catch (fbErr) {
-                        console.warn('[FIRESTORE QUOTA SAVE FALLBACK]:', fbErr);
-                        targetDepId = 'DEP-' + clean;
-                    }
+                        await _addDoc(_col(db, 'deposits'), {
+                            uid: u.uid, name: u.displayName || 'User', email: u.email || '',
+                            method, amount: Number(amount), coins: coinAmount, trxId: clean,
+                            status: 'pending', createdAt: _ts(), expiresAt: new Date(Date.now() + 7 * 86400000)
+                        }).catch(() => {});
+                    } catch (_) {}
+                    return { ok: true, depId: targetDepId, autoApproved: false };
                 }
 
-                // Cloudflare D1-এ সরাসরি ডিপোজিট তৈরি ও হিস্ট্রি লগ (Zero Firebase Quota)
-                try {
-                    await fetch(`${CF_API}/api/deposits/create`, {
+                // ৩. Cloudflare D1 Atomic Auto-Verify (TrxID + Exact Amount মিললে সাথে সাথে অটো অ্যাপ্রুভ ও ব্যালেন্স আপডেট!)
+                const isAuto = (window.ppfb && window.ppfb.config && window.ppfb.config.autoDeposit !== false);
+                if (isAuto) {
+                    const cfVerifyRes = await fetch(`${CF_API}/api/gateway/verify-deposit`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            id: targetDepId || ('DEP-' + clean),
-                            uid: u.uid,
-                            name: u.displayName || 'User',
-                            email: u.email || '',
-                            method: method,
+                            depId: targetDepId,
+                            trxId: clean,
                             amount: Number(amount),
                             coins: coinAmount,
-                            trxId: clean
+                            method: method,
+                            uid: u.uid,
+                            email: u.email || '',
+                            name: u.displayName || 'User'
                         })
                     });
-                } catch (cfErr) { }
-
-                // কনফিগ থেকে চেক করা Auto Deposit চালু আছে কিনা (ডিফল্ট: true)
-                const isAuto = (window.ppfb && window.ppfb.config && window.ppfb.config.autoDeposit !== false);
-
-                if (isAuto && !isStars) {
-                    // ১. Cloudflare D1 Edge-এ তাৎক্ষণিক ভেরিফিকেশন (0ms latency, zero cold starts)
-                    try {
-                        const cfVerifyRes = await fetch(`${CF_API}/api/gateway/verify-deposit`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                depId: targetDepId,
-                                trxId: clean,
-                                amount: Number(amount),
-                                uid: u.uid,
-                                email: u.email || '',
-                                name: u.displayName || 'User'
-                            })
-                        });
-                        const cfData = await cfVerifyRes.json();
-                        if (cfData && cfData.ok && cfData.autoApproved === true) {
-                            return { ok: true, depId: targetDepId, autoApproved: true, coinsAdded: cfData.coinsAdded };
-                        } else if (cfData && !cfData.ok) {
-                            return { ok: false, error: cfData.error || 'পেমেন্ট যাচাই ব্যর্থ হয়েছে! সঠিক TrxID দিন।' };
+                    const cfData = await cfVerifyRes.json().catch(() => null);
+                    if (cfData && cfData.ok && cfData.autoApproved === true) {
+                        if (cfData.balance !== undefined && typeof setBalanceUI === 'function') {
+                            const liveB = Number(cfData.balance);
+                            setBalanceUI(liveB, 0, 0, liveB, 0);
                         }
-                    } catch (cfErr) {
-                        console.warn("CF Verify error:", cfErr);
+                        return { ok: true, depId: cfData.depId || targetDepId, autoApproved: true, coinsAdded: cfData.coinsAdded || coinAmount };
+                    } else if (cfData && !cfData.ok) {
+                        return { ok: false, error: cfData.error || 'পেমেন্ট যাচাই ব্যর্থ হয়েছে! সঠিক TrxID ও টাকার পরিমাণ দিন।' };
                     }
-
-                    // ২. ব্যাকআপ হিসেবে Render Server চেক
-                    try {
-                        const verifyRes = await fetch("https://ppm-bot-auto.onrender.com/api/gateway/verify-deposit", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ depId: targetDepId, trxId: clean, amount: Number(amount) })
-                        });
-                        const vData = await verifyRes.json();
-                        if (vData && vData.ok && vData.autoApproved === true) {
-                            return { ok: true, depId: targetDepId, autoApproved: true };
-                        } else if (vData && !vData.ok) {
-                            return { ok: false, error: vData.error || 'কোনো পেমেন্ট SMS পাওয়া যায়নি! সঠিক TrxID দিন।' };
-                        } else if (vData && vData.pendingReview === true) {
-                            return { ok: true, depId: targetDepId, autoApproved: false, message: vData.message };
-                        }
-                    } catch (e) {
-                        console.warn("Verify check error:", e);
-                    }
+                    // SMS এখনো গেটওয়ে থেকে না এসে থাকলে pending অবস্থায় থাকবে এবং ৩ সেকেন্ড পরপর অটো চেক হবে
+                    return { ok: true, depId: targetDepId, autoApproved: false, pending: true, message: cfData && cfData.message };
                 }
 
-                // Auto OFF থাকলে বা Stars হলে স্বাভাবিক ম্যানুয়াল পেন্ডিং হিসেবে অ্যাডমিন প্যানেলে যাবে
                 return { ok: true, depId: targetDepId, autoApproved: false };
             } catch (e) {
                 console.warn(e);
