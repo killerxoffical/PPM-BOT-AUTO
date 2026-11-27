@@ -16915,16 +16915,55 @@
             return null;
         }
         window.syncD1Wallet = syncD1Wallet;
-        window.refreshBalanceFromD1 = async function () {
+        window.refreshBalanceFromD1 = async function (silent = true) {
+            if (window._paying || window._isOrderExecuting) return null;
             const u = (window.ppfb && window.ppfb.user) || (window.FB && window.FB.auth && window.FB.auth.currentUser);
             if (!u || !u.uid || u.uid === 'guest') return null;
-            return await syncD1Wallet(u, null);
+            try {
+                const res = await fetch(`${CF_API}/api/wallet?uid=${encodeURIComponent(u.uid)}&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data && data.ok && data.wallet) {
+                    const w = data.wallet;
+                    const newBal = Math.round(((Number(w.balance || 0)) + (Number(w.bonusBalance || 0)) + Number.EPSILON) * 100) / 100;
+                    const prevBal = Math.round(((Number(window.ppfb && window.ppfb.balance) || 0) + Number.EPSILON) * 100) / 100;
+                    const newStars = Number(w.loyaltyStars || 0);
+                    const prevStars = Number(window.ppfb && window.ppfb.loyaltyStars || 0);
+                    if (newBal !== prevBal || !window._balDataReady) {
+                        setBalanceUI(newBal, 0, 0, newBal, 0);
+                        if (silent && window._d1LiveSyncedOnce && Math.abs(newBal - prevBal) >= 0.01) {
+                            const diff = Math.round(((newBal - prevBal) + Number.EPSILON) * 100) / 100;
+                            toast(diff > 0 ? `💰 ওয়ালেটে +${diff} Coins যোগ হয়েছে! (মোট: ${newBal})` : `💰 ব্যালেন্স আপডেট হয়েছে: ${newBal} Coins`);
+                        }
+                    }
+                    if (newStars !== prevStars) {
+                        window.ppfb.loyaltyStars = newStars;
+                        if (window.renderLoyaltyStars) window.renderLoyaltyStars();
+                    }
+                    if (w.banned === 1 || w.banned === true) {
+                        window.ppfb.banned = true;
+                        setBannedUI(true, w.banReason);
+                    }
+                    window._d1LiveSyncedOnce = true;
+                    return w;
+                }
+            } catch (e) { }
+            return null;
         };
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-                window.refreshBalanceFromD1().catch(() => { });
+                window.refreshBalanceFromD1(true).catch(() => { });
             }
         });
+        window.addEventListener('focus', () => {
+            window.refreshBalanceFromD1(true).catch(() => { });
+        });
+        if (!window._d1RealtimeBalInterval) {
+            window._d1RealtimeBalInterval = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    window.refreshBalanceFromD1(true).catch(() => { });
+                }
+            }, 8000);
+        }
 
         const FB = {
             apiKey: "AIzaSyAQmiWD9fP0nFpl7ShPjE51udtyFWo6jpA",
