@@ -13813,7 +13813,12 @@
                                 const t = (s.title || '').trim();
                                 if (!t || t.toLowerCase() === 'game' || t.toLowerCase() === 'selected task') return false;
                                 return true;
-                            }).map(([k, s]) => s);
+                            }).map(([k, s]) => s).sort((a, b) => {
+                                const sa = (a.sort_order !== undefined && a.sort_order !== null && a.sort_order !== '') ? Number(a.sort_order) : 999999;
+                                const sb = (b.sort_order !== undefined && b.sort_order !== null && b.sort_order !== '') ? Number(b.sort_order) : 999999;
+                                if (sa !== sb) return sa - sb;
+                                return String(a.title || '').localeCompare(String(b.title || ''));
+                            });
                             if (allCfServices.length) {
                                 const lgCache = JSON.parse(localStorage.getItem('pp_game_logo_cache') || '{}');
                                 const gamesList = allCfServices.map((ps, idx) => {
