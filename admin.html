@@ -5130,7 +5130,7 @@
                     // Deposit In হিসাব: রিসেটের পর আসা ডিপোজিট কেবল যোগ হবে (রিসেট করার পর ০ থাকবে)
                     const localResetAt = Number(localStorage.getItem('ppm_deposit_reset_at') || 0);
                     const remoteResetAt = (window.S && window.S.cfg && window.S.cfg.depositResetAt) ? (window.S.cfg.depositResetAt.toMillis ? window.S.cfg.depositResetAt.toMillis() : new Date(window.S.cfg.depositResetAt).getTime()) : 0;
-                    const resetAt = Math.max(localResetAt, remoteResetAt);
+                    const resetAt = Math.max(localResetAt, remoteResetAt, Number(window.S && window.S.cfg && window.S.cfg.depositResetMs) || 0);
                     const currentDepIn = (window.S && Array.isArray(window.S.deposits))
                         ? window.S.deposits.filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0)
                         : 0;
@@ -6140,7 +6140,7 @@
         window.loadConfigFromCloudflareFallback = loadConfigFromCloudflareFallback;
 
         async function loadAll() {
-            toast('🔄 লাইভ ডাটা আপডেট হচ্ছে... দয়া করে অপেক্ষা করুন', true);
+            toast('<span class="inline-flex items-center gap-2"><svg class="animate-spin w-3.5 h-3.5 text-white inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg>🔄 লাইভ ডাটা আপডেট হচ্ছে... দয়া করে অপেক্ষা করুন</span>', true);
             const refBtns = document.querySelectorAll('button[onclick="loadAll()"]');
             refBtns.forEach(b => {
                 b.disabled = true;
@@ -6186,7 +6186,7 @@
             const cOrd = (cf.completedOrders !== undefined) ? Number(cf.completedOrders) : (Array.isArray(S.orders) ? S.orders.filter(x => x.status === 'completed').length : 0);
             const localResetAt = Number(localStorage.getItem('ppm_deposit_reset_at') || 0);
             const remoteResetAt = (S && S.cfg && S.cfg.depositResetAt) ? (S.cfg.depositResetAt.toMillis ? S.cfg.depositResetAt.toMillis() : new Date(S.cfg.depositResetAt).getTime()) : 0;
-            const resetAt = Math.max(localResetAt, remoteResetAt);
+            const resetAt = Math.max(localResetAt, remoteResetAt, Number(S && S.cfg && S.cfg.depositResetMs) || 0);
             const currentDepIn = (Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved' && msOf(x) > resetAt).reduce((a, b) => a + (Number(b.amount) || 0), 0);
             const totalDepIn = (cf.totalApprovedDeposit !== undefined) ? Number(cf.totalApprovedDeposit) : ((Array.isArray(S.deposits) ? S.deposits : []).filter(x => x.status === 'approved').reduce((a, b) => a + (Number(b.amount) || 0), 0) + (Number(S.cfg && S.cfg.allTimeDepositArchived) || 0));
             const rev = (cf.totalRevenue !== undefined) ? Number(cf.totalRevenue) : (Array.isArray(S.orders) ? S.orders : []).filter(x => x.status === 'completed').reduce((a, b) => a + (Number(b.amount) || 0), 0);
@@ -6228,24 +6228,26 @@
             if (!needAdmin()) return;
             if (!confirm('আপনি কি একাউন্ট থেকে টাকা তুলে নিয়েছেন এবং বর্তমান "Deposit In" ব্যালেন্স ০ করতে চান?\n\n(নোট: Total Deposit অপরিবর্তিত থাকবে এবং এরপর নতুন আসা ডিপোজিট ০ থেকে আবার হিসাব হবে)')) return;
             try {
-                const nowTs = Date.now();
+                const nowTs = Date.now() + 1000;
                 localStorage.setItem('ppm_deposit_reset_at', String(nowTs));
-                if (!S.cfg) S.cfg = {};
-                S.cfg.depositResetAt = nowTs;
+                if (!window.S) window.S = {};
+                if (!window.S.cfg) window.S.cfg = {};
+                window.S.cfg.depositResetAt = nowTs;
+                window.S.cfg.depositResetMs = nowTs;
                 const depEl = document.getElementById('statDepIn');
                 if (depEl) depEl.textContent = '0 BDT';
-                try {
-                    await setDoc(doc(db, 'config', 'app'), {
-                        depositResetAt: serverTimestamp(),
-                        depositResetMs: nowTs
-                    }, { merge: true });
-                } catch (err) {
-                    console.warn('Firestore setDoc config error:', err);
-                }
-                updateStats();
                 toast('✅ Deposit In সফলভাবে রিসেট (0 BDT) করা হয়েছে!');
                 logIt('deposit_in_reset', 'Reset to 0');
                 if (window.lucide) lucide.createIcons();
+                updateStats();
+                try {
+                    setDoc(doc(db, 'config', 'app'), {
+                        depositResetAt: serverTimestamp(),
+                        depositResetMs: nowTs
+                    }, { merge: true }).catch(err => console.warn('Firestore setDoc config error:', err));
+                } catch (err) {
+                    console.warn('Firestore setDoc config error:', err);
+                }
             } catch (e) {
                 toast('Reset failed: ' + e.message);
             }

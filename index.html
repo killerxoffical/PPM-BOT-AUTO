@@ -2861,7 +2861,7 @@
                         <span class="text-[10px] font-extrabold text-slate-400">OR</span>
                         <div class="flex-1 border-t border-slate-200"></div>
                     </div>
-                    <button onclick="window.ppfb?ppfb.login():toast('Loading, please wait...')"
+                    <button onclick="handleGoogleLoginClick()"
                         class="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-white border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 hover:bg-slate-50 active:scale-98 transition-all cursor-pointer shadow-sm">
                         <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                             <path fill="#4285F4"
@@ -3634,9 +3634,9 @@
                 </button>
                 <button type="button" id="tabCredEmailPass" onclick="switchCredMethod('email_pass')"
                     class="py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 cursor-pointer">
-                    <i data-lucide="mail" class="w-3.5 h-3.5 flex-shrink-0"></i>
-                    <span>Gmail & Pass</span>
-                    <span id="tabBadgeEmailPass" class="text-[9px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5 hidden">Manual</span>
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0"></i>
+                    <span>Google Connect</span>
+                    <span id="tabBadgeEmailPass" class="text-[9px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5">1-Tap</span>
                 </button>
             </div>
 
@@ -3779,81 +3779,82 @@
                 </div>
             </div>
 
-            <!-- OPTION 2: GMAIL & PASSWORD (CLASSIC METHOD) -->
+            <!-- OPTION 2: ONE-TAP GOOGLE CONNECT (DIRECT AUTHENTICATION) -->
             <div id="credSectionEmailPass" class="space-y-4 hidden relative min-h-[360px]">
 
                 <div id="emailPassBlurWrap" class="space-y-4 transition-all duration-300">
-<!-- Crucial 2FA Warning Card -->
-                <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-1 text-left">
-                    <div class="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
-                        <i data-lucide="shield-alert" class="w-4 h-4 flex-shrink-0 text-amber-600"></i>
-                        <span>লগইন সংক্রান্ত জরুরি নোটিশ:</span>
+                    <!-- Quest Guide Card -->
+                    <div class="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-3.5 space-y-1 text-left">
+                        <div class="flex items-center gap-2 text-indigo-800 font-extrabold text-xs">
+                            <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0 text-indigo-600"></i>
+                            <span>সরাসরি গুগল অ্যাকাউন্ট কানেক্ট:</span>
+                        </div>
+                        <p class="text-[11px] text-indigo-950 font-semibold leading-relaxed">
+                            👉 কোনো ইমেইল বা পাসওয়ার্ড টাইপ করতে হবে না! নিচের বাটনে চাপ দিয়ে সরাসরি গুগল অ্যাকাউন্ট কানেক্ট করুন এবং ১-ক্লিকে ইনস্ট্যান্ট কোয়েস্ট আনলক করুন।
+                        </p>
                     </div>
-                    <p class="text-[11px] text-amber-950 font-semibold leading-relaxed">
-                        👉 Gmail-এ <span class="font-extrabold text-amber-800">2-Step Verification (2FA)</span> চালু থাকলেও
-                        সমস্যা নেই। তবে অন থাকলে স্বয়ংক্রিয় সার্ভার লগইনে ফোনের নোটিফিকেশন কনফার্ম করতে হবে। দ্রুততম কাজের
-                        জন্য কাজ শেষ হওয়া পর্যন্ত 2FA অফ রাখাই উত্তম।
-                    </p>
-                </div>
 
-                <!-- Quest শর্ত Warning -->
-                <div class="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 space-y-1 text-left">
-                    <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
-                        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0 text-rose-600"></i>
-                        <span>গুরুত্বপূর্ণ শর্ত:</span>
-                    </div>
-                    <p class="text-[11px] text-rose-950 font-semibold leading-relaxed">
-                        👉 Gmail-এ Play Points <span class="font-extrabold">quest accept করা থাকতে হবে</span>। আগে গেম খেলে
-                        quest পূরণ করেছেন কিন্তু পয়েন্ট পাননি — এমন email দিলে কাজ হবে না এবং <span
-                            class="font-extrabold">balance refund হবে না</span>। অবশ্যই fresh quest account দেবেন।
-                    </p>
-                </div>
-
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-left">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Play Store Gmail Address *</label>
-                        <input type="email" id="accEmail" placeholder="yourgmail@gmail.com"
-                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Gmail Password *</label>
-                        <div class="relative">
-                            <input type="password" id="accPass" placeholder="Password দিন" autocomplete="new-password"
-                                class="w-full p-3 pr-11 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500">
-                            <button type="button" onclick="togglePass()" title="Show/Hide"
-                                class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-500 active:scale-90 transition-all cursor-pointer">
-                                <span id="passEyeWrap"><i data-lucide="eye" class="w-4 h-4"></i></span>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-4 text-left">
+                        <!-- Google Account Connect Action Card -->
+                        <div id="oneTapConnectSection" class="space-y-3">
+                            <button type="button" id="btnConnectGoogleAccount" onclick="startOneTapGoogleConnect()"
+                                class="w-full py-4 px-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-teal-600 hover:from-indigo-700 hover:to-teal-700 text-white font-extrabold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 active:scale-98 cursor-pointer">
+                                <div class="w-7 h-7 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+                                        <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+                                    </svg>
+                                </div>
+                                <span class="text-xs tracking-wide">গুগল অ্যাকাউন্ট কানেক্ট করুন (One-Tap Connect)</span>
                             </button>
+                            <p class="text-[11px] text-slate-500 font-semibold text-center flex items-center justify-center gap-1.5">
+                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> কোনো ইমেইল বা পাসওয়ার্ড লিখতে হবে না, স্বয়ংক্রিয়ভাবে কানেক্ট হবে।
+                            </p>
                         </div>
-                    </div>
-                    <div>
-                        <div id="tgRowWrap">
-                            <div class="flex items-center justify-between flex-wrap gap-1 mb-1">
-                                <label class="text-xs font-bold text-slate-700">Your Telegram Chat ID <span
-                                        class="text-slate-400 font-semibold">(optional)</span></label>
-                                <a id="idBotLink" href="https://t.me/userinfobot" target="_blank"
-                                    class="text-[10px] font-extrabold text-indigo-600 hover:underline flex items-center gap-0.5">
-                                    <i data-lucide="bot" class="w-3 h-3"></i> <span id="idBotName">find chat id</span>
-                                </a>
-                            </div>
-                            <input type="text" id="accTgId" placeholder="e.g. 123456789 বা @username"
-                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-amber-500">
-                            <p class="text-[10px] text-slate-500 font-semibold mt-1.5 leading-snug">🔔 লাইভ অর্ডার আপডেট
-                                পেতে <a id="notifyBotLink" href="https://t.me/Ppmod_bot" target="_blank"
-                                    class="text-indigo-600 font-extrabold hover:underline"><span
-                                        id="notifyBotName">@Ppmod_bot</span></a> নোটিফিকেশন সার্ভিসে যুক্ত থাকুন।</p>
-                        </div>
-                        <p id="tgConnectedLine"
-                            class="hidden text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                            ✓ Telegram Connected: <span id="tgConnectedId" class="font-mono"></span> <span
-                                class="text-slate-500 font-semibold">(বদলাতে Profile › Connect Telegram)</span></p>
-                    </div>
 
-                    <button id="submitCredBtn" onclick="submitOrderCredentials()"
-                        class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl shadow-md transition-all text-sm cursor-pointer flex items-center justify-center gap-2 active:scale-98">
-                        <i data-lucide="send" class="w-4 h-4"></i> Submit
-                    </button>
-                </div>
+                        <!-- Connect Loading Spinner -->
+                        <div id="oneTapConnectLoading" class="hidden py-4 text-center space-y-2">
+                            <div class="inline-block w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-xs font-bold text-indigo-800 animate-pulse">গুগল অ্যাকাউন্ট ভেরিফাই ও কানেক্ট করা হচ্ছে...</p>
+                        </div>
+
+                        <!-- CONNECTED PROFILE CARD -->
+                        <div id="oneTapProfileBox" class="hidden p-3.5 bg-slate-900 border-2 border-emerald-500/50 rounded-2xl text-white shadow space-y-2.5">
+                            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-ping"></span>
+                                    Google Account Connected
+                                </span>
+                                <button type="button" onclick="disconnectOneTapAccount()"
+                                    class="text-[10px] font-bold text-rose-300 hover:text-rose-200 flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-md cursor-pointer transition-all">
+                                    <i data-lucide="x" class="w-3 h-3"></i> Disconnect
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <img id="oneTapAvatar" src="https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512"
+                                    class="w-12 h-12 rounded-full border-2 border-emerald-400 object-cover bg-white/10 flex-shrink-0 shadow-sm" alt="Avatar">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <strong id="oneTapDisplayName" class="text-sm font-black text-white truncate">Connected Gamer</strong>
+                                        <span id="oneTapLevelBadge" class="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black px-1.5 py-0.5 rounded">LVL 1</span>
+                                    </div>
+                                    <p id="oneTapEmail" class="text-xs font-mono text-slate-300 truncate mt-0.5">user@gmail.com</p>
+                                    <p id="oneTapQidText" class="text-[10px] font-mono font-bold text-cyan-300 mt-0.5">Sync QID: <span id="oneTapQidSpan">—</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="oneTapQuestBox" class="hidden"></div>
+
+                        <!-- Confirm Button for One-Tap Connect -->
+                        <button type="button" id="btnConfirmOneTapUnlock" onclick="executeServerQuestUnlock()" style="display:none;"
+                            class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl shadow-md transition-all text-sm cursor-pointer flex items-center justify-center gap-2 active:scale-98">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                            <span>Confirm Unlock</span>
+                        </button>
+                    </div>
                 </div>
                 <!-- OFF Overlay with Blur & Admin Notice -->
                 <div id="emailPassOffOverlay" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-md rounded-2xl flex-col items-center justify-center p-6 text-center z-20 shadow-xl border border-white/10">
@@ -9798,6 +9799,17 @@
                         unlockBtn.disabled = false;
                         unlockBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
                     }
+                    const unlockBtnOneTap = document.getElementById('btnConfirmOneTapUnlock');
+                    if (unlockBtnOneTap) {
+                        unlockBtnOneTap.style.display = 'flex';
+                        unlockBtnOneTap.disabled = false;
+                        unlockBtnOneTap.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm Unlock</span>';
+                    }
+                    const oneTapQuestBox = document.getElementById('oneTapQuestBox');
+                    if (oneTapQuestBox) {
+                        oneTapQuestBox.innerHTML = questBox.innerHTML;
+                        oneTapQuestBox.classList.remove('hidden');
+                    }
 
                     // ব্যাকগ্রাউন্ডে সাথে সাথে ওয়ার্ম-আপ টোকেন এক্সচেঞ্জ (1-2s সুপারফাস্ট আনলক নিশ্চিত করতে)
                     try {
@@ -9820,6 +9832,8 @@
                     // ৪. গেমটি সার্ভারে অন/এক্টিভ নেই
                     window._matchedPortalService = null;
                     if (unlockBtn) unlockBtn.style.display = 'none';
+                    const unlockBtnOneTap = document.getElementById('btnConfirmOneTapUnlock');
+                    if (unlockBtnOneTap) unlockBtnOneTap.style.display = 'none';
 
                     // সার্ভারে গেম অন না থাকলে সাথে সাথে অটো-রিফান্ড কার্যকর করা
                     const currentOrderCoins = getTaskCoinCost();
@@ -9895,6 +9909,142 @@
             if (/^[a-zA-Z0-9_]{4,}$/.test(rawTg) && isNaN(Number(rawTg))) return '@' + rawTg;
             return rawTg;
         }
+
+        window.handleGoogleLoginClick = function() {
+            if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleSsoLogin === 'function') {
+                window.AndroidBridge.startGoogleSsoLogin();
+            } else if (window.ppfb && typeof window.ppfb.login === 'function') {
+                window.ppfb.login();
+            } else {
+                toast('Loading, please wait...');
+            }
+        };
+
+        window.selectGoogleAccount = async function(email) {
+            if (!email) return;
+            try {
+                localStorage.removeItem('pp_logged_out');
+                if (window.FB && window.FB.auth && window.FB.auth.currentUser && (window.FB.auth.currentUser.email || '').toLowerCase() === email.toLowerCase()) {
+                    window.currentUser = window.FB.auth.currentUser;
+                    window.ppfb.user = window.FB.auth.currentUser;
+                    showScreen('screenGameSelect');
+                    return;
+                }
+                const uname = email.split('@')[0];
+                const u = {
+                    uid: 'sso_' + btoa(email.toLowerCase()).replace(/=/g, '').slice(0, 20),
+                    email: email,
+                    displayName: uname,
+                    photoURL: 'https://ui-avatars.com/api/?name=' + encodeURIComponent(uname) + '&background=6366f1&color=fff'
+                };
+                window.currentUser = u;
+                window.ppfb.user = u;
+                localStorage.setItem('ppm_user_uid', u.uid);
+                localStorage.setItem('pp_uid', u.uid);
+                localStorage.setItem('pp_cached_name_' + u.uid, uname);
+                if (typeof setProfileUI === 'function') setProfileUI(u);
+                showScreen('screenGameSelect');
+                toast('Logged in as ' + email);
+                if (typeof ensureUser === 'function') ensureUser(u).catch(() => {});
+            } catch (err) {
+                console.warn('selectGoogleAccount error:', err);
+            }
+        };
+
+        window.startOneTapGoogleConnect = function() {
+            if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleLogin === 'function') {
+                const loader = document.getElementById('oneTapConnectLoading');
+                if (loader) loader.classList.remove('hidden');
+                toast('Google Login ওপেন হচ্ছে... অনুগ্রহ করে আপনার অ্যাকাউন্টটি দিয়ে লগইন করুন');
+                window.AndroidBridge.startGoogleLogin('AUTO');
+            } else {
+                toast('দয়া করে PP Quest মোবাইল অ্যাপ ব্যবহার করে অ্যাকাউন্ট কানেক্ট করুন!');
+            }
+        };
+
+        window.disconnectOneTapAccount = function() {
+            window._serverConnectedAccount = null;
+            window._matchedPortalService = null;
+            const profileBox = document.getElementById('oneTapProfileBox');
+            const confirmBtn = document.getElementById('btnConfirmOneTapUnlock');
+            const questBox = document.getElementById('oneTapQuestBox');
+            const connectSection = document.getElementById('oneTapConnectSection');
+            if (profileBox) profileBox.classList.add('hidden');
+            if (confirmBtn) confirmBtn.style.display = 'none';
+            if (questBox) questBox.classList.add('hidden');
+            if (connectSection) connectSection.classList.remove('hidden');
+            toast('অ্যাকাউন্ট ডিসকানেক্ট করা হয়েছে');
+            if (window.lucide) lucide.createIcons();
+        };
+
+        window.onAccountSyncComplete = async function(item) {
+            try {
+                if (!item) return;
+                const data = (typeof item === 'string') ? JSON.parse(item) : item;
+                const loader = document.getElementById('oneTapConnectLoading');
+                if (loader) loader.classList.add('hidden');
+
+                const code = data.code || data.sync_code || data.qid || '';
+                const email = data.email || '';
+                const gamerName = data.gamer_name || data.gamerName || data.name || (email ? email.split('@')[0] : 'Gamer');
+                const avatar = data.avatar_url || data.avatar || 'https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512';
+                const level = data.level || (data.profile && data.profile.level) || 1;
+
+                window._serverConnectedAccount = {
+                    ...data,
+                    code: code,
+                    email: email,
+                    gamerName: gamerName,
+                    avatar: avatar,
+                    level: level,
+                    profile: {
+                        display_name: gamerName,
+                        avatar_url: avatar,
+                        level: level
+                    }
+                };
+
+                const connectSection = document.getElementById('oneTapConnectSection');
+                const profileBox = document.getElementById('oneTapProfileBox');
+                const confirmBtn = document.getElementById('btnConfirmOneTapUnlock');
+                const nameEl = document.getElementById('oneTapDisplayName');
+                const emailEl = document.getElementById('oneTapEmail');
+                const avatarEl = document.getElementById('oneTapAvatar');
+                const levelEl = document.getElementById('oneTapLevelBadge');
+                const qidSpan = document.getElementById('oneTapQidSpan');
+
+                if (nameEl) nameEl.textContent = gamerName;
+                if (emailEl) emailEl.textContent = email;
+                if (avatarEl) avatarEl.src = avatar;
+                if (levelEl) levelEl.textContent = 'LVL ' + level;
+                if (qidSpan) qidSpan.textContent = code || 'LIVE_SYNC';
+
+                if (connectSection) connectSection.classList.add('hidden');
+                if (profileBox) profileBox.classList.remove('hidden');
+                if (confirmBtn) {
+                    confirmBtn.style.display = 'flex';
+                    confirmBtn.disabled = false;
+                    confirmBtn.style.pointerEvents = 'auto';
+                    confirmBtn.style.opacity = '1';
+                    confirmBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm Unlock</span>';
+                }
+
+                if (document.getElementById('serverSyncCodeInput') && code) {
+                    document.getElementById('serverSyncCodeInput').value = code;
+                }
+
+                const curGame = window._payGame || (document.getElementById('credGameTitle') ? document.getElementById('credGameTitle').textContent : '') || '';
+                if (curGame && typeof checkGameInPublicPortal === 'function') {
+                    await checkGameInPublicPortal(curGame);
+                }
+
+                toast('✅ গুগল অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে! এবার Confirm চাপুন।');
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                console.error('onAccountSyncComplete error:', err);
+                toast('অ্যাকাউন্ট কানেক্ট করতে ত্রুটি ঘটেছে: ' + err.message);
+            }
+        };
 
         function getConnectedQidDisplay() {
             const curAcc = window._serverConnectedAccount || {};
@@ -10410,13 +10560,16 @@ async function executeServerQuestUnlock() {
 
             // ২. বাটনে সাথে সাথে স্পিনার লোডিং অ্যানিমেশন ও টাচ/ক্লিক কমপ্লিটলি লক করা (যতক্ষণ না আনলক শেষ হয়)
             const btn = document.getElementById('btnConfirmServerUnlock');
-            if (btn) {
-                btn.disabled = true;
-                btn.style.pointerEvents = 'none';
-                btn.style.cursor = 'not-allowed';
-                btn.style.opacity = '0.75';
-                btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>কোয়েস্ট আনলক হচ্ছে... অপেক্ষা করুন</span>`;
-            }
+            const btnOneTap = document.getElementById('btnConfirmOneTapUnlock');
+            [btn, btnOneTap].forEach(b => {
+                if (b) {
+                    b.disabled = true;
+                    b.style.pointerEvents = 'none';
+                    b.style.cursor = 'not-allowed';
+                    b.style.opacity = '0.75';
+                    b.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> <span>কোয়েস্ট আনলক হচ্ছে... অপেক্ষা করুন</span>`;
+                }
+            });
 
             try {
                 // সার্ভারে নির্দিষ্ট আনলক এন্ডপয়েন্ট কল করা
@@ -10672,8 +10825,12 @@ async function executeServerQuestUnlock() {
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
-                    if (window.lucide) lucide.createIcons();
                 }
+                if (btnOneTap) {
+                    btnOneTap.disabled = false;
+                    btnOneTap.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm Unlock</span>';
+                }
+                if (window.lucide) lucide.createIcons();
             } finally {
                 window._isOrderExecuting = false;
                 window._activeAccountLock = null;
