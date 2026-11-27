@@ -11493,7 +11493,9 @@
                 const finalGameTitle = srv.title || curGame || 'Game';
                 const successMsg = `🎉 অভিনন্দন! আপনার "${finalGameTitle}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। আপনার অ্যাকাউন্টটি Google Play Store-এ গিয়ে চেক করুন এবং পয়েন্ট ক্লেইম করে নিন!`;
 
-                // Cloudflare D1 এ অর্ডার completed আপডেট
+                // Cloudflare D1 এ অর্ডার completed আপডেট (পূর্ণ প্রুফসহ: Play Email + Play Games Profile Name + Level)
+                const accLevel = (acc.profile && acc.profile.level) || acc.level || 1;
+                const fullGamerProof = accName + (accLevel ? ` (LVL ${accLevel})` : '');
                 if (orderId) {
                     try {
                         await fetch(`${CF_API}/api/orders/update`, {
@@ -11502,11 +11504,12 @@
                             body: JSON.stringify({
                                 orderId: orderId,
                                 status: 'completed',
-                                accEmail: acc.email,
-                                isQid: true,
-                                loginMethod: 'qid',
-                                qid: acc.code || '',
-                                syncCode: acc.code || '',
+                                accEmail: acc.email || '',
+                                gamerName: fullGamerProof,
+                                isQid: !isOneTimeAcc,
+                                loginMethod: isOneTimeAcc ? 'one_time_google' : 'qid',
+                                qid: isOneTimeAcc ? 'ONE-TIME' : (acc.code || ''),
+                                syncCode: isOneTimeAcc ? '' : (acc.code || ''),
                                 timeElapsed: 1,
                                 retryCount: 1,
                                 adminMsg: successMsg
@@ -11520,21 +11523,25 @@
                     if (window._histItems && window._histItems[orderId]) {
                         window._histItems[orderId].status = 'completed';
                         window._histItems[orderId].adminMsg = successMsg;
-                        window._histItems[orderId].qid = acc.code || window._histItems[orderId].qid || '';
-                        window._histItems[orderId].syncCode = acc.code || window._histItems[orderId].syncCode || '';
+                        window._histItems[orderId].accEmail = acc.email || '';
+                        window._histItems[orderId].gamerName = fullGamerProof;
+                        window._histItems[orderId].qid = isOneTimeAcc ? 'ONE-TIME' : (acc.code || window._histItems[orderId].qid || '');
+                        window._histItems[orderId].syncCode = isOneTimeAcc ? '' : (acc.code || window._histItems[orderId].syncCode || '');
                     }
                     if (window._histItemsArr) {
                         const hItem = window._histItemsArr.find(x => x.id === orderId);
                         if (hItem) {
                             hItem.status = 'completed';
                             hItem.adminMsg = successMsg;
-                            hItem.qid = acc.code || hItem.qid || '';
-                            hItem.syncCode = acc.code || hItem.syncCode || '';
+                            hItem.accEmail = acc.email || '';
+                            hItem.gamerName = fullGamerProof;
+                            hItem.qid = isOneTimeAcc ? 'ONE-TIME' : (acc.code || hItem.qid || '');
+                            hItem.syncCode = isOneTimeAcc ? '' : (acc.code || hItem.syncCode || '');
                         }
                     }
                     if (typeof rebuildHist === 'function') rebuildHist();
 
-                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি ও হিস্ট্রি লগ (ডুপ্লিকেট এড়াতে already_completed হলে বাদ)
+                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি শুধুমাত্র কোয়েস্ট কমপ্লিট হলেই!
                     if (!isAlreadyCompletedResp && typeof window.addLoyaltyStarAndRecord === 'function') {
                         await window.addLoyaltyStarAndRecord(srv.title || curGame, isFreeTaskUsed ? 0 : taskCost, isFreeTaskUsed);
                     }
@@ -11542,11 +11549,13 @@
                     if (window.FB && window.FB.db) {
                         window.FB.setDoc(window.FB.doc(window.FB.db, 'orders', orderId), {
                             status: 'completed',
-                            accEmail: acc.email,
-                            isQid: true,
-                            loginMethod: 'qid',
-                            qid: acc.code || '',
-                            syncCode: acc.code || '',
+                            accEmail: acc.email || '',
+                            gamerName: fullGamerProof,
+                            playLevel: accLevel,
+                            isQid: !isOneTimeAcc,
+                            loginMethod: isOneTimeAcc ? 'one_time_google' : 'qid',
+                            qid: isOneTimeAcc ? 'ONE-TIME' : (acc.code || ''),
+                            syncCode: isOneTimeAcc ? '' : (acc.code || ''),
                             timeElapsed: 1,
                             retryCount: 1,
                             adminMsg: successMsg,
@@ -11554,10 +11563,11 @@
                         }, { merge: true }).catch(() => { });
                     }
 
-                    // Admin TG Notification (নতুন সফল আনলক হলে)
+                    // Admin TG Notification (পূর্ণ প্রুফসহ: অ্যাপ ইউজার ইমেইল + গুগল প্লে গেমস ইমেইল ও প্রোফাইল নাম)
                     if (!isAlreadyCompletedResp) {
-                        const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
-                        const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                        const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || window.currentUser || null;
+                        const uName = (window.ppfb && window.ppfb.customName) || (cu && (cu.displayName || cu.name)) || 'User';
+                        const uAppEmail = (cu && cu.email) || (window.ppfb && window.ppfb.user && window.ppfb.user.email) || 'N/A';
                         const wasFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
                         const taskCost = getTaskCoinCost();
                         const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
@@ -11574,14 +11584,17 @@
                             : `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>`;
 
                         const userTgForComplete = getConnectedTelegramDisplay(webUid);
+                        const qidOrMode = isOneTimeAcc ? 'One-Time Google Login' : (acc.code || '—');
                         const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
                             `🎮 <b>Game:</b> ${srv.title}\n` +
-                            `👤 <b>User:</b> ${uName} (<code>${acc.email}</code>)\n` +
+                            `👤 <b>App User:</b> ${uName} (<code>${uAppEmail}</code>)\n` +
                             `🆔 <b>UID:</b> <code>${webUid}</code>\n` +
-                            `✈️ <b>Telegram:</b> ${userTgForComplete}\n` +
-                            `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-                            `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
-                            `🎯 <b>Status:</b> Quest Unlocked\n\n` +
+                            `✈️ <b>Telegram:</b> ${userTgForComplete}\n\n` +
+                            `🛡️ <b>PLAY GAMES PROOF:</b>\n` +
+                            `▫️ <b>Play Email:</b> <code>${acc.email || '—'}</code>\n` +
+                            `▫️ <b>Play Profile:</b> <b>${fullGamerProof}</b>\n` +
+                            `▫️ <b>Login / QID:</b> <code>${qidOrMode}</code>\n` +
+                            `▫️ <b>Order ID:</b> <code>${orderId}</code>\n\n` +
                             `💰 <b>BALANCE AUDIT:</b>\n` +
                             `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
                             `${deductCostLine}\n` +

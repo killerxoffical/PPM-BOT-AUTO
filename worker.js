@@ -6113,25 +6113,88 @@ const REALISTIC_GAMER_TAGS = [
     "DragonSlayer", "BlazeRider", "TitanForce", "MysticMage", "GhostRider"
 ];
 
-// ডাইনামিক গেম লিস্ট ক্যাশ (অ্যাডমিনের নতুন গেম স্বয়ংক্রিয়ভাবে লগে যোগ হবে)
+// ডাইনামিক গেম লিস্ট ও ডাইনামিক কয়েন প্রাইস ক্যাশ (অ্যাডমিনের নতুন অফিসিয়াল গেম ও প্রাইস স্বয়ংক্রিয়ভাবে লগে যাবে — র‍্যান্ডম গেম বাদ)
 let dynamicGamesList = [...POPULAR_GAMES_LOG];
+let dynamicTaskCoinFee = 3;
 let lastGamesFetchTime = 0;
 
 async function refreshDynamicGames() {
+    // ১. অ্যাডমিন কনফিগ থেকে লাইভ টাস্ক কয়েন ফি আনা (দাম কমালে বা বাড়ালে সাথে সাথে লগে আপডেট হবে)
+    try {
+        if (publicCache && publicCache.config && publicCache.config.fee !== undefined) {
+            const fVal = Number(publicCache.config.fee);
+            if (!isNaN(fVal) && fVal > 0) dynamicTaskCoinFee = fVal;
+        } else {
+            const cSnap = await db.collection("config").doc("app").get();
+            if (cSnap.exists && cSnap.data() && cSnap.data().fee !== undefined) {
+                const fVal = Number(cSnap.data().fee);
+                if (!isNaN(fVal) && fVal > 0) dynamicTaskCoinFee = fVal;
+            }
+        }
+    } catch (e) { }
+
+    // ২. লাইভ পোর্টাল থেকে শুধুমাত্র Active OFFICIAL কোয়েস্ট গেমগুলো আনা (Random/Unofficial এবং Level-Up গেম বাদ!)
+    try {
+        let services = [];
+        try {
+            const res = await fetch(`https://pp-mod-auto-quest.onrender.com/api/portal/services?_t=${Date.now()}`);
+            if (res.ok) {
+                const d = await res.json();
+                if (d && d.ok && Array.isArray(d.services)) services = d.services;
+            }
+        } catch (e) { }
+
+        if (!services.length) {
+            try {
+                const cfRes = await fetch(`https://ppmod-api.tredarskvt.workers.dev/api/cloud/portal-services?_t=${Date.now()}`);
+                if (cfRes.ok) {
+                    const cfD = await cfRes.json();
+                    const obj = (cfD && cfD.data) ? cfD.data : cfD;
+                    if (obj && typeof obj === "object") {
+                        services = Object.entries(obj)
+                            .filter(([k, v]) => !String(k).startsWith("__") && v && typeof v === "object")
+                            .map(([, v]) => v);
+                    }
+                }
+            } catch (e) { }
+        }
+
+        if (services.length > 0) {
+            const officialList = [];
+            for (const s of services) {
+                if (!s || s.enabled === false) continue;
+                if (s.section === "level_up" || s.category === "level_up") continue;
+                // শুধুমাত্র অফিসিয়াল গেম নেওয়া হবে — র‍্যান্ডম/আনঅফিসিয়াল গেম বাদ!
+                if (s.is_official === false || Boolean(s.unofficial_note)) continue;
+                const rawTitle = (s.title || "").trim();
+                if (!rawTitle || rawTitle.toLowerCase() === "game") continue;
+                const cleanTitle = rawTitle.replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
+                if (cleanTitle) officialList.push(cleanTitle);
+            }
+            if (officialList.length > 0) {
+                dynamicGamesList = Array.from(new Set(officialList));
+                lastGamesFetchTime = Date.now();
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[refreshDynamicGames portal error]:", e.message);
+    }
+
+    // ৩. ফলব্যাক: Firestore offers (যদি পোর্টাল API না পাওয়া যায়)
     try {
         const snap = await db.collection("offers").get();
         if (!snap.empty) {
             const list = [];
             snap.forEach(doc => {
                 const data = doc.data() || {};
-                if (data.active !== false && data.name) {
+                if (data.active !== false && data.name && data.is_official !== false && !data.unofficial_note) {
                     const cleanTitle = data.name.replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
                     list.push(cleanTitle);
                 }
             });
             if (list.length > 0) {
-                // অ্যাডমিনের ডাটাবেজ থেকে পাওয়া গেম + ডিফল্ট গেম মিলিয়ে ইউনিক লিস্ট
-                dynamicGamesList = Array.from(new Set([...list, ...POPULAR_GAMES_LOG]));
+                dynamicGamesList = Array.from(new Set(list));
                 lastGamesFetchTime = Date.now();
             }
         }
@@ -6140,7 +6203,7 @@ async function refreshDynamicGames() {
     }
 }
 
-// প্রসেস শুরুর সময় গেম লিস্ট রিফ্রেশ
+// প্রসেস শুরুর সময় গেম লিস্ট ও প্রাইস রিফ্রেশ
 refreshDynamicGames();
 
 function generateRealisticFakeLog() {
@@ -6151,7 +6214,11 @@ function generateRealisticFakeLog() {
     const maskedEmail = `${snip}+++@gmail.com`;
     const elapsed = Math.floor(Math.random() * 3) + 1;
     const ordId = "ORD-" + (Date.now() - Math.floor(Math.random() * 15000));
-    const coinsDeducted = Math.random() < 0.8 ? 2 : 3;
+    // অ্যাডমিন কনফিগের লাইভ কয়েন প্রাইস (দাম কমালে বা বাড়ালে সেটাই যাবে!)
+    const liveFee = (publicCache && publicCache.config && Number(publicCache.config.fee) > 0)
+        ? Number(publicCache.config.fee)
+        : (Number(dynamicTaskCoinFee) > 0 ? Number(dynamicTaskCoinFee) : 3);
+    const coinsDeducted = Math.round((liveFee + Number.EPSILON) * 100) / 100;
 
     // ২০% অর্ডারে প্রোফাইল নাম থাকে না ('---'), আর ৮০% অর্ডারে রিয়েল গেমার ট্যাগ মাস্ক হয়ে দেখায় (যেমন 'Sha+++', 'Ful+++')
     let gamerTag = "---";
@@ -6193,8 +6260,8 @@ function scheduleNextFakeOrderLog() {
     setTimeout(async () => {
         try {
             if (isAutoFakeLogEnabled) {
-                // প্রতি ১০ মিনিট অন্তর ডাটাবেজের নতুন গেম লিস্ট আপডেট
-                if (Date.now() - lastGamesFetchTime > 10 * 60 * 1000) {
+                // প্রতি ৫ মিনিট অন্তর লাইভ অফিসিয়াল গেম লিস্ট ও এডমিন কয়েন প্রাইস আপডেট
+                if (Date.now() - lastGamesFetchTime > 5 * 60 * 1000) {
                     await refreshDynamicGames();
                 }
                 const fakeLog = generateRealisticFakeLog();
