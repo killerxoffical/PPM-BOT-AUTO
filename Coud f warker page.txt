@@ -339,7 +339,7 @@ export default {
       // 1c. Fast Task Payment (Instant deduction directly on D1 with 2-decimal precision)
       if (path === "/api/wallet/pay-task" && request.method === "POST") {
         const body = await request.json();
-        const { uid, feeCoins, isFree } = body;
+        const { uid, feeCoins, isFree, email, name } = body;
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
         let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
@@ -374,7 +374,7 @@ export default {
             updatedAt = excluded.updatedAt
         `).bind(uid, newBal, newBal, newStars, Date.now()).run();
 
-        return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, loyaltyStars: newStars });
+        return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, previousBalance: curBal, deducted: fee, loyaltyStars: newStars });
       }
 
       // 1d. Credit Wallet Balance (Deposits, Refunds, Task Stars, Daily Claims)
