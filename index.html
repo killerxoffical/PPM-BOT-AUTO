@@ -2739,11 +2739,13 @@
         <header id="appHeader"
             class="app-header relative overflow-hidden flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-[1.4rem] border border-slate-200/80 shadow-sm"
             style="background:#ffffff url('hd.png') center center / 100% 100% no-repeat;">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-                <div class="logo-tile flex items-center justify-center overflow-hidden">
-                    <img id="mainBrandLogo" src="pp_quest_logo.png"
-                        class="w-8 h-8 object-contain" alt="PP QUEST" onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
-                </div>
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
+                    class="user-header-avatar w-10 h-10 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
+                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
+                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
+                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="User">
+                </button>
                 <div class="min-w-0 flex-1 leading-tight">
                     <h1 class="text-[17px] font-extrabold text-slate-900 tracking-tight truncate"><span
                             id="mainBrandTitle" class="brand-text">PP QUEST</span></h1>
@@ -2760,14 +2762,6 @@
                             class="header-bal-text text-[10px] leading-none font-black text-amber-900 whitespace-nowrap tracking-tight tabular-nums">0</span>
                     </button>
                 </div>
-
-
-                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
-                    class="user-header-avatar w-9 h-9 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
-                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
-                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
-                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="">
-                </button>
             </div>
         </header>
 
@@ -3793,10 +3787,10 @@
                     <div class="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-3.5 space-y-1 text-left">
                         <div class="flex items-center gap-2 text-indigo-800 font-extrabold text-xs">
                             <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0 text-indigo-600"></i>
-                            <span>সরাসরি গুগল অ্যাকাউন্ট কানেক্ট:</span>
+                            <span>সরাসরি গুগল লগইন (One-Time Quest):</span>
                         </div>
                         <p class="text-[11px] text-indigo-950 font-semibold leading-relaxed">
-                            👉 কোনো ইমেইল বা পাসওয়ার্ড টাইপ করতে হবে না! নিচের বাটনে চাপ দিয়ে সরাসরি গুগল অ্যাকাউন্ট কানেক্ট করুন এবং ১-ক্লিকে ইনস্ট্যান্ট কোয়েস্ট আনলক করুন।
+                            👉 নিচের বাটনে চাপ দিয়ে সরাসরি Google-এ লগইন করে ইনস্ট্যান্ট কোয়েস্ট আনলক করুন। এটি সম্পূর্ণ <b>ওয়ান-টাইম</b> — আপনার কোনো অ্যাকাউন্ট বা টোকেন ক্লাউডে সেভ হবে না।
                         </p>
                     </div>
 
@@ -3813,10 +3807,10 @@
                                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
                                     </svg>
                                 </div>
-                                <span class="text-xs tracking-wide">গুগল অ্যাকাউন্ট কানেক্ট করুন (One-Tap Connect)</span>
+                                <span class="text-xs tracking-wide">Google লগইন করুন (One-Time Unlock)</span>
                             </button>
                             <p class="text-[11px] text-slate-500 font-semibold text-center flex items-center justify-center gap-1.5">
-                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> কোনো ইমেইল বা পাসওয়ার্ড লিখতে হবে না, স্বয়ংক্রিয়ভাবে কানেক্ট হবে।
+                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i> ওয়ান-টাইম সেশন — ক্লাউডে সেভ হবে না, কোয়েস্ট শেষে মুছে যাবে।
                             </p>
                         </div>
 
@@ -10066,13 +10060,26 @@
         };
 
         window.startOneTapGoogleConnect = function() {
-            if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleLogin === 'function') {
+            if (window.AndroidBridge && typeof window.AndroidBridge.startOneTimeQuestLogin === 'function') {
+                const loader = document.getElementById('oneTapConnectLoading');
+                if (loader) loader.classList.remove('hidden');
+                toast('Google Login ওপেন হচ্ছে... লগইন করুন (ক্লাউডে সেভ হবে না)');
+                window.AndroidBridge.startOneTimeQuestLogin();
+            } else if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleLogin === 'function') {
                 const loader = document.getElementById('oneTapConnectLoading');
                 if (loader) loader.classList.remove('hidden');
                 toast('Google Login ওপেন হচ্ছে... অনুগ্রহ করে আপনার অ্যাকাউন্টটি দিয়ে লগইন করুন');
-                window.AndroidBridge.startGoogleLogin('AUTO');
+                window.AndroidBridge.startGoogleLogin('ONE_TIME');
             } else {
-                toast('দয়া করে PP Quest মোবাইল অ্যাপ ব্যবহার করে অ্যাকাউন্ট কানেক্ট করুন!');
+                toast('দয়া করে PP Quest মোবাইল অ্যাপ ব্যবহার করে গুগল লগইন করুন!');
+            }
+        };
+
+        window.onAccountSyncError = function(msg) {
+            const loader = document.getElementById('oneTapConnectLoading');
+            if (loader) loader.classList.add('hidden');
+            if (msg && msg !== 'CANCELLED') {
+                toast('লগইন ব্যর্থ হয়েছে: ' + msg);
             }
         };
 
@@ -10083,11 +10090,13 @@
             const confirmBtn = document.getElementById('btnConfirmOneTapUnlock');
             const questBox = document.getElementById('oneTapQuestBox');
             const connectSection = document.getElementById('oneTapConnectSection');
+            const loader = document.getElementById('oneTapConnectLoading');
+            if (loader) loader.classList.add('hidden');
             if (profileBox) profileBox.classList.add('hidden');
             if (confirmBtn) confirmBtn.style.display = 'none';
             if (questBox) questBox.classList.add('hidden');
             if (connectSection) connectSection.classList.remove('hidden');
-            toast('অ্যাকাউন্ট ডিসকানেক্ট করা হয়েছে');
+            toast('ওয়ান-টাইম সেশন ক্লিয়ার করা হয়েছে');
             if (window.lucide) lucide.createIcons();
         };
 
@@ -10098,16 +10107,28 @@
                 const loader = document.getElementById('oneTapConnectLoading');
                 if (loader) loader.classList.add('hidden');
 
-                const code = data.code || data.sync_code || data.qid || '';
+                const isOneTime = Boolean(data.one_time || !data.code);
+                const code = isOneTime ? '' : (data.code || data.sync_code || data.qid || '');
                 const email = data.email || '';
+                const rawToken = data.master_token || data.token || '';
+                const masterToken = (rawToken && rawToken !== 'PROTECTED_SYNC_ACTIVE') ? rawToken : '';
+                const androidId = data.android_id || '46e14d2451d85c3f';
                 const gamerName = data.gamer_name || data.gamerName || data.name || (email ? email.split('@')[0] : 'Gamer');
                 const avatar = data.avatar_url || data.avatar || 'https://play-lh.googleusercontent.com/F2GQg7COWTsvO9LS3lhlcsKQOdoG2m7uUruEHxzhuPlZ7AxAwPncHfk0kkNfq_8A4QM3=w512-h512';
                 const level = data.level || (data.profile && data.profile.level) || 1;
 
+                if (!masterToken && !code) {
+                    toast('টোকেন সংগ্রহ করা যায়নি, অনুগ্রহ করে পুনরায় গুগল লগইন করুন।');
+                    return;
+                }
+
+                // ওয়ান-টাইম সেশন: শুধু মেমোরিতে থাকবে, কখনো localStorage বা Cloud-এ সেভ হবে না
                 window._serverConnectedAccount = {
-                    ...data,
+                    one_time: isOneTime,
                     code: code,
                     email: email,
+                    master_token: masterToken,
+                    android_id: androidId,
                     gamerName: gamerName,
                     avatar: avatar,
                     level: level,
@@ -10126,12 +10147,17 @@
                 const avatarEl = document.getElementById('oneTapAvatar');
                 const levelEl = document.getElementById('oneTapLevelBadge');
                 const qidSpan = document.getElementById('oneTapQidSpan');
+                const qidText = document.getElementById('oneTapQidText');
 
                 if (nameEl) nameEl.textContent = gamerName;
                 if (emailEl) emailEl.textContent = email;
                 if (avatarEl) avatarEl.src = avatar;
                 if (levelEl) levelEl.textContent = 'LVL ' + level;
-                if (qidSpan) qidSpan.textContent = code || 'LIVE_SYNC';
+                if (isOneTime) {
+                    if (qidText) qidText.innerHTML = 'Session: <span id="oneTapQidSpan" class="text-emerald-300">One-Time (Not Saved to Cloud)</span>';
+                } else if (qidSpan) {
+                    qidSpan.textContent = code || 'LIVE_SYNC';
+                }
 
                 if (connectSection) connectSection.classList.add('hidden');
                 if (profileBox) profileBox.classList.remove('hidden');
@@ -10143,7 +10169,7 @@
                     confirmBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm Unlock</span>';
                 }
 
-                if (document.getElementById('serverSyncCodeInput') && code) {
+                if (!isOneTime && document.getElementById('serverSyncCodeInput') && code) {
                     document.getElementById('serverSyncCodeInput').value = code;
                 }
 
@@ -10152,7 +10178,7 @@
                     await checkGameInPublicPortal(curGame);
                 }
 
-                toast('✅ গুগল অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে! এবার Confirm চাপুন।');
+                toast(isOneTime ? '✅ ওয়ান-টাইম গুগল টোকেন রেডি! Confirm Unlock চাপুন।' : '✅ গুগল অ্যাকাউন্ট সফলভাবে কানেক্ট হয়েছে! এবার Confirm চাপুন।');
                 if (window.lucide) lucide.createIcons();
             } catch (err) {
                 console.error('onAccountSyncComplete error:', err);
@@ -10708,17 +10734,19 @@ async function executeServerQuestUnlock() {
                     : ((window.ppfb && window.ppfb.balance !== undefined) ? Math.round((Number(window.ppfb.balance) + Number.EPSILON) * 100) / 100 : '—');
 
                 const isFreeTaskUsed = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
+                const isOneTimeAcc = Boolean(acc.one_time || !acc.code);
                 const payload = {
                     game_id: srv.game_id || srv.id,
-                    sync_code: acc.code || '',
+                    sync_code: isOneTimeAcc ? '' : (acc.code || ''),
                     email: acc.email || '',
                     master_token: acc.master_token || '',
                     android_id: acc.android_id || '',
+                    one_time: isOneTimeAcc,
                     portal_service: true,
                     user_uid: webUid,
                     order_id: orderId || '',
                     account_name: accName,
-                    source: 'Web App',
+                    source: isOneTimeAcc ? 'PP Quest One-Time' : 'Web App',
                     coins_cost: isFreeTaskUsed ? 0 : taskCost,
                     balance_before: prevBal,
                     balance_after: curBal
@@ -10763,13 +10791,15 @@ async function executeServerQuestUnlock() {
                                 verifiedCompleted = true;
                             }
                         }
-                        if (!verifiedCompleted && (acc.code || acc.email)) {
+                        if (!verifiedCompleted && (acc.code || acc.master_token || acc.email)) {
                             const chkProg = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/game-progress', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    qid: acc.code || '',
-                                    sync_code: acc.code || '',
+                                    qid: isOneTimeAcc ? '' : (acc.code || ''),
+                                    sync_code: isOneTimeAcc ? '' : (acc.code || ''),
+                                    master_token: acc.master_token || '',
+                                    android_id: acc.android_id || '',
                                     game_id: srv.game_id || srv.id || srv.title || curGame,
                                     email: acc.email || ''
                                 })
@@ -11005,8 +11035,9 @@ async function executeServerQuestUnlock() {
                     trx: orderId || 'PORTAL-SYNC',
                     status: 'completed',
                     isQid: true,
-                    qid: acc.code || '',
-                    syncCode: acc.code || '',
+                    isOneTime: isOneTimeAcc,
+                    qid: isOneTimeAcc ? '' : (acc.code || ''),
+                    syncCode: isOneTimeAcc ? '' : (acc.code || ''),
                     retryCount: 1,
                     timeElapsed: 1
                 });
@@ -11025,6 +11056,16 @@ async function executeServerQuestUnlock() {
                 window._serverConnectedAccount = null;
                 window._matchedPortalService = null;
                 if (typeof disconnectServerCode === 'function') disconnectServerCode();
+                if (isOneTimeAcc) {
+                    const pBox = document.getElementById('oneTapProfileBox');
+                    const cBtn = document.getElementById('btnConfirmOneTapUnlock');
+                    const qBox = document.getElementById('oneTapQuestBox');
+                    const cSec = document.getElementById('oneTapConnectSection');
+                    if (pBox) pBox.classList.add('hidden');
+                    if (cBtn) cBtn.style.display = 'none';
+                    if (qBox) qBox.classList.add('hidden');
+                    if (cSec) cSec.classList.remove('hidden');
+                }
             } catch (err) {
                 console.error('Server unlock error:', err);
                 toast(`আনলক প্রক্রিয়ায় ত্রুটি ঘটেছে: ${err.message}`);
@@ -11941,8 +11982,8 @@ async function executeServerQuestUnlock() {
             // QID Row Handling & Metadata for Live Check Modal
             const qRow = document.getElementById('receiptQidRow');
             const qVal = document.getElementById('receiptQidVal');
-            let qidForReceipt = o.qid || o.syncCode || o.serverCode || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
-            if (!qidForReceipt) {
+            let qidForReceipt = o.isOneTime ? '' : (o.qid || o.syncCode || o.serverCode || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '');
+            if (!qidForReceipt && !o.isOneTime) {
                 try { qidForReceipt = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
             }
             if (qRow && qVal) {
@@ -11955,7 +11996,7 @@ async function executeServerQuestUnlock() {
             }
             const receiptCheckBtn = document.getElementById('btnLiveCheckReceipt');
             if (receiptCheckBtn) {
-                receiptCheckBtn.style.display = isDep ? 'none' : '';
+                receiptCheckBtn.style.display = (isDep || o.isOneTime) ? 'none' : '';
             }
             window._lastReceiptMeta = {
                 orderId: o.trx || '',
