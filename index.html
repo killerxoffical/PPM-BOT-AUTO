@@ -192,9 +192,9 @@
             overflow-x: hidden;
         }
 
-        /* Desktop Mockup Stage - Crisp Executive Light Card */
-        @media (min-width: 520px) {
-            .app-body {
+        /* Desktop Mockup Stage - Only for large standalone PC monitors when NOT inside Android App */
+        @media (min-width: 1280px) {
+            body:not(.is-app-env) .app-body {
                 align-items: center;
                 justify-content: center;
                 padding: 20px 0;
@@ -206,9 +206,10 @@
                     linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
             }
 
-            .app-shell {
-                height: min(900px, calc(100dvh - 36px)) !important;
-                max-height: 900px !important;
+            body:not(.is-app-env) .app-shell {
+                max-width: 30rem !important;
+                height: min(920px, calc(100dvh - 36px)) !important;
+                max-height: 920px !important;
                 border-radius: 36px !important;
                 border: 1px solid rgba(226, 232, 240, 0.9) !important;
                 background: #ffffff !important;
@@ -220,36 +221,41 @@
                 position: relative;
             }
 
-            .app-shell::before {
+            body:not(.is-app-env) .app-shell::before {
                 display: none !important;
             }
         }
 
-        /* Mobile Viewport Immersion: Supports all mobile screens (320px to 519px) */
-        @media (max-width: 519px) {
-            .app-body {
-                background: #f8fafc !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
+        /* Fullscreen Viewport Immersion: Supports all Android Emulators (BlueStacks, LDPlayer, Nox), Foldables & Mobile Screens */
+        .app-body {
+            background: #f8fafc !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+        }
 
-            .app-shell {
-                min-height: 100vh !important;
-                min-height: 100dvh !important;
-                height: 100vh !important;
-                height: 100dvh !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                background: #f8fafc !important;
-                padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
-                padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
-                padding-left: max(0.6rem, env(safe-area-inset-left, 0px)) !important;
-                padding-right: max(0.6rem, env(safe-area-inset-right, 0px)) !important;
-                border-radius: 0 !important;
-                border: none !important;
-                box-shadow: none !important;
-                gap: 0.5rem !important;
-            }
+        .app-shell {
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background: #f8fafc !important;
+            padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: max(0.6rem, env(safe-area-inset-left, 0px)) !important;
+            padding-right: max(0.6rem, env(safe-area-inset-right, 0px)) !important;
+            border-radius: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            gap: 0.5rem !important;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            margin: 0 !important;
         }
 
         /* Extra small devices (iPhone SE, budget Android 320px - 375px) */
@@ -298,7 +304,7 @@
 
         .app-shell {
             width: 100%;
-            max-width: 28rem;
+            max-width: 100%;
             margin-inline: auto;
             display: flex;
             flex-direction: column;
@@ -2767,9 +2773,9 @@
 
         <!-- SCREEN 0: LOGIN (Google only) -->
         <main id="screenLogin" class="screen fit-home hidden">
-            <div class="flex-1 flex items-center justify-center py-4">
+            <div class="flex-1 flex items-center justify-center py-4 px-2">
                 <div
-                    class="w-full bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 text-center space-y-3 max-h-full overflow-y-auto">
+                    class="w-full max-w-sm sm:max-w-md mx-auto bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 text-center space-y-3 max-h-full overflow-y-auto">
                     <div
                         class="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100 border border-amber-200 shadow-md overflow-hidden">
                         <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
@@ -9987,6 +9993,16 @@
                 window.ppfb.login();
             } else {
                 toast('Loading, please wait...');
+            }
+        };
+
+        window.showEmulatorAccountPrompt = function() {
+            if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleLoginWebSso === 'function') {
+                window.AndroidBridge.startGoogleLoginWebSso();
+            } else if (window.AndroidBridge && typeof window.AndroidBridge.startGoogleLogin === 'function') {
+                window.AndroidBridge.startGoogleLogin('GLOBAL');
+            } else {
+                toast('গুগল অ্যাকাউন্ট দিয়ে লগইন করুন অথবা ইমেইল দিয়ে লগইন করুন');
             }
         };
 
