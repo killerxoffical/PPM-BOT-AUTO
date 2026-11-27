@@ -7693,16 +7693,33 @@
         }
         window.maskProfileName = maskProfileName;
 
+        function isOrderCompleted(orderId) {
+            if (!orderId) return false;
+            if (window._completedOrders && window._completedOrders.has(orderId)) return true;
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
+                if (Array.isArray(saved) && saved.includes(orderId)) return true;
+            } catch (e) { }
+            const it = (window._histItems && window._histItems[orderId]) || null;
+            if (it && it.status === 'completed') return true;
+            return false;
+        }
+        window.isOrderCompleted = isOrderCompleted;
+
         function markOrderAsRefunded(orderId) {
             if (!orderId) return;
+            if (isOrderCompleted(orderId)) {
+                console.warn('[markOrderAsRefunded] Blocked marking completed order as refunded:', orderId);
+                return;
+            }
             window._refundedOrdersMap = window._refundedOrdersMap || {};
             window._refundedOrdersMap[orderId] = true;
-            if (window._histItems && window._histItems[orderId]) {
+            if (window._histItems && window._histItems[orderId] && window._histItems[orderId].status !== 'completed') {
                 window._histItems[orderId].status = 'refunded';
             }
             if (window._histItemsArr) {
                 const item = window._histItemsArr.find(x => x.id === orderId);
-                if (item) item.status = 'refunded';
+                if (item && item.status !== 'completed') item.status = 'refunded';
             }
             if (typeof rebuildHist === 'function') rebuildHist();
         }
@@ -7710,9 +7727,10 @@
 
         function isOrderRefunded(orderId) {
             if (!orderId) return false;
+            if (isOrderCompleted(orderId)) return false;
             if (window._refundedOrdersMap && window._refundedOrdersMap[orderId]) return true;
             const it = (window._histItems && window._histItems[orderId]) || null;
-            if (it && (it.status === 'refunded' || it.status === 'completed')) return true;
+            if (it && it.status === 'refunded') return true;
             return false;
         }
         window.isOrderRefunded = isOrderRefunded;
@@ -10152,9 +10170,9 @@
             const curUid = (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || '';
             const refundCoins = getTaskCoinCost();
 
-            // কড়া সুরক্ষা: অর্ডার আগে রিফান্ড হয়ে থাকলে সাথে সাথে ব্লক
-            if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
-                console.warn('Order already refunded:', orderId);
+            // কড়া সুরক্ষা: অর্ডার আগে রিফান্ড বা কমপ্লিট হয়ে থাকলে সাথে সাথে ব্লক
+            if (orderId && ((typeof isOrderCompleted === 'function' && isOrderCompleted(orderId)) || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)))) {
+                console.warn('Order already completed or refunded:', orderId);
                 return;
             }
             const curHist = (orderId && window._histItems && window._histItems[orderId]) || null;
@@ -10357,6 +10375,11 @@
         async function executeSlideRefund() {
             if (window._isSliderCompleted) return;
             const orderId = window._currentOrderId;
+            if (orderId && typeof isOrderCompleted === 'function' && isOrderCompleted(orderId)) {
+                toast('✅ এই অর্ডারটি ইতিমধ্যে সফলভাবে সম্পন্ন হয়েছে!');
+                closeCancelRefundModal();
+                return;
+            }
             if (orderId && typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)) {
                 toast('⚠️ এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!');
                 closeCancelRefundModal();
@@ -10453,7 +10476,10 @@
                 console.log('[AutoRefund] Skipped refund because order was already completed:', orderId);
                 return;
             }
-            if (!orderId || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId))) return;
+            if (!orderId || (typeof isOrderCompleted === 'function' && isOrderCompleted(orderId)) || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId))) {
+                console.log('[AutoRefund] Skipped refund because order is already completed or refunded:', orderId);
+                return;
+            }
             if (typeof markOrderAsRefunded === 'function') markOrderAsRefunded(orderId);
 
             const isFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
@@ -10700,8 +10726,9 @@ async function executeServerQuestUnlock() {
 
                 let res = null;
                 let data = null;
+                let isNetworkOrTimeout = false;
                 const abortCtrl = new AbortController();
-                const fetchTimeout = setTimeout(() => abortCtrl.abort(), 25000);
+                const fetchTimeout = setTimeout(() => abortCtrl.abort(), 45000);
                 try {
                     res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
                         method: 'POST',
@@ -10710,28 +10737,67 @@ async function executeServerQuestUnlock() {
                         signal: abortCtrl.signal
                     });
                     clearTimeout(fetchTimeout);
-                    data = await res.json();
+                    if (res.status >= 500) {
+                        isNetworkOrTimeout = true;
+                    }
+                    try {
+                        data = await res.json();
+                    } catch (parseErr) {
+                        isNetworkOrTimeout = true;
+                        data = { ok: false, error: 'সার্ভার রেসপন্স যাচাই করা যায়নি।' };
+                    }
                 } catch (fetchErr) {
                     clearTimeout(fetchTimeout);
+                    isNetworkOrTimeout = true;
                     const isAbort = fetchErr.name === 'AbortError';
-                    data = { ok: false, error: isAbort ? 'সার্ভার রেসপন্স টাইমআউট (২৫ সেকেন্ড)। দয়া করে পুনরায় চেষ্টা করুন।' : fetchErr.message };
+                    data = { ok: false, error: isAbort ? 'সার্ভার রেসপন্স টাইমআউট হয়েছে। স্ট্যাটাস যাচাই করা হচ্ছে...' : fetchErr.message };
+                }
+
+                // হেল্পার: নেটওয়ার্ক/টাইমআউট হলেও রিফান্ড করার আগে লাইভ স্ট্যাটাস যাচাই করা যাতে আনলক হয়ে থাকলে কখনোই রিফান্ড না হয়
+                if ((!data || !data.ok) && isNetworkOrTimeout) {
+                    try {
+                        let verifiedCompleted = false;
+                        if (orderId) {
+                            const chkOrd = await fetch(`${CF_API}/api/orders/status?id=${encodeURIComponent(orderId)}`).then(r => r.json()).catch(() => null);
+                            if (chkOrd && chkOrd.ok && chkOrd.order && chkOrd.order.status === 'completed') {
+                                verifiedCompleted = true;
+                            }
+                        }
+                        if (!verifiedCompleted && (acc.code || acc.email)) {
+                            const chkProg = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/game-progress', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    qid: acc.code || '',
+                                    sync_code: acc.code || '',
+                                    game_id: srv.game_id || srv.id || srv.title || curGame,
+                                    email: acc.email || ''
+                                })
+                            }).then(r => r.json()).catch(() => null);
+                            if (chkProg && chkProg.ok && chkProg.service && chkProg.service.is_completed) {
+                                verifiedCompleted = true;
+                            }
+                        }
+                        if (verifiedCompleted) {
+                            data = { ok: true, status: 'COMPLETED', verified_after_timeout: true };
+                        }
+                    } catch (verErr) {
+                        console.warn('Post-timeout verification error:', verErr);
+                    }
+                }
+
+                const errMsgRaw = (data && data.error) ? data.error : (data && data.status === 'PARTIAL' ? 'সবগুলো কোয়েস্ট আনলক করা যায়নি (আংশিক সম্পন্ন)।' : 'Server error');
+                const isAlreadyCompletedResp = Boolean(
+                    (data && data.already_completed) ||
+                    (typeof errMsgRaw === 'string' && (errMsgRaw.includes('already been redeemed') || errMsgRaw.includes('already completed')))
+                );
+
+                if (isAlreadyCompletedResp) {
+                    data = { ok: true, status: 'COMPLETED', already_completed: true };
                 }
 
                 if (!data || !data.ok || data.status === 'PARTIAL') {
-                    const errMsg = (data && data.error) ? data.error : (data && data.status === 'PARTIAL' ? 'সবগুলো কোয়েস্ট আনলক করা যায়নি (আংশিক সম্পন্ন)।' : 'Server error');
-
-                    // যদি সার্ভার জানায় এই অর্ডারটি ইতিমধ্যে রিডিম ও সম্পন্ন হয়েছে, তবে কোনো রিফান্ড হবে না — সরাসরি সাকসেস স্ক্রিন দেখানো হবে
-                    if (typeof errMsg === 'string' && (errMsg.includes('already been redeemed') || errMsg.includes('already completed'))) {
-                        if (orderId) {
-                            if (!window._completedOrders) window._completedOrders = new Set();
-                            window._completedOrders.add(orderId);
-                        }
-                        window._isOrderExecuting = false;
-                        toast('🎉 অভিনন্দন! আপনার এই অর্ডারটি ইতিমধ্যে সফলভাবে সম্পন্ন হয়েছে।');
-                        showScreen('screenSuccess');
-                        return;
-                    }
-
+                    const errMsg = errMsgRaw;
                     let cleanErrMsg = typeof errMsg === 'string' ? errMsg : 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি।';
                     if (cleanErrMsg.includes('fetch') || cleanErrMsg.includes('http') || cleanErrMsg.includes('{') || cleanErrMsg.includes('Server error')) {
                         cleanErrMsg = 'গুগল প্লে গেমসে কোয়েস্ট আনলক করা যায়নি। দয়া করে PPM Server অ্যাপ থেকে নতুন কোড দিন।';
@@ -10742,6 +10808,12 @@ async function executeServerQuestUnlock() {
                         btn.style.pointerEvents = 'auto';
                         btn.style.opacity = '1';
                         btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm</span>';
+                    }
+                    if (btnOneTap) {
+                        btnOneTap.disabled = false;
+                        btnOneTap.style.pointerEvents = 'auto';
+                        btnOneTap.style.opacity = '1';
+                        btnOneTap.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> <span>Confirm Unlock</span>';
                     }
 
                     // ১ বারই সার্ভারে কল হবে — ব্যর্থ হলে সাথে সাথে নির্দিষ্ট কারণ দেখিয়ে কয়েন অটো-রিফান্ড!
@@ -10773,8 +10845,28 @@ async function executeServerQuestUnlock() {
                     return;
                 }
 
+                // সক্রিয় যেকোনো পুরনো অর্ডার পোলার বন্ধ করা যাতে সাকসেস প্যানেল ওভাররাইট না হয়
+                if (window.liveSecTick) { clearInterval(window.liveSecTick); window.liveSecTick = null; }
+                if (typeof cfOrderPollTimer !== 'undefined' && cfOrderPollTimer) { clearInterval(cfOrderPollTimer); cfOrderPollTimer = null; }
+                if (typeof liveOrderUnsub !== 'undefined' && liveOrderUnsub) { try { liveOrderUnsub(); } catch (e) {} liveOrderUnsub = null; }
+
+                // অর্ডার প্রথমেই কমপ্লিটেড মার্ক করা (রিফান্ড ম্যাপ থেকেও মুছে ফেলা)
+                if (!window._completedOrders) window._completedOrders = new Set();
+                if (orderId) {
+                    window._completedOrders.add(orderId);
+                    if (window._refundedOrdersMap && window._refundedOrdersMap[orderId]) {
+                        delete window._refundedOrdersMap[orderId];
+                    }
+                    try {
+                        const saved = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
+                        if (!saved.includes(orderId)) saved.push(orderId);
+                        sessionStorage.setItem('ppm_completed_orders', JSON.stringify(saved));
+                    } catch (e) {}
+                }
+
                 window._lastUnlockAttempts = 1;
-                const successMsg = `🎉 অভিনন্দন! আপনার "${srv.title}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!`;
+                const finalGameTitle = srv.title || curGame || 'Game';
+                const successMsg = `🎉 অভিনন্দন! আপনার "${finalGameTitle}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। আপনার অ্যাকাউন্টটি Google Play Store-এ গিয়ে চেক করুন এবং পয়েন্ট ক্লেইম করে নিন!`;
 
                 // Cloudflare D1 এ অর্ডার completed আপডেট
                 if (orderId) {
@@ -10788,6 +10880,7 @@ async function executeServerQuestUnlock() {
                                 accEmail: acc.email,
                                 isQid: true,
                                 loginMethod: 'qid',
+                                qid: acc.code || '',
                                 syncCode: acc.code || '',
                                 timeElapsed: 1,
                                 retryCount: 1,
@@ -10798,8 +10891,26 @@ async function executeServerQuestUnlock() {
                         console.warn('CF order update error:', cfErr);
                     }
 
-                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি ও হিস্ট্রি লগ
-                    if (typeof window.addLoyaltyStarAndRecord === 'function') {
+                    // লোকাল হিস্ট্রি স্টেট তাৎক্ষণিক 'completed' আপডেট করা যাতে লেনদেন দেখুন থেকে ক্লিক করলেও সঠিক Success দেখায়
+                    if (window._histItems && window._histItems[orderId]) {
+                        window._histItems[orderId].status = 'completed';
+                        window._histItems[orderId].adminMsg = successMsg;
+                        window._histItems[orderId].qid = acc.code || window._histItems[orderId].qid || '';
+                        window._histItems[orderId].syncCode = acc.code || window._histItems[orderId].syncCode || '';
+                    }
+                    if (window._histItemsArr) {
+                        const hItem = window._histItemsArr.find(x => x.id === orderId);
+                        if (hItem) {
+                            hItem.status = 'completed';
+                            hItem.adminMsg = successMsg;
+                            hItem.qid = acc.code || hItem.qid || '';
+                            hItem.syncCode = acc.code || hItem.syncCode || '';
+                        }
+                    }
+                    if (typeof rebuildHist === 'function') rebuildHist();
+
+                    // ⭐ Loyalty Star +1 ও Leaderboard Monthly Point +1.0 বৃদ্ধি ও হিস্ট্রি লগ (ডুপ্লিকেট এড়াতে already_completed হলে বাদ)
+                    if (!isAlreadyCompletedResp && typeof window.addLoyaltyStarAndRecord === 'function') {
                         await window.addLoyaltyStarAndRecord(srv.title || curGame, isFreeTaskUsed ? 0 : taskCost, isFreeTaskUsed);
                     }
 
@@ -10809,6 +10920,7 @@ async function executeServerQuestUnlock() {
                             accEmail: acc.email,
                             isQid: true,
                             loginMethod: 'qid',
+                            qid: acc.code || '',
                             syncCode: acc.code || '',
                             timeElapsed: 1,
                             retryCount: 1,
@@ -10817,71 +10929,79 @@ async function executeServerQuestUnlock() {
                         }, { merge: true }).catch(() => {});
                     }
 
-                    // Admin TG Notification
-                    const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
-                    const uName = (cu && (cu.displayName || cu.name)) || 'User';
-                    const wasFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
-                    const taskCost = getTaskCoinCost();
-                    const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
-                        ? Math.round((Number(window._currentOrderMeta.beforeBalance) + Number.EPSILON) * 100) / 100
-                        : (window.ppfb ? Math.round((Number(window.ppfb.balance || 0) + (wasFreeOrder ? 0 : taskCost) + Number.EPSILON) * 100) / 100 : '—');
-                    const curBal = (data && data.current_balance !== undefined)
-                        ? Math.round((Number(data.current_balance) + Number.EPSILON) * 100) / 100
-                        : (window._currentOrderMeta && window._currentOrderMeta.afterBalance !== undefined
-                            ? Math.round((Number(window._currentOrderMeta.afterBalance) + Number.EPSILON) * 100) / 100
-                            : ((window.ppfb && window.ppfb.balance !== undefined) ? Math.round((Number(window.ppfb.balance) + Number.EPSILON) * 100) / 100 : '—'));
+                    // Admin TG Notification (নতুন সফল আনলক হলে)
+                    if (!isAlreadyCompletedResp) {
+                        const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || null;
+                        const uName = (cu && (cu.displayName || cu.name)) || 'User';
+                        const wasFreeOrder = Boolean(window._currentOrderMeta && window._currentOrderMeta.isFree);
+                        const taskCost = getTaskCoinCost();
+                        const prevBal = (window._currentOrderMeta && window._currentOrderMeta.beforeBalance !== undefined)
+                            ? Math.round((Number(window._currentOrderMeta.beforeBalance) + Number.EPSILON) * 100) / 100
+                            : (window.ppfb ? Math.round((Number(window.ppfb.balance || 0) + (wasFreeOrder ? 0 : taskCost) + Number.EPSILON) * 100) / 100 : '—');
+                        const curBal = (data && data.current_balance !== undefined)
+                            ? Math.round((Number(data.current_balance) + Number.EPSILON) * 100) / 100
+                            : (window._currentOrderMeta && window._currentOrderMeta.afterBalance !== undefined
+                                ? Math.round((Number(window._currentOrderMeta.afterBalance) + Number.EPSILON) * 100) / 100
+                                : ((window.ppfb && window.ppfb.balance !== undefined) ? Math.round((Number(window.ppfb.balance) + Number.EPSILON) * 100) / 100 : '—'));
 
-                    const deductCostLine = wasFreeOrder
-                        ? `▫️ টাস্ক ফি: <b>⭐ ১০ম ফ্রি টাস্ক (০ Coins)</b>`
-                        : `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>`;
+                        const deductCostLine = wasFreeOrder
+                            ? `▫️ টাস্ক ফি: <b>⭐ ১০ম ফ্রি টাস্ক (০ Coins)</b>`
+                            : `▫️ কাটা হয়েছে: <b>-${taskCost} Coins</b>`;
 
-                    const userTgForComplete = getConnectedTelegramDisplay(webUid);
-                    const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
-                        `🎮 <b>Game:</b> ${srv.title}\n` +
-                        `👤 <b>User:</b> ${uName} (<code>${acc.email}</code>)\n` +
-                        `🆔 <b>UID:</b> <code>${webUid}</code>\n` +
-                        `✈️ <b>Telegram:</b> ${userTgForComplete}\n` +
-                        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-                        `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
-                        `🎯 <b>Status:</b> Quest Unlocked\n\n` +
-                        `💰 <b>BALANCE AUDIT:</b>\n` +
-                        `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
-                        `${deductCostLine}\n` +
-                        `▫️ বর্তমান ব্যালেন্স: <b>${curBal} Coins</b>\n\n` +
-                        `✅ <b>Status:</b> COMPLETED`;
-                    if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
-                        sendTelegramMsg(ADMIN_TG_ID, adminNotifyMsg);
-                    }
-
-                    // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড কমপ্লিট লগ পাঠানো
-                    if (typeof sendTelegramMsg === 'function') {
-                        const elapsedSec = 1;
-                        const rawGamer = (data && data.account_name) || accName || '';
-                        const gamerDisplay = maskProfileName(rawGamer);
-                        const cleanGameName = (srv.title || curGame || 'Task').replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
-                        const pubChannelMsg =
-                            `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
-                            `🎮 <b>Game:</b> ${cleanGameName}\n` +
-                            `👤 <b>Play Gamer:</b> ${gamerDisplay}\n` +
-                            `📧 <b>Email:</b> <code>${maskEmail(acc.email)}</code>\n` +
-                            `✈️ <b>Telegram:</b> ${userTgForComplete !== 'Not Connected' ? maskProfileName(userTgForComplete) : 'None'}\n` +
-                            `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
-                            `🪙 <b>Coins Deducted:</b> ${taskCost} Coins\n` +
+                        const userTgForComplete = getConnectedTelegramDisplay(webUid);
+                        const adminNotifyMsg = `⚡ <b>INSTANT PORTAL QUEST UNLOCK!</b>\n\n` +
+                            `🎮 <b>Game:</b> ${srv.title}\n` +
+                            `👤 <b>User:</b> ${uName} (<code>${acc.email}</code>)\n` +
+                            `🆔 <b>UID:</b> <code>${webUid}</code>\n` +
+                            `✈️ <b>Telegram:</b> ${userTgForComplete}\n` +
                             `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                            `🔑 <b>QID:</b> <code>${acc.code || '—'}</code>\n` +
+                            `🎯 <b>Status:</b> Quest Unlocked\n\n` +
+                            `💰 <b>BALANCE AUDIT:</b>\n` +
+                            `▫️ টাস্কের আগের ব্যালেন্স: <b>${prevBal} Coins</b>\n` +
+                            `${deductCostLine}\n` +
+                            `▫️ বর্তমান ব্যালেন্স: <b>${curBal} Coins</b>\n\n` +
                             `✅ <b>Status:</b> COMPLETED`;
-                        sendTelegramMsg('@ppmododderlog', pubChannelMsg);
+                        if (typeof sendTelegramMsg === 'function' && typeof ADMIN_TG_ID !== 'undefined') {
+                            sendTelegramMsg(ADMIN_TG_ID, adminNotifyMsg);
+                        }
+
+                        // পাবলিক টেলিগ্রাম চ্যানেলে (@ppmododderlog) প্রাইভেসি মাস্কড কমপ্লিট লগ পাঠানো
+                        if (typeof sendTelegramMsg === 'function') {
+                            const elapsedSec = 1;
+                            const rawGamer = (data && data.account_name) || accName || '';
+                            const gamerDisplay = maskProfileName(rawGamer);
+                            const cleanGameName = (srv.title || curGame || 'Task').replace(/\s*\(\d+\)$/i, "").replace(/\s*\(All\)$/i, "").trim();
+                            const pubChannelMsg =
+                                `⚡ <b>QUEST COMPLETED!</b> 🎉\n\n` +
+                                `🎮 <b>Game:</b> ${cleanGameName}\n` +
+                                `👤 <b>Play Gamer:</b> ${gamerDisplay}\n` +
+                                `📧 <b>Email:</b> <code>${maskEmail(acc.email)}</code>\n` +
+                                `✈️ <b>Telegram:</b> ${userTgForComplete !== 'Not Connected' ? maskProfileName(userTgForComplete) : 'None'}\n` +
+                                `⏱️ <b>Time Taken:</b> ~${elapsedSec}s\n` +
+                                `🪙 <b>Coins Deducted:</b> ${taskCost} Coins\n` +
+                                `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+                                `✅ <b>Status:</b> COMPLETED`;
+                            sendTelegramMsg('@ppmododderlog', pubChannelMsg);
+                        }
                     }
                 }
 
-                // Fill receipt and transition to screenSuccess
+                window._lastCompletedOrder = {
+                    orderId: orderId || 'PORTAL-SYNC',
+                    qid: acc.code || '',
+                    game: finalGameTitle
+                };
+
+                // Fill receipt and transition cleanly to final Success panel
                 fillReceipt({
-                    title: 'Task Completed! 🎉',
-                    msg: successMsg,
+                    title: 'Success! Quest Unlocked 🎉',
+                    msg: 'অভিনন্দন! আপনার অ্যাকাউন্টের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে চেক করুন।',
                     adminMsg: successMsg,
-                    game: srv.title || curGame,
+                    game: finalGameTitle,
                     logo: window._payGameLogo || srv.icon_url,
                     method: 'PP Coins',
-                    amount: getTaskCoinCost() + ' Coins',
+                    amount: (isFreeTaskUsed ? 0 : getTaskCoinCost()) + ' Coins',
                     trx: orderId || 'PORTAL-SYNC',
                     status: 'completed',
                     isQid: true,
@@ -10900,16 +11020,6 @@ async function executeServerQuestUnlock() {
 
                 showScreen('screenSuccess');
 
-                // অর্ডার স্থায়ীভাবে কমপ্লিট হিসেবে মার্ক করা এবং স্টেট নাল করা যাতে রিইউজ বন্ধ হয়
-                if (!window._completedOrders) window._completedOrders = new Set();
-                if (orderId) {
-                    window._completedOrders.add(orderId);
-                    try {
-                        const saved = JSON.parse(sessionStorage.getItem('ppm_completed_orders') || '[]');
-                        if (!saved.includes(orderId)) saved.push(orderId);
-                        sessionStorage.setItem('ppm_completed_orders', JSON.stringify(saved));
-                    } catch (e) {}
-                }
                 window._currentOrderId = null;
                 window._currentOrderMeta = null;
                 window._serverConnectedAccount = null;
@@ -11389,14 +11499,15 @@ async function executeServerQuestUnlock() {
                     }
 
                     if (isCompleted) {
+                        const doneGame = ord.game || ord.title || 'গেম';
                         msgBox.innerHTML = `
                             <div class="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl text-left space-y-2 shadow-xs">
                                 <div class="flex items-center gap-2 text-emerald-800 pb-1.5 border-b border-emerald-200">
                                     <span class="text-lg">🎉</span>
-                                    <span class="text-xs font-black uppercase tracking-wider">টাস্ক সফলভাবে সম্পন্ন হয়েছে!</span>
+                                    <span class="text-xs font-black uppercase tracking-wider">কোয়েস্ট সফলভাবে আনলক হয়েছে!</span>
                                 </div>
                                 <p class="text-xs font-bold text-emerald-950 leading-relaxed">
-                                    অভিনন্দন! আপনার Google Play Store-এ কোয়েস্ট পয়েন্ট যুক্ত হয়ে গেছে। প্লে স্টোর চেক করে পয়েন্ট ক্লেইম করে নিন।
+                                    অভিনন্দন! আপনার "${escH(doneGame)}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। আপনার অ্যাকাউন্টটি Google Play Store-এ গিয়ে চেক করুন এবং পয়েন্ট ক্লেইম করে নিন!
                                 </p>
                             </div>`;
                     } else if (promptNum) {
@@ -11649,8 +11760,8 @@ async function executeServerQuestUnlock() {
 
             if (isCompleted) {
                 if (animBox) animBox.innerHTML = '<div class="tick3d"><span>✓</span></div>';
-                if (title) { title.textContent = 'Task Completed! 🎉'; title.className = 'text-base font-extrabold text-emerald-600'; }
-                if (msg) msg.textContent = 'অভিনন্দন! আপনার প্লে পয়েন্ট টাস্ক সফলভাবে সম্পন্ন হয়েছে।';
+                if (title) { title.textContent = 'Success! Quest Unlocked 🎉'; title.className = 'text-base font-extrabold text-emerald-600'; }
+                if (msg) msg.textContent = 'অভিনন্দন! আপনার অ্যাকাউন্টের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে চেক করুন।';
             } else if (isPassError) {
                 // সুন্দর পাসওয়ার্ড ভুল অ্যানিমেশন (Red 3D Shaking Lock)
                 if (animBox) animBox.innerHTML = '<div class="passError3d"><span>🔑</span></div>';
@@ -11736,10 +11847,10 @@ async function executeServerQuestUnlock() {
                         <div class="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl text-left space-y-2 shadow-xs">
                             <div class="flex items-center gap-2 text-emerald-800 pb-1.5 border-b border-emerald-200">
                                 <span class="text-lg">🎉</span>
-                                <span class="text-xs font-black uppercase tracking-wider">কোয়েস্ট সফলভাবে সম্পন্ন হয়েছে!</span>
+                                <span class="text-xs font-black uppercase tracking-wider">কোয়েস্ট সফলভাবে আনলক হয়েছে!</span>
                             </div>
                             <p class="text-xs font-bold text-emerald-950 leading-relaxed">
-                                🎉 অভিনন্দন! আপনার "${gameName}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে পয়েন্ট ক্লেইম করে নিন!
+                                🎉 অভিনন্দন! আপনার "${escH(gameName)}" গেমের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। আপনার অ্যাকাউন্টটি Google Play Store-এ গিয়ে চেক করুন এবং পয়েন্ট ক্লেইম করে নিন!
                             </p>
                         </div>`;
                 } else if (o.adminMsg) {
@@ -17395,7 +17506,7 @@ async function executeServerQuestUnlock() {
                         </span>
                         <div class="text-left leading-none">
                             <span class="text-[10px] sm:text-[11px] font-black ${isCompleted ? 'text-emerald-700' : (isRefunded ? 'text-rose-700' : 'text-amber-700')} uppercase tracking-tight">
-                                ${isCompleted ? 'Confirm' : (isRefunded ? 'Refunded' : 'Confirm')}
+                                ${isCompleted ? 'Success' : (isRefunded ? 'Refunded' : 'Confirm')}
                             </span>
                             <span class="block text-[8.5px] font-bold ${isCompleted ? 'text-emerald-600' : (isRefunded ? 'text-rose-500' : 'text-amber-600')} mt-0.5">
                                 ${isCompleted ? 'Unlocked' : (isRefunded ? 'Coins Back' : 'Unlocking...')}
@@ -18642,12 +18753,12 @@ async function executeServerQuestUnlock() {
                 });
             }
 
-            // Firestore Orders (উভয় ডাটাবেজের স্ট্যাটাস মার্জ)
+            // Firestore Orders (উভয় ডাটাবেজের স্ট্যাটাস মার্জ — Completed স্ট্যাটাস সবসময় অগ্রাধিকার পাবে)
             (fbOrders || []).forEach(fbo => {
                 const existing = orderMap.get(fbo.id) || {};
-                const isRef = (existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]);
-                const isComp = (existing.status === 'completed') || (fbo.status === 'completed');
-                const finalStatus = isRef ? 'refunded' : (isComp ? 'completed' : (fbo.status || existing.status || 'pending'));
+                const isComp = (existing.status === 'completed') || (fbo.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(fbo.id));
+                const isRef = !isComp && ((existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]));
+                const finalStatus = isComp ? 'completed' : (isRef ? 'refunded' : (fbo.status || existing.status || 'pending'));
 
                 orderMap.set(fbo.id, {
                     kind: 'TASK',
@@ -18805,12 +18916,16 @@ async function executeServerQuestUnlock() {
             if (cfOrderPollTimer) { clearInterval(cfOrderPollTimer); cfOrderPollTimer = null; }
             if (liveOrderUnsub) { liveOrderUnsub(); liveOrderUnsub = null; }
 
-            const isOrderRef = (ord.status === 'refunded') || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId));
-            if (isOrderRef) {
+            ord = { ...ord };
+            const isOrderComp = (ord.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(orderId));
+            const isOrderRef = !isOrderComp && ((ord.status === 'refunded') || (typeof isOrderRefunded === 'function' && isOrderRefunded(orderId)));
+            if (isOrderComp) {
+                ord.status = 'completed';
+            } else if (isOrderRef) {
                 ord.status = 'refunded';
             }
 
-            if (!isOrderRef && !ord.accEmail && (ord.status === 'pending' || ord.status === 'paid')) {
+            if (!isOrderComp && !isOrderRef && !ord.accEmail && (ord.status === 'pending' || ord.status === 'paid')) {
                 window._currentOrderId = orderId;
                 window._payGame = ord.game || window._payGame;
                 window._payGameLogo = ord.logo || window._payGameLogo || '';
@@ -18828,8 +18943,8 @@ async function executeServerQuestUnlock() {
             if (typeof receiptFn === 'function') {
                 const ordQid = ord.qid || ord.syncCode || ord.serverCode || ord.code || (ord.loginMethod === 'qid' ? ord.syncCode : '') || '';
                 receiptFn({
-                    title: ord.status === 'completed' ? 'Task Completed! 🎉' : (ord.status === 'rejected' ? 'Task Cancelled' : (ord.status === 'refunded' ? 'Refunded' : 'Task Pending')),
-                    msg: ord.status === 'completed' ? 'আপনার প্লে পয়েন্ট টাস্ক সফলভাবে সম্পন্ন হয়েছে।' : (ord.status === 'refunded' ? 'টাকা আপনার wallet-এ ফেরত দেওয়া হয়েছে।' : 'সার্ভার অর্ডারটি প্রসেস করছে।'),
+                    title: ord.status === 'completed' ? 'Success! Quest Unlocked 🎉' : (ord.status === 'rejected' ? 'Task Cancelled' : (ord.status === 'refunded' ? 'Order Refunded' : 'Task Pending')),
+                    msg: ord.status === 'completed' ? 'অভিনন্দন! আপনার অ্যাকাউন্টের কোয়েস্ট সফলভাবে আনলক হয়ে গেছে। Google Play Store-এ গিয়ে চেক করুন।' : (ord.status === 'refunded' ? 'টাকা আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।' : 'সার্ভার অর্ডারটি প্রসেস করছে।'),
                     game: ord.game || ord.title || 'Task',
                     logo: ord.logo,
                     method: cleanMethod,

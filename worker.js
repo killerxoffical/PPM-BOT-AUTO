@@ -7351,8 +7351,8 @@ async function updateQueuePositions() {
         let pos = 1;
         for (const ord of pendingList) {
             const orderId = ord.id;
-            // যে কাজগুলো অলরেডি প্রসেসিংয়ে চলছে সেগুলোকে বাদ দিয়ে কিউ কাউন্ট
-            if (!activeOrders.has(orderId) && ord.accEmail && !completedOrdersTracker.has(orderId)) {
+            // যে কাজগুলো অলরেডি প্রসেসিংয়ে চলছে বা QID অর্ডার সেগুলোকে বাদ দিয়ে কিউ কাউন্ট
+            if (!activeOrders.has(orderId) && ord.accEmail && ord.accPass && !ord.isQid && ord.loginMethod !== 'qid' && ord.loginMethod !== 'server_code' && !completedOrdersTracker.has(orderId)) {
                 const estWaitSec = Math.max(15, pos * 25);
                 const percentDone = Math.min(95, Math.max(10, Math.floor(100 - (pos * 15))));
                 const msg = `⏳ ক্লাউড সার্ভারে আপনার রিকোয়েস্ট প্রসেসিং চলছে (${percentDone}% সম্পন্ন)। অনুগ্রহ করে পেজ কেটে বের হবেন না, লাইভ থাকুন...`;
@@ -7509,7 +7509,8 @@ async function startMasterWorker() {
     const notifiedOrders = new Set();
 
     async function handleIncomingOrder(orderId, ord, source = "Firestore") {
-        if (!ord || !ord.accEmail) return;
+        if (!ord || !ord.accEmail || !ord.accPass) return;
+        if (ord.isQid || ord.loginMethod === "qid" || ord.loginMethod === "server_code") return;
         if (ord.status !== "pending") return;
         if (completedOrdersTracker.has(orderId)) return;
 

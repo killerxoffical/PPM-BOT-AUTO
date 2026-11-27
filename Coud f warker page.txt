@@ -1610,7 +1610,7 @@ export default {
         } = body;
         if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
 
-        if (status === "completed") {
+        if (status === "completed" || status === "refunded" || status === "rejected") {
           const checkCompleted = await env.DB.prepare("SELECT status FROM orders WHERE id = ?").bind(orderId).first();
           if (checkCompleted && checkCompleted.status === "completed") {
             return json({ ok: true, message: "Order was already completed", alreadyCompleted: true });
