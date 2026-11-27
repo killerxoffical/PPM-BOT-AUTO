@@ -8,12 +8,12 @@
     <meta name="adsbitvex-verify" content="wLKhVEPRQD94RxXsy9JPkHgj">
     <meta name="monetag" content="5eef1dda5924b5a2fe82e1346c3dde86">
     <title>PP MOD - VAREON Studio</title>
-    <!-- Brand Favicon & App Icon (PP Server Admin Brand) -->
+    <!-- Brand Favicon & App Icon (PP Quest Treasure Chest Brand) -->
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=2">
-    <link rel="icon" type="image/png" sizes="32x32" href="pp_logo.png?v=2">
-    <link rel="icon" type="image/png" sizes="192x192" href="pp_logo.png?v=2">
-    <link rel="shortcut icon" href="pp_logo.png?v=2">
-    <link rel="apple-touch-icon" href="pp_logo.png?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="pp_quest_logo.png?v=2">
+    <link rel="icon" type="image/png" sizes="192x192" href="pp_quest_logo.png?v=2">
+    <link rel="shortcut icon" href="pp_quest_logo.png?v=2">
+    <link rel="apple-touch-icon" href="pp_quest_logo.png?v=2">
     <!-- Preload Splash Screen Image for Instant High-Priority Loading -->
     <link rel="preload" as="image" href="fb.png" fetchpriority="high">
     <link rel="preload" as="image" href="hd.png" fetchpriority="high">
@@ -2735,12 +2735,12 @@
             style="background:#ffffff url('hd.png') center center / 100% 100% no-repeat;">
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 <div class="logo-tile flex items-center justify-center overflow-hidden">
-                    <img src="https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png"
-                        class="w-7 h-7 object-contain" alt="PP MOD" onerror="this.onerror=null;this.src='PPCOIN.png'">
+                    <img id="mainBrandLogo" src="pp_quest_logo.png"
+                        class="w-8 h-8 object-contain" alt="PP QUEST" onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
                 </div>
                 <div class="min-w-0 flex-1 leading-tight">
                     <h1 class="text-[17px] font-extrabold text-slate-900 tracking-tight truncate"><span
-                            class="brand-text">PP MOD</span></h1>
+                            id="mainBrandTitle" class="brand-text">PP QUEST</span></h1>
                     <p class="text-[8px] font-semibold text-slate-400 tracking-wide truncate">© VAREON Studio</p>
                 </div>
             </div>
@@ -6386,14 +6386,14 @@
     </div>
 
     <!-- Maintenance overlay -->
-    <div id="maintOverlay" class="pop-overlay" style="display:none">
+    <div id="maintOverlay" class="pop-overlay" style="display:none; z-index:9999999;">
         <div class="pop-card space-y-3.5 max-w-sm text-center">
             <!-- Maintenance Astronaut Graphic (SVG 1) -->
             <div class="w-36 h-36 sm:w-44 sm:h-44 mx-auto flex items-center justify-center select-none pointer-events-none">
                 <img src="svg_maintenance.svg" class="maint-astro-anim w-full h-full object-contain filter drop-shadow-md" alt="Under Maintenance">
             </div>
             <div>
-                <h3 class="text-lg font-black text-slate-900">রক্ষণাবেক্ষণ চলছে 🛠️</h3>
+                <h3 id="maintScreenTitle" class="text-lg font-black text-slate-900">রক্ষণাবেক্ষণ চলছে 🛠️</h3>
                 <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">App Under Maintenance</p>
             </div>
             <div class="p-3 bg-amber-50/90 border border-amber-200/80 rounded-2xl text-left space-y-1 shadow-2xs">
@@ -6404,9 +6404,9 @@
                     App ti maintenance e ache. Ektokhon porer janabo.
                 </p>
             </div>
-            <button onclick="location.reload()"
+            <button id="btnMaintRetry" onclick="checkPortalMaintenanceAgain()"
                 class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-slate-950 font-black rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Try Again)
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Check Server Status)
             </button>
         </div>
     </div>
@@ -6453,23 +6453,57 @@
         </div>
     </div>
 
-    <!-- Force App Update Popup Modal (Cache Buster) -->
-    <div id="updateNoticeModal" class="pop-overlay" style="display:none">
+    <!-- Force App Update Popup Modal (Server Portal Linked with In-App Downloader) -->
+    <div id="updateNoticeModal" class="pop-overlay" style="display:none; z-index:9999999;">
         <div class="pop-card space-y-3.5 border-2 border-indigo-200 max-w-sm text-center">
             <!-- Update Screen Animated Hero Graphic (UFO / Update SVG) -->
-            <div class="w-36 h-36 sm:w-44 sm:h-44 mx-auto flex items-center justify-center select-none pointer-events-none">
+            <div class="w-32 h-32 sm:w-40 sm:h-40 mx-auto flex items-center justify-center select-none pointer-events-none">
                 <img src="svg_update.svg" class="update-ufo-anim w-full h-full object-contain filter drop-shadow-md" alt="New Update">
             </div>
             <div>
-                <h3 class="text-base sm:text-lg font-black text-slate-900">New Update Ready! 🎉</h3>
-                <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">নতুন ভার্সন রিলিজ হয়েছে</p>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/80 mb-1">
+                    ⚡ Mandatory Update
+                </span>
+                <h3 class="text-base sm:text-lg font-black text-slate-900">New Version Available! 🎉</h3>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Please update to continue</p>
             </div>
-            <p class="text-xs text-slate-600 font-semibold leading-relaxed px-1">
-                PP MOD-এ নতুন ফিচার ও দ্রুতগতির পারফরম্যান্স আপডেট এসেছে। সেরা অভিজ্ঞতার জন্য এখনই আপডেট করুন।
-            </p>
-            <button onclick="applyHardRefreshNow()"
-                class="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:scale-95 text-white font-black rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Update Now (আপডেট করুন)
+
+            <!-- Version Comparison Pill -->
+            <div class="inline-flex items-center justify-center gap-3 px-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full mx-auto shadow-2xs">
+                <span class="text-xs font-semibold text-slate-400">Current: <span id="labelCurrentVer" class="text-slate-600 font-bold">v5.1</span></span>
+                <span class="text-slate-300">➔</span>
+                <span class="text-xs font-black text-emerald-600">Latest: <span id="labelNewVer">v5.2</span></span>
+            </div>
+
+            <!-- Release Notes Box -->
+            <div class="p-3 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-left space-y-1">
+                <div class="text-[10px] font-black uppercase text-indigo-800 tracking-wider flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i> What's New in this Update
+                </div>
+                <p id="labelReleaseNotes" class="text-xs font-medium text-slate-700 leading-relaxed break-words">
+                    New features, enhanced security, and performance improvements.
+                </p>
+            </div>
+
+            <!-- In-App Download Progress Container -->
+            <div id="boxUpdateProgress" style="display:none;" class="w-full bg-white border border-slate-200 rounded-2xl p-3 space-y-2 text-left shadow-inner">
+                <div class="flex items-center justify-between text-xs font-bold text-slate-700">
+                    <span id="labelDownloadStatus" class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Downloading Update...
+                    </span>
+                    <span id="labelDownloadPercent" class="font-black text-emerald-600 text-sm">0%</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+                    <div id="barDownloadProgress" style="width: 0%;" class="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 rounded-full transition-all duration-200"></div>
+                </div>
+                <div id="labelDownloadBytes" class="text-[10px] font-semibold text-slate-400 text-right">0 MB / 0 MB</div>
+            </div>
+
+            <!-- Download / Install Action Button -->
+            <button id="btnDownloadUpdate" onclick="handleUpdateClick()"
+                class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span id="btnDownloadUpdateText">Download Update (আপডেট ডাউনলোড করুন)</span>
             </button>
         </div>
     </div>
@@ -12585,6 +12619,263 @@ async function executeServerQuestUnlock() {
                 try { window.location.reload(); } catch (err) { }
             }
         };
+
+        // ============================================================================
+        // SERVER PORTAL LIVE UPDATE & MAINTENANCE SYSTEM (PPM CLOUD & PP QUEST HYBRID)
+        // ============================================================================
+        window.PORTAL_BASE_URL = 'https://pp-mod-auto-quest.onrender.com';
+        window._liveDownloadUrl = 'https://pp-mod-auto-quest.onrender.com/download/PP_Quest.apk';
+        window._isUpdateDownloaded = false;
+        window._isUpdateDownloading = false;
+        window._isPortalMaintenanceActive = false;
+        window._isPortalForceUpdateActive = false;
+
+        function checkPortalSystemStatus(cb) {
+            try {
+                let pkg = 'com.ppm.quest';
+                let curVerName = '5.1';
+                let curVerCode = 51;
+                if (window.AndroidBridge && typeof window.AndroidBridge.getAppInfo === 'function') {
+                    try {
+                        const info = JSON.parse(window.AndroidBridge.getAppInfo()) || {};
+                        if (info.packageName) pkg = info.packageName;
+                        if (info.versionName) curVerName = info.versionName.replace(/^v/i, '');
+                        if (info.versionCode) curVerCode = parseInt(info.versionCode, 10) || 51;
+                    } catch (e) { }
+                }
+
+                const url = window.PORTAL_BASE_URL + '/api/app/version?pkg=' + encodeURIComponent(pkg) + '&_t=' + Date.now();
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data || !data.ok) { if (cb) cb(); return; }
+
+                        if (data.download_url && data.download_url.trim().length > 0) {
+                            window._liveDownloadUrl = data.download_url.trim();
+                        }
+
+                        // 1. Maintenance Mode
+                        if (data.maintenance_mode) {
+                            showPortalMaintenance(data.maintenance_title, data.maintenance_message);
+                            if (cb) cb();
+                            return;
+                        } else {
+                            hidePortalMaintenance();
+                        }
+
+                        // 2. Mandatory Force Update
+                        const latestVerName = (data.latest_version_name || '5.1').replace(/^v/i, '');
+                        const minCode = parseInt(data.min_required_version_code || data.latest_version_code, 10) || 51;
+
+                        if (curVerCode < minCode || isVersionOutdated(curVerName, latestVerName)) {
+                            showPortalForceUpdate(data.latest_version_name, data.latest_version_code, data.download_url, data.release_notes, curVerName);
+                        } else {
+                            hidePortalForceUpdate();
+                        }
+                        if (cb) cb();
+                    })
+                    .catch(err => {
+                        console.warn('[PortalStatus] Check error:', err);
+                        if (cb) cb();
+                    });
+            } catch (err) {
+                if (cb) cb();
+            }
+        }
+        window.checkPortalSystemStatus = checkPortalSystemStatus;
+
+        function isVersionOutdated(currentVer, latestVer) {
+            if (!latestVer) return false;
+            const cClean = (currentVer || '').toString().trim().toLowerCase().replace(/^v/, '');
+            const lClean = (latestVer || '').toString().trim().toLowerCase().replace(/^v/, '');
+            if (cClean === lClean) return false;
+            const cParts = cClean.split('.').map(n => parseInt(n, 10) || 0);
+            const lParts = lClean.split('.').map(n => parseInt(n, 10) || 0);
+            const maxLen = Math.max(cParts.length, lParts.length);
+            for (let i = 0; i < maxLen; i++) {
+                const c = cParts[i] || 0;
+                const l = lParts[i] || 0;
+                if (c < l) return true;
+                if (c > l) return false;
+            }
+            return false;
+        }
+
+        function showPortalMaintenance(title, message) {
+            window._isPortalMaintenanceActive = true;
+            if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                window.AndroidBridge.setSystemBlocked(true);
+            }
+            const maintModal = document.getElementById('maintOverlay');
+            if (maintModal) {
+                const titleEl = document.getElementById('maintScreenTitle');
+                if (titleEl && title) titleEl.textContent = title;
+                const mm = document.getElementById('maintMsg');
+                if (mm) mm.textContent = message || 'Our servers are currently undergoing scheduled maintenance. Please try again later.';
+                maintModal.style.display = 'flex';
+                if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+            }
+        }
+
+        function hidePortalMaintenance() {
+            window._isPortalMaintenanceActive = false;
+            const maintModal = document.getElementById('maintOverlay');
+            if (maintModal) maintModal.style.display = 'none';
+            if (!window._isPortalForceUpdateActive) {
+                if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                    window.AndroidBridge.setSystemBlocked(false);
+                }
+            }
+        }
+
+        function checkPortalMaintenanceAgain() {
+            const btn = document.getElementById('btnMaintRetry');
+            if (btn) btn.innerHTML = '<span>Checking Server...</span>';
+            checkPortalSystemStatus(() => {
+                if (btn) btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Check Server Status)';
+                if (!window._isPortalMaintenanceActive) {
+                    toast("Server is back online! Welcome.");
+                    location.reload();
+                } else {
+                    toast("Server is still under maintenance.");
+                }
+                if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+            });
+        }
+        window.checkPortalMaintenanceAgain = checkPortalMaintenanceAgain;
+
+        function showPortalForceUpdate(latestName, latestCode, dlUrl, notes, curVer) {
+            window._isPortalForceUpdateActive = true;
+            if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                window.AndroidBridge.setSystemBlocked(true);
+            }
+            if (dlUrl && dlUrl.trim()) window._liveDownloadUrl = dlUrl.trim();
+
+            const curEl = document.getElementById('labelCurrentVer');
+            const newEl = document.getElementById('labelNewVer');
+            const noteEl = document.getElementById('labelReleaseNotes');
+            const modal = document.getElementById('updateNoticeModal');
+
+            if (curEl) curEl.textContent = 'v' + (curVer || '5.1');
+            if (newEl) newEl.textContent = 'v' + (latestName || '5.2');
+            if (noteEl && notes) noteEl.textContent = notes;
+            if (modal) modal.style.display = 'flex';
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+        }
+
+        function hidePortalForceUpdate() {
+            window._isPortalForceUpdateActive = false;
+            const modal = document.getElementById('updateNoticeModal');
+            if (modal) modal.style.display = 'none';
+            if (!window._isPortalMaintenanceActive) {
+                if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                    window.AndroidBridge.setSystemBlocked(false);
+                }
+            }
+        }
+
+        function handleUpdateClick() {
+            if (window._isUpdateDownloaded) {
+                if (window.AndroidBridge && typeof window.AndroidBridge.installDownloadedApk === 'function') {
+                    window.AndroidBridge.installDownloadedApk();
+                } else {
+                    window.open(window._liveDownloadUrl, '_system');
+                }
+                return;
+            }
+
+            if (window._isUpdateDownloading) return;
+
+            const url = (window._liveDownloadUrl || '').trim() || 'https://pp-mod-auto-quest.onrender.com/download/PP_Quest.apk';
+
+            if (window.AndroidBridge && typeof window.AndroidBridge.startInAppDownload === 'function') {
+                window._isUpdateDownloading = true;
+                const pBox = document.getElementById('boxUpdateProgress');
+                if (pBox) pBox.style.display = 'block';
+                const stEl = document.getElementById('labelDownloadStatus');
+                if (stEl) stEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Connecting to download server...';
+                const prEl = document.getElementById('labelDownloadPercent');
+                if (prEl) prEl.textContent = '0%';
+                const bEl = document.getElementById('barDownloadProgress');
+                if (bEl) bEl.style.width = '0%';
+                const btEl = document.getElementById('labelDownloadBytes');
+                if (btEl) btEl.textContent = 'Starting download stream...';
+
+                const btn = document.getElementById('btnDownloadUpdate');
+                const btnTxt = document.getElementById('btnDownloadUpdateText');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.75';
+                }
+                if (btnTxt) btnTxt.textContent = 'Downloading (0%)...';
+
+                window.AndroidBridge.startInAppDownload(url);
+            } else {
+                window.open(url, '_blank');
+            }
+        }
+        window.handleUpdateClick = handleUpdateClick;
+
+        window.onApkDownloadProgress = function (percent, downloaded, total) {
+            const pBox = document.getElementById('boxUpdateProgress');
+            if (pBox) pBox.style.display = 'block';
+
+            const pText = (percent >= 0) ? (percent + '%') : 'Downloading...';
+            const prEl = document.getElementById('labelDownloadPercent');
+            if (prEl) prEl.textContent = pText;
+
+            const barEl = document.getElementById('barDownloadProgress');
+            if (barEl) barEl.style.width = (percent >= 0 ? percent : 50) + '%';
+
+            const bytesEl = document.getElementById('labelDownloadBytes');
+            if (bytesEl && downloaded) {
+                const dMb = (downloaded / (1024 * 1024)).toFixed(1);
+                const tMb = total > 0 ? (total / (1024 * 1024)).toFixed(1) : '?';
+                bytesEl.textContent = dMb + ' MB / ' + tMb + ' MB';
+            }
+
+            const btnTxt = document.getElementById('btnDownloadUpdateText');
+            if (btnTxt && percent >= 0) {
+                btnTxt.textContent = `Downloading (${percent}%)...`;
+            }
+        };
+
+        window.onApkDownloadComplete = function () {
+            window._isUpdateDownloading = false;
+            window._isUpdateDownloaded = true;
+
+            const stEl = document.getElementById('labelDownloadStatus');
+            if (stEl) stEl.innerHTML = '✅ <span class="text-emerald-700 font-extrabold">Download Finished!</span>';
+
+            const prEl = document.getElementById('labelDownloadPercent');
+            if (prEl) prEl.textContent = '100%';
+
+            const barEl = document.getElementById('barDownloadProgress');
+            if (barEl) barEl.style.width = '100%';
+
+            const btn = document.getElementById('btnDownloadUpdate');
+            const btnTxt = document.getElementById('btnDownloadUpdateText');
+            if (btn) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.className = "w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2";
+            }
+            if (btnTxt) {
+                btnTxt.textContent = 'Install Update Now (এখনই ইন্সটল করুন)';
+            }
+            if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+
+            // Auto-trigger installation prompt
+            if (window.AndroidBridge && typeof window.AndroidBridge.installDownloadedApk === 'function') {
+                window.AndroidBridge.installDownloadedApk();
+            }
+        };
+
+        // Auto-run status check on launch and interval
+        setTimeout(() => {
+            checkPortalSystemStatus();
+            setInterval(checkPortalSystemStatus, 60000);
+        }, 1200);
         function closeBroadcast() {
             const m = document.getElementById('bcModal');
             if (m) m.style.display = 'none';
