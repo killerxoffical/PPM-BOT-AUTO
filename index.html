@@ -2761,15 +2761,17 @@
     <!-- MAIN APP CONTAINER -->
     <div class="app-shell">
 
-        <!-- Header (sticky on top with hd.png Background) -->
+        <!-- Header (Matching PP QUEST App Header identically) -->
         <header id="appHeader"
             class="app-header relative overflow-hidden flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-[1.4rem] border border-slate-200/80 shadow-sm"
             style="background:#ffffff url('hd.png') center center / 100% 100% no-repeat;">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-                <div class="logo-tile flex items-center justify-center overflow-hidden">
-                    <img id="mainBrandLogo" src="pp_quest_logo.png" class="w-8 h-8 object-contain" alt="PP QUEST"
-                        onerror="this.onerror=null;this.src='https://pub-4c6b2dbf3a0c4862a8964b1546de6283.r2.dev/1791182445338_Google_Play_Points_Logo_2024_s2560__1_.png'">
-                </div>
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
+                    class="user-header-avatar w-10 h-10 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
+                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
+                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
+                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="User">
+                </button>
                 <div class="min-w-0 flex-1 leading-tight">
                     <h1 class="text-[17px] font-extrabold text-slate-900 tracking-tight truncate"><span
                             id="mainBrandTitle" class="brand-text">PP QUEST</span></h1>
@@ -2787,14 +2789,6 @@
                             class="header-bal-text text-[10px] leading-none font-black text-amber-900 whitespace-nowrap tracking-tight tabular-nums">0</span>
                     </button>
                 </div>
-
-
-                <button id="headerAvatarBtn" onclick="goToProfile()" title="Profile" aria-label="Profile"
-                    class="user-header-avatar w-9 h-9 rounded-xl bg-slate-200 overflow-hidden relative flex items-center justify-center cursor-pointer flex-shrink-0 active:scale-95 transition-all">
-                    <span id="avatarFallback" class="text-xs font-extrabold text-slate-500">?</span>
-                    <img id="avatarImg" onerror="this.onerror=null;this.src=(window.AVATAR_FALLBACK||this.src)"
-                        class="hidden absolute inset-0 w-full h-full object-cover rounded-[9px]" alt="">
-                </button>
             </div>
         </header>
 
@@ -4068,15 +4062,15 @@
                                 </div>
                             </div>
 
-                            <div class="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3 space-y-1.5 text-[11px] text-slate-100">
-                                <p class="flex items-center gap-2 font-semibold">
-                                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0"></i>
-                                    নিচের বাটন থেকে অফিসিয়াল <b>PP QUEST</b> অ্যাপ ডাউনলোড ও ইনস্টল করুন।
-                                </p>
-                                <p class="flex items-center gap-2 font-semibold">
-                                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0"></i>
-                                    অ্যাপে লগইন করে সরাসরি Google Connect দিয়ে ১-৩ সেকেন্ডে কোয়েস্ট আনলক করুন!
-                                </p>
+                            <div class="bg-white/10 backdrop-blur-sm border border-white/15 rounded-xl p-3.5 space-y-2 text-[11.5px] text-slate-100 leading-relaxed">
+                                <div class="flex items-start gap-2.5 font-semibold">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                                    <span class="min-w-0 flex-1">নিচের বাটন থেকে অফিসিয়াল <b class="text-white font-black">PP QUEST</b> অ্যাপ ডাউনলোড ও ইনস্টল করুন।</span>
+                                </div>
+                                <div class="flex items-start gap-2.5 font-semibold">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                                    <span class="min-w-0 flex-1">অ্যাপে লগইন করে সরাসরি <b class="text-emerald-300">Google Connect</b> দিয়ে ১-৩ সেকেন্ডে কোয়েস্ট আনলক করুন!</span>
+                                </div>
                             </div>
 
                             <a id="btnDownloadQuestWebConnect"
@@ -4312,8 +4306,8 @@
                         <span id="receiptGame" class="font-bold text-slate-800 truncate"></span>
                     </span>
                 </div>
-                <div
-                    class="flex justify-between items-center gap-2 text-xs border-b border-dashed border-slate-200 pb-2">
+                <div id="receiptMethodRow"
+                    class="flex justify-between items-center gap-2 text-xs border-b border-dashed border-slate-200 pb-2 hidden">
                     <span class="text-slate-400 font-medium flex-shrink-0" data-bn="পেমেন্ট:">Payment Method:</span>
                     <span id="receiptMethod" class="font-bold text-slate-800 truncate text-right"></span>
                 </div>
@@ -4343,9 +4337,15 @@
                         class="font-mono font-black text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md text-[11px]"></span>
                 </div>
                 <div class="flex justify-between items-center gap-2 text-xs">
-                    <span class="text-slate-400 font-medium flex-shrink-0">TrxID:</span>
-                    <span id="receiptTrx"
-                        class="font-mono font-bold text-slate-800 uppercase break-all text-right"></span>
+                    <span class="text-slate-400 font-medium flex-shrink-0">Order ID:</span>
+                    <div class="flex items-center gap-1.5 min-w-0 justify-end">
+                        <span id="receiptTrx"
+                            class="font-mono font-bold text-slate-800 uppercase truncate text-right"></span>
+                        <button id="btnCopyReceiptTrx" type="button" onclick="copyReceiptOrderId()" title="Copy Order ID"
+                            class="w-7 h-7 flex-shrink-0 rounded-lg bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-600 hover:text-emerald-700 flex items-center justify-center shadow-2xs active:scale-90 transition-all cursor-pointer">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -4359,11 +4359,6 @@
                     class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 border border-amber-600 text-white font-extrabold rounded-lg shadow-xs transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
                     <i data-lucide="receipt-text" class="w-4 h-4"></i> <span data-bn="লেনদেন দেখুন">লেনদেন দেখুন (View
                         Transactions)</span>
-                </button>
-                <button onclick="showScreen('screenHome')"
-                    class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-extrabold rounded-lg transition-all text-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98">
-                    <i data-lucide="home" class="w-4 h-4"></i> <span data-bn="হোমে ফিরে যান">হোম পেজে ফিরুন (Back to
-                        Home)</span>
                 </button>
             </div>
         </main>
@@ -4698,7 +4693,7 @@
 
             <!-- App Version & Build Badge -->
             <div class="text-center pt-2 pb-6 space-y-0.5 select-none">
-                <p class="text-[11px] font-mono font-black text-slate-400">PP MOD Web • PP QUEST v5.1 <span
+                <p class="text-[11px] font-mono font-black text-slate-400">PP QUEST WEB • v5.1 <span
                         class="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">RELEASE</span>
                 </p>
                 <p class="text-[9px] font-semibold text-slate-400/80">POWERED BY VAREON STUDIO</p>
@@ -5148,10 +5143,11 @@
                     <h2 class="text-sm font-extrabold text-slate-900"><span data-bn="পুরো হিসাব">Full History</span>
                         <span id="histCount" class="text-[11px] font-bold text-slate-400"></span>
                     </h2>
-                    <p class="text-[10px] text-slate-400 font-semibold">Last 7 days only — older auto-deleted</p>
+                    <p class="text-[10px] text-slate-400 font-semibold">Pending always on top • Last 30 days (10 per page)</p>
                 </div>
             </div>
             <div id="historyFullList" class="space-y-2"></div>
+            <div id="historyPaginationBar" class="hidden pt-2 pb-4 flex items-center justify-between gap-2"></div>
         </main>
 
         <!-- SCREEN: STORE (Fixed Banner & Filter Tabs, Only Items Scroll) -->
@@ -9344,15 +9340,16 @@
                     + '<p class="text-[10px] font-bold text-emerald-600 mt-0.5">' + Math.round(c * r) + unit + '</p></button>'
                 ).join('');
             }
+            const cleanRateDisp = Math.round((Number(r) + Number.EPSILON) * 10) / 10;
             const lbl = document.getElementById('coinRateLabel');
-            if (lbl) lbl.textContent = stars ? 'Select PP Coins (3 Coins = ' + Math.round(3 * r) + ' Stars)' : 'Select PP Coins (1 Coin = ' + r + ' BDT)';
+            if (lbl) lbl.textContent = stars ? 'Select PP Coins (3 Coins = ' + Math.round(3 * r) + ' Stars)' : 'Select PP Coins (1 Coin = ' + cleanRateDisp + ' BDT)';
             const bdg = document.getElementById('coinRateBadge');
-            if (bdg) bdg.textContent = stars ? ('Rate: ' + Math.round(3 * r) + '⭐ / 3 Coins') : ('Rate: ' + r + '৳/Coin');
+            if (bdg) bdg.textContent = stars ? ('Rate: ' + Math.round(3 * r) + '⭐ / 3 Coins') : ('Rate: ' + cleanRateDisp + '৳/Coin');
 
-            // Hero banner rate text
+            // Hero banner rate text (clean 1-decimal max, never 4.666666667!)
             const heroSpan = document.getElementById('walletHeroRateSpan');
             if (heroSpan) {
-                heroSpan.innerHTML = `<img src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = ${r} ${unit})`;
+                heroSpan.innerHTML = `<img src="PPCOIN.png" class="w-4 h-4 object-contain"> Add PP Coins (1 Coin = ${cleanRateDisp}${unit})`;
             }
 
             // Sync inputs to match first pack
@@ -10119,9 +10116,9 @@
             }
             const epBadge = document.getElementById('tabBadgeEmailPass');
             if (epBadge) {
-                epBadge.textContent = epOn ? 'Manual' : 'Off';
+                epBadge.textContent = epOn ? '1-Tap' : 'Off';
                 epBadge.className = epOn
-                    ? 'text-[9px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5'
+                    ? 'text-[9px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5'
                     : 'text-[9px] bg-rose-500 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase ml-0.5';
                 if (!epOn) epBadge.classList.remove('hidden');
             }
@@ -12500,7 +12497,14 @@
             const rl = document.getElementById('receiptGameLogo');
             if (o.logo) { rl.src = o.logo; rl.style.display = ''; }
             else { rl.style.display = 'none'; }
-            document.getElementById('receiptMethod').innerText = cleanPaymentMethodName(o.method);
+            const cleanMethodStr = cleanPaymentMethodName(o.method);
+            const methodEl = document.getElementById('receiptMethod');
+            if (methodEl) methodEl.innerText = cleanMethodStr;
+            const methodRow = document.getElementById('receiptMethodRow');
+            if (methodRow) {
+                const isPpCoinMethod = !isDep || /pp\s*coin|coin|wallet/i.test(cleanMethodStr || '');
+                methodRow.classList.toggle('hidden', isPpCoinMethod);
+            }
             document.getElementById('receiptAmount').innerText = o.amount;
             document.getElementById('receiptTrx').innerText = o.trx;
 
@@ -12636,6 +12640,43 @@
         window.openCredentialScreen = openCredentialScreen;
         window.updateReceiptStatus = updateReceiptStatus;
 
+        window.copyReceiptOrderId = function () {
+            const el = document.getElementById('receiptTrx');
+            const val = el ? (el.textContent || '').trim() : '';
+            if (!val) return;
+            const btn = document.getElementById('btnCopyReceiptTrx');
+            const done = () => {
+                if (typeof toast === 'function') toast('অর্ডার আইডি কপি হয়েছে ✓');
+                if (btn) {
+                    const prev = btn.innerHTML;
+                    btn.classList.add('bg-emerald-50', 'border-emerald-400', 'text-emerald-700');
+                    btn.innerHTML = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                    setTimeout(() => {
+                        btn.classList.remove('bg-emerald-50', 'border-emerald-400', 'text-emerald-700');
+                        btn.innerHTML = prev;
+                    }, 1600);
+                }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(val).then(done).catch(() => {
+                    const ta = document.createElement('textarea'); ta.value = val; document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); } catch (e) { }
+                    document.body.removeChild(ta); done();
+                });
+            } else {
+                const ta = document.createElement('textarea'); ta.value = val; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); } catch (e) { }
+                document.body.removeChild(ta); done();
+            }
+        };
+
+        window.openAdminGameRequest = function () {
+            const rawAdmin = (typeof getStarAdmin === 'function' ? getStarAdmin() : '@Blackmoney54') || '@Blackmoney54';
+            const handle = rawAdmin.replace(/^@+/, '').trim() || 'Blackmoney54';
+            const msg = encodeURIComponent('হ্যালো এডমিন, আমি নতুন একটি গেম অ্যাড করার জন্য রিকোয়েস্ট করতে চাই।');
+            window.open(`https://t.me/${handle}?text=${msg}`, '_blank', 'noopener');
+        };
+
         function _getCurrentWebUid() {
             try {
                 const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || window.currentUser || null;
@@ -12741,13 +12782,13 @@
                 const data = await res.json();
 
                 if (!data || !data.ok || !data.service) {
-                    const errMsg = (data && data.error) ? data.error : 'এই অর্ডারটির লাইভ তথ্য পাওয়া যায়নি বা হিস্ট্রি থেকে মুছে ফেলা হয়েছে।';
+                    const errMsg = 'এই অর্ডারটি ভেরিফাই সফল হয়নি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা অর্ডার আইডি দিয়ে সাপোর্টে যোগাযোগ করুন।';
                     bodyEl.innerHTML = `
                         <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
                             <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
                                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                             </div>
-                            <h4 class="text-xs font-black text-amber-900">যাচাই করা যায়নি</h4>
+                            <h4 class="text-xs font-black text-amber-900">ভেরিফাই সফল হয়নি</h4>
                             <p class="text-xs font-bold text-amber-800 leading-relaxed">${escH(errMsg)}</p>
                             <div class="flex items-center justify-center gap-2 pt-1">
                                 <button type="button" onclick="closeLiveCheckModal()" class="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer">
@@ -13291,7 +13332,15 @@
                     + '</div>'
                     + '</div>'
                     + '</button>';
-            }).join('');
+            }).join('') + '<button type="button" onclick="window.openAdminGameRequest()" class="game-card-request flex items-center p-0 rounded-lg bg-gradient-to-r from-emerald-50 via-white to-teal-50 border border-dashed border-emerald-400 hover:border-emerald-600 transition-all text-left shadow-2xs group cursor-pointer active:scale-98 overflow-hidden h-[56px]">'
+                + '<div class="h-full w-[52px] flex-shrink-0 border-r border-emerald-200 bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white">'
+                + '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>'
+                + '</div>'
+                + '<div class="min-w-0 flex-1 px-2.5 py-1 flex flex-col justify-center">'
+                + '<span class="text-xs font-black text-emerald-900 truncate leading-snug">নতুন গেম রিকোয়েস্ট</span>'
+                + '<span class="text-[10px] font-bold text-emerald-700 truncate mt-0.5">এডমিনকে মেসেজ দিন ➔</span>'
+                + '</div>'
+                + '</button>';
             if (typeof updateGameCount === 'function') updateGameCount(validList.length);
             const sInp = document.getElementById('gameSearchInput');
             if (sInp && sInp.value.trim() && typeof filterGames === 'function') {
@@ -16555,6 +16604,25 @@
                 </div>`;
             });
 
+            html += `
+            <div onclick="window.openAdminGameRequest()"
+                class="group relative overflow-hidden rounded-xl bg-gradient-to-r from-emerald-50 via-white to-teal-50 border border-dashed border-emerald-400 hover:border-emerald-600 hover:shadow-2xs cursor-pointer transition-all active:scale-[0.99] flex items-center justify-between h-[62px]">
+                <div class="flex items-center h-full min-w-0 flex-1">
+                    <div class="h-full w-[62px] flex-shrink-0 overflow-hidden border-r border-emerald-200 rounded-l-[10px] bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    </div>
+                    <div class="min-w-0 flex-1 px-3 py-1.5">
+                        <p class="text-xs font-black text-emerald-900 truncate leading-snug">নতুন গেম অ্যাড করতে রিকোয়েস্ট করুন</p>
+                        <p class="text-[10.5px] text-emerald-700 font-bold truncate mt-0.5">তালিকায় আপনার গেম নেই? এডমিন ইনবক্সে মেসেজ দিন</p>
+                    </div>
+                </div>
+                <div class="pr-3 flex items-center flex-shrink-0">
+                    <div class="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </div>
+                </div>
+            </div>`;
+
             grid.innerHTML = html;
             if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
         };
@@ -17219,8 +17287,8 @@
 
         function fmtCoins(v) {
             const raw = Number(v) || 0;
-            // JavaScript floating-point fix (5.699999997 -> 5.7 or 5.89 cleanly)
-            const clean = Math.round((raw + Number.EPSILON) * 100) / 100;
+            // Clean max 1 decimal place (no 0.66666667 or 5.69999997!)
+            const clean = Math.round((raw + Number.EPSILON) * 10) / 10;
             return clean.toString();
         }
         function setBalanceUI(v, pts, pend, realVal, bonusVal) {
@@ -19361,6 +19429,24 @@
             return '<div class="space-y-2.5">' + card + card + card + card + '</div>';
         }
         window.histSkeleton = histSkeleton;
+        window._histPage = window._histPage || 1;
+        window._histHasMore = false;
+        const HIST_PAGE_SIZE = 10;
+
+        window.goHistPage = async function (nextPage) {
+            const target = Math.max(1, Number(nextPage) || 1);
+            window._histPage = target;
+            const full = document.getElementById('historyFullList');
+            if (full) full.innerHTML = histSkeleton();
+            const pagBar = document.getElementById('historyPaginationBar');
+            if (pagBar) pagBar.classList.add('hidden');
+            const u = (window.ppfb && window.ppfb.user) || (window.auth && window.auth.currentUser) || window.currentUser || null;
+            await fetchHistItems(u, target);
+            rebuildHist();
+            const scr = document.getElementById('screenHistory');
+            if (scr) scr.scrollTop = 0;
+        };
+
         function rebuildHist() {
             const THIRTY_D = 30 * 24 * 3600 * 1000;
             const nowMs = Date.now();
@@ -19383,35 +19469,62 @@
                 ...keepFresh(histPendLive).map(d => ({ kind: 'PENDLIVE', ...d }))
             ];
             const pendingItems = allItems.filter(isPendingItem).sort((a, b) => getTimestampMs(b) - getTimestampMs(a));
-            const nonPendingItems = allItems.filter(x => !isPendingItem(x)).sort((a, b) => getTimestampMs(b) - getTimestampMs(a)).slice(0, 100);
-            const items = [...pendingItems, ...nonPendingItems];
-            window._histItems = {};
-            items.forEach(it => { if (it.id) window._histItems[it.id] = it; });
-            window._histItemsArr = items;
-            const txRow = (it, i) => '<div class="tx-item" style="animation-delay:' + Math.min(i * 55, 600) + 'ms">' + window.histRowHtml(it) + '</div>';
+            const nonPendingItems = allItems.filter(x => !isPendingItem(x)).sort((a, b) => getTimestampMs(b) - getTimestampMs(a));
+            const sortedAll = [...pendingItems, ...nonPendingItems];
+            const pageItems = sortedAll.slice(0, HIST_PAGE_SIZE);
+            const hasMoreLocal = sortedAll.length > HIST_PAGE_SIZE;
+            const canNext = Boolean(window._histHasMore || hasMoreLocal);
+            const curPage = Math.max(1, Number(window._histPage) || 1);
+
+            window._histItems = window._histItems || {};
+            pageItems.forEach(it => { if (it.id) window._histItems[it.id] = it; });
+            window._histItemsArr = pageItems;
+            const txRow = (it, i) => '<div class="tx-item" style="animation-delay:' + Math.min(i * 45, 450) + 'ms">' + window.histRowHtml(it) + '</div>';
             const moc = document.getElementById('myOrdersCount');
-            if (moc) moc.textContent = items.length ? ('Active / Last 30 days • ' + items.length + ' records →') : 'No records yet';
+            if (moc) moc.textContent = pageItems.length ? ('Active / Last 30 days • Page ' + curPage + ' →') : 'No records yet';
             const full = document.getElementById('historyFullList');
             const hc = document.getElementById('histCount');
-            if (full) full.innerHTML = items.length ? items.map(txRow).join('') : '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
-            if (hc) hc.textContent = items.length ? '(' + items.length + ')' : '';
+            if (full) full.innerHTML = pageItems.length ? pageItems.map(txRow).join('') : '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
+            if (hc) hc.textContent = pageItems.length ? '(Page ' + curPage + ')' : '';
+
+            const pagBar = document.getElementById('historyPaginationBar');
+            if (pagBar) {
+                if (curPage > 1 || canNext) {
+                    pagBar.classList.remove('hidden');
+                    pagBar.innerHTML =
+                        (curPage > 1
+                            ? '<button type="button" onclick="window.goHistPage(' + (curPage - 1) + ')" class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-extrabold text-xs rounded-xl shadow-2xs active:scale-95 transition-all cursor-pointer">← Prev</button>'
+                            : '<div></div>')
+                        + '<span class="text-[11px] font-black text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full">Page ' + curPage + '</span>'
+                        + (canNext
+                            ? '<button type="button" onclick="window.goHistPage(' + (curPage + 1) + ')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer">Next →</button>'
+                            : '<div></div>');
+                } else {
+                    pagBar.classList.add('hidden');
+                    pagBar.innerHTML = '';
+                }
+            }
             if (window.lucide) lucide.createIcons();
         }
         window.rebuildHist = rebuildHist;
-        async function fetchHistItems(u) {
+        async function fetchHistItems(u, pageNum = 1) {
             const targetUid = (u && u.uid) || (window.ppfb && window.ppfb.user && window.ppfb.user.uid) || (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || (window.FB && window.FB.auth && window.FB.auth.currentUser && window.FB.auth.currentUser.uid) || (window.currentUser && window.currentUser.uid) || localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || '';
             if (!targetUid) return false;
+            const curPage = Math.max(1, Number(pageNum || window._histPage) || 1);
+            window._histPage = curPage;
+            const offset = (curPage - 1) * HIST_PAGE_SIZE;
 
-            // ১. Cloudflare D1 থেকে ইউজারের সমস্ত অর্ডার, হিস্ট্রি ও ডিপোজিট প্যারালালে লোড
-            const cfOrdersPromise = fetch(`${CF_API}/api/admin/orders?uid=${encodeURIComponent(targetUid)}`)
+            // ১. Cloudflare D1 থেকে শুধুমাত্র বর্তমান পেজের ১০টি রেকর্ড প্যারালালে লোড (Quota Saving!)
+            const cfOrdersPromise = fetch(`${CF_API}/api/admin/orders?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
                 .then(r => r.json()).catch(() => ({ ok: false }));
-            const cfHistPromise = fetch(`${CF_API}/api/history?uid=${encodeURIComponent(targetUid)}`)
+            const cfHistPromise = fetch(`${CF_API}/api/history?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
                 .then(r => r.json()).catch(() => ({ ok: false }));
-            const cfDepsPromise = fetch(`${CF_API}/api/admin/deposits?uid=${encodeURIComponent(targetUid)}`)
+            const cfDepsPromise = fetch(`${CF_API}/api/admin/deposits?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
                 .then(r => r.json()).catch(() => ({ ok: false }));
 
-            // ২. ফায়ারবেস থেকে ফলব্যাক ও ডিপোজিট/উইথড্রল/রেডিম চেক
+            // ২. ফায়ারবেস ফলব্যাক শুধুমাত্র Page 1-এ (সর্বোচ্চ ১০টি করে, Quota Saving!)
             const safeFetch = async (col, lim) => {
+                if (curPage > 1) return [];
                 try {
                     const usr = (u && u.uid) ? u : { uid: targetUid };
                     return await fetchList(col, usr, lim);
@@ -19422,11 +19535,17 @@
                 cfOrdersPromise,
                 cfHistPromise,
                 cfDepsPromise,
-                safeFetch('deposits', 20),
-                safeFetch('withdrawals', 20),
-                safeFetch('orders', 20),
-                safeFetch('redemptions', 20)
+                safeFetch('deposits', 10),
+                safeFetch('withdrawals', 10),
+                safeFetch('orders', 10),
+                safeFetch('redemptions', 10)
             ]);
+
+            window._histHasMore = Boolean(
+                (cfOrdersRes && cfOrdersRes.hasMore) ||
+                (cfHistRes && cfHistRes.hasMore) ||
+                (cfDepsRes && cfDepsRes.hasMore)
+            );
 
             // Cloudflare D1 ও Firestore এর অর্ডার নিখুঁতভাবে মার্জ করা
             const orderMap = new Map();

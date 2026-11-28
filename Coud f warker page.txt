@@ -81,7 +81,7 @@ function json(data, status = 200) {
 
 function roundCoin(n) {
   const num = Number(n) || 0.0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  return Math.round((num + Number.EPSILON) * 10) / 10;
 }
 
 async function sendTelegram(chatId, text) {
@@ -1155,35 +1155,35 @@ export default {
               amount, curBal, curBal, newBal, now
             ).run().catch(() => {});
 
-            // Send Telegram Notifications on auto gateway deposit
+            // Send Telegram Notifications on auto gateway deposit (AWAITED so CF Worker never drops logs!)
             try {
               const uName = uWallet?.name || pendingDep.name || 'User';
               const uEmail = uWallet?.email || pendingDep.email || '—';
               const uTg = uWallet?.tgChatId || pendingDep.userTgId;
 
               const adminMsg = `💎 <b>AUTO-DEPOSIT APPROVED (GATEWAY)</b> ✅\n\n` +
-                `🆔 <b>User ID:</b> <code>${pendingDep.uid}</code>\n` +
-                `👤 <b>Name:</b> ${uName}\n` +
-                `📧 <b>Email:</b> ${uEmail}\n` +
-                `💵 <b>Amount:</b> ${amount} BDT\n` +
-                `🪙 <b>Coins:</b> +${coinsToAdd} PP Coins\n` +
-                `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
-                `✨ <b>নতুন ব্যালেন্স:</b> ${newBal} Coins\n` +
+                `👤 <b>User:</b> ${uName}\n` +
+                `📧 <b>Email:</b> <code>${uEmail}</code>\n` +
+                `🆔 <b>UID:</b> <code>${pendingDep.uid}</code>\n` +
                 `💳 <b>Method:</b> ${method}\n` +
-                `🔖 <b>TrxID:</b> <code>${trxId}</code>`;
-              sendTelegram(ADMIN_TG_ID, adminMsg);
-              sendTelegram(ORDER_LOG_CHANNEL, adminMsg);
+                `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
+                `💵 <b>Amount:</b> ৳${amount} BDT\n` +
+                `━━━━━━━━━━━━━━━━━━\n` +
+                `💰 <b>Approve-এর আগে ছিল:</b> ${curBal} Coins\n` +
+                `➕ <b>যোগ হয়েছে:</b> +${coinsToAdd} PP Coins\n` +
+                `✨ <b>Approve-এর পরে হয়েছে:</b> ${newBal} Coins`;
 
+              const tgTasks = [sendTelegram(ADMIN_TG_ID, adminMsg)];
               if (uTg) {
-                const userMsg = `✅ <b>আপনার ডিপোজিট অ্যাপ্রুভ হয়েছে!</b>\n\n` +
-                  `💵 <b>Amount:</b> ${amount} BDT\n` +
-                  `🪙 <b>Coin:</b> +${coinsToAdd} PP Coins\n` +
-                  `💰 <b>বর্তমান ব্যালেন্স:</b> ${newBal} Coins\n` +
-                  `🔖 <b>TrxID:</b> <code>${trxId}</code>\n` +
-                  `👤 <b>Account Name:</b> ${uName}\n` +
-                  `📧 <b>Mail:</b> ${uEmail}`;
-                sendTelegram(uTg, userMsg);
+                const userMsg = `✅ <b>আপনার ডিপোজিট অটো অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+                  `💵 <b>Amount:</b> ৳${amount} BDT\n` +
+                  `🪙 <b>যোগ হয়েছে:</b> +${coinsToAdd} PP Coins\n` +
+                  `💰 <b>আগের ব্যালেন্স:</b> ${curBal} Coins\n` +
+                  `✨ <b>বর্তমান ব্যালেন্স:</b> ${newBal} Coins\n` +
+                  `🔖 <b>TrxID:</b> <code>${trxId}</code>`;
+                tgTasks.push(sendTelegram(uTg, userMsg));
               }
+              await Promise.allSettled(tgTasks);
             } catch (ignTg) {}
 
             return json({ ok: true, matched: true, autoApproved: true, depId: pendingDep.id, amount, coinsAdded: coinsToAdd, balance: newBal });
@@ -1334,26 +1334,34 @@ export default {
           realSmsAmt, curBal, curBal, finalBal, now
         ).run().catch(() => {});
 
-        // Send Telegram Notifications
+        // Send Telegram Notifications (AWAITED so CF Worker never drops Admin Bot auto-approve logs!)
         try {
           const uName = userWallet?.name || name || 'User';
           const uEmail = userWallet?.email || email || '—';
           const uTg = userWallet?.tgChatId || '';
           const adminMsg = `💎 <b>AUTO-DEPOSIT APPROVED (INSTANT)</b> ✅\n\n` +
-            `🆔 <b>User ID:</b> <code>${targetUid}</code>\n` +
-            `👤 <b>Name:</b> ${uName}\n` +
-            `📧 <b>Email:</b> ${uEmail}\n` +
-            `💵 <b>Amount:</b> ${realSmsAmt} BDT\n` +
-            `🪙 <b>Coins:</b> +${coinsToAdd} PP Coins\n` +
-            `💰 <b>পূর্বের ব্যালেন্স:</b> ${curBal} Coins\n` +
-            `✨ <b>নতুন ব্যালেন্স:</b> ${finalBal} Coins\n` +
+            `👤 <b>User:</b> ${uName}\n` +
+            `📧 <b>Email:</b> <code>${uEmail}</code>\n` +
+            `🆔 <b>UID:</b> <code>${targetUid}</code>\n` +
             `💳 <b>Method:</b> ${payMethod}\n` +
-            `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`;
-          sendTelegram(ADMIN_TG_ID, adminMsg);
-          sendTelegram(ORDER_LOG_CHANNEL, adminMsg);
+            `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>\n` +
+            `💵 <b>Amount:</b> ৳${realSmsAmt} BDT\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `💰 <b>Approve-এর আগে ছিল:</b> ${curBal} Coins\n` +
+            `➕ <b>যোগ হয়েছে:</b> +${coinsToAdd} PP Coins\n` +
+            `✨ <b>Approve-এর পরে হয়েছে:</b> ${finalBal} Coins`;
+          const tgTasks = [sendTelegram(ADMIN_TG_ID, adminMsg)];
           if (uTg) {
-            sendTelegram(uTg, `✅ <b>আপনার ডিপোজিট অটো অ্যাপ্রুভ হয়েছে!</b>\n\n💵 <b>Amount:</b> ${realSmsAmt} BDT\n🪙 <b>Coin:</b> +${coinsToAdd} PP Coins\n💰 <b>বর্তমান ব্যালেন্স:</b> ${finalBal} Coins\n🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`);
+            tgTasks.push(sendTelegram(uTg,
+              `✅ <b>আপনার ডিপোজিট অটো অ্যাপ্রুভ হয়েছে!</b>\n\n` +
+              `💵 <b>Amount:</b> ৳${realSmsAmt} BDT\n` +
+              `🪙 <b>যোগ হয়েছে:</b> +${coinsToAdd} PP Coins\n` +
+              `💰 <b>আগের ব্যালেন্স:</b> ${curBal} Coins\n` +
+              `✨ <b>বর্তমান ব্যালেন্স:</b> ${finalBal} Coins\n` +
+              `🔖 <b>TrxID:</b> <code>${cleanTrx}</code>`
+            ));
           }
+          await Promise.allSettled(tgTasks);
         } catch (ignTg) {}
 
         return json({
@@ -1807,13 +1815,30 @@ export default {
         return json({ ok: true, orders: (results || []).map(sanitizeOrder) });
       }
 
-      // 3b. এডমিন প্যানেল ও ইউজার হিস্ট্রির জন্য অর্ডার ফেচ (Pending সবসময় Top + Non-Pending সর্বশেষ 100)
+      // 3b. এডমিন প্যানেল ও ইউজার হিস্ট্রির জন্য অর্ডার ফেচ (Pending সবসময় Top + Paginated for Quota Saving)
       if (path === "/api/admin/orders" && request.method === "GET") {
         const status = url.searchParams.get("status");
         const reqUid = url.searchParams.get("uid");
+        const reqLimit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "0", 10) || 0));
+        const reqOffset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
 
         if (reqUid && (!status || status === "all")) {
-          await autoPruneOldTransactions(env.DB, reqUid);
+          if (reqOffset === 0) {
+            await autoPruneOldTransactions(env.DB, reqUid);
+          }
+          if (reqLimit > 0) {
+            const { results } = await env.DB.prepare(`
+              SELECT * FROM orders
+              WHERE uid = ?
+              ORDER BY CASE WHEN LOWER(COALESCE(status, '')) IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC
+              LIMIT ? OFFSET ?
+            `).bind(reqUid, reqLimit + 1, reqOffset).all();
+            const list = results || [];
+            const hasMore = list.length > reqLimit;
+            const pageItems = hasMore ? list.slice(0, reqLimit) : list;
+            return json({ ok: true, orders: pageItems.map(sanitizeOrder), hasMore, offset: reqOffset, limit: reqLimit });
+          }
+
           const { results } = await env.DB.prepare(`
             SELECT * FROM (
               SELECT * FROM orders
@@ -2041,12 +2066,30 @@ export default {
         return json({ ok: true, order: sanitizeOrder(order) });
       }
 
-      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড (Pending সবসময় Top + Non-Pending সর্বশেষ 100 ও 30 দিনের মধ্যে)
+      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড (Pending সবসময় Top + 10-per-page Pagination for Quota Saving)
       if (path === "/api/history" && request.method === "GET") {
         const uid = url.searchParams.get("uid");
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
-        await autoPruneOldTransactions(env.DB, uid);
+        const reqLimit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "0", 10) || 0));
+        const reqOffset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
+
+        if (reqOffset === 0) {
+          await autoPruneOldTransactions(env.DB, uid);
+        }
+
+        if (reqLimit > 0) {
+          const { results } = await env.DB.prepare(`
+            SELECT * FROM transactions
+            WHERE uid = ?
+            ORDER BY CASE WHEN LOWER(COALESCE(status, '')) IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC
+            LIMIT ? OFFSET ?
+          `).bind(uid, reqLimit + 1, reqOffset).all();
+          const list = results || [];
+          const hasMore = list.length > reqLimit;
+          const pageItems = hasMore ? list.slice(0, reqLimit) : list;
+          return json({ ok: true, history: pageItems, hasMore, offset: reqOffset, limit: reqLimit });
+        }
 
         const { results } = await env.DB.prepare(`
           SELECT * FROM (
@@ -2107,7 +2150,7 @@ export default {
         return json({ ok: true });
       }
 
-      // 8a. Cloudflare D1 Create Deposit
+      // 8a. Cloudflare D1 Create Deposit (Strict Zero-Duplicate Guard + Awaited Admin Alert)
       if (path === "/api/deposits/create" && request.method === "POST") {
         const body = await request.json();
         const { id, uid, name, email, method, amount, coins, trxId } = body;
@@ -2119,26 +2162,37 @@ export default {
         const amt = roundCoin(amount);
         const c = roundCoin(coins || Math.floor(amt / 7) || 3);
 
-        const existingApp = await env.DB.prepare(`SELECT 1 FROM deposits WHERE trxId = ? AND status = 'approved' LIMIT 1`).bind(cleanTrx).first();
-        if (existingApp) {
-          return json({ ok: false, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে!" }, 400);
+        // Strict multi-table duplicate & lock check (prevents double-spend across App & Web!)
+        const [usedRow, existingApp, existingPendOther, smsLocked] = await Promise.all([
+          env.DB.prepare(`SELECT 1 FROM used_trx WHERE UPPER(trxId) = ? LIMIT 1`).bind(cleanTrx).first(),
+          env.DB.prepare(`SELECT 1 FROM deposits WHERE UPPER(trxId) = ? AND status = 'approved' LIMIT 1`).bind(cleanTrx).first(),
+          env.DB.prepare(`SELECT uid FROM deposits WHERE UPPER(trxId) = ? AND status = 'pending' AND uid != ? LIMIT 1`).bind(cleanTrx, uid).first(),
+          env.DB.prepare(`SELECT claimed, claimType FROM gateway_sms WHERE UPPER(trxId) = ? LIMIT 1`).bind(cleanTrx).first()
+        ]);
+
+        if (usedRow || existingApp || (smsLocked && (smsLocked.claimed === 1 || smsLocked.claimType === 'user'))) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে! একই TrxID দ্বিতীয়বার গ্রহণযোগ্য নয়।" }, 400);
+        }
+        if (smsLocked && smsLocked.claimType === 'admin') {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই ট্রানজ্যাকশন আইডিটি অ্যাডমিন কর্তৃক পার্সোনাল হিসেবে লক করা হয়েছে।" }, 400);
+        }
+        if (smsLocked && smsLocked.claimType === 'time_expired') {
+          return json({ ok: false, duplicate: true, error: "❌ টাকা পাঠানোর ৩০ মিনিট সময় পার হয়ে গেছে! ৩০ মিনিটের পুরোনো ট্রানজ্যাকশন গ্রহণযোগ্য নয়।" }, 400);
+        }
+        if (existingPendOther) {
+          return json({ ok: false, duplicate: true, error: "⚠️ এই TrxID ইতিমধ্যে অন্য একটি অ্যাকাউন্ট থেকে সাবমিট করা আছে!" }, 400);
         }
 
         await env.DB.prepare(`
           INSERT INTO deposits (id, uid, name, email, method, amount, coins, trxId, status, createdAt)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-          ON CONFLICT(id) DO UPDATE SET
-            amount = excluded.amount,
-            coins = excluded.coins,
-            trxId = excluded.trxId
+          ON CONFLICT(id) DO NOTHING
         `).bind(depId, uid, name || "User", email || "", method || "bKash", amt, c, cleanTrx, now).run();
 
         await env.DB.prepare(`
           INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, createdAt)
           VALUES (?, ?, 'TOP-UP', ?, ?, ?, ?, 'pending', ?)
-          ON CONFLICT(id) DO UPDATE SET
-            amount = excluded.amount,
-            status = 'pending'
+          ON CONFLICT(id) DO NOTHING
         `).bind(
           depId,
           uid,
@@ -2149,8 +2203,8 @@ export default {
           now
         ).run().catch(() => { });
 
-        // Alert admin on Telegram
-        sendTelegram(ADMIN_TG_ID, `💰 <b>NEW DEPOSIT REQUEST!</b>\n\n🆔 <b>UID:</b> <code>${uid}</code>\n📱 <b>Method:</b> ${method || 'bKash'}\n💵 <b>Amount:</b> ৳${amt} (${c} PP Coins)\n🧾 <b>TrxID:</b> <code>${cleanTrx}</code>`);
+        // Alert admin on Telegram (awaited so CF Worker never drops alert)
+        await sendTelegram(ADMIN_TG_ID, `💰 <b>NEW DEPOSIT REQUEST!</b>\n\n👤 <b>User:</b> ${name || 'User'}\n🆔 <b>UID:</b> <code>${uid}</code>\n📱 <b>Method:</b> ${method || 'bKash'}\n💵 <b>Amount:</b> ৳${amt} (${c} PP Coins)\n🧾 <b>TrxID:</b> <code>${cleanTrx}</code>`);
 
         return json({ ok: true, id: depId });
       }
@@ -2167,17 +2221,40 @@ export default {
         return json({ ok: true, deposits: results || [] });
       }
 
-      // 8a-2b. Cloudflare D1 All Deposits for Admin
+      // 8a-2b. Cloudflare D1 Deposits Fetch (Supports per-UID + Pagination for Quota Saving!)
       if (path === "/api/admin/deposits" && request.method === "GET") {
         const status = url.searchParams.get("status");
+        const reqUid = (url.searchParams.get("uid") || "").trim();
+        const reqLimit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "0", 10) || 0));
+        const reqOffset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
+
         let queryStr = `SELECT d.*, COALESCE(d.email, u.email, '') as userEmail, COALESCE(d.name, u.name, 'User') as userName, u.tgChatId FROM deposits d LEFT JOIN user_wallets u ON d.uid = u.uid`;
         const params = [];
-        if (status && status !== "all") {
-          queryStr += ` WHERE d.status = ? ORDER BY d.createdAt DESC LIMIT 200`;
-          params.push(status);
-        } else {
-          queryStr += ` ORDER BY CASE WHEN d.status = 'pending' THEN 0 ELSE 1 END, d.createdAt DESC LIMIT 200`;
+        const conds = [];
+        if (reqUid) {
+          conds.push("d.uid = ?");
+          params.push(reqUid);
         }
+        if (status && status !== "all") {
+          conds.push("d.status = ?");
+          params.push(status);
+        }
+        if (conds.length > 0) {
+          queryStr += " WHERE " + conds.join(" AND ");
+        }
+        queryStr += ` ORDER BY CASE WHEN d.status = 'pending' THEN 0 ELSE 1 END, d.createdAt DESC`;
+
+        if (reqLimit > 0) {
+          queryStr += ` LIMIT ? OFFSET ?`;
+          params.push(reqLimit + 1, reqOffset);
+          const { results } = await env.DB.prepare(queryStr).bind(...params).all();
+          const list = results || [];
+          const hasMore = list.length > reqLimit;
+          const pageItems = hasMore ? list.slice(0, reqLimit) : list;
+          return json({ ok: true, deposits: pageItems, hasMore, offset: reqOffset, limit: reqLimit });
+        }
+
+        queryStr += ` LIMIT 200`;
         const { results } = await env.DB.prepare(queryStr).bind(...params).all();
         return json({ ok: true, deposits: results || [] });
       }
