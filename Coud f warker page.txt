@@ -162,10 +162,216 @@ async function sendTelegram(chatId, text) {
 // AND keeps at most the latest 100 non-pending records per user (along with auto-deleting orderToken).
 let _schemaReady = false;
 let _lastAutoPruneAt = 0;
+let _lastCloudPurgeAt = 0;
 let _pushCacheData = null;
 let _pushCacheAt = 0;
 let _statsCacheData = null;
 let _statsCacheAt = 0;
+
+// ==================== PP CLOUD VIP VAULT CONSTANTS & HELPERS ====================
+const CLOUD_GRACE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days renewal grace period before auto-wipe
+const CLOUD_PLANS = {
+  basic: { label: "Basic", maxEmails: 10 },
+  classic: { label: "Classic", maxEmails: 25 },
+  vip: { label: "VIP", maxEmails: -1 },
+};
+
+function normalizeCloudPlan(plan) {
+  const p = String(plan || "basic").trim().toLowerCase();
+  if (p === "vip" || p === "unlimited") return "vip";
+  if (p === "classic" || p === "pro" || p === "standard") return "classic";
+  return "basic";
+}
+
+function getCloudPlanMaxEmails(plan) {
+  const p = normalizeCloudPlan(plan);
+  return CLOUD_PLANS[p].maxEmails;
+}
+
+function computeCloudVipState(row, now = Date.now()) {
+  const exp = Number(row?.expiresAt) || 0;
+  const status = String(row?.status || "active").toLowerCase();
+  if (status === "suspended") {
+    return {
+      state: "suspended",
+      active: false,
+      expired: false,
+      inGrace: false,
+      purged: false,
+      lifetime: exp === 0,
+      remainingMs: 0,
+      daysLeft: 0,
+      graceRemainingMs: 0,
+      graceDaysLeft: 0,
+      graceEndsAt: 0,
+    };
+  }
+  if (status === "expired_purged") {
+    return {
+      state: "purged",
+      active: false,
+      expired: true,
+      inGrace: false,
+      purged: true,
+      lifetime: false,
+      remainingMs: 0,
+      daysLeft: 0,
+      graceRemainingMs: 0,
+      graceDaysLeft: 0,
+      graceEndsAt: exp > 0 ? exp + CLOUD_GRACE_MS : 0,
+    };
+  }
+  if (exp === 0) {
+    return {
+      state: "active",
+      active: true,
+      expired: false,
+      inGrace: false,
+      purged: false,
+      lifetime: true,
+      remainingMs: 0,
+      daysLeft: 999999,
+      graceRemainingMs: 0,
+      graceDaysLeft: 0,
+      graceEndsAt: 0,
+    };
+  }
+  if (now < exp) {
+    const rem = exp - now;
+    return {
+      state: "active",
+      active: true,
+      expired: false,
+      inGrace: false,
+      purged: false,
+      lifetime: false,
+      remainingMs: rem,
+      daysLeft: Math.max(1, Math.ceil(rem / 86400000)),
+      graceRemainingMs: 0,
+      graceDaysLeft: 0,
+      graceEndsAt: exp + CLOUD_GRACE_MS,
+    };
+  }
+  const graceEndsAt = exp + CLOUD_GRACE_MS;
+  if (now < graceEndsAt) {
+    const gRem = graceEndsAt - now;
+    return {
+      state: "grace",
+      active: false,
+      expired: true,
+      inGrace: true,
+      purged: false,
+      lifetime: false,
+      remainingMs: 0,
+      daysLeft: 0,
+      graceRemainingMs: gRem,
+      graceDaysLeft: Math.max(1, Math.ceil(gRem / 86400000)),
+      graceEndsAt,
+    };
+  }
+  return {
+    state: "purged",
+    active: false,
+    expired: true,
+    inGrace: false,
+    purged: true,
+    lifetime: false,
+    remainingMs: 0,
+    daysLeft: 0,
+    graceRemainingMs: 0,
+    graceDaysLeft: 0,
+    graceEndsAt,
+  };
+}
+
+async function purgeExpiredCloudVipUsers(db, targetUid = null, force = false) {
+  try {
+    const now = Date.now();
+    if (!targetUid && !force && (now - _lastCloudPurgeAt) < 15 * 60 * 1000) return 0;
+    if (!targetUid) _lastCloudPurgeAt = now;
+    const cutoff = now - CLOUD_GRACE_MS;
+    let res;
+    if (targetUid) {
+      res = await db.prepare(`
+        SELECT uid FROM cloud_vip_users
+        WHERE uid = ? AND expiresAt > 0 AND expiresAt <= ? AND status != 'expired_purged'
+      `).bind(targetUid, cutoff).all();
+    } else {
+      res = await db.prepare(`
+        SELECT uid FROM cloud_vip_users
+        WHERE expiresAt > 0 AND expiresAt <= ? AND status != 'expired_purged'
+        LIMIT 100
+      `).bind(cutoff).all();
+    }
+    const rows = res?.results || [];
+    let purgedCount = 0;
+    for (const r of rows) {
+      if (!r || !r.uid) continue;
+      await db.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(r.uid).run().catch(() => {});
+      await db.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(r.uid).run().catch(() => {});
+      await db.prepare(`
+        UPDATE cloud_vip_users
+        SET status = 'expired_purged', purgedAt = ?, updatedAt = ?
+        WHERE uid = ?
+      `).bind(now, now, r.uid).run().catch(() => {});
+      purgedCount++;
+    }
+    return purgedCount;
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function getCloudVipAccounts(db, uid) {
+  const cleanUid = String(uid || "").trim();
+  if (!cleanUid) return [];
+  const map = new Map();
+  try {
+    const gRes = await db.prepare(`
+      SELECT id, uid, code, email, country, android_id, createdAt, updatedAt
+      FROM g_tokens
+      WHERE uid = ? AND status = 'active'
+      ORDER BY createdAt DESC LIMIT 500
+    `).bind(cleanUid).all();
+    for (const r of (gRes?.results || [])) {
+      const key = (r.email && r.email.includes("@")) ? r.email.trim().toLowerCase() : (r.code || r.id);
+      map.set(key, {
+        id: r.id,
+        uid: r.uid,
+        code: r.code,
+        email: r.email || "",
+        country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+        android_id: r.android_id || "46e14d2451d85c3f",
+        createdAt: r.createdAt || 0,
+        updatedAt: r.updatedAt || 0,
+      });
+    }
+  } catch (e) { }
+  try {
+    const vRes = await db.prepare(`
+      SELECT id, uid, code, email, country, android_id, createdAt, updatedAt
+      FROM pp_sync_vault
+      WHERE uid = ? AND status = 'active'
+      ORDER BY createdAt DESC LIMIT 500
+    `).bind(cleanUid).all();
+    for (const r of (vRes?.results || [])) {
+      const key = (r.email && r.email.includes("@")) ? r.email.trim().toLowerCase() : (r.code || r.id);
+      if (!map.has(key)) {
+        map.set(key, {
+          id: r.id,
+          uid: r.uid,
+          code: r.code,
+          email: r.email || "",
+          country: (r.country && r.country !== "GLOBAL") ? r.country : "US",
+          android_id: r.android_id || "46e14d2451d85c3f",
+          createdAt: r.createdAt || 0,
+          updatedAt: r.updatedAt || 0,
+        });
+      }
+    }
+  } catch (e) { }
+  return Array.from(map.values()).sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+}
 
 // In-Memory Sliding Window & Lockout Anti-Spam Rate Limiter (Zero D1 Quota Cost!)
 const _rlMap = new Map();
@@ -468,6 +674,27 @@ async function ensureTables(db) {
     )
   `).run().catch(() => { });
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_push_created ON push_notifications(createdAt DESC);`).run().catch(() => { });
+
+  // Dedicated PP CLOUD VIP Vault Users (Paid Email Slot Packages + 7-Day Grace Auto-Purge)
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS cloud_vip_users (
+      uid TEXT PRIMARY KEY,
+      loginId TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT DEFAULT 'VIP Member',
+      plan TEXT DEFAULT 'basic',
+      maxEmails INTEGER DEFAULT 10,
+      expiresAt INTEGER DEFAULT 0,
+      deviceId TEXT DEFAULT '',
+      status TEXT DEFAULT 'active',
+      note TEXT DEFAULT '',
+      purgedAt INTEGER DEFAULT 0,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_cloud_vip_login ON cloud_vip_users(loginId);`).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_cloud_vip_exp ON cloud_vip_users(expiresAt);`).run().catch(() => { });
 }
 
 export default {
@@ -926,7 +1153,61 @@ export default {
           existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE code = ?`).bind(code).first().catch(() => null);
         }
         if (!existing && email && email.includes("@")) {
-          existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).first().catch(() => null);
+          if (uid) {
+            existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE LOWER(email) = ? AND uid = ?`).bind(email, uid).first().catch(() => null);
+          }
+          if (!existing) {
+            existing = await env.DB.prepare(`SELECT * FROM pp_sync_vault WHERE LOWER(email) = ?`).bind(email).first().catch(() => null);
+          }
+        }
+
+        // PP CLOUD VIP Enforcement: Active Subscription Check + Email Slot Limit (Basic 10 / Classic 25 / VIP Unlimited)
+        if (uid) {
+          const cloudUser = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE uid = ? LIMIT 1`).bind(uid).first().catch(() => null);
+          if (cloudUser) {
+            const nowCheck = Date.now();
+            const st = computeCloudVipState(cloudUser, nowCheck);
+            if (st.state === "purged") {
+              await purgeExpiredCloudVipUsers(env.DB, uid, true);
+              return json({
+                ok: false,
+                cloudExpired: true,
+                purged: true,
+                error: "আপনার PP CLOUD সাবস্ক্রিপশনের মেয়াদ ৭ দিনের বেশি শেষ হওয়ায় সব সেভ করা ইমেইল মুছে গেছে। অ্যাডমিনের সাথে যোগাযোগ করুন।"
+              }, 403);
+            }
+            if (!st.active) {
+              return json({
+                ok: false,
+                cloudExpired: st.expired,
+                inGrace: st.inGrace,
+                suspended: st.state === "suspended",
+                graceRemainingMs: st.graceRemainingMs,
+                error: st.state === "suspended"
+                  ? "আপনার PP CLOUD অ্যাকাউন্টটি সাসপেন্ড করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।"
+                  : "আপনার PP CLOUD সাবস্ক্রিপশনের মেয়াদ শেষ! রিনিউ করতে ৭ দিন সময় আছে, না করলে সব ডেটা মুছে যাবে।"
+              }, 403);
+            }
+            const maxSlots = Number(cloudUser.maxEmails);
+            if (maxSlots > 0) {
+              const savedAccs = await getCloudVipAccounts(env.DB, uid);
+              const isAlreadySavedForUser = savedAccs.some(a =>
+                (email && a.email && a.email.trim().toLowerCase() === email) ||
+                (code && a.code && a.code === code)
+              );
+              if (!isAlreadySavedForUser && savedAccs.length >= maxSlots) {
+                const planLabel = CLOUD_PLANS[normalizeCloudPlan(cloudUser.plan)].label;
+                return json({
+                  ok: false,
+                  limitReached: true,
+                  plan: normalizeCloudPlan(cloudUser.plan),
+                  maxEmails: maxSlots,
+                  usedSlots: savedAccs.length,
+                  error: `আপনার ${planLabel} প্যাকেজের ইমেইল লিমিট (${savedAccs.length}/${maxSlots}) পূর্ণ হয়ে গেছে! আরও ইমেইল অ্যাড করতে প্যাকেজ আপগ্রেড করুন।`
+                }, 403);
+              }
+            }
+          }
         }
 
         if (country === "GB") country = "UK";
@@ -1123,23 +1404,49 @@ export default {
         const code = url.searchParams.get("code") || "";
         if (!code) return json({ ok: false, error: "Missing code" }, 400);
 
-        let gRow = null;
+        let foundRow = null;
         try {
-          gRow = await env.DB.prepare(`SELECT * FROM g_tokens WHERE code = ?`).bind(code).first();
+          foundRow = await env.DB.prepare(`SELECT * FROM g_tokens WHERE code = ?`).bind(code).first();
         } catch(e) {}
-        if (gRow) {
-          gRow.country = (gRow.country && gRow.country !== "GLOBAL") ? gRow.country : "US";
-          gRow.android_id = gRow.android_id || "46e14d2451d85c3f";
-          return json({ ok: true, account: gRow });
+        if (!foundRow) {
+          foundRow = await env.DB.prepare(`
+            SELECT id, uid, code, email, token, country, status, android_id, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
+          `).bind(code).first();
+        }
+        if (!foundRow) return json({ ok: false, error: "Code not found" }, 404);
+
+        // PP CLOUD VIP Gate: If this QID belongs to an expired/suspended Cloud VIP user, IMMEDIATELY block QID usage!
+        if (foundRow.uid) {
+          const cloudOwner = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE uid = ? LIMIT 1`).bind(foundRow.uid).first().catch(() => null);
+          if (cloudOwner) {
+            const st = computeCloudVipState(cloudOwner, Date.now());
+            if (st.state === "purged") {
+              await purgeExpiredCloudVipUsers(env.DB, foundRow.uid, true);
+              return json({
+                ok: false,
+                cloudExpired: true,
+                purged: true,
+                error: "এই QID-এর PP CLOUD সাবস্ক্রিপশনের মেয়াদ শেষ হওয়ায় ডেটা রিমুভ হয়ে গেছে। রিনিউ করতে অ্যাডমিনের সাথে যোগাযোগ করুন।"
+              }, 403);
+            }
+            if (!st.active) {
+              return json({
+                ok: false,
+                cloudExpired: true,
+                inGrace: st.inGrace,
+                suspended: st.state === "suspended",
+                graceRemainingMs: st.graceRemainingMs,
+                error: st.state === "suspended"
+                  ? "এই PP CLOUD অ্যাকাউন্টটি সাসপেন্ড করা হয়েছে।"
+                  : "আপনার PP CLOUD সাবস্ক্রিপশনের মেয়াদ শেষ হয়ে গেছে! QID বন্ধ আছে — ৭ দিনের মধ্যে রিনিউ না করলে সব ডেটা মুছে যাবে।"
+              }, 403);
+            }
+          }
         }
 
-        const row = await env.DB.prepare(`
-          SELECT id, uid, code, email, token, country, status, android_id, createdAt, updatedAt FROM pp_sync_vault WHERE code = ?
-        `).bind(code).first();
-        if (!row) return json({ ok: false, error: "Code not found" }, 404);
-        row.country = (row.country && row.country !== "GLOBAL") ? row.country : "US";
-        row.android_id = row.android_id || "46e14d2451d85c3f";
-        return json({ ok: true, account: row });
+        foundRow.country = (foundRow.country && foundRow.country !== "GLOBAL") ? foundRow.country : "US";
+        foundRow.android_id = foundRow.android_id || "46e14d2451d85c3f";
+        return json({ ok: true, account: foundRow });
       }
 
       if (path === "/api/sync/delete" && request.method === "POST") {
@@ -3287,11 +3594,324 @@ export default {
         });
       }
 
+      // ==================== PP CLOUD VIP VAULT APIs ====================
+      // 1. User Login for PP CLOUD App (Admin-created Email/ID + Password, 1-Device Lock, 5x/1h Rate Limit)
+      if (path === "/api/cloud/login" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const rawLogin = String(body.loginId || body.email || body.username || "").trim();
+        const loginLower = rawLogin.toLowerCase();
+        const password = String(body.password || "").trim();
+        const deviceId = String(body.deviceId || body.device_id || "").trim();
+
+        if (!loginLower || !password) {
+          return json({ ok: false, error: "ইমেইল/লগইন আইডি এবং পাসওয়ার্ড দিন।" }, 400);
+        }
+
+        const clientIp = getClientIp(request);
+        const rlKey = `cloud_login:${clientIp}:${loginLower}`;
+        const rl = checkRateLimit(rlKey, 5, 60 * 60 * 1000, 60 * 60 * 1000, true);
+        if (!rl.allowed) {
+          return json({
+            ok: false,
+            rateLimited: true,
+            retryAfterSec: rl.retryAfterSec,
+            error: `অনেকবার ভুল চেষ্টা করা হয়েছে! অনুগ্রহ করে ${formatRetryBn(rl.retryAfterSec)} পরে আবার চেষ্টা করুন।`
+          }, 429);
+        }
+
+        let user = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE LOWER(loginId) = ? LIMIT 1`).bind(loginLower).first().catch(() => null);
+        if (!user || String(user.password || "").trim() !== password) {
+          return json({
+            ok: false,
+            error: "ইমেইল/লগইন আইডি বা পাসওয়ার্ড ভুল হয়েছে। অ্যাডমিনের দেওয়া সঠিক তথ্য দিন।"
+          }, 401);
+        }
+
+        // Valid credentials -> reset failed login counter
+        resetRateLimit(rlKey);
+
+        // Run auto-purge check if past 7-day renewal grace window
+        const purgedNow = await purgeExpiredCloudVipUsers(env.DB, user.uid, true);
+        if (purgedNow > 0) {
+          user = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE uid = ? LIMIT 1`).bind(user.uid).first().catch(() => user);
+        }
+
+        const now = Date.now();
+        const st = computeCloudVipState(user, now);
+
+        // Enforce 1-Device Hardware Lock on active sessions
+        const boundDevice = String(user.deviceId || "").trim();
+        if (deviceId) {
+          if (boundDevice && boundDevice !== deviceId) {
+            return json({
+              ok: false,
+              deviceLocked: true,
+              error: "এই PP CLOUD অ্যাকাউন্টটি অন্য একটি ফোনে লক করা আছে! নতুন ফোনে চালাতে অ্যাডমিনকে বলে Device Reset করান।"
+            }, 409);
+          }
+          if (!boundDevice) {
+            await env.DB.prepare(`UPDATE cloud_vip_users SET deviceId = ?, updatedAt = ? WHERE uid = ?`)
+              .bind(deviceId, now, user.uid).run().catch(() => {});
+            user.deviceId = deviceId;
+          }
+        }
+
+        const allAccs = await getCloudVipAccounts(env.DB, user.uid);
+        const accounts = st.active ? allAccs : [];
+
+        return json({
+          ok: true,
+          user: {
+            uid: user.uid,
+            loginId: user.loginId,
+            name: user.name || "VIP Member",
+            plan: normalizeCloudPlan(user.plan),
+            planLabel: CLOUD_PLANS[normalizeCloudPlan(user.plan)].label,
+            maxEmails: Number(user.maxEmails),
+            expiresAt: Number(user.expiresAt) || 0,
+            deviceId: user.deviceId || "",
+            status: user.status || "active",
+            note: user.note || "",
+            purgedAt: Number(user.purgedAt) || 0,
+            createdAt: Number(user.createdAt) || 0,
+          },
+          state: st,
+          usedSlots: allAccs.length,
+          accounts,
+        });
+      }
+
+      // 2. Live Session & Vault Sync for PP CLOUD App
+      if (path === "/api/cloud/session" && request.method === "GET") {
+        const uid = (url.searchParams.get("uid") || "").trim();
+        const deviceId = (url.searchParams.get("deviceId") || url.searchParams.get("device_id") || "").trim();
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await purgeExpiredCloudVipUsers(env.DB, uid, true);
+        const user = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE uid = ? LIMIT 1`).bind(uid).first().catch(() => null);
+        if (!user) {
+          return json({ ok: false, deleted: true, error: "অ্যাকাউন্টটি পাওয়া যায়নি বা ডিলিট করা হয়েছে।" }, 404);
+        }
+
+        const boundDevice = String(user.deviceId || "").trim();
+        if (deviceId && boundDevice && boundDevice !== deviceId) {
+          return json({
+            ok: false,
+            deviceLocked: true,
+            error: "এই অ্যাকাউন্টটির ডিভাইস লক পরিবর্তন হয়েছে বা অন্য ফোনে লগইন হয়েছে। পুনরায় লগইন করুন।"
+          }, 409);
+        }
+        if (deviceId && !boundDevice) {
+          await env.DB.prepare(`UPDATE cloud_vip_users SET deviceId = ?, updatedAt = ? WHERE uid = ?`)
+            .bind(deviceId, Date.now(), user.uid).run().catch(() => {});
+          user.deviceId = deviceId;
+        }
+
+        const st = computeCloudVipState(user, Date.now());
+        const allAccs = await getCloudVipAccounts(env.DB, user.uid);
+        const accounts = st.active ? allAccs : [];
+
+        return json({
+          ok: true,
+          user: {
+            uid: user.uid,
+            loginId: user.loginId,
+            name: user.name || "VIP Member",
+            plan: normalizeCloudPlan(user.plan),
+            planLabel: CLOUD_PLANS[normalizeCloudPlan(user.plan)].label,
+            maxEmails: Number(user.maxEmails),
+            expiresAt: Number(user.expiresAt) || 0,
+            deviceId: user.deviceId || "",
+            status: user.status || "active",
+            note: user.note || "",
+            purgedAt: Number(user.purgedAt) || 0,
+            createdAt: Number(user.createdAt) || 0,
+          },
+          state: st,
+          usedSlots: allAccs.length,
+          accounts,
+        });
+      }
+
+      // 3. Admin: List All PP CLOUD VIP Users + Live Slot Counts + Auto-Purge
+      if (path === "/api/admin/cloud/users" && request.method === "GET") {
+        await purgeExpiredCloudVipUsers(env.DB, null, true);
+        const rowsRes = await env.DB.prepare(`SELECT * FROM cloud_vip_users ORDER BY createdAt DESC LIMIT 500`).all();
+        const rows = rowsRes?.results || [];
+
+        // Efficiently aggregate distinct saved email counts per uid
+        const slotSets = new Map();
+        try {
+          const gRes = await env.DB.prepare(`SELECT uid, LOWER(COALESCE(email, code, id)) AS ek FROM g_tokens WHERE status = 'active' AND uid LIKE 'CLOUD-%'`).all();
+          for (const r of (gRes?.results || [])) {
+            if (!r.uid) continue;
+            if (!slotSets.has(r.uid)) slotSets.set(r.uid, new Set());
+            slotSets.get(r.uid).add(r.ek || "");
+          }
+        } catch (e) {}
+        try {
+          const vRes = await env.DB.prepare(`SELECT uid, LOWER(COALESCE(email, code, id)) AS ek FROM pp_sync_vault WHERE status = 'active' AND uid LIKE 'CLOUD-%'`).all();
+          for (const r of (vRes?.results || [])) {
+            if (!r.uid) continue;
+            if (!slotSets.has(r.uid)) slotSets.set(r.uid, new Set());
+            slotSets.get(r.uid).add(r.ek || "");
+          }
+        } catch (e) {}
+
+        const now = Date.now();
+        const summary = { total: rows.length, active: 0, grace: 0, purged: 0, suspended: 0, basic: 0, classic: 0, vip: 0, totalSavedEmails: 0 };
+        const users = rows.map(u => {
+          const plan = normalizeCloudPlan(u.plan);
+          const st = computeCloudVipState(u, now);
+          const usedSlots = slotSets.has(u.uid) ? slotSets.get(u.uid).size : 0;
+          summary[st.state] = (summary[st.state] || 0) + 1;
+          summary[plan] = (summary[plan] || 0) + 1;
+          summary.totalSavedEmails += usedSlots;
+          return {
+            uid: u.uid,
+            loginId: u.loginId,
+            password: u.password,
+            name: u.name || "VIP Member",
+            plan,
+            planLabel: CLOUD_PLANS[plan].label,
+            maxEmails: Number(u.maxEmails),
+            usedSlots,
+            expiresAt: Number(u.expiresAt) || 0,
+            deviceId: u.deviceId || "",
+            status: u.status || "active",
+            note: u.note || "",
+            purgedAt: Number(u.purgedAt) || 0,
+            createdAt: Number(u.createdAt) || 0,
+            updatedAt: Number(u.updatedAt) || 0,
+            state: st,
+          };
+        });
+
+        return json({ ok: true, total: users.length, summary, users });
+      }
+
+      // 4. Admin: Create PP CLOUD VIP User
+      if (path === "/api/admin/cloud/users/create" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const loginId = String(body.loginId || body.email || "").trim().toLowerCase();
+        const password = String(body.password || "").trim();
+        const name = String(body.name || "").trim() || loginId.split("@")[0] || "VIP Member";
+        const plan = normalizeCloudPlan(body.plan);
+        const maxEmails = getCloudPlanMaxEmails(plan);
+        const days = Number(body.days);
+        const note = String(body.note || "").trim().slice(0, 300);
+
+        if (!loginId || loginId.length < 3) {
+          return json({ ok: false, error: "Valid Login Email or ID is required (min 3 chars)." }, 400);
+        }
+        if (!password || password.length < 4) {
+          return json({ ok: false, error: "Password is required (min 4 chars)." }, 400);
+        }
+
+        const dup = await env.DB.prepare(`SELECT uid FROM cloud_vip_users WHERE LOWER(loginId) = ? LIMIT 1`).bind(loginId).first().catch(() => null);
+        if (dup) {
+          return json({ ok: false, error: "এই Login Email / ID ইতিমধ্যে তৈরি করা আছে! অন্য একটি দিন।" }, 409);
+        }
+
+        const now = Date.now();
+        const expiresAt = (!isNaN(days) && days > 0) ? (now + Math.round(days * 86400000)) : 0;
+        const uid = `CLOUD-${now.toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+        await env.DB.prepare(`
+          INSERT INTO cloud_vip_users (uid, loginId, password, name, plan, maxEmails, expiresAt, deviceId, status, note, purgedAt, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, '', 'active', ?, 0, ?, ?)
+        `).bind(uid, loginId, password, name, plan, maxEmails, expiresAt, note, now, now).run();
+
+        const created = { uid, loginId, password, name, plan, planLabel: CLOUD_PLANS[plan].label, maxEmails, usedSlots: 0, expiresAt, deviceId: "", status: "active", note, purgedAt: 0, createdAt: now, updatedAt: now };
+        return json({ ok: true, user: created, state: computeCloudVipState(created, now), message: "PP CLOUD VIP user created successfully!" });
+      }
+
+      // 5. Admin: Update / Renew / Upgrade / Reset Device / Suspend PP CLOUD VIP User
+      if (path === "/api/admin/cloud/users/update" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const uid = String(body.uid || "").trim();
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        const existing = await env.DB.prepare(`SELECT * FROM cloud_vip_users WHERE uid = ? LIMIT 1`).bind(uid).first().catch(() => null);
+        if (!existing) return json({ ok: false, error: "Cloud VIP user not found" }, 404);
+
+        const now = Date.now();
+        const plan = body.plan !== undefined ? normalizeCloudPlan(body.plan) : normalizeCloudPlan(existing.plan);
+        const maxEmails = body.plan !== undefined ? getCloudPlanMaxEmails(plan) : Number(existing.maxEmails);
+        const name = body.name !== undefined ? (String(body.name || "").trim() || existing.name) : existing.name;
+        const password = (body.password !== undefined && String(body.password).trim().length >= 4)
+          ? String(body.password).trim()
+          : existing.password;
+        const note = body.note !== undefined ? String(body.note || "").trim().slice(0, 300) : (existing.note || "");
+        let status = existing.status || "active";
+        let purgedAt = Number(existing.purgedAt) || 0;
+        let expiresAt = Number(existing.expiresAt) || 0;
+        let deviceId = existing.deviceId || "";
+
+        if (body.resetDevice === true) {
+          deviceId = "";
+        }
+        if (body.status === "suspended" || body.status === "active") {
+          status = body.status;
+        }
+        if (body.setDays !== undefined && body.setDays !== null && body.setDays !== "") {
+          const sd = Number(body.setDays);
+          if (!isNaN(sd)) {
+            expiresAt = sd > 0 ? (now + Math.round(sd * 86400000)) : 0;
+            if (status !== "suspended") {
+              status = "active";
+              purgedAt = 0;
+            }
+          }
+        } else if (body.extendDays !== undefined && body.extendDays !== null && body.extendDays !== "") {
+          const ext = Number(body.extendDays);
+          if (!isNaN(ext) && ext > 0) {
+            const base = (expiresAt > now) ? expiresAt : now;
+            expiresAt = base + Math.round(ext * 86400000);
+            if (status !== "suspended") {
+              status = "active";
+              purgedAt = 0;
+            }
+          }
+        } else if (body.expiresAt !== undefined && body.expiresAt !== null) {
+          const ea = Number(body.expiresAt);
+          if (!isNaN(ea) && ea >= 0) {
+            expiresAt = ea;
+            if (status !== "suspended" && (ea === 0 || ea > now)) {
+              status = "active";
+              purgedAt = 0;
+            }
+          }
+        }
+
+        await env.DB.prepare(`
+          UPDATE cloud_vip_users
+          SET name = ?, password = ?, plan = ?, maxEmails = ?, expiresAt = ?, deviceId = ?, status = ?, note = ?, purgedAt = ?, updatedAt = ?
+          WHERE uid = ?
+        `).bind(name, password, plan, maxEmails, expiresAt, deviceId, status, note, purgedAt, now, uid).run();
+
+        const updated = { ...existing, name, password, plan, planLabel: CLOUD_PLANS[plan].label, maxEmails, expiresAt, deviceId, status, note, purgedAt, updatedAt: now };
+        return json({ ok: true, user: updated, state: computeCloudVipState(updated, now), message: "PP CLOUD VIP user updated!" });
+      }
+
+      // 6. Admin: Delete PP CLOUD VIP User + Wipe All Saved Google Accounts
+      if (path === "/api/admin/cloud/users/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const uid = String(body.uid || "").trim();
+        if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        await env.DB.prepare(`DELETE FROM g_tokens WHERE uid = ?`).bind(uid).run().catch(() => {});
+        await env.DB.prepare(`DELETE FROM pp_sync_vault WHERE uid = ?`).bind(uid).run().catch(() => {});
+        await env.DB.prepare(`DELETE FROM cloud_vip_users WHERE uid = ?`).bind(uid).run();
+        return json({ ok: true, message: "PP CLOUD VIP user and all saved Google accounts permanently deleted." });
+      }
+
       // 9. ৩০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
       if (path === "/api/cleanup") {
         const targetUid = url.searchParams.get("uid") || null;
         await autoPruneOldTransactions(env.DB, targetUid, true);
-        return json({ ok: true, message: "Pruned non-pending transactions & order tokens older than 30 days (and >100 cap per user)" });
+        const purgedCloud = await purgeExpiredCloudVipUsers(env.DB, targetUid, true);
+        return json({ ok: true, purgedCloudUsers: purgedCloud, message: "Pruned non-pending transactions, expired PP Cloud vaults (>7d grace), & order tokens." });
       }
 
       return json({ ok: false, error: "Endpoint not found" }, 404);
