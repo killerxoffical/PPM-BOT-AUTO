@@ -12603,13 +12603,11 @@
                 }
             }
 
-            // QID Row Handling & Metadata for Live Check Modal
+            // QID Row Handling & Metadata for Live Check Modal (works with 6-digit QID OR normal Order ID)
             const qRow = document.getElementById('receiptQidRow');
             const qVal = document.getElementById('receiptQidVal');
-            let qidForReceipt = o.isOneTime ? '' : (o.qid || o.syncCode || o.serverCode || (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '');
-            if (!qidForReceipt && !o.isOneTime) {
-                try { qidForReceipt = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
-            }
+            const rawQidCandidate = (o.qid || o.syncCode || o.serverCode || '').toString().trim();
+            let qidForReceipt = (!o.isOneTime && /^\d{6}$/.test(rawQidCandidate)) ? rawQidCandidate : '';
             if (qRow && qVal) {
                 if (qidForReceipt && !isDep) {
                     qRow.classList.remove('hidden');
@@ -12618,9 +12616,11 @@
                     qRow.classList.add('hidden');
                 }
             }
+            const receiptStatusNorm = (o.status || '').toString().toLowerCase();
+            const canLiveCheck = !isDep && receiptStatusNorm !== 'refunded' && receiptStatusNorm !== 'rejected' && Boolean(qidForReceipt || (o.trx && String(o.trx).trim()));
             const receiptCheckBtn = document.getElementById('btnLiveCheckReceipt');
             if (receiptCheckBtn) {
-                receiptCheckBtn.style.display = (isDep || o.isOneTime) ? 'none' : '';
+                receiptCheckBtn.style.display = canLiveCheck ? '' : 'none';
             }
             window._lastReceiptMeta = {
                 orderId: o.trx || '',
@@ -12636,24 +12636,31 @@
         window.openCredentialScreen = openCredentialScreen;
         window.updateReceiptStatus = updateReceiptStatus;
 
+        function _getCurrentWebUid() {
+            try {
+                const cu = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user) || window.currentUser || null;
+                return (cu && cu.uid) || localStorage.getItem('ppm_user_uid') || localStorage.getItem('pp_uid') || '';
+            } catch (e) { return ''; }
+        }
+
         window.openLiveCheckModalFromReceipt = function () {
             const meta = window._lastReceiptMeta || {};
-            let qid = meta.qid || '';
-            if (!qid && window._lastCompletedOrder && window._lastCompletedOrder.qid) {
+            const orderId = (meta.orderId || (window._lastCompletedOrder && window._lastCompletedOrder.orderId) || '').toString().trim();
+            let qid = (meta.qid || '').toString().trim();
+            if (!qid && !orderId && window._lastCompletedOrder && window._lastCompletedOrder.qid) {
                 qid = window._lastCompletedOrder.qid;
             }
-            if (!qid && window._serverConnectedAccount && window._serverConnectedAccount.code) {
+            if (!qid && !orderId && window._serverConnectedAccount && window._serverConnectedAccount.code) {
                 qid = window._serverConnectedAccount.code;
             }
-            if (!qid) {
-                try { qid = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
-            }
             const game = meta.game || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '');
-            window.openLiveCheckModal(meta.orderId || '', qid, game);
+            window.openLiveCheckModal(orderId, qid, game);
         };
 
         window.openLiveCheckModal = async function (orderId, qid, gameName) {
-            let activeQid = (qid || '').toString().trim();
+            const activeOrderId = (orderId || '').toString().trim();
+            const rawQid = (qid || '').toString().trim();
+            let activeQid = (/^\d{6}$/.test(rawQid)) ? rawQid : '';
             const cleanGame = (gameName || window._payGame || (document.getElementById('receiptGame') ? document.getElementById('receiptGame').textContent : '') || '').toString().trim();
 
             const modal = document.getElementById('liveCheckModal');
@@ -12662,8 +12669,8 @@
 
             const bodyEl = document.getElementById('liveCheckModalBody');
 
-            // ১. অর্ডারের QID নিশ্চিত করা
-            if (!activeQid) {
+            // ১. অর্ডার আইডি বা QID না থাকলে কানেক্টেড QID চেক করা
+            if (!activeQid && !activeOrderId) {
                 if (window._serverConnectedAccount && window._serverConnectedAccount.code) {
                     activeQid = window._serverConnectedAccount.code;
                 } else {
@@ -12671,22 +12678,17 @@
                 }
             }
 
-            // ২. যদি কোনো ভ্যালিড QID না পাওয়া যায়
-            if (!activeQid || activeQid.length < 5) {
-                try {
-                    localStorage.removeItem('ppm_last_qid');
-                    localStorage.removeItem('ppm_server_connected_account');
-                } catch (e) { }
-                window._serverConnectedAccount = null;
+            // ২. যদি কোনো ভ্যালিড অর্ডার আইডি বা QID না পাওয়া যায়
+            if (!activeQid && (!activeOrderId || activeOrderId.length < 4)) {
                 if (bodyEl) {
                     bodyEl.innerHTML = `
                         <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
                             <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
                                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                             </div>
-                            <h4 class="text-xs font-black text-amber-900">আইডি ভ্যালিড নয়</h4>
+                            <h4 class="text-xs font-black text-amber-900">তথ্য পাওয়া যায়নি</h4>
                             <p class="text-xs font-bold text-amber-800 leading-relaxed">
-                                এই QID টি ভ্যালিড নয় বা সার্ভার থেকে মুছে ফেলা হয়েছে। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।
+                                এই অর্ডারটির লাইভ যাচাইয়ের তথ্য পাওয়া যায়নি।
                             </p>
                             <button type="button" onclick="closeLiveCheckModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs rounded-lg transition-all cursor-pointer">
                                 বন্ধ করুন
@@ -12696,8 +12698,8 @@
                 return;
             }
 
-            window._liveCheckState = { orderId, qid: activeQid, game: cleanGame };
-            await window.fetchLiveGameProgress(activeQid, cleanGame);
+            window._liveCheckState = { orderId: activeOrderId, qid: activeQid, game: cleanGame };
+            await window.fetchLiveGameProgress(activeQid, cleanGame, activeOrderId);
         };
 
         window.closeLiveCheckModal = function () {
@@ -12706,15 +12708,20 @@
             unlockScroll();
         };
 
-        window.fetchLiveGameProgress = async function (qid, gameName) {
+        window.fetchLiveGameProgress = async function (qid, gameName, orderId = '') {
             const bodyEl = document.getElementById('liveCheckModalBody');
             if (!bodyEl) return;
+
+            const activeOrderId = (orderId || (window._liveCheckState && window._liveCheckState.orderId) || '').toString().trim();
+            const activeQid = (qid && /^\d{6}$/.test(String(qid).trim())) ? String(qid).trim() : '';
+            const displayRef = activeQid ? `QID: ${activeQid}` : (activeOrderId ? `Order: ${activeOrderId}` : 'Live Check');
+            const curUid = _getCurrentWebUid();
 
             bodyEl.innerHTML = `
                 <div class="py-8 text-center space-y-2.5">
                     <div class="inline-block w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
                     <p class="text-xs font-bold text-slate-700">গুগল প্লে থেকে লাইভ তথ্য যাচাই করা হচ্ছে...</p>
-                    <p class="text-[10px] text-slate-400 font-mono">আইডি: <b>${escH(qid)}</b> • ${escH(gameName)}</p>
+                    <p class="text-[10px] text-slate-400 font-mono"><b>${escH(displayRef)}</b> • ${escH(gameName)}</p>
                 </div>`;
 
             try {
@@ -12722,8 +12729,11 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        qid: qid,
-                        sync_code: qid,
+                        qid: activeQid,
+                        sync_code: activeQid || activeOrderId,
+                        order_id: activeOrderId,
+                        order_ref: activeOrderId,
+                        user_uid: curUid,
                         game_id: gameName,
                         email: (window._serverConnectedAccount && window._serverConnectedAccount.email) || ''
                     })
@@ -12731,24 +12741,19 @@
                 const data = await res.json();
 
                 if (!data || !data.ok || !data.service) {
-                    try {
-                        localStorage.removeItem('ppm_last_qid');
-                        localStorage.removeItem('ppm_server_connected_account');
-                    } catch (e) { }
-                    window._serverConnectedAccount = null;
-                    const errMsg = (data && data.error) ? data.error : 'এই QID টি ভ্যালিড নয় বা সার্ভার থেকে মুছে ফেলা হয়েছে। আপনার ডিভাইস বা জিমেইল থেকে প্লে গেমস রিমুভ করে পুনরায় লগইন করে নতুন আইডি দিন।';
+                    const errMsg = (data && data.error) ? data.error : 'এই অর্ডারটির লাইভ তথ্য পাওয়া যায়নি বা হিস্ট্রি থেকে মুছে ফেলা হয়েছে।';
                     bodyEl.innerHTML = `
                         <div class="p-4 bg-amber-50/90 border border-amber-300 rounded-lg text-center space-y-2.5">
                             <div class="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center mx-auto">
                                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                             </div>
-                            <h4 class="text-xs font-black text-amber-900">আইডি ভ্যালিড নয়</h4>
+                            <h4 class="text-xs font-black text-amber-900">যাচাই করা যায়নি</h4>
                             <p class="text-xs font-bold text-amber-800 leading-relaxed">${escH(errMsg)}</p>
                             <div class="flex items-center justify-center gap-2 pt-1">
                                 <button type="button" onclick="closeLiveCheckModal()" class="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer">
                                     বন্ধ করুন
                                 </button>
-                                <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer">
+                                <button type="button" onclick="window.fetchLiveGameProgress('${escQ(activeQid)}', '${escQ(gameName)}', '${escQ(activeOrderId)}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer">
                                     পুনরায় চেষ্টা করুন
                                 </button>
                             </div>
@@ -12756,7 +12761,7 @@
                     return;
                 }
 
-                window.renderLiveCheckModalUI(data.service, qid, gameName, data.player);
+                window.renderLiveCheckModalUI(data.service, activeQid, gameName, data.player, activeOrderId);
             } catch (err) {
                 console.error('fetchLiveGameProgress error:', err);
                 bodyEl.innerHTML = `
@@ -12766,16 +12771,20 @@
                         </div>
                         <h4 class="text-xs font-black text-rose-900">নেটওয়ার্ক যোগাযোগে সমস্যা</h4>
                         <p class="text-xs font-bold text-rose-700 leading-relaxed">${escH(err.message || 'Network error')}</p>
-                        <button type="button" onclick="window.fetchLiveGameProgress('${escQ(qid)}', '${escQ(gameName)}')" class="px-4 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-lg shadow-2xs cursor-pointer active:scale-95">
+                        <button type="button" onclick="window.fetchLiveGameProgress('${escQ(activeQid)}', '${escQ(gameName)}', '${escQ(activeOrderId)}')" class="px-4 py-2 bg-emerald-600 text-white font-extrabold text-xs rounded-lg shadow-2xs cursor-pointer active:scale-95">
                             আবার চেষ্টা করুন (Retry)
                         </button>
                     </div>`;
             }
         };
 
-        window.renderLiveCheckModalUI = function (srv, qid, gameName, player) {
+        window.renderLiveCheckModalUI = function (srv, qid, gameName, player, orderId = '') {
             const bodyEl = document.getElementById('liveCheckModalBody');
             if (!bodyEl) return;
+
+            const activeOrderId = (orderId || (window._liveCheckState && window._liveCheckState.orderId) || '').toString().trim();
+            const activeQid = (qid && /^\d{6}$/.test(String(qid).trim())) ? String(qid).trim() : '';
+            const badgeText = activeQid ? `QID: ${activeQid}` : (activeOrderId ? `Order: ${activeOrderId}` : 'Verified');
 
             const total = srv.total_count || (srv.quests ? srv.quests.length : 0);
             const doneCount = srv.completed_count || 0;
@@ -12805,7 +12814,7 @@
                            <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
                            <span>সম্পূর্ণ</span>
                        </span>`
-                    : `<button type="button" onclick="window.claimSingleQuest(this, '${escQ(qid)}', '${escQ(srv.game_id || gameName)}', '${escQ(q.id)}')"
+                    : `<button type="button" onclick="window.claimSingleQuest(this, '${escQ(activeQid)}', '${escQ(srv.game_id || gameName)}', '${escQ(q.id)}', '${escQ(activeOrderId)}')"
                            class="claim-single-btn px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-[10px] rounded-md shadow-2xs transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
                            <svg class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                            <span>Claim Quest</span>
@@ -12829,7 +12838,7 @@
                        <span>সবগুলো কোয়েস্ট সফলভাবে সম্পন্ন</span>
                    </div>`
                 : `<div class="flex items-center gap-2">
-                       <button type="button" onclick="window.claimAllRemainingQuests('${escQ(qid)}', '${escQ(srv.game_id || gameName)}')"
+                       <button type="button" onclick="window.claimAllRemainingQuests('${escQ(activeQid)}', '${escQ(srv.game_id || gameName)}', '${escQ(activeOrderId)}')"
                            class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-lg shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all">
                            <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                            <span>বাকি কোয়েস্ট আনলক করুন</span>
@@ -12843,7 +12852,7 @@
 
             bodyEl.innerHTML = `
                 <!-- ১. উপরে প্লে গেমস প্রোফাইল তথ্য -->
-                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5 gap-2">
                     <div class="flex items-center gap-2.5 min-w-0">
                         ${playerAvatar}
                         <div class="min-w-0">
@@ -12851,9 +12860,9 @@
                             <p class="text-[9.5px] font-semibold text-slate-500">Play Games Profile</p>
                         </div>
                     </div>
-                    <div class="flex-shrink-0">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-bold text-[10px]">
-                            QID: ${escH(qid)}
+                    <div class="flex-shrink-0 max-w-[140px]">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-bold text-[9.5px] truncate max-w-full">
+                            ${escH(badgeText)}
                         </span>
                     </div>
                 </div>
@@ -12898,11 +12907,13 @@
             if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
         };
 
-        window.claimSingleQuest = async function (btnEl, qid, gameId, questId) {
+        window.claimSingleQuest = async function (btnEl, qid, gameId, questId, orderId = '') {
             if (!btnEl) return;
             const origHtml = btnEl.innerHTML;
             btnEl.disabled = true;
             btnEl.innerHTML = '<span class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>';
+            const activeOrderId = (orderId || (window._liveCheckState && window._liveCheckState.orderId) || '').toString().trim();
+            const activeQid = (qid && /^\d{6}$/.test(String(qid).trim())) ? String(qid).trim() : '';
 
             try {
                 const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
@@ -12910,7 +12921,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         game_id: gameId,
-                        sync_code: qid,
+                        sync_code: activeQid || activeOrderId,
+                        order_id: activeOrderId,
+                        order_ref: activeOrderId,
+                        user_uid: _getCurrentWebUid(),
+                        is_reverify_claim: true,
                         quest_id: questId,
                         source: 'Live Check Modal Claim'
                     })
@@ -12923,7 +12938,7 @@
                     if (typeof window.addLoyaltyStarAndRecord === 'function') {
                         await window.addLoyaltyStarAndRecord('Live Quest: ' + (questId || gameId), 0, false);
                     }
-                    await window.fetchLiveGameProgress(qid, gameId);
+                    await window.fetchLiveGameProgress(activeQid, gameId, activeOrderId);
                 } else {
                     toast(data && data.error ? data.error : 'কোয়েস্ট সম্পন্ন করতে সমস্যা হয়েছে');
                     btnEl.disabled = false;
@@ -12937,15 +12952,21 @@
             }
         };
 
-        window.claimAllRemainingQuests = async function (qid, gameId) {
+        window.claimAllRemainingQuests = async function (qid, gameId, orderId = '') {
             showAppLoader('বাকি কোয়েস্টগুলো সম্পূর্ণ করা হচ্ছে...');
+            const activeOrderId = (orderId || (window._liveCheckState && window._liveCheckState.orderId) || '').toString().trim();
+            const activeQid = (qid && /^\d{6}$/.test(String(qid).trim())) ? String(qid).trim() : '';
             try {
                 const res = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/unlock', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         game_id: gameId,
-                        sync_code: qid,
+                        sync_code: activeQid || activeOrderId,
+                        order_id: activeOrderId,
+                        order_ref: activeOrderId,
+                        user_uid: _getCurrentWebUid(),
+                        is_reverify_claim: true,
                         source: 'Live Check Modal Claim All'
                     })
                 });
@@ -12958,7 +12979,7 @@
                     if (typeof window.addLoyaltyStarAndRecord === 'function') {
                         await window.addLoyaltyStarAndRecord('All Quests: ' + gameId, 0, false);
                     }
-                    await window.fetchLiveGameProgress(qid, gameId);
+                    await window.fetchLiveGameProgress(activeQid, gameId, activeOrderId);
                 } else {
                     toast(data && data.error ? data.error : 'কোয়েস্ট আনলকে ত্রুটি ঘটেছে');
                 }
@@ -12970,8 +12991,8 @@
 
         window.refreshLiveGameProgress = function () {
             const st = window._liveCheckState || {};
-            if (st.qid && st.game) {
-                window.fetchLiveGameProgress(st.qid, st.game);
+            if ((st.qid || st.orderId) && st.game) {
+                window.fetchLiveGameProgress(st.qid || '', st.game, st.orderId || '');
             }
         };
 
@@ -19291,19 +19312,15 @@
             }
             let qidVal = '';
             if (it.kind === 'TASK') {
-                qidVal = it.qid || it.syncCode || it.serverCode || it.code || (it.loginMethod === 'qid' ? it.syncCode : '') || '';
-                if (!qidVal && it.accEmail && !it.accEmail.includes('@') && it.accEmail.length === 6 && /^\d+$/.test(it.accEmail)) {
-                    qidVal = it.accEmail;
-                }
-                if (!qidVal && window._serverConnectedAccount && window._serverConnectedAccount.code) {
-                    qidVal = window._serverConnectedAccount.code;
-                }
-                if (!qidVal) {
-                    try { qidVal = localStorage.getItem('ppm_last_qid') || ''; } catch (e) { }
+                const candQid = (it.qid || it.syncCode || it.serverCode || it.code || '').toString().trim();
+                if (/^\d{6}$/.test(candQid)) {
+                    qidVal = candQid;
+                } else if (it.accEmail && !it.accEmail.includes('@') && /^\d{6}$/.test(String(it.accEmail).trim())) {
+                    qidVal = String(it.accEmail).trim();
                 }
                 const qidBadge = qidVal ? ' • <span class="inline-flex items-center px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200 font-mono font-black text-[9.5px]">QID: ' + escapeHtml(qidVal) + '</span>' : '';
                 title = escapeHtml(it.game || 'Task');
-                info = (it.trxId ? escapeHtml(it.trxId) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge + qidBadge;
+                info = (it.trxId || it.id ? escapeHtml(it.trxId || it.id) + ' • ' : '') + fmtDate(it.createdAt) + timeBadge + qidBadge;
             }
             else if (it.kind === 'REDEEM') {
                 if ((it.code || '') === 'EXCHANGE') { title = '+' + Number(it.amount || 0) + ' PP Coins'; info = 'Exchange • -' + Number(it.points || 0) + ' Pts'; }
@@ -19345,15 +19362,18 @@
         }
         window.histSkeleton = histSkeleton;
         function rebuildHist() {
-            const SIXTY_D = 60 * 24 * 3600 * 1000;
+            const THIRTY_D = 30 * 24 * 3600 * 1000;
             const nowMs = Date.now();
+            const isPendingItem = x => {
+                const st = (x.status || 'pending').toString().toLowerCase();
+                return st === 'pending' || st === 'paid';
+            };
             const keepFresh = arr => (arr || []).filter(x => {
-                const isPending = (x.status || 'pending').toString().toLowerCase() === 'pending';
-                if (isPending) return true;
+                if (isPendingItem(x)) return true;
                 const m = getTimestampMs(x);
-                return m ? (nowMs - m <= SIXTY_D) : true;
+                return m ? (nowMs - m <= THIRTY_D) : true;
             });
-            const items = [
+            const allItems = [
                 ...keepFresh(histOrders).map(o => ({ kind: 'TASK', ...o })),
                 ...keepFresh(histDeps).map(d => ({ kind: 'TOP-UP', ...d })),
                 ...keepFresh(histReds).map(d => ({ kind: 'REDEEM', status: 'approved', ...d })),
@@ -19362,13 +19382,15 @@
                 ...keepFresh(histBuy).map(d => ({ kind: 'BUYACC', amount: d.coinsCost, ...d })),
                 ...keepFresh(histPendLive).map(d => ({ kind: 'PENDLIVE', ...d }))
             ];
-            items.sort((a, b) => getTimestampMs(b) - getTimestampMs(a));
+            const pendingItems = allItems.filter(isPendingItem).sort((a, b) => getTimestampMs(b) - getTimestampMs(a));
+            const nonPendingItems = allItems.filter(x => !isPendingItem(x)).sort((a, b) => getTimestampMs(b) - getTimestampMs(a)).slice(0, 100);
+            const items = [...pendingItems, ...nonPendingItems];
             window._histItems = {};
             items.forEach(it => { if (it.id) window._histItems[it.id] = it; });
             window._histItemsArr = items;
             const txRow = (it, i) => '<div class="tx-item" style="animation-delay:' + Math.min(i * 55, 600) + 'ms">' + window.histRowHtml(it) + '</div>';
             const moc = document.getElementById('myOrdersCount');
-            if (moc) moc.textContent = items.length ? ('Active / Last 7 days • ' + items.length + ' records →') : 'No records yet';
+            if (moc) moc.textContent = items.length ? ('Active / Last 30 days • ' + items.length + ' records →') : 'No records yet';
             const full = document.getElementById('historyFullList');
             const hc = document.getElementById('histCount');
             if (full) full.innerHTML = items.length ? items.map(txRow).join('') : '<p class="text-center text-xs text-slate-400 py-6">No history yet</p>';
