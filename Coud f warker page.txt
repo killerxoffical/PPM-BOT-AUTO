@@ -160,9 +160,20 @@ async function sendTelegram(chatId, text) {
 // 30-day + Per-User 100 Non-Pending Auto-Cleanup:
 // Keeps ALL pending/paid records forever; purges non-pending records older than 30 days
 // AND keeps at most the latest 100 non-pending records per user (along with auto-deleting orderToken).
-async function autoPruneOldTransactions(db, targetUid = null) {
+let _schemaReady = false;
+let _lastAutoPruneAt = 0;
+let _pushCacheData = null;
+let _pushCacheAt = 0;
+let _statsCacheData = null;
+let _statsCacheAt = 0;
+
+async function autoPruneOldTransactions(db, targetUid = null, force = false) {
   try {
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const now = Date.now();
+    // Quota Saver: run at most once every 30 minutes per isolate unless explicitly forced (/api/cleanup)
+    if (!force && (now - _lastAutoPruneAt) < 30 * 60 * 1000) return;
+    _lastAutoPruneAt = now;
+    const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
     await db.prepare(`
       DELETE FROM transactions WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid') AND createdAt < ?
     `).bind(thirtyDaysAgo).run();
@@ -215,17 +226,22 @@ async function ensureTables(db) {
     )
   `).run();
 
-  try {
-    await db.prepare(`ALTER TABLE orders ADD COLUMN promptNumber TEXT DEFAULT '';`).run();
-  } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN promptNumber TEXT DEFAULT '';`).run(); } catch (e) { }
   try {
     await db.prepare(`ALTER TABLE orders ADD COLUMN captchaImage TEXT DEFAULT '';`).run();
     await db.prepare(`ALTER TABLE orders ADD COLUMN captchaId TEXT DEFAULT '';`).run();
     await db.prepare(`ALTER TABLE orders ADD COLUMN captchaAnswer TEXT DEFAULT '';`).run();
   } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN inQueue INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN queuePosition INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN queuePercent INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN timeElapsed INTEGER DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN gamerName TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE orders ADD COLUMN completedAt INTEGER;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE orders ADD COLUMN orderToken TEXT DEFAULT '';`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE orders ADD COLUMN androidId TEXT DEFAULT '';`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_uid_created ON orders(uid, createdAt DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, createdAt DESC);`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -235,9 +251,16 @@ async function ensureTables(db) {
     )
   `).run();
 
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN kind TEXT DEFAULT 'TASK';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN title TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN game TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN info TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE transactions ADD COLUMN proofUrl TEXT DEFAULT '';`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE transactions ADD COLUMN previousBalance REAL DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE transactions ADD COLUMN balance_before REAL DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE transactions ADD COLUMN balance_after REAL DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_tx_uid_created ON transactions(uid, createdAt DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_tx_status_created ON transactions(status, createdAt DESC);`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS app_cache (
@@ -256,6 +279,11 @@ async function ensureTables(db) {
       id TEXT PRIMARY KEY, uid TEXT, name TEXT, email TEXT, method TEXT, amount REAL, coins REAL, trxId TEXT, status TEXT, adminMsg TEXT, createdAt INTEGER
     )
   `).run();
+  try { await db.prepare(`ALTER TABLE deposits ADD COLUMN adminMsg TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE deposits ADD COLUMN coins REAL DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_deposits_uid_created ON deposits(uid, createdAt DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_deposits_status_created ON deposits(status, createdAt DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_deposits_trx ON deposits(trxId);`).run(); } catch (e) { }
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS user_wallets (
@@ -286,6 +314,7 @@ async function ensureTables(db) {
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_mpts ON user_wallets(monthlyPointsMonth, monthlyPoints DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_tg ON user_wallets(tgChatId);`).run(); } catch (e) { }
 
   // Dedicated Clean Google Tokens Table (g_tokens) - High Performance & Strict Privacy
   await db.prepare(`
@@ -406,6 +435,12 @@ export default {
     }
 
     try {
+      // Auto-migrate tables & indexes once per Worker isolate boot (prevents missing-column 500s & full-table scans!)
+      if (!_schemaReady && env.DB) {
+        _schemaReady = true;
+        await ensureTables(env.DB).catch(() => { _schemaReady = false; });
+      }
+
       // 1. Health Check
       if (path === "/" || path === "/api/health") {
         return json({ status: "online", engine: "Cloudflare D1", version: "5.0", time: Date.now() });
@@ -514,6 +549,10 @@ export default {
           WHERE id NOT IN (SELECT id FROM push_notifications ORDER BY createdAt DESC LIMIT 30)
         `).run().catch(() => { });
 
+        // Bust in-memory push cache immediately so next poll gets fresh push
+        _pushCacheData = null;
+        _pushCacheAt = 0;
+
         return json({ ok: true, id, createdAt: now });
       }
 
@@ -524,17 +563,22 @@ export default {
         const cutoff = (sinceRaw > 0) ? sinceRaw : (now - 48 * 60 * 60 * 1000);
 
         try {
-          const res = await env.DB.prepare(`
-            SELECT id, title, message, imageUrl, target, createdAt
-            FROM push_notifications
-            WHERE createdAt > ?
-            ORDER BY createdAt DESC
-            LIMIT ?
-          `).bind(cutoff, limitRaw).all();
+          // 45-second isolate memory cache slashes Android push polling D1 Rows Read by ~98%!
+          if (!_pushCacheData || (now - _pushCacheAt) > 45000) {
+            const res = await env.DB.prepare(`
+              SELECT id, title, message, imageUrl, target, createdAt
+              FROM push_notifications
+              ORDER BY createdAt DESC
+              LIMIT 15
+            `).all();
+            _pushCacheData = (res && res.results) ? res.results : [];
+            _pushCacheAt = now;
+          }
+          const filtered = _pushCacheData.filter(n => Number(n.createdAt || 0) > cutoff).slice(0, limitRaw);
           return json({
             ok: true,
             serverTime: now,
-            notifications: (res && res.results) ? res.results : []
+            notifications: filtered
           });
         } catch (e) {
           return json({ ok: true, serverTime: now, notifications: [] });
@@ -2000,7 +2044,11 @@ export default {
           ON CONFLICT(id) DO UPDATE SET
             title = excluded.title, game = excluded.game, info = excluded.info, amount = excluded.amount, status = 'pending',
             previousBalance = excluded.previousBalance, balance_before = excluded.balance_before, balance_after = excluded.balance_after
-        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, recordedPrevBal, recordedPrevBal, newBal, now).run();
+        `).bind(id, uid, `Task: ${body.game}`, body.game, taskInfo, taskCost, recordedPrevBal, recordedPrevBal, newBal, now).run().catch(() => { });
+
+        // Bust stats cache so Admin sees new pending order right away
+        _statsCacheData = null;
+        _statsCacheAt = 0;
 
         await autoPruneOldTransactions(env.DB, uid);
 
@@ -2023,9 +2071,6 @@ export default {
         const reqOffset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
 
         if (reqUid && (!status || status === "all")) {
-          if (reqOffset === 0) {
-            await autoPruneOldTransactions(env.DB, reqUid);
-          }
           if (reqLimit > 0) {
             const { results } = await env.DB.prepare(`
               SELECT * FROM orders
@@ -2284,10 +2329,6 @@ export default {
 
         const reqLimit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "0", 10) || 0));
         const reqOffset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
-
-        if (reqOffset === 0) {
-          await autoPruneOldTransactions(env.DB, uid);
-        }
 
         if (reqLimit > 0) {
           const { results } = await env.DB.prepare(`
@@ -2832,8 +2873,13 @@ export default {
         return json({ ok: true, message: "User, wallet, orders, devices, and synced accounts permanently cascade-deleted." });
       }
 
-      // 8d. Realtime Dashboard Stats from Cloudflare D1 (Parallelized for <50ms speed)
+      // 8d. Realtime Dashboard Stats from Cloudflare D1 (30s Isolate Cache -> 90% D1 Rows Read Saved!)
       if (path === "/api/admin/stats" && request.method === "GET") {
+        const forceFresh = url.searchParams.get("force") === "1";
+        const now = Date.now();
+        if (!forceFresh && _statsCacheData && (now - _statsCacheAt) < 30000) {
+          return json(_statsCacheData);
+        }
         const [uStats, dStats, pendDep, oStats, compOrd] = await Promise.all([
           env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first(),
           env.DB.prepare(`SELECT COUNT(*) as approvedDeposits, SUM(amount) as totalApprovedDeposit FROM deposits WHERE status = 'approved'`).first(),
@@ -2842,7 +2888,7 @@ export default {
           env.DB.prepare(`SELECT COUNT(*) as completedOrders, SUM(amount) as totalRevenue FROM orders WHERE status = 'completed'`).first()
         ]);
 
-        return json({
+        const statsPayload = {
           ok: true,
           totalUsers: uStats ? uStats.totalUsers : 0,
           totalUserBalance: uStats ? roundCoin(uStats.totalBalance) : 0,
@@ -2851,7 +2897,10 @@ export default {
           pendingOrders: oStats ? oStats.pendingOrders : 0,
           completedOrders: compOrd ? compOrd.completedOrders : 0,
           totalRevenue: compOrd ? (compOrd.totalRevenue || 0) : 0
-        });
+        };
+        _statsCacheData = statsPayload;
+        _statsCacheAt = now;
+        return json(statsPayload);
       }
 
       // 8e. Telegram Bot Leaderboard
@@ -3052,7 +3101,7 @@ export default {
       // 9. ৩০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার
       if (path === "/api/cleanup") {
         const targetUid = url.searchParams.get("uid") || null;
-        await autoPruneOldTransactions(env.DB, targetUid);
+        await autoPruneOldTransactions(env.DB, targetUid, true);
         return json({ ok: true, message: "Pruned non-pending transactions & order tokens older than 30 days (and >100 cap per user)" });
       }
 

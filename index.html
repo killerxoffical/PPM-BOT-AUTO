@@ -18226,6 +18226,20 @@
                     afterBalance: Math.round((Number(newBalData.balance) + Number.EPSILON) * 100) / 100,
                     isFree: isFree
                 };
+                // সাথে সাথে লোকাল হিস্ট্রিতে পেন্ডিং অর্ডার যুক্ত করা (QID না দিয়ে বের হয়ে গেলেও হিস্ট্রিতে দেখাবে!)
+                try {
+                    const pendingCard = {
+                        id: ordId, uid: u.uid, kind: 'TASK', game: game, title: game,
+                        logo: logo, method: payMethodLabel, trxId: trx, amount: feeCoins,
+                        status: 'pending', createdAt: Date.now()
+                    };
+                    if (Array.isArray(histOrders)) {
+                        histOrders = [pendingCard, ...histOrders.filter(x => x && x.id !== ordId)];
+                    }
+                    window._histItems = window._histItems || {};
+                    window._histItems[ordId] = pendingCard;
+                    if (typeof rebuildHist === 'function') rebuildHist();
+                } catch (e) { }
                 // D1 সার্ভার থেকে আসা আসল ব্যালেন্সই সঠিক (দ্বিতীয়বার মাইনাস করা বন্ধ করা হলো)
                 toast(isFree ? '⭐ 10th Free Task! Provide credentials below' : (feeCoins + ' Coins deducted! Provide credentials below'));
                 setTimeout(() => {
@@ -19827,22 +19841,23 @@
                 });
             }
 
-            // Firestore Orders শুধুমাত্র তখনই ফলব্যাক হিসেবে নেওয়া হবে যখন Cloudflare D1 অফলাইন থাকবে (Admin Clear করলে যেন পুরোনো ডাটা ফিরে না আসে)
-            if (!(cfOrdersRes && cfOrdersRes.ok)) {
-                (fbOrders || []).forEach(fbo => {
-                    const existing = orderMap.get(fbo.id) || {};
-                    const isComp = (existing.status === 'completed') || (fbo.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(fbo.id));
-                    const isRef = !isComp && ((existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]));
-                    const finalStatus = isComp ? 'completed' : (isRef ? 'refunded' : (fbo.status || existing.status || 'pending'));
+            // Firestore Orders: D1 অনলাইন থাকলে শুধু active pending/paid অর্ডারগুলো ব্যাকআপ হিসেবে মার্জ হবে (যাতে পেমেন্ট করে বের হলেও হিস্ট্রি মিস না হয়, আবার Admin Clear করা পুরোনো হিস্ট্রিও ফিরে না আসে!)
+            const d1OrdOk = Boolean(cfOrdersRes && cfOrdersRes.ok);
+            (fbOrders || []).forEach(fbo => {
+                const st = (fbo.status || 'pending').toString().toLowerCase();
+                if (d1OrdOk && st !== 'pending' && st !== 'paid') return;
+                const existing = orderMap.get(fbo.id) || {};
+                const isComp = (existing.status === 'completed') || (fbo.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(fbo.id));
+                const isRef = !isComp && ((existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]));
+                const finalStatus = isComp ? 'completed' : (isRef ? 'refunded' : (fbo.status || existing.status || 'pending'));
 
-                    orderMap.set(fbo.id, {
-                        kind: 'TASK',
-                        ...existing,
-                        ...fbo,
-                        status: finalStatus
-                    });
+                orderMap.set(fbo.id, {
+                    kind: 'TASK',
+                    ...existing,
+                    ...fbo,
+                    status: finalStatus
                 });
-            }
+            });
             const mergedOrders = Array.from(orderMap.values());
 
             // ডিপোজিট মার্জ
@@ -19875,20 +19890,21 @@
                     });
                 });
             }
-            if (!(cfDepsRes && cfDepsRes.ok)) {
-                (deps || []).forEach(fbd => {
-                    const existing = depMap.get(fbd.id) || {};
-                    const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
-                        ? existing.status
-                        : (fbd.status || existing.status || 'pending');
-                    depMap.set(fbd.id, {
-                        kind: 'TOP-UP',
-                        ...existing,
-                        ...fbd,
-                        status: finalStatus
-                    });
+            const d1DepOk = Boolean(cfDepsRes && cfDepsRes.ok);
+            (deps || []).forEach(fbd => {
+                const st = (fbd.status || 'pending').toString().toLowerCase();
+                if (d1DepOk && st !== 'pending') return;
+                const existing = depMap.get(fbd.id) || {};
+                const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
+                    ? existing.status
+                    : (fbd.status || existing.status || 'pending');
+                depMap.set(fbd.id, {
+                    kind: 'TOP-UP',
+                    ...existing,
+                    ...fbd,
+                    status: finalStatus
                 });
-            }
+            });
             const mergedDeps = Array.from(depMap.values());
 
             // রিডিম / প্রোমো কোড মার্জ
