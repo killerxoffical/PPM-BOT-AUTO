@@ -12485,6 +12485,18 @@
                 };
                 await setDoc(doc(db, 'config', 'app'), payload, { merge: true });
                 S.cfg = { ...S.cfg, ...payload };
+                // Fast Global Edge Push (Cloudflare D1 — 30ms instant delivery to all Android devices, foreground & background)
+                fetch('https://ppmod-api.tredarskvt.workers.dev/api/push/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: payload.bcId,
+                        target: 'all',
+                        title: t,
+                        message: m,
+                        imageUrl: im
+                    })
+                }).catch(err => console.warn('CF Edge push dispatch error:', err));
                 // Also dispatch native system shade push notification to Android app devices
                 fetch('https://pp-mod-auto-quest.onrender.com/api/admin/notifications/send', {
                     method: 'POST',

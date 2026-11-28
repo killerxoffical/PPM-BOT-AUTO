@@ -354,6 +354,18 @@ async function ensureTables(db) {
       updatedAt INTEGER
     )
   `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS push_notifications (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      imageUrl TEXT DEFAULT '',
+      target TEXT DEFAULT 'all',
+      createdAt INTEGER NOT NULL
+    )
+  `).run().catch(() => { });
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_push_created ON push_notifications(createdAt DESC);`).run().catch(() => { });
 }
 
 export default {
@@ -460,6 +472,73 @@ export default {
       if (path === "/api/system/init-schema" && request.method === "POST" && env.DB) {
         await ensureTables(env.DB);
         return json({ ok: true, message: "Database schema verified." });
+      }
+
+      // ==================== FAST GLOBAL PUSH NOTIFICATIONS (EDGE + FIREBASE MIRROR) ====================
+      if (path === "/api/push/send" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const title = String(body.title || "").trim().slice(0, 140);
+        const message = String(body.message || "").trim().slice(0, 800);
+        const imageUrl = String(body.imageUrl || body.image_url || "").trim().slice(0, 500);
+        const target = String(body.target || "all").trim().slice(0, 64);
+        if (!title || !message) return json({ ok: false, error: "Title and message required" }, 400);
+
+        const now = Date.now();
+        const id = String(body.id || ("PUSH-" + now)).trim().slice(0, 80);
+
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS push_notifications (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            imageUrl TEXT DEFAULT '',
+            target TEXT DEFAULT 'all',
+            createdAt INTEGER NOT NULL
+          )
+        `).run().catch(() => { });
+
+        await env.DB.prepare(`
+          INSERT INTO push_notifications (id, title, message, imageUrl, target, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            message = excluded.message,
+            imageUrl = excluded.imageUrl,
+            target = excluded.target,
+            createdAt = excluded.createdAt
+        `).bind(id, title, message, imageUrl, target, now).run();
+
+        // Keep only the latest 30 broadcasts to stay super fast and lightweight
+        await env.DB.prepare(`
+          DELETE FROM push_notifications
+          WHERE id NOT IN (SELECT id FROM push_notifications ORDER BY createdAt DESC LIMIT 30)
+        `).run().catch(() => { });
+
+        return json({ ok: true, id, createdAt: now });
+      }
+
+      if (path === "/api/push/latest" && request.method === "GET") {
+        const sinceRaw = Number(url.searchParams.get("since") || 0);
+        const limitRaw = Math.min(10, Math.max(1, Number(url.searchParams.get("limit") || 5)));
+        const now = Date.now();
+        const cutoff = (sinceRaw > 0) ? sinceRaw : (now - 48 * 60 * 60 * 1000);
+
+        try {
+          const res = await env.DB.prepare(`
+            SELECT id, title, message, imageUrl, target, createdAt
+            FROM push_notifications
+            WHERE createdAt > ?
+            ORDER BY createdAt DESC
+            LIMIT ?
+          `).bind(cutoff, limitRaw).all();
+          return json({
+            ok: true,
+            serverTime: now,
+            notifications: (res && res.results) ? res.results : []
+          });
+        } catch (e) {
+          return json({ ok: true, serverTime: now, notifications: [] });
+        }
       }
 
       // ==================== CLOUDFLARE D1 EDGE WALLET & DATA SHIFT ENGINE ====================

@@ -7,13 +7,13 @@
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="adsbitvex-verify" content="wLKhVEPRQD94RxXsy9JPkHgj">
     <meta name="monetag" content="5eef1dda5924b5a2fe82e1346c3dde86">
-    <title>PP MOD - VAREON Studio</title>
-    <!-- Brand Favicon & App Icon (PP Quest Treasure Chest Brand) -->
-    <link rel="icon" type="image/x-icon" href="favicon.ico?v=2">
-    <link rel="icon" type="image/png" sizes="32x32" href="pp_quest_logo.png?v=2">
-    <link rel="icon" type="image/png" sizes="192x192" href="pp_quest_logo.png?v=2">
-    <link rel="shortcut icon" href="pp_quest_logo.png?v=2">
-    <link rel="apple-touch-icon" href="pp_quest_logo.png?v=2">
+    <title>PP QUEST - VAREON Studio</title>
+    <!-- Brand Favicon & App Icon (PP QUEST Official App Logo) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="pp_quest_logo.png?v=5">
+    <link rel="icon" type="image/png" sizes="32x32" href="pp_quest_logo.png?v=5">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=5">
+    <link rel="shortcut icon" href="pp_quest_logo.png?v=5">
+    <link rel="apple-touch-icon" href="pp_quest_logo.png?v=5">
     <!-- Preload Splash Screen Image for Instant High-Priority Loading -->
     <link rel="preload" as="image" href="fb.png" fetchpriority="high">
     <link rel="preload" as="image" href="hd.png" fetchpriority="high">
@@ -1442,9 +1442,29 @@
             }
         }
 
-        #maintOverlay {
-            background: #ffffff !important;
-            backdrop-filter: none;
+        @keyframes ppSplashFloat {
+            0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+            50% { transform: translate3d(0, -7px, 0) scale(1.03); }
+        }
+        @keyframes ppSplashRing {
+            0% { transform: scale(0.92); opacity: 0.65; }
+            70% { transform: scale(1.18); opacity: 0; }
+            100% { transform: scale(1.18); opacity: 0; }
+        }
+        .pp-splash-emblem {
+            animation: ppSplashFloat 2.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+            will-change: transform;
+        }
+        .pp-splash-ring {
+            animation: ppSplashRing 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+            will-change: transform, opacity;
+        }
+        #maintOverlay, #updateNoticeModal {
+            background: radial-gradient(circle at 18% 12%, rgba(245, 158, 11, 0.12), transparent 45%),
+                        radial-gradient(circle at 82% 88%, rgba(16, 185, 129, 0.12), transparent 45%),
+                        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         /* --- Payment & Wallet Elements --- */
@@ -2629,21 +2649,21 @@
                 })();
             </script>
 
-            <div class="relative z-10 flex flex-col items-center justify-center">
-                <div class="flex items-center justify-center">
-                    <lottie-player id="splashLottie"
-                        src="https://lottie.host/41d6fc95-7f61-416c-b296-53a5836c22c2/BgBmgewgEu.json"
-                        background="transparent" speed="1" style="width: 230px; height: 230px;" loop
-                        autoplay></lottie-player>
+            <div class="relative z-10 flex flex-col items-center justify-center px-6" onclick="window._dismissSplash && window._dismissSplash(true)">
+                <div class="relative flex items-center justify-center w-40 h-40">
+                    <div class="pp-splash-ring absolute inset-3 rounded-[2.25rem] border-2 border-amber-400/70"></div>
+                    <div class="pp-splash-emblem relative w-28 h-28 rounded-[2rem] bg-white shadow-2xl border-2 border-amber-200/80 flex items-center justify-center p-2.5">
+                        <img src="pp_quest_logo.png" alt="PP QUEST" class="w-full h-full object-contain rounded-2xl select-none" decoding="sync" loading="eager">
+                    </div>
                 </div>
                 <div class="splash-text-container text-center mt-2 space-y-1.5">
                     <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-900">
-                        <span class="splash-brand-text">PP MOD</span>
+                        <span class="splash-brand-text">PP QUEST</span>
                     </h2>
                     <div class="flex items-center justify-center gap-1.5 pt-0.5">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
                         <p
-                            class="text-[9.5px] sm:text-[10px] text-slate-400 font-extrabold tracking-[0.25em] uppercase">
+                            class="text-[9.5px] sm:text-[10px] text-slate-500 font-extrabold tracking-[0.25em] uppercase">
                             POWERED BY VAREON STUDIO</p>
                     </div>
                 </div>
@@ -2652,7 +2672,7 @@
     </div>
     <script>
         var _splashStartTime = Date.now();
-        var _minSplashDuration = 4000; // ঠিক ৪ সেকেন্ড ফ্ল্যাশ স্ক্রিন চালু থাকবে
+        var _minSplashDuration = 1100; // সুপার ফাস্ট ও স্মুথ স্প্ল্যাশ স্ক্রিন
         var _dismissScheduled = false;
 
         window._balDataReady = false;
@@ -6964,32 +6984,46 @@
         </div>
     </div>
 
-    <!-- Maintenance overlay -->
+    <!-- Maintenance Overlay (Executive Studio UI) -->
     <div id="maintOverlay" class="pop-overlay" style="display:none; z-index:9999999;">
-        <div class="pop-card space-y-3.5 max-w-sm text-center">
-            <!-- Maintenance Astronaut Graphic (SVG 1) -->
-            <div
-                class="w-36 h-36 sm:w-44 sm:h-44 mx-auto flex items-center justify-center select-none pointer-events-none">
-                <img src="svg_maintenance.svg"
-                    class="maint-astro-anim w-full h-full object-contain filter drop-shadow-md" alt="Under Maintenance">
+        <div class="w-full max-w-[360px] mx-auto bg-white/95 border border-slate-200/90 rounded-[28px] p-6 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.16)] text-center relative overflow-hidden">
+            <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500"></div>
+
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/90 text-amber-800 text-[10px] font-black uppercase tracking-widest mb-4">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                <span>Scheduled Maintenance</span>
             </div>
-            <div>
-                <h3 id="maintScreenTitle" class="text-lg font-black text-slate-900">রক্ষণাবেক্ষণ চলছে 🛠️</h3>
-                <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">App Under Maintenance
-                </p>
+
+            <div class="relative w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                <div class="absolute inset-0 rounded-[26px] bg-gradient-to-br from-amber-100 to-orange-100 border border-amber-200/80 shadow-inner"></div>
+                <img src="pp_quest_logo.png" alt="PP QUEST" class="relative w-16 h-16 rounded-2xl object-contain shadow-md">
+                <div class="absolute -bottom-1.5 -right-1.5 w-9 h-9 rounded-xl bg-slate-900 text-amber-400 border-2 border-white shadow-md flex items-center justify-center">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                </div>
             </div>
-            <div class="p-3 bg-amber-50/90 border border-amber-200/80 rounded-2xl text-left space-y-1 shadow-2xs">
-                <p class="text-[10px] font-black uppercase text-amber-800 tracking-wider flex items-center gap-1">
-                    <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-600"></i> অ্যাডমিন নোটিশ (Notice)
-                </p>
+
+            <div class="space-y-1 mb-4">
+                <h3 id="maintScreenTitle" class="text-xl font-black text-slate-900 tracking-tight">সার্ভার আপগ্রেড চলছে</h3>
+                <p class="text-[11px] font-semibold text-slate-500">আরও দ্রুত ও নিরাপদ সেবার জন্য সিস্টেম আপডেট হচ্ছে</p>
+            </div>
+
+            <div class="p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl text-left space-y-1.5 mb-5">
+                <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                    <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>অ্যাডমিন বার্তা</span>
+                </div>
                 <p id="maintMsg" class="text-xs font-semibold text-slate-700 leading-relaxed break-words">
-                    App ti maintenance e ache. Ektokhon porer janabo.
+                    সার্ভার রক্ষণাবেক্ষণ কাজ চলছে। কিছুক্ষণ পর পুনরায় চেষ্টা করুন।
                 </p>
             </div>
+
             <button id="btnMaintRetry" onclick="checkPortalMaintenanceAgain()"
-                class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-slate-950 font-black rounded-xl text-sm transition-all cursor-pointer shadow-md flex items-center justify-center gap-2">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Check Server Status)
+                class="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-extrabold rounded-2xl text-xs transition-all cursor-pointer shadow-lg shadow-slate-900/15 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <span>স্ট্যাটাস চেক করুন (Refresh)</span>
             </button>
+
+            <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mt-4">PP QUEST &bull; VAREON STUDIO</p>
         </div>
     </div>
 
@@ -7035,68 +7069,71 @@
         </div>
     </div>
 
-    <!-- Force App Update Popup Modal (Server Portal Linked with In-App Downloader) -->
+    <!-- Force App Update Overlay (Executive Studio UI with In-App Downloader) -->
     <div id="updateNoticeModal" class="pop-overlay" style="display:none; z-index:9999999;">
-        <div class="pop-card space-y-3.5 border-2 border-indigo-200 max-w-sm text-center">
-            <!-- Update Screen Animated Hero Graphic (UFO / Update SVG) -->
-            <div
-                class="w-32 h-32 sm:w-40 sm:h-40 mx-auto flex items-center justify-center select-none pointer-events-none">
-                <img src="svg_update.svg" class="update-ufo-anim w-full h-full object-contain filter drop-shadow-md"
-                    alt="New Update">
-            </div>
-            <div>
-                <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/80 mb-1">
-                    ⚡ Mandatory Update
-                </span>
-                <h3 class="text-base sm:text-lg font-black text-slate-900">New Version Available! 🎉</h3>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Please update to
-                    continue</p>
+        <div class="w-full max-w-[365px] mx-auto bg-white/95 border border-slate-200/90 rounded-[28px] p-6 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.18)] text-center relative overflow-hidden">
+            <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-500"></div>
+
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/90 text-emerald-700 text-[10px] font-black uppercase tracking-widest mb-4">
+                <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                <span>Required App Update</span>
             </div>
 
-            <!-- Version Comparison Pill -->
-            <div
-                class="inline-flex items-center justify-center gap-3 px-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full mx-auto shadow-2xs">
-                <span class="text-xs font-semibold text-slate-400">Current: <span id="labelCurrentVer"
-                        class="text-slate-600 font-bold">v5.1</span></span>
-                <span class="text-slate-300">➔</span>
-                <span class="text-xs font-black text-emerald-600">Latest: <span id="labelNewVer">v5.2</span></span>
-            </div>
-
-            <!-- Release Notes Box -->
-            <div class="p-3 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-left space-y-1">
-                <div class="text-[10px] font-black uppercase text-indigo-800 tracking-wider flex items-center gap-1">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i> What's New in this Update
+            <div class="relative w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                <div class="absolute inset-0 rounded-[26px] bg-gradient-to-br from-emerald-50 to-teal-100 border border-emerald-200/80 shadow-inner"></div>
+                <img src="pp_quest_logo.png" alt="PP QUEST" class="relative w-16 h-16 rounded-2xl object-contain shadow-md">
+                <div class="absolute -bottom-1.5 -right-1.5 w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-2 border-white shadow-md flex items-center justify-center">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
                 </div>
-                <p id="labelReleaseNotes" class="text-xs font-medium text-slate-700 leading-relaxed break-words">
-                    New features, enhanced security, and performance improvements.
+            </div>
+
+            <div class="space-y-1 mb-4">
+                <h3 class="text-xl font-black text-slate-900 tracking-tight">নতুন ভার্সন পাওয়া গেছে</h3>
+                <p class="text-[11px] font-semibold text-slate-500">সর্বোচ্চ স্পিড ও নতুন ফিচার পেতে অ্যাপটি আপডেট করুন</p>
+            </div>
+
+            <div class="flex items-center justify-center gap-2.5 px-3.5 py-2 bg-slate-50 border border-slate-200/90 rounded-2xl mb-4">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-bold uppercase text-slate-400">বর্তমান</span>
+                    <span id="labelCurrentVer" class="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-[11px] font-mono font-extrabold text-slate-600">v5.1</span>
+                </div>
+                <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-bold uppercase text-emerald-600">নতুন</span>
+                    <span id="labelNewVer" class="px-2 py-0.5 rounded-lg bg-emerald-600 text-[11px] font-mono font-extrabold text-white shadow-2xs">v5.2</span>
+                </div>
+            </div>
+
+            <div class="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-left space-y-1.5 mb-4">
+                <div class="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <span>এই আপডেটে নতুন যা থাকছে</span>
+                </div>
+                <p id="labelReleaseNotes" class="text-xs font-semibold text-slate-600 leading-relaxed break-words">
+                    নতুন ফিচার, উন্নত সিকিউরিটি এবং আরও ফাস্ট পারফরম্যান্স।
                 </p>
             </div>
 
-            <!-- In-App Download Progress Container -->
-            <div id="boxUpdateProgress" style="display:none;"
-                class="w-full bg-white border border-slate-200 rounded-2xl p-3 space-y-2 text-left shadow-inner">
-                <div class="flex items-center justify-between text-xs font-bold text-slate-700">
-                    <span id="labelDownloadStatus" class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Downloading Update...
+            <div id="boxUpdateProgress" style="display:none;" class="w-full bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-3.5 space-y-2 text-left mb-4">
+                <div class="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span id="labelDownloadStatus" class="flex items-center gap-1.5 text-[11px]">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ডাউনলোড হচ্ছে...
                     </span>
-                    <span id="labelDownloadPercent" class="font-black text-emerald-600 text-sm">0%</span>
+                    <span id="labelDownloadPercent" class="font-mono font-black text-emerald-700 text-xs">0%</span>
                 </div>
-                <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
-                    <div id="barDownloadProgress" style="width: 0%;"
-                        class="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 rounded-full transition-all duration-200">
-                    </div>
+                <div class="w-full h-2.5 bg-white rounded-full overflow-hidden border border-emerald-200/70">
+                    <div id="barDownloadProgress" style="width: 0%;" class="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 rounded-full transition-all duration-200"></div>
                 </div>
-                <div id="labelDownloadBytes" class="text-[10px] font-semibold text-slate-400 text-right">0 MB / 0 MB
-                </div>
+                <div id="labelDownloadBytes" class="text-[10px] font-mono font-bold text-slate-500 text-right">0 MB / 0 MB</div>
             </div>
 
-            <!-- Download / Install Action Button -->
             <button id="btnDownloadUpdate" onclick="handleUpdateClick()"
-                class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:scale-95 text-white font-extrabold rounded-xl text-sm transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2">
-                <i data-lucide="download" class="w-4 h-4"></i>
-                <span id="btnDownloadUpdateText">Download Update (আপডেট ডাউনলোড করুন)</span>
+                class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] text-white font-extrabold rounded-2xl text-xs transition-all cursor-pointer shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span id="btnDownloadUpdateText">আপডেট ডাউনলোড করুন (Update Now)</span>
             </button>
+
+            <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mt-4">PP QUEST &bull; OFFICIAL RELEASE</p>
         </div>
     </div>
 
@@ -8819,8 +8856,14 @@
 
             window._pendingTgUnlink = false;
             const list = (window.AVATAR_PRESETS || []).slice();
+            const gp = ((u && u.photoURL) || '').trim();
+            if (gp && gp.startsWith('http') && !gp.includes('ui-avatars.com') && !list.includes(gp)) {
+                list.unshift(gp);
+            }
             const savedAv = ((window.ppfb && window.ppfb.avatar) || '').trim();
-            const cur = list.includes(savedAv) ? savedAv : (window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(u.uid) : (list[0] || ''));
+            const cur = (window.isValidUserAvatar && window.isValidUserAvatar(savedAv))
+                ? savedAv
+                : ((gp && gp.startsWith('http') && !gp.includes('ui-avatars.com')) ? gp : (window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(u.uid) : (list[0] || '')));
             window._avatarSel = cur;
 
             // বর্তমান নাম ইনপুটে সেট
@@ -13494,15 +13537,22 @@
             try { seen = bid ? localStorage.getItem(seenKey) === '1' : false; } catch (e) { }
             if (bid && bt && bm && !seen && (!bu || Date.now() < Date.parse(bu))) {
                 try { localStorage.setItem(seenKey, '1'); } catch (e) { }
+                const bi = (cfg.bcImage || '').toString().trim();
+                try {
+                    if (window.AndroidBridge && typeof window.AndroidBridge.showRichNotification === 'function') {
+                        window.AndroidBridge.showRichNotification(bt, bm, bi, bid);
+                    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        new Notification(bt, { body: bm, icon: 'pp_quest_logo.png' });
+                    }
+                } catch (e) { }
                 setTimeout(() => {
                     document.getElementById('bcTitle').textContent = bt;
                     document.getElementById('bcMsg').textContent = bm;
-                    const bi = (cfg.bcImage || '').toString().trim();
                     const bim = document.getElementById('bcImg');
                     if (bim) { if (bi) { bim.src = bi; bim.classList.remove('hidden'); } else bim.classList.add('hidden'); }
                     document.getElementById('bcModal').style.display = 'flex';
                     if (window.lucide) lucide.createIcons();
-                }, 1600);
+                }, 1200);
             }
             // maintenance
             if (cfg.maintenance === true) {
@@ -17071,8 +17121,8 @@
         async function syncD1Wallet(u, fbData = null) {
             if (!u || !u.uid) return null;
             try {
-                const candidateAv = ((window.ppfb && window.ppfb.avatar) || (fbData && fbData.avatar) || '').trim();
-                const resolvedPhoto = (window.AVATAR_PRESETS && window.AVATAR_PRESETS.includes(candidateAv))
+                const candidateAv = ((window.ppfb && window.ppfb.avatar) || (fbData && fbData.avatar) || (u && u.photoURL) || '').trim();
+                const resolvedPhoto = (window.isValidUserAvatar && window.isValidUserAvatar(candidateAv))
                     ? candidateAv
                     : (window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(u.uid) : '');
                 const payload = {
@@ -17103,7 +17153,7 @@
                         try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
                         if (typeof window.saveEarnCompletedStore === 'function') window.saveEarnCompletedStore('task_connect_telegram', Date.now(), u.uid);
                     }
-                    if (w.avatar && window.AVATAR_PRESETS && window.AVATAR_PRESETS.includes(String(w.avatar).trim())) {
+                    if (w.avatar && window.isValidUserAvatar && window.isValidUserAvatar(String(w.avatar).trim())) {
                         window.ppfb.avatar = String(w.avatar).trim();
                         try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
                         if (typeof paintAvatar === 'function') paintAvatar();
@@ -17483,11 +17533,19 @@
         window.AVATAR_PRESETS = AVATAR_PRESETS;
         window.AVATAR_FALLBACK = DEFAULT_USER_AVATAR;
 
+        function isValidUserAvatar(url) {
+            const s = String(url || '').trim();
+            if (!s || !/^https?:\/\//i.test(s)) return false;
+            if (s.includes('ui-avatars.com')) return false;
+            return true;
+        }
+        window.isValidUserAvatar = isValidUserAvatar;
+
         function pickRandomAvatarForUid(uid) {
             if (uid) {
                 try {
                     const saved = (localStorage.getItem('pp_cached_avatar_' + uid) || '').trim();
-                    if (saved && AVATAR_PRESETS.includes(saved)) return saved;
+                    if (isValidUserAvatar(saved)) return saved;
                 } catch (e) { }
             }
             const picked = AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)] || DEFAULT_USER_AVATAR;
@@ -17502,8 +17560,16 @@
             const u = (window.ppfb && window.ppfb.user) || null;
             const uid = (u && u.uid) || '';
             const memAv = ((window.ppfb && window.ppfb.avatar) || '').trim();
-            let src = AVATAR_PRESETS.includes(memAv) ? memAv : pickRandomAvatarForUid(uid);
-            if (window.ppfb && !AVATAR_PRESETS.includes(memAv)) {
+            const gmailAv = ((u && u.photoURL) || '').trim();
+            let src = '';
+            if (isValidUserAvatar(memAv)) {
+                src = memAv;
+            } else if (isValidUserAvatar(gmailAv)) {
+                src = gmailAv;
+            } else {
+                src = pickRandomAvatarForUid(uid);
+            }
+            if (window.ppfb && !isValidUserAvatar(memAv)) {
                 window.ppfb.avatar = src;
             }
             const ph = document.getElementById('profilePhoto');
@@ -17579,7 +17645,7 @@
                         window.ppfb.customName = fbUserData.name.slice(0, 15);
                         try { localStorage.setItem('pp_cached_name_' + u.uid, window.ppfb.customName); } catch (e) { }
                     }
-                    if (fbUserData.avatar && AVATAR_PRESETS.includes(String(fbUserData.avatar).trim())) {
+                    if (fbUserData.avatar && isValidUserAvatar(fbUserData.avatar)) {
                         window.ppfb.avatar = String(fbUserData.avatar).trim();
                         try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
                     }
@@ -17596,10 +17662,11 @@
             const d1Wallet = await syncD1Wallet(u, fbUserData);
             window._d1MasterUpdatedAt = d1Wallet ? Number(d1Wallet.updatedAt || Date.now()) : 0;
 
-            // প্রতিটি অ্যাকাউন্টের জন্য নতুন ১১টি প্রিসেট থেকে র‍্যান্ডম ডিফল্ট অ্যাভাটার নিশ্চিত করা ও সেভ করা
+            // জিমেল/কাস্টম প্রোফাইল ছবি থাকলে ওটাই থাকবে; না থাকলে নতুন ১১টি প্রিসেট থেকে র‍্যান্ডম ছবি সেট ও সেভ হবে
             const d1Av = (d1Wallet && d1Wallet.avatar) ? String(d1Wallet.avatar).trim() : '';
             const fbAv = (fbUserData && fbUserData.avatar) ? String(fbUserData.avatar).trim() : '';
-            const validAv = AVATAR_PRESETS.includes(d1Av) ? d1Av : (AVATAR_PRESETS.includes(fbAv) ? fbAv : '');
+            const gmailAv = (u && u.photoURL) ? String(u.photoURL).trim() : '';
+            const validAv = isValidUserAvatar(d1Av) ? d1Av : (isValidUserAvatar(fbAv) ? fbAv : (isValidUserAvatar(gmailAv) ? gmailAv : ''));
             if (validAv) {
                 window.ppfb.avatar = validAv;
                 try { localStorage.setItem('pp_cached_avatar_' + u.uid, validAv); } catch (e) { }
@@ -17686,7 +17753,7 @@
                         window.ppfb.tgRewardClaimed = true;
                         try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
                     }
-                    if (d.avatar && AVATAR_PRESETS.includes(String(d.avatar).trim())) {
+                    if (d.avatar && isValidUserAvatar(d.avatar)) {
                         window.ppfb.avatar = String(d.avatar).trim();
                         try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
                     }
