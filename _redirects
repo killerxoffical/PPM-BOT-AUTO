@@ -1,0 +1,5 @@
+/admin          /404.html   404
+/admin/         /404.html   404
+/admin.html     /404.html   404
+/admin/*        /404.html   404
+/admin.html.bak /404.html   404

@@ -2955,36 +2955,92 @@ export default {
         return json({ ok: true, monthKey, leaderboard: results || [], myPoints: myPts });
       }
 
-      // 8j. Admin-Only Clear All History & Free D1 Storage
+      // 8j. Admin-Only Selective / Full History Cleanup & Free D1 Storage
       if (path === "/api/admin/history/clear-all" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const mode = String(body.mode || "non_pending").trim().toLowerCase();
+        const rawSections = Array.isArray(body.sections) ? body.sections.map(s => String(s || "").trim().toLowerCase()) : null;
+        const ordersStatus = String(body.ordersStatus || (mode === "all" ? "all" : "non_pending")).trim().toLowerCase();
+        const depositsStatus = String(body.depositsStatus || (mode === "all" ? "all" : "non_pending")).trim().toLowerCase();
+        const txKinds = Array.isArray(body.txKinds) ? body.txKinds.map(k => String(k || "").trim().toUpperCase()).filter(Boolean) : null;
+
         let dOrders = 0, dTx = 0, dDeps = 0, dSms = 0;
 
-        if (mode === "all") {
-          const r1 = await env.DB.prepare(`DELETE FROM orders`).run();
-          const r2 = await env.DB.prepare(`DELETE FROM transactions`).run();
-          const r3 = await env.DB.prepare(`DELETE FROM deposits`).run();
-          const r4 = await env.DB.prepare(`DELETE FROM gateway_sms`).run();
+        const wantOrders = rawSections ? rawSections.includes("orders") : true;
+        const wantDeps = rawSections ? rawSections.includes("deposits") : true;
+        const wantTx = rawSections ? rawSections.includes("transactions") : true;
+        const wantSms = rawSections ? rawSections.includes("gateway_sms") : true;
+
+        if (wantOrders) {
+          let r1 = null;
+          if (ordersStatus === "all") {
+            r1 = await env.DB.prepare(`DELETE FROM orders`).run();
+          } else if (ordersStatus === "non_pending") {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
+          } else if (ordersStatus === "pending") {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) IN ('pending', 'paid')`).run();
+          } else if (ordersStatus === "completed") {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) IN ('completed', 'approved')`).run();
+          } else if (ordersStatus === "refunded") {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) = 'refunded'`).run();
+          } else if (ordersStatus === "rejected") {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) IN ('rejected', 'cancelled', 'failed')`).run();
+          } else {
+            r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) = ?`).bind(ordersStatus).run();
+          }
           dOrders = r1?.meta?.changes || 0;
-          dTx = r2?.meta?.changes || 0;
+        }
+
+        if (wantDeps) {
+          let r3 = null;
+          if (depositsStatus === "all") {
+            r3 = await env.DB.prepare(`DELETE FROM deposits`).run();
+          } else if (depositsStatus === "non_pending") {
+            r3 = await env.DB.prepare(`DELETE FROM deposits WHERE LOWER(COALESCE(status, '')) != 'pending'`).run();
+          } else if (depositsStatus === "approved") {
+            r3 = await env.DB.prepare(`DELETE FROM deposits WHERE LOWER(COALESCE(status, '')) IN ('approved', 'completed')`).run();
+          } else {
+            r3 = await env.DB.prepare(`DELETE FROM deposits WHERE LOWER(COALESCE(status, '')) = ?`).bind(depositsStatus).run();
+          }
           dDeps = r3?.meta?.changes || 0;
-          dSms = r4?.meta?.changes || 0;
-        } else {
-          // Safe mode: keep active pending/paid orders & deposits intact, wipe all completed/refunded/rejected history & tokens!
-          const r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
-          const r2 = await env.DB.prepare(`DELETE FROM transactions WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
-          const r3 = await env.DB.prepare(`DELETE FROM deposits WHERE LOWER(COALESCE(status, '')) != 'pending'`).run();
-          const r4 = await env.DB.prepare(`DELETE FROM gateway_sms WHERE claimed = 1 OR receivedAt < ?`).bind(Date.now() - 30 * 60 * 1000).run();
-          dOrders = r1?.meta?.changes || 0;
+        }
+
+        if (wantTx) {
+          let r2 = null;
+          if (txKinds && txKinds.length > 0 && !txKinds.includes("ALL")) {
+            const ph = txKinds.map(() => "?").join(",");
+            if (ordersStatus === "all" || mode === "all") {
+              r2 = await env.DB.prepare(`DELETE FROM transactions WHERE UPPER(COALESCE(kind, '')) IN (${ph})`).bind(...txKinds).run();
+            } else if (ordersStatus === "non_pending") {
+              r2 = await env.DB.prepare(`DELETE FROM transactions WHERE UPPER(COALESCE(kind, '')) IN (${ph}) AND LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).bind(...txKinds).run();
+            } else if (ordersStatus === "completed") {
+              r2 = await env.DB.prepare(`DELETE FROM transactions WHERE UPPER(COALESCE(kind, '')) IN (${ph}) AND LOWER(COALESCE(status, '')) IN ('completed', 'approved')`).bind(...txKinds).run();
+            } else if (ordersStatus === "pending") {
+              r2 = await env.DB.prepare(`DELETE FROM transactions WHERE UPPER(COALESCE(kind, '')) IN (${ph}) AND LOWER(COALESCE(status, '')) IN ('pending', 'paid')`).bind(...txKinds).run();
+            } else {
+              r2 = await env.DB.prepare(`DELETE FROM transactions WHERE UPPER(COALESCE(kind, '')) IN (${ph}) AND LOWER(COALESCE(status, '')) = ?`).bind(...txKinds, ordersStatus).run();
+            }
+          } else if (mode === "all" || (rawSections && rawSections.includes("transactions") && !body.mode)) {
+            r2 = await env.DB.prepare(`DELETE FROM transactions`).run();
+          } else {
+            r2 = await env.DB.prepare(`DELETE FROM transactions WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
+          }
           dTx = r2?.meta?.changes || 0;
-          dDeps = r3?.meta?.changes || 0;
+        }
+
+        if (wantSms) {
+          const r4 = (mode === "all" || (rawSections && rawSections.includes("gateway_sms")))
+            ? await env.DB.prepare(`DELETE FROM gateway_sms`).run()
+            : await env.DB.prepare(`DELETE FROM gateway_sms WHERE claimed = 1 OR receivedAt < ?`).bind(Date.now() - 30 * 60 * 1000).run();
           dSms = r4?.meta?.changes || 0;
         }
 
         return json({
           ok: true,
           mode,
+          sections: rawSections || ["orders", "deposits", "transactions", "gateway_sms"],
+          ordersStatus,
+          depositsStatus,
           deletedOrders: dOrders,
           deletedTransactions: dTx,
           deletedDeposits: dDeps,

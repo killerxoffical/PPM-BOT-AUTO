@@ -5583,209 +5583,234 @@
                 </div>
             </div>
 
-            <!-- SUB-VIEW 3: LEVEL UP BOOSTER VIEW (Header with centered title and clean cards) -->
+            <!-- SUB-VIEW 3: LEVEL UP BOOSTER VIEW (Executive Card UI - Web QID Only) -->
             <div id="ppServiceLevelUpView"
-                class="hidden flex-1 flex-col overflow-y-auto space-y-3 pb-8 pr-1 scrollbar-none">
-                <!-- Subview Header (Becomes the top header of the screen) -->
-                <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 flex-shrink-0">
+                class="hidden flex-1 flex-col overflow-y-auto space-y-3.5 pb-10 pr-0.5 scrollbar-none">
+                <!-- Subview Header -->
+                <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 flex-shrink-0">
                     <button type="button" onclick="openPPServiceHub()"
-                        class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer flex-shrink-0">
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all cursor-pointer flex-shrink-0">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> <span>সার্ভিস সমূহ</span>
                     </button>
-                    <h3 class="text-xs sm:text-sm font-black text-slate-800 text-center flex-1 truncate px-1">Level Up
-                        Booster Packages</h3>
+                    <h3 class="text-xs sm:text-sm font-black text-slate-900 text-center flex-1 truncate px-1 tracking-tight">Level Up Booster</h3>
                     <span
-                        class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold flex-shrink-0">⚡
-                        3.1M XP Pool</span>
+                        class="inline-flex items-center gap-1 text-[10px] font-mono px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 font-black border border-amber-200 flex-shrink-0">
+                        <i data-lucide="zap" class="w-3 h-3 text-amber-500"></i> 3.1M XP
+                    </span>
                 </div>
 
-                <!-- Info Banner -->
-                <div
-                    class="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex items-center gap-2.5 text-[11px] text-amber-900 leading-snug">
-                    <span class="text-base flex-shrink-0">🚀</span>
-                    <span>আপনার গুগল প্লে গেমস প্রোফাইল সরাসরি লেভেল আপ করতে নিচের যেকোনো প্যাকেজ সিলেক্ট করুন:</span>
-                </div>
-
-                <!-- Package 1: Level 1 ➔ 10 Boost -->
-                <div onclick="openLevelUpOrderModal('lvl_1_10')"
-                    class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]"
-                    style="border-top: 3px solid #f59e0b;">
-                    <div class="flex items-start gap-3">
-                        <div
-                            class="w-11 h-11 rounded-md bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
-                            <i data-lucide="zap" class="w-5 h-5"></i>
+                <!-- Executive Hero Strip -->
+                <div class="relative overflow-hidden rounded-2xl p-3.5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md border border-slate-800">
+                    <div class="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-amber-400/15 blur-xl pointer-events-none"></div>
+                    <div class="relative flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center shadow-md flex-shrink-0">
+                            <i data-lucide="trending-up" class="w-5 h-5"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
-                                <h3
-                                    class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors">
-                                    Level 1 ➔ 10 Boost</h3>
-                                <span
-                                    class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">Golden
-                                    Tier</span>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="text-xs font-black tracking-tight text-white">Google Play Games XP Boost</span>
+                                <span class="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[9px] font-extrabold uppercase">QID Instant</span>
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">৪৩২,০০০ XP • আপনার আইডি
-                                সরাসরি লেভেল ১০ এ উন্নীত করা হবে।</p>
-                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
-                                <div class="flex items-center gap-1 font-mono font-black text-amber-700 text-xs">
-                                    <span>ফি:</span>
-                                    <span id="ppLvlPrice_lvl_1_10">5</span> <span>PP Coins</span>
-                                </div>
-                                <button type="button"
-                                    class="px-3.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
-                                    সিলেক্ট করুন →
-                                </button>
-                            </div>
+                            <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">আপনার ৬-ডিজিট QID কোড দিয়ে সেকেন্ডের মধ্যে প্রোফাইল লেভেল বুস্ট করুন।</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Package 2: Level 10 ➔ 20 Pro Boost -->
-                <div onclick="openLevelUpOrderModal('lvl_10_20')"
-                    class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-purple-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]"
-                    style="border-top: 3px solid #a855f7;">
-                    <div class="flex items-start gap-3">
+                <!-- Package 1: Level 1 -> 10 Boost -->
+                <div onclick="openLevelUpOrderModal('lvl_1_10')"
+                    class="group relative overflow-hidden rounded-2xl p-4 bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+                    <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500"></div>
+                    <div class="flex items-start gap-3.5">
                         <div
-                            class="w-11 h-11 rounded-md bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
-                            <i data-lucide="award" class="w-5 h-5"></i>
+                            class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-md shadow-amber-500/25 flex-shrink-0">
+                            <i data-lucide="zap" class="w-6 h-6"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
-                                <h3
-                                    class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-purple-700 transition-colors">
-                                    Level 10 ➔ 20 Pro Boost</h3>
-                                <span
-                                    class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-black text-[9px] uppercase border border-purple-200">Ultra
-                                    Pro</span>
+                            <div class="flex items-center justify-between gap-2">
+                                <h3 class="text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors truncate">Level 1 ➔ 10 Boost</h3>
+                                <span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-black text-[9px] uppercase tracking-wider border border-amber-200 flex-shrink-0">Golden Tier</span>
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">২,৫০০,০০০ XP • প্রো
-                                প্লেয়ারদের জন্য আল্ট্রা লেভেল ২০ বুস্ট।</p>
-                            <div
-                                class="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                                <span>🔒 প্লেয়ার লেভেল ন্যূনতম ১০ হতে হবে</span>
+                            <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                                    <i data-lucide="sparkles" class="w-3 h-3 text-amber-500"></i> 432,000 XP
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200/70">
+                                    <i data-lucide="check-circle-2" class="w-3 h-3"></i> যেকোনো লেভেল থেকে
+                                </span>
                             </div>
-                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
-                                <div class="flex items-center gap-1 font-mono font-black text-purple-700 text-xs">
-                                    <span>ফি:</span>
-                                    <span id="ppLvlPrice_lvl_10_20">20</span> <span>PP Coins</span>
-                                </div>
-                                <button type="button"
-                                    class="px-3.5 py-1.5 rounded-md bg-purple-600 hover:bg-purple-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
-                                    সিলেক্ট করুন →
-                                </button>
-                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1.5 leading-snug font-medium">আপনার গুগল প্লে গেমস আইডি সরাসরি লেভেল ১০ এ উন্নীত করা হবে।</p>
                         </div>
+                    </div>
+                    <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50/90 border border-amber-200/80">
+                            <img src="PPCOIN.png" alt="Coin" class="w-4 h-4 object-contain">
+                            <span id="ppLvlPrice_lvl_1_10" class="font-mono font-black text-amber-800 text-xs">5</span>
+                            <span class="text-[10px] font-extrabold text-amber-700">PP Coins</span>
+                        </div>
+                        <button type="button"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-105 text-white font-black text-xs shadow-sm shadow-amber-500/25 transition-all cursor-pointer">
+                            <span>অর্ডার করুন</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Package 2: Level 10 -> 20 Pro Boost -->
+                <div onclick="openLevelUpOrderModal('lvl_10_20')"
+                    class="group relative overflow-hidden rounded-2xl p-4 bg-white border border-slate-200/90 hover:border-purple-400 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+                    <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-500 via-indigo-500 to-violet-600"></div>
+                    <div class="flex items-start gap-3.5">
+                        <div
+                            class="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/25 flex-shrink-0">
+                            <i data-lucide="award" class="w-6 h-6"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3 class="text-sm font-black text-slate-900 group-hover:text-purple-700 transition-colors truncate">Level 10 ➔ 20 Pro</h3>
+                                <span class="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-black text-[9px] uppercase tracking-wider border border-purple-200 flex-shrink-0">Ultra Pro</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                                    <i data-lucide="sparkles" class="w-3 h-3 text-purple-500"></i> 2,500,000 XP
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-extrabold border border-rose-200/80">
+                                    <i data-lucide="lock" class="w-3 h-3"></i> ন্যূনতম লেভেল ১০
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1.5 leading-snug font-medium">প্রো প্লেয়ারদের জন্য আল্ট্রা হাই-স্পিড লেভেল ২০ প্রোফাইল বুস্ট।</p>
+                        </div>
+                    </div>
+                    <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-50/90 border border-purple-200/80">
+                            <img src="PPCOIN.png" alt="Coin" class="w-4 h-4 object-contain">
+                            <span id="ppLvlPrice_lvl_10_20" class="font-mono font-black text-purple-800 text-xs">20</span>
+                            <span class="text-[10px] font-extrabold text-purple-700">PP Coins</span>
+                        </div>
+                        <button type="button"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-105 text-white font-black text-xs shadow-sm shadow-purple-500/25 transition-all cursor-pointer">
+                            <span>অর্ডার করুন</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
                 </div>
 
                 <!-- Package 3: +50,000 XP Booster Pack -->
                 <div onclick="openLevelUpOrderModal('lvl_50k_xp')"
-                    class="group relative overflow-hidden rounded-lg p-3.5 bg-white border border-slate-300 hover:border-sky-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-[0.99]"
-                    style="border-top: 3px solid #0ea5e9;">
-                    <div class="flex items-start gap-3">
+                    class="group relative overflow-hidden rounded-2xl p-4 bg-white border border-slate-200/90 hover:border-sky-400 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.99]">
+                    <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-500"></div>
+                    <div class="flex items-start gap-3.5">
                         <div
-                            class="w-11 h-11 rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-xs flex-shrink-0">
-                            <i data-lucide="flame" class="w-5 h-5"></i>
+                            class="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-md shadow-sky-500/25 flex-shrink-0">
+                            <i data-lucide="flame" class="w-6 h-6"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between gap-1.5 flex-wrap">
-                                <h3
-                                    class="text-xs sm:text-sm font-black text-slate-900 group-hover:text-sky-700 transition-colors">
-                                    +50,000 XP Booster</h3>
-                                <span
-                                    class="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-black text-[9px] uppercase border border-sky-200">Custom
-                                    XP</span>
+                            <div class="flex items-center justify-between gap-2">
+                                <h3 class="text-sm font-black text-slate-900 group-hover:text-sky-700 transition-colors truncate">+50,000 XP Booster</h3>
+                                <span class="px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-black text-[9px] uppercase tracking-wider border border-sky-200 flex-shrink-0">Custom XP</span>
                             </div>
-                            <p class="text-[11px] text-slate-500 mt-1 leading-snug font-medium">যেকোনো অ্যাকাউন্টে
-                                ইনস্ট্যান্ট ফিক্সড +৫০,০০০ XP বুস্ট যোগ করুন।</p>
-                            <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-100">
-                                <div class="flex items-center gap-1 font-mono font-black text-sky-700 text-xs">
-                                    <span>ফি:</span>
-                                    <span id="ppLvlPrice_lvl_50k_xp">1</span> <span>PP Coin</span>
-                                </div>
-                                <button type="button"
-                                    class="px-3.5 py-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-white font-black text-xs shadow-xs transition-all cursor-pointer">
-                                    সিলেক্ট করুন →
-                                </button>
+                            <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                                    <i data-lucide="plus-circle" class="w-3 h-3 text-sky-500"></i> +50,000 XP
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200/70">
+                                    <i data-lucide="zap" class="w-3 h-3"></i> ইনস্ট্যান্ট ডেলিভারি
+                                </span>
                             </div>
+                            <p class="text-[11px] text-slate-500 mt-1.5 leading-snug font-medium">যেকোনো অ্যাকাউন্টে ইনস্ট্যান্ট ফিক্সড +৫০,০০০ XP বুস্ট যোগ করুন।</p>
                         </div>
+                    </div>
+                    <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50/90 border border-sky-200/80">
+                            <img src="PPCOIN.png" alt="Coin" class="w-4 h-4 object-contain">
+                            <span id="ppLvlPrice_lvl_50k_xp" class="font-mono font-black text-sky-800 text-xs">1</span>
+                            <span class="text-[10px] font-extrabold text-sky-700">PP Coin</span>
+                        </div>
+                        <button type="button"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-black text-xs shadow-sm shadow-sky-500/25 transition-all cursor-pointer">
+                            <span>অর্ডার করুন</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL: LEVEL UP QID CONNECT & ORDER POPUP -->
+            <!-- MODAL: LEVEL UP QID CONNECT & ORDER POPUP (WEB: QID ONLY) -->
             <div id="levelUpOrderModal"
-                class="pop-overlay fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+                class="pop-overlay fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
                 style="display:none;">
-                <div class="bg-white rounded-lg max-w-sm w-full p-4 border border-amber-300 shadow-2xl space-y-3.5">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                        <div class="flex items-center gap-2">
+                <div class="bg-white rounded-2xl max-w-sm w-full p-5 border border-slate-200 shadow-2xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
                             <div id="lvlModalIconWrap"
-                                class="w-8 h-8 rounded-md bg-amber-500 flex items-center justify-center text-white">
-                                <i id="lvlModalIcon" data-lucide="zap" class="w-4 h-4"></i>
+                                class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                                <i id="lvlModalIcon" data-lucide="zap" class="w-5 h-5"></i>
                             </div>
-                            <div>
-                                <h3 id="lvlModalTitle" class="text-xs sm:text-sm font-black text-slate-900">Level 1 ➔ 10
-                                    Boost</h3>
-                                <p id="lvlModalSub" class="text-[10px] text-slate-500">Google Play Games Profile Boost
-                                    (432,000 XP)</p>
+                            <div class="min-w-0">
+                                <h3 id="lvlModalTitle" class="text-sm font-black text-slate-900 truncate">Level 1 ➔ 10 Boost</h3>
+                                <p id="lvlModalSub" class="text-[10px] text-slate-500 font-medium truncate">Google Play Games Profile Boost (432,000 XP)</p>
                             </div>
                         </div>
                         <button type="button" onclick="closeLevelUpOrderModal()"
-                            class="w-7 h-7 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center">
+                            class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0 cursor-pointer">
                             <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
                     </div>
 
-                    <div
-                        class="flex items-center justify-between p-2.5 rounded-md bg-amber-50/70 border border-amber-200">
-                        <span class="text-xs font-bold text-slate-700">সার্ভিস ফি:</span>
-                        <span id="lvlModalFeeDisplay" class="text-xs font-black text-amber-700 font-mono">5 PP
-                            Coins</span>
+                    <div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span class="text-xs font-extrabold text-slate-600">সার্ভিস ফি</span>
+                        <div class="inline-flex items-center gap-1.5">
+                            <img src="PPCOIN.png" alt="Coin" class="w-4 h-4 object-contain">
+                            <span id="lvlModalFeeDisplay" class="text-xs font-black text-amber-700 font-mono">5 PP Coins</span>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="block text-xs font-bold text-slate-700">আপনার ৬ ডিজিটের QID কোড দিন:</label>
-                        <input id="levelUpModalQidInput" type="text" maxlength="6" placeholder="যেমন: 524409"
-                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-center text-sm font-mono font-black tracking-widest text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white transition-all">
-                        <p class="text-[10px] text-slate-400 text-center">আপনার ৬ ডিজিটের QID কোডটি লিখুন</p>
+                        <label class="flex items-center gap-1.5 text-xs font-extrabold text-slate-700">
+                            <i data-lucide="key-round" class="w-3.5 h-3.5 text-amber-600"></i>
+                            <span>আপনার ৬ ডিজিটের QID কোড দিন:</span>
+                        </label>
+                        <input id="levelUpModalQidInput" type="text" inputmode="numeric" maxlength="6" placeholder="যেমন: 524409"
+                            class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-base font-mono font-black tracking-[0.25em] text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white transition-all">
+                        <p class="text-[10px] text-slate-400 text-center font-medium">কানেক্টেড সার্ভারের ৬ ডিজিট QID কোড লিখুন</p>
                     </div>
 
                     <div class="pt-1 flex items-center gap-2">
                         <button type="button" onclick="closeLevelUpOrderModal()"
-                            class="flex-1 py-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all">
+                            class="w-24 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all cursor-pointer">
                             বাতিল
                         </button>
                         <button id="btnConfirmLevelUp" type="button" onclick="confirmLevelUpBoost()"
-                            class="flex-1 py-2.5 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5">
-                            <i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন
+                            class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-105 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i data-lucide="zap" class="w-4 h-4"></i> বুস্ট কনফার্ম করুন
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL: LEVEL UP SUCCESS CELEBRATION ("suesses ashbe je koto te chilo koto hoice") -->
+            <!-- MODAL: LEVEL UP SUCCESS CELEBRATION -->
             <div id="levelUpSuccessModal"
                 class="pop-overlay fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
                 style="display:none;">
                 <div
-                    class="bg-white rounded-xl max-w-sm w-full p-5 border border-emerald-200 shadow-2xl text-center space-y-3.5">
+                    class="bg-white rounded-2xl max-w-sm w-full p-5 border border-emerald-200 shadow-2xl text-center space-y-4">
                     <div
-                        class="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
-                        <i data-lucide="check-circle" class="w-8 h-8"></i>
+                        class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                        <i data-lucide="trophy" class="w-7 h-7"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-black text-slate-900">🎉 লেভেল আপ সম্পন্ন হয়েছে!</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">আপনার প্লে গেমস আইডি সফলভাবে বুস্ট করা হয়েছে</p>
+                        <h3 class="text-base font-black text-slate-900">লেভেল আপ সম্পন্ন হয়েছে!</h3>
+                        <p class="text-xs text-slate-500 mt-0.5 font-medium">আপনার Google Play Games প্রোফাইল সফলভাবে বুস্ট হয়েছে</p>
                     </div>
 
                     <div
-                        class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center gap-3">
+                        class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center gap-4">
                         <div class="text-center">
                             <span class="text-[10px] text-slate-400 font-bold block">পূর্ববর্তী লেভেল</span>
                             <span id="lvlSuccessPrev" class="text-sm font-black text-slate-700">Level 1</span>
                         </div>
-                        <div class="text-amber-500 font-black text-base">➔</div>
+                        <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </div>
                         <div class="text-center">
                             <span class="text-[10px] text-emerald-600 font-bold block">নতুন লেভেল</span>
                             <span id="lvlSuccessNew" class="text-base font-black text-emerald-600">Level 10</span>
@@ -16898,7 +16923,8 @@
             if (subEl) subEl.innerText = pkg.desc;
             if (feeEl) feeEl.innerText = `${pkg.coins} PP Coin${pkg.coins === 1 ? '' : 's'}`;
             if (iconWrap) {
-                iconWrap.className = `w-8 h-8 rounded-md bg-${pkg.color || 'amber'}-500 flex items-center justify-center text-white`;
+                const bgMap = { amber: 'from-amber-400 to-orange-500', purple: 'from-purple-500 to-indigo-600', sky: 'from-sky-400 to-blue-600' };
+                iconWrap.className = `w-10 h-10 rounded-xl bg-gradient-to-br ${bgMap[pkg.color] || bgMap.amber} flex items-center justify-center text-white shadow-sm flex-shrink-0`;
             }
 
             let autoQid = (window._serverConnectedAccount ? window._serverConnectedAccount.code : '') || '';
@@ -16941,9 +16967,10 @@
 
             const pkg = window._lvlUpPackagesCache[window._selectedLevelUpPkg || 'lvl_1_10'] || window._lvlUpPackagesCache['lvl_1_10'];
             const coinsCost = Number(pkg.coins || 5);
-            const curBal = Number(window.ppfb.wallet ? (window.ppfb.wallet.balance || 0) : 0);
+            const curBal = Number((window.ppfb && window.ppfb.balance != null ? window.ppfb.balance : (window.ppfb && window.ppfb.wallet ? window.ppfb.wallet.balance : 0)) || 0);
             if (curBal < coinsCost) {
                 toast(`আপনার ওয়ালেটে পর্যাপ্ত কয়েন নেই (${coinsCost} কয়েন প্রয়োজন)। দয়া করে টপ-আপ করুন।`);
+                closeLevelUpOrderModal();
                 enterTopup('ppservice');
                 return;
             }
@@ -16951,7 +16978,7 @@
             const btn = document.getElementById('btnConfirmLevelUp');
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> প্রসেস হচ্ছে...`;
+                btn.innerHTML = `<span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> প্রসেস হচ্ছে...`;
             }
 
             let paidCoinsDeducted = false;
@@ -16970,20 +16997,18 @@
                 const payData = await payRes.json();
                 if (!payData.ok) {
                     toast(payData.error === 'insufficient' ? 'অপর্যাপ্ত কয়েন ব্যালেন্স।' : 'পেমেন্ট ব্যর্থ হয়েছে।');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
-                    }
                     return;
                 }
 
                 paidCoinsDeducted = true;
+                window.ppfb.balance = payData.balance;
                 if (window.ppfb.wallet) {
                     window.ppfb.wallet.balance = payData.balance;
                     window.ppfb.wallet.realBalance = payData.realBalance;
                     window.ppfb.wallet.bonusBalance = payData.bonusBalance;
                     if (typeof updateWalletUI === 'function') updateWalletUI();
                 }
+                if (typeof setBalanceUI === 'function') setBalanceUI(payData.balance, 0, 0, payData.realBalance || payData.balance, 0);
 
                 // ২. Render ব্যাকএন্ডে বুস্টার আনলক এক্সিকিউশন
                 const execRes = await fetch('https://pp-mod-auto-quest.onrender.com/api/portal/level-up/execute', {
@@ -17009,6 +17034,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uid: window.ppfb.user.uid, coins: coinsCost, type: 'real' })
                         });
+                        window.ppfb.balance = curBal;
                         if (window.ppfb.wallet) {
                             window.ppfb.wallet.balance = curBal;
                             window.ppfb.wallet.realBalance = curBal;
@@ -17019,10 +17045,6 @@
                         console.error('Auto refund error:', refErr);
                     }
                     toast((execData.error || 'লেভেল আপ প্রসেসিং ব্যর্থ হয়েছে।') + ` (${coinsCost} কয়েন ওয়ালেটে রিফান্ড করা হয়েছে)`);
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
-                    }
                     return;
                 }
 
@@ -17095,7 +17117,8 @@
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> কনফার্ম করুন`;
+                    btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i> বুস্ট কনফার্ম করুন`;
+                    if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
                 }
             }
         };
@@ -19724,12 +19747,13 @@
             window._histPage = curPage;
             const offset = (curPage - 1) * HIST_PAGE_SIZE;
 
-            // ১. Cloudflare D1 থেকে শুধুমাত্র বর্তমান পেজের ১০টি রেকর্ড প্যারালালে লোড (Quota Saving!)
-            const cfOrdersPromise = fetch(`${CF_API}/api/admin/orders?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
+            // ১. Cloudflare D1 থেকে শুধুমাত্র বর্তমান পেজের ১০টি রেকর্ড প্যারালালে লোড (Quota Saving + Fresh No-Store!)
+            const bust = Date.now();
+            const cfOrdersPromise = fetch(`${CF_API}/api/admin/orders?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}&_t=${bust}`, { cache: 'no-store' })
                 .then(r => r.json()).catch(() => ({ ok: false }));
-            const cfHistPromise = fetch(`${CF_API}/api/history?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
+            const cfHistPromise = fetch(`${CF_API}/api/history?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}&_t=${bust}`, { cache: 'no-store' })
                 .then(r => r.json()).catch(() => ({ ok: false }));
-            const cfDepsPromise = fetch(`${CF_API}/api/admin/deposits?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}`)
+            const cfDepsPromise = fetch(`${CF_API}/api/admin/deposits?uid=${encodeURIComponent(targetUid)}&limit=${HIST_PAGE_SIZE}&offset=${offset}&_t=${bust}`, { cache: 'no-store' })
                 .then(r => r.json()).catch(() => ({ ok: false }));
 
             // ২. ফায়ারবেস ফলব্যাক শুধুমাত্র Page 1-এ (সর্বোচ্চ ১০টি করে, Quota Saving!)
@@ -19803,20 +19827,22 @@
                 });
             }
 
-            // Firestore Orders (উভয় ডাটাবেজের স্ট্যাটাস মার্জ — Completed স্ট্যাটাস সবসময় অগ্রাধিকার পাবে)
-            (fbOrders || []).forEach(fbo => {
-                const existing = orderMap.get(fbo.id) || {};
-                const isComp = (existing.status === 'completed') || (fbo.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(fbo.id));
-                const isRef = !isComp && ((existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]));
-                const finalStatus = isComp ? 'completed' : (isRef ? 'refunded' : (fbo.status || existing.status || 'pending'));
+            // Firestore Orders শুধুমাত্র তখনই ফলব্যাক হিসেবে নেওয়া হবে যখন Cloudflare D1 অফলাইন থাকবে (Admin Clear করলে যেন পুরোনো ডাটা ফিরে না আসে)
+            if (!(cfOrdersRes && cfOrdersRes.ok)) {
+                (fbOrders || []).forEach(fbo => {
+                    const existing = orderMap.get(fbo.id) || {};
+                    const isComp = (existing.status === 'completed') || (fbo.status === 'completed') || (typeof isOrderCompleted === 'function' && isOrderCompleted(fbo.id));
+                    const isRef = !isComp && ((existing.status === 'refunded') || (fbo.status === 'refunded') || (window._refundedOrdersMap && window._refundedOrdersMap[fbo.id]));
+                    const finalStatus = isComp ? 'completed' : (isRef ? 'refunded' : (fbo.status || existing.status || 'pending'));
 
-                orderMap.set(fbo.id, {
-                    kind: 'TASK',
-                    ...existing,
-                    ...fbo,
-                    status: finalStatus
+                    orderMap.set(fbo.id, {
+                        kind: 'TASK',
+                        ...existing,
+                        ...fbo,
+                        status: finalStatus
+                    });
                 });
-            });
+            }
             const mergedOrders = Array.from(orderMap.values());
 
             // ডিপোজিট মার্জ
@@ -19849,18 +19875,20 @@
                     });
                 });
             }
-            (deps || []).forEach(fbd => {
-                const existing = depMap.get(fbd.id) || {};
-                const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
-                    ? existing.status
-                    : (fbd.status || existing.status || 'pending');
-                depMap.set(fbd.id, {
-                    kind: 'TOP-UP',
-                    ...existing,
-                    ...fbd,
-                    status: finalStatus
+            if (!(cfDepsRes && cfDepsRes.ok)) {
+                (deps || []).forEach(fbd => {
+                    const existing = depMap.get(fbd.id) || {};
+                    const finalStatus = (existing.status === 'approved' || existing.status === 'completed' || existing.status === 'rejected')
+                        ? existing.status
+                        : (fbd.status || existing.status || 'pending');
+                    depMap.set(fbd.id, {
+                        kind: 'TOP-UP',
+                        ...existing,
+                        ...fbd,
+                        status: finalStatus
+                    });
                 });
-            });
+            }
             const mergedDeps = Array.from(depMap.values());
 
             // রিডিম / প্রোমো কোড মার্জ
