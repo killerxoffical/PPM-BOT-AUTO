@@ -993,7 +993,7 @@ export default {
 
       if (path === "/api/sync/accounts" && request.method === "GET") {
         const uid = (url.searchParams.get("uid") || "").trim();
-        const ownerEmail = (url.searchParams.get("owner_email") || url.searchParams.get("email") || "").trim().toLowerCase();
+        let ownerEmail = (url.searchParams.get("owner_email") || url.searchParams.get("email") || "").trim().toLowerCase();
         const all = url.searchParams.get("all") === "true";
 
         if (all) {
