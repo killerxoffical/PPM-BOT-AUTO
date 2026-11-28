@@ -9133,30 +9133,40 @@
             if (t && /^\d{5,}$/.test(t.replace(/^@/, ''))) return '<p class="text-[10px] font-bold text-emerald-600 truncate">TG ✓ ' + esc(t) + ' — notify jabe</p>';
             return '<p class="text-[10px] font-bold text-rose-500 truncate">TG ✕ not connected — notify jabe na</p>';
         }
+        window._orderDetailCache = window._orderDetailCache || {};
         window.orderSheet = (id) => {
-            const d = S.orders.find(x => x.id === id);
-            if (!d) { toast('Order not found'); return; }
-            const u = (S.users || []).find(x => x.id === d.uid) || {};
+            const d = (S.orders || []).find(x => x.id === id) || (window._orderDetailCache && window._orderDetailCache[id]);
+            if (!d) { toast('Order details not found'); return; }
+            const u = (S.users || []).find(x => x.id === d.uid || x.uid === d.uid) || {};
             const uName = d.name || u.name || 'User';
             const uEmail = d.email || u.email || 'No Email';
-            const uPhoto = d.photo || u.photo || '';
+            const uPhoto = d.photo || u.photo || u.avatar || '';
+            const uTg = d.userTgId || u.tgChatId || '';
+            const feeVal = d.isFreeTask ? 0 : (d.amount != null ? Number(d.amount) : 3);
+            const balBefore = (d.previousBalance !== undefined && d.previousBalance !== null) ? Number(d.previousBalance) : null;
+            const balAfter = balBefore !== null ? Math.max(0, Math.round((balBefore - feeVal) * 100) / 100) : null;
+            const modeBadge = d.mode === 'bot'
+                ? '<span class="text-[9px] font-black text-white bg-violet-600 px-2 py-0.5 rounded-full">BOT</span>'
+                : (String(d.id || '').startsWith('ORD-') || d.gamerName)
+                    ? '<span class="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">AUTO SERVER</span>'
+                    : '<span class="text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">MANUAL</span>';
             const infoCard = (l, v) => '<div class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2"><p class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">' + l + '</p><p class="text-xs font-extrabold text-slate-800 truncate">' + v + '</p></div>';
-            const infoCardCp = (l, v, raw) => '<div class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2"><p class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">' + l + '</p><div class="cpline mt-0.5"><p class="grow text-xs font-extrabold text-slate-800 truncate">' + v + '</p>' + cpBtn(raw, 'Copy ' + l) + '</div></div>';
+            const infoCardCp = (l, v, raw) => '<div class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2"><p class="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">' + l + '</p><div class="cpline mt-0.5"><p class="grow text-xs font-extrabold text-slate-800 truncate">' + v + '</p>' + (raw ? cpBtn(raw, 'Copy ' + l) : '') + '</div></div>';
             openSheet(
                 '<div class="flex items-start gap-3 pb-3 border-b border-slate-100">'
                 + thumb(d.logo || '', d.game).replace('class="thumb"', 'class="thumb" style="width:54px;height:54px;border-radius:16px"')
                 + '<div class="min-w-0 flex-1"><p class="text-base font-extrabold text-slate-900 truncate">' + esc(d.game || 'Task') + '</p>'
-                + '<div class="cpline mt-0.5"><p class="grow text-[10px] font-mono text-slate-400 truncate">ID: ' + esc(d.id) + '</p>' + cpBtn(d.id, 'Copy Order ID') + '</div>'
-                + '<div class="mt-1 flex items-center gap-1.5 flex-wrap">' + pill(d.status) + '<span class="text-[10px] font-bold text-slate-400">' + fmtDate(d.createdAt) + '</span>' + (d.mode === 'bot' ? '<span class="text-[9px] font-black text-white bg-violet-600 px-1.5 py-0.5 rounded-full">BOT</span>' : '<span class="text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">MANUAL</span>') + '</div></div>'
-                + '<button onclick="closeSheet()" class="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 font-black cursor-pointer flex-shrink-0">✕</button></div>'
+                + '<div class="cpline mt-0.5"><p class="grow text-[10px] font-mono text-slate-500 truncate">Order ID: ' + esc(d.id) + '</p>' + cpBtn(d.id, 'Copy Order ID') + '</div>'
+                + '<div class="mt-1.5 flex items-center gap-1.5 flex-wrap">' + pill(d.status) + '<span class="text-[10px] font-bold text-slate-400">' + fmtDate(d.createdAt) + '</span>' + modeBadge + '</div></div>'
+                + '<button onclick="closeSheet()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black cursor-pointer flex-shrink-0">✕</button></div>'
 
                 + '<div class="grid grid-cols-2 gap-2 py-3">'
-                + infoCard('Fee', d.isFreeTask ? '⭐ Free 10th Task' : (esc(String(d.amount != null ? d.amount : 3)) + ' Coins'))
+                + infoCard('Fee', d.isFreeTask ? '⭐ Free 10th Task' : (esc(String(feeVal)) + ' Coins'))
                 + infoCard('Pay Method', esc(d.method || (d.isFreeTask ? 'Free Star Task' : 'PP Coins')))
-                + infoCard('Balance Before', (d.previousBalance != null ? d.previousBalance : '—') + ' Coins')
-                + infoCard('Balance After', (d.previousBalance != null ? Math.max(0, Math.round((d.previousBalance - (d.isFreeTask ? 0 : (d.amount || 3))) * 100) / 100) : '—') + ' Coins')
-                + infoCardCp('TrxID', esc(d.trxId || '—'), d.trxId)
-                + infoCard('Order Date', fmtDate(d.createdAt))
+                + infoCard('Balance Before', balBefore !== null ? (balBefore + ' Coins') : '—')
+                + infoCard('Balance After', balAfter !== null ? (balAfter + ' Coins') : '—')
+                + infoCardCp('Trx / Ref ID', esc(d.trxId || d.id || '—'), d.trxId || d.id)
+                + infoCard('Order Time', fmtDate(d.createdAt))
                 + (d.assignedWorker ? infoCard('Assigned Bot', esc(d.assignedWorker)) : '')
                 + (d.paidWithBonus > 0 ? infoCard('Bonus Used', d.paidWithBonus + ' Coins') : '')
                 + '</div>'
@@ -9164,29 +9174,29 @@
                 + '<div class="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">'
                 + thumb(uPhoto, uName)
                 + '<div class="min-w-0 flex-1"><p class="text-xs font-extrabold text-slate-900 truncate">' + esc(uName) + '</p>'
-                + '<div class="cpline"><p class="grow text-[10px] text-slate-500 truncate">' + esc(uEmail) + '</p>' + (uEmail ? cpBtn(uEmail, 'Copy Email') : '') + '</div>'
+                + '<div class="cpline"><p class="grow text-[10px] text-slate-500 truncate">' + esc(uEmail) + '</p>' + (uEmail && uEmail !== 'No Email' ? cpBtn(uEmail, 'Copy Email') : '') + '</div>'
                 + '<div class="cpline"><p class="grow text-[10px] font-mono text-slate-400 truncate">UID: ' + esc(d.uid || '') + '</p>' + (d.uid ? cpBtn(d.uid, 'Copy UID') : '') + '</div>'
                 + tgStatusLine(d) + '</div>'
-                + (d.uid ? '<button onclick="copyTxt(\'' + d.uid + '\')" class="btn bg-white border border-slate-300 text-slate-700 font-bold flex-shrink-0">UID</button>' : '')
+                + (d.uid ? '<button onclick="userSheet(\'' + esc(d.uid) + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold flex-shrink-0">Profile</button>' : '')
                 + '</div>'
 
-                + '<p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 pt-3 pb-1.5">Login Credentials</p>'
+                + '<p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 pt-3 pb-1.5">Connected Gamer &amp; Order Details</p>'
                 + '<div class="space-y-1.5">'
-                + credRow('Gmail', d.accEmail, false)
-                + credRow('Password', d.accPass, true)
-                + credRow('Play Gamer', d.gamerName, false)
-                + credRow('User Telegram', d.userTgId, false)
+                + credRow('Connected Play Gamer', d.gamerName, false)
+                + credRow('Account Gmail', d.accEmail, false)
+                + (d.accPass && d.accPass !== 'AUTO_SYNC' ? credRow('Submitted Password', d.accPass, true) : '')
+                + credRow('User Telegram ID', uTg, false)
                 + '</div>'
 
-                + '<p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 pt-3 pb-1.5">Live Message to User</p>'
-                + '<div class="bg-indigo-50/60 border border-indigo-100 rounded-xl px-3 py-2 mb-2"><p class="text-[9px] font-extrabold uppercase tracking-widest text-indigo-400">Showing now</p>'
+                + '<p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 pt-3 pb-1.5">Order Result / Live Message to User</p>'
+                + '<div class="bg-indigo-50/60 border border-indigo-100 rounded-xl px-3 py-2 mb-2"><p class="text-[9px] font-extrabold uppercase tracking-widest text-indigo-400">Latest Result / Notice</p>'
                 + '<p id="sheetCurMsg" class="text-xs font-semibold text-slate-700 whitespace-pre-wrap">' + esc(d.adminMsg || '—') + '</p></div>'
                 + '<div class="flex flex-wrap gap-1.5 pb-2">'
                 + MSG_TPL.map((t, i) => '<button onclick="sheetChip(MSG_TPL[' + i + '])" class="fl">' + esc(t.slice(0, 22)) + '…</button>').join('')
                 + '</div>'
                 + '<textarea id="sheetMsg" rows="2" placeholder="মেসেজ লিখুন..." class="fld"></textarea>'
                 + '<div class="grid grid-cols-2 gap-2 mt-2">'
-                + '<button onclick="notifyUserOffline(\'' + esc(d.userTgId || '') + '\',\'' + esc(d.email || '') + '\')" class="btn bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold">Notify TG</button>'
+                + '<button onclick="notifyUserOffline(\'' + esc(uTg) + '\',\'' + esc(uEmail) + '\')" class="btn bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold">Notify TG</button>'
                 + '<button onclick="sendSheetMsg(\'' + d.id + '\')" class="btn bg-indigo-600 text-white font-bold">Send Message</button>'
                 + '</div>'
 
@@ -9198,6 +9208,7 @@
                 + '<button onclick="deleteRow(\'orders\',\'' + d.id + '\')" class="btn bg-rose-50 border border-rose-200 text-rose-600 font-bold">Delete</button>'
                 + '</div>'
             );
+            if (window.lucide) lucide.createIcons();
         };
         window.sendSheetMsg = async (id) => {
             const el = document.getElementById('sheetMsg');
@@ -9352,7 +9363,7 @@
             const R = S.redemptions || [], W = S.withdrawals || [], PS = S.point_sells || [], AO = S.account_orders || [];
             const all = [
                 ...(S.deposits || []).map(d => ({ src: 'deposits', id: d.id, uid: d.uid || '', kind: 'topup', title: 'Top-up via ' + (d.method || ''), sub: d.name || d.email || '', info: d.trxId || '', amount: d.amount, status: d.status, createdAt: d.createdAt, logo: payLogo(d.method), logoName: d.method || 'Top-up' })),
-                ...(S.orders || []).map(d => ({ src: 'orders', id: d.id, uid: d.uid || '', kind: 'task', title: (d.isFreeTask ? '⭐ Free Task: ' : 'Task: ') + (d.game || ''), sub: (d.name || d.email || '') + (d.previousBalance != null ? ' • Bal: ' + d.previousBalance + ' ➔ ' + Math.max(0, Math.round((d.previousBalance - (d.isFreeTask ? 0 : (d.amount || 3))) * 100) / 100) : ''), info: d.trxId || '', amount: d.isFreeTask ? 0 : (d.amount != null ? d.amount : 3), status: d.status, createdAt: d.createdAt, logo: d.logo || '', logoName: d.game || 'Task' })),
+                ...(S.orders || []).map(d => ({ src: 'orders', id: d.id, uid: d.uid || '', kind: 'task', title: (d.isFreeTask ? '⭐ Free Task: ' : 'Task: ') + (d.game || ''), sub: (d.name || d.email || '') + (d.gamerName ? ' • 🎮 ' + d.gamerName : ''), info: d.id || d.trxId || '', amount: d.isFreeTask ? 0 : (d.amount != null ? d.amount : 3), previousBalance: d.previousBalance, status: d.status, createdAt: d.createdAt, logo: d.logo || '', logoName: d.game || 'Task' })),
                 ...R.map(d => {
                     const k = redeemKind(d.code);
                     const ttl = k === 'daily' ? 'Daily Bonus +' + (d.amount || 0) + ' Coins'
@@ -9426,9 +9437,12 @@
                         ? `<span class="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">${d.previousBalance} c</span>`
                         : `<span class="text-slate-400 font-mono text-[10.5px]">—</span>`;
 
-                    return '<tr data-search="' + sa(d.title, d.sub, d.info, d.uid) + '">'
+                    const rowClickAttr = (d.src === 'orders' && d.id)
+                        ? ' onclick="orderSheet(\'' + esc(d.id) + '\')" class="cursor-pointer hover:bg-indigo-50/60 active:bg-indigo-100/60 transition-colors" title="Click to view full Order Details"'
+                        : '';
+                    return '<tr data-search="' + sa(d.title, d.sub, d.info, d.uid) + '"' + rowClickAttr + '>'
                         + '<td><span class="st ' + (kindPill[d.kind] || 'st-off') + '">' + d.kind.toUpperCase() + '</span></td>'
-                        + '<td><div class="flex items-center gap-2.5">' + thumb(d.logo || '', d.logoName || d.title) + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[180px]">' + esc(d.title) + '</p><div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 font-mono truncate max-w-[150px]">' + esc(d.info) + '</p>' + cpBtn(d.info, 'Copy') + '</div></div></div></td>'
+                        + '<td><div class="flex items-center gap-2.5">' + thumb(d.logo || '', d.logoName || d.title) + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[180px]">' + esc(d.title) + (d.src === 'orders' ? ' <span class="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-1">👁 Details</span>' : '') + '</p><div class="cpline mt-0.5"><p class="grow text-[11px] text-slate-500 font-mono truncate max-w-[150px]">' + esc(d.info) + '</p>' + cpBtn(d.info, 'Copy') + '</div></div></div></td>'
                         + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-xs text-slate-600 truncate max-w-[110px]">' + esc(d.sub) + '</span>' + cpBtn(d.sub, 'Copy User') + '</div>' + (d.uid ? '<div class="cpline mt-0.5"><span class="grow text-[10px] font-mono text-indigo-500 truncate max-w-[110px]">' + esc(d.uid) + '</span>' + cpBtn(d.uid, 'Copy UID') + '</div>' : '') + '</td>'
                         + '<td class="text-center whitespace-nowrap">' + prevBalText + '</td>'
                         + '<td class="text-xs text-slate-500 whitespace-nowrap">' + fmtDate(d.createdAt) + '</td>'
@@ -10352,8 +10366,10 @@
                 const balBefore = t.balance_before !== undefined && t.balance_before !== null ? Number(t.balance_before) : (t.previousBalance !== undefined && t.previousBalance !== null ? Number(t.previousBalance) : null);
                 const balAfter = t.balance_after !== undefined && t.balance_after !== null ? Number(t.balance_after) : null;
 
+                const matchedOrd = (ord || []).find(o => o.id === t.id || (t.info && o.id && String(t.info).includes(o.id)));
                 unifiedHist.push({
                     id: t.id,
+                    orderId: matchedOrd ? matchedOrd.id : ((kind.includes('TASK') || kind.includes('QUEST')) && String(t.id || '').startsWith('ORD-') ? t.id : ''),
                     badge,
                     badgeCls,
                     title: t.title || 'Transaction Log',
@@ -10367,16 +10383,21 @@
             });
 
             // 1. Orders
+            window._orderDetailCache = window._orderDetailCache || {};
             (ord || []).forEach(o => {
+                if (o && o.id) window._orderDetailCache[o.id] = o;
                 if ((cfTransactions || []).some(c => c.id === o.id)) return;
                 unifiedHist.push({
+                    id: o.id,
+                    orderId: o.id,
                     badge: '🎮 QUEST',
                     badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
                     title: o.game || 'Game Quest Order',
-                    note: o.adminMsg || (o.accEmail ? 'Account: ' + o.accEmail : ''),
+                    note: o.adminMsg || (o.gamerName ? '🎮 ' + o.gamerName : (o.accEmail ? 'Account: ' + o.accEmail : '')),
                     amount: -Math.abs(Number(o.amount || o.coins || 2)),
                     status: o.status || 'completed',
-                    ts: o.createdAt
+                    ts: o.createdAt,
+                    balBefore: o.previousBalance !== undefined ? o.previousBalance : null
                 });
             });
 
@@ -10440,11 +10461,13 @@
                     const estAfter = Math.round(((item.balBefore + item.amount) + Number.EPSILON) * 100) / 100;
                     auditHtml = `<span class="inline-block text-[9.5px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Balance Audit: Before ➔ After">Bal: ${item.balBefore} ➔ ${estAfter}</span>`;
                 }
-                return `<div class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-between gap-2 text-xs">
+                const clickOrderAttr = item.orderId ? `onclick="orderSheet('${esc(item.orderId)}')" title="Click to open Order Details Popup"` : '';
+                const clickOrderCls = item.orderId ? 'cursor-pointer hover:bg-indigo-50/60 hover:border-indigo-300' : 'hover:bg-slate-50';
+                return `<div ${clickOrderAttr} class="p-2.5 rounded-xl border border-slate-200 bg-white ${clickOrderCls} transition-all flex items-center justify-between gap-2 text-xs">
                     <div class="flex items-center gap-2 min-w-0 flex-1">
                         <span class="px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase shrink-0 ${item.badgeCls}">${item.badge}</span>
                         <div class="min-w-0 flex-1">
-                            <p class="font-extrabold text-slate-900 truncate leading-tight">${esc(item.title)}</p>
+                            <p class="font-extrabold text-slate-900 truncate leading-tight">${esc(item.title)}${item.orderId ? ' <span class="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-1">👁 Details</span>' : ''}</p>
                             <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                                 ${item.note ? `<span class="text-[10px] text-slate-500 truncate font-semibold">${esc(item.note)}</span>` : ''}
                                 ${auditHtml}
