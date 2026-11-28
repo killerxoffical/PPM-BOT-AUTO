@@ -7009,9 +7009,10 @@
         </div>
     </div>
 
-    <!-- Maintenance Overlay (Executive Studio UI) -->
-    <div id="maintOverlay" class="pop-overlay" style="display:none; z-index:9999999;">
-        <div class="w-full max-w-[360px] mx-auto bg-white/95 border border-slate-200/90 rounded-[28px] p-6 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.16)] text-center relative overflow-hidden">
+    <!-- Full-Screen Maintenance Lock Screen (Executive Studio UI — 100% Opaque Full Screen) -->
+    <div id="maintOverlay"
+        style="display:none; position:fixed; inset:0; width:100vw; height:100dvh; z-index:99999999; background:linear-gradient(160deg,#f8fafc 0%,#fffbeb 48%,#f1f5f9 100%); align-items:center; justify-content:center; padding:24px; overflow-y:auto; overscroll-behavior:contain;">
+        <div class="w-full max-w-[380px] mx-auto bg-white border border-slate-200/90 rounded-[28px] p-6 sm:p-7 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.16)] text-center relative overflow-hidden">
             <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500"></div>
 
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/90 text-amber-800 text-[10px] font-black uppercase tracking-widest mb-4">
@@ -13579,10 +13580,14 @@
                     if (window.lucide) lucide.createIcons();
                 }, 1200);
             }
-            // maintenance
-            if (cfg.maintenance === true) {
+            // maintenance (Full-Screen Lock synced cleanly with Portal status)
+            window._isConfigMaintenanceActive = (cfg.maintenance === true);
+            window._configMaintMsg = (cfg.maintMsg || '').toString().trim() || 'সার্ভার রক্ষণাবেক্ষণ কাজ চলছে। কিছুক্ষণ পর পুনরায় চেষ্টা করুন।';
+            if (typeof window.syncMaintenanceLock === 'function') {
+                window.syncMaintenanceLock();
+            } else if (window._isConfigMaintenanceActive) {
                 const mm = document.getElementById('maintMsg');
-                if (mm) mm.textContent = (cfg.maintMsg || '').toString().trim() || 'App ti maintenance e ache. Ektokhon porer janabo.';
+                if (mm) mm.textContent = window._configMaintMsg;
                 const ov = document.getElementById('maintOverlay');
                 if (ov) { ov.style.display = 'flex'; if (window.lucide) lucide.createIcons(); }
             }
@@ -13717,45 +13722,80 @@
             return false;
         }
 
+        window._isConfigMaintenanceActive = window._isConfigMaintenanceActive || false;
+        window._portalMaintTitle = '';
+        window._portalMaintMsg = '';
+
+        window.syncMaintenanceLock = function () {
+            const active = Boolean(window._isConfigMaintenanceActive || window._isPortalMaintenanceActive);
+            const maintModal = document.getElementById('maintOverlay');
+            if (active) {
+                if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                    window.AndroidBridge.setSystemBlocked(true);
+                }
+                if (maintModal) {
+                    const titleEl = document.getElementById('maintScreenTitle');
+                    if (titleEl) {
+                        titleEl.textContent = (window._isPortalMaintenanceActive && window._portalMaintTitle)
+                            ? window._portalMaintTitle
+                            : 'সার্ভার আপগ্রেড চলছে';
+                    }
+                    const mm = document.getElementById('maintMsg');
+                    if (mm) {
+                        mm.textContent = (window._isPortalMaintenanceActive && window._portalMaintMsg)
+                            ? window._portalMaintMsg
+                            : (window._configMaintMsg || 'সার্ভার রক্ষণাবেক্ষণ কাজ চলছে। কিছুক্ষণ পর পুনরায় চেষ্টা করুন।');
+                    }
+                    maintModal.style.display = 'flex';
+                    try { document.body.style.overflow = 'hidden'; } catch (e) { }
+                    if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
+                }
+            } else {
+                if (maintModal) maintModal.style.display = 'none';
+                try { document.body.style.overflow = ''; } catch (e) { }
+                if (!window._isPortalForceUpdateActive) {
+                    if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
+                        window.AndroidBridge.setSystemBlocked(false);
+                    }
+                }
+            }
+        };
+
         function showPortalMaintenance(title, message) {
             window._isPortalMaintenanceActive = true;
-            if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
-                window.AndroidBridge.setSystemBlocked(true);
-            }
-            const maintModal = document.getElementById('maintOverlay');
-            if (maintModal) {
-                const titleEl = document.getElementById('maintScreenTitle');
-                if (titleEl && title) titleEl.textContent = title;
-                const mm = document.getElementById('maintMsg');
-                if (mm) mm.textContent = message || 'Our servers are currently undergoing scheduled maintenance. Please try again later.';
-                maintModal.style.display = 'flex';
-                if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
-            }
+            window._portalMaintTitle = title || '';
+            window._portalMaintMsg = message || 'সার্ভার রক্ষণাবেক্ষণ কাজ চলছে। কিছুক্ষণ পর পুনরায় চেষ্টা করুন।';
+            window.syncMaintenanceLock();
         }
 
         function hidePortalMaintenance() {
             window._isPortalMaintenanceActive = false;
-            const maintModal = document.getElementById('maintOverlay');
-            if (maintModal) maintModal.style.display = 'none';
-            if (!window._isPortalForceUpdateActive) {
-                if (window.AndroidBridge && typeof window.AndroidBridge.setSystemBlocked === 'function') {
-                    window.AndroidBridge.setSystemBlocked(false);
-                }
-            }
+            window.syncMaintenanceLock();
         }
 
         function checkPortalMaintenanceAgain() {
             const btn = document.getElementById('btnMaintRetry');
             if (btn) btn.innerHTML = '<span>Checking Server...</span>';
-            checkPortalSystemStatus(() => {
-                if (btn) btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i> রিফ্রেশ করুন (Check Server Status)';
-                if (!window._isPortalMaintenanceActive) {
+            const cfgCheck = fetch('https://ppmod-api.tredarskvt.workers.dev/api/cache/public?_t=' + Date.now(), { cache: 'no-store' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.ok && d.config) {
+                        window._isConfigMaintenanceActive = (d.config.maintenance === true);
+                        window._configMaintMsg = (d.config.maintMsg || '').toString().trim() || window._configMaintMsg;
+                    }
+                }).catch(() => { });
+            Promise.all([
+                cfgCheck,
+                new Promise(resolve => checkPortalSystemStatus(resolve))
+            ]).then(() => {
+                window.syncMaintenanceLock();
+                if (btn) btn.innerHTML = '<svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>স্ট্যাটাস চেক করুন (Refresh)</span>';
+                if (!window._isPortalMaintenanceActive && !window._isConfigMaintenanceActive) {
                     toast("Server is back online! Welcome.");
                     location.reload();
                 } else {
-                    toast("Server is still under maintenance.");
+                    toast("সার্ভার এখনো মেইনটেন্যান্সে আছে, অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।");
                 }
-                if (window.lucide) { try { lucide.createIcons(); } catch (e) { } }
             });
         }
         window.checkPortalMaintenanceAgain = checkPortalMaintenanceAgain;
