@@ -14,6 +14,16 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=5">
     <link rel="shortcut icon" href="pp_quest_logo.png?v=5">
     <link rel="apple-touch-icon" href="pp_quest_logo.png?v=5">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <script>
+        // Register PWA Smart Image Cache Service Worker (Stale-While-Revalidate for all Game Icons & Banners!)
+        if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('sw.js').catch(function () { });
+            });
+        }
+    </script>
     <!-- Preload Splash Screen Image for Instant High-Priority Loading -->
     <link rel="preload" as="image" href="fb.png" fetchpriority="high">
     <link rel="preload" as="image" href="hd.png" fetchpriority="high">
@@ -17913,22 +17923,91 @@
             if (window.lucide) lucide.createIcons();
             return '';
         }
+        // Anti-Spam Auth Rate Limit Guard: Max 5 attempts -> 1-hour (3600s) lockout (Local + Cloudflare Edge)
+        const AUTH_RL_MAX = 5;
+        const AUTH_RL_LOCK_MS = 60 * 60 * 1000;
+        function _getLocalAuthRl(action) {
+            try {
+                const raw = JSON.parse(localStorage.getItem('ppm_auth_rl_' + action) || 'null');
+                if (raw && typeof raw === 'object') return raw;
+            } catch (e) { }
+            return { count: 0, lockedUntil: 0, windowStart: Date.now() };
+        }
+        function _setLocalAuthRl(action, rec) {
+            try { localStorage.setItem('ppm_auth_rl_' + action, JSON.stringify(rec)); } catch (e) { }
+        }
+        function _fmtLockBn(ms) {
+            const mins = Math.max(1, Math.ceil(ms / 60000));
+            return mins >= 60 ? `${Math.ceil(mins / 60)} ঘণ্টা` : `${mins} মিনিট`;
+        }
+        async function checkAuthRateLimit(action, identifier, recordNow = true) {
+            const now = Date.now();
+            const rec = _getLocalAuthRl(action);
+            if (rec.lockedUntil && now < rec.lockedUntil) {
+                return { ok: false, error: `🔒 ৫ বারের বেশি চেষ্টা করায় আপনার অ্যাক্সেস সাময়িকভাবে ব্লক করা হয়েছে। অনুগ্রহ করে ${_fmtLockBn(rec.lockedUntil - now)} পর চেষ্টা করুন।` };
+            }
+            if (!rec.windowStart || (now - rec.windowStart) > AUTH_RL_LOCK_MS) {
+                rec.count = 0; rec.windowStart = now; rec.lockedUntil = 0;
+            }
+            if (recordNow) {
+                rec.count = (Number(rec.count) || 0) + 1;
+                if (rec.count >= AUTH_RL_MAX) {
+                    rec.lockedUntil = now + AUTH_RL_LOCK_MS;
+                }
+                _setLocalAuthRl(action, rec);
+            }
+            try {
+                const res = await fetch(`${CF_API}/api/auth/rate-check`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, identifier: (identifier || '').toLowerCase(), record: recordNow })
+                });
+                const d = await res.json().catch(() => null);
+                if (d && d.locked) {
+                    rec.lockedUntil = now + ((Number(d.retryAfterSec) || 3600) * 1000);
+                    _setLocalAuthRl(action, rec);
+                    return { ok: false, error: d.error || `🔒 নিরাপত্তার কারণে ১ ঘণ্টার জন্য লক করা হয়েছে।` };
+                }
+            } catch (e) { }
+            if (recordNow && rec.lockedUntil && now < rec.lockedUntil) {
+                return { ok: false, error: `🔒 ৫ বারের বেশি চেষ্টা করায় ১ ঘণ্টার জন্য সাময়িকভাবে লক করা হয়েছে।` };
+            }
+            return { ok: true };
+        }
+        function resetAuthRateLimit(action, identifier) {
+            try { localStorage.removeItem('ppm_auth_rl_' + action); } catch (e) { }
+            fetch(`${CF_API}/api/auth/rate-reset`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, identifier: (identifier || '').toLowerCase() })
+            }).catch(() => { });
+        }
+
         window.ppfb.loginEmail = async () => {
             if (!auth) { toast('Loading, please wait...'); return; }
             const email = (document.getElementById('emEmail').value || '').trim();
             const pass = document.getElementById('emPass').value || '';
             if (!email || !pass) { emMsg('Email o password din', false); return; }
+            const rlCheck = await checkAuthRateLimit('login', email, false);
+            if (!rlCheck.ok) {
+                emMsg(rlCheck.error, false);
+                toast(rlCheck.error);
+                return;
+            }
             const orig = emBusy('btnEmLogin', true);
             openAuth3DModal('loading', 'Logging in...', 'Verifying email and password credentials...');
             try {
                 localStorage.removeItem('pp_logged_out');
                 await _emLogin(auth, email, pass);
-                openAuth3DModal('success', 'Login Successful!', 'Welcome back to PP MOD!');
+                resetAuthRateLimit('login', email);
+                openAuth3DModal('success', 'Login Successful!', 'Welcome back to PP QUEST!');
             } catch (e) {
                 console.warn(e);
-                emMsg(emErr(e), false);
+                const rlFail = await checkAuthRateLimit('login', email, true);
+                const finalMsg = rlFail.ok ? emErr(e) : rlFail.error;
+                emMsg(finalMsg, false);
                 emBusy('btnEmLogin', false, orig);
-                openAuth3DModal('error', 'Login Failed', emErr(e));
+                openAuth3DModal('error', 'Login Failed', finalMsg);
             }
         };
         window.ppfb.registerEmail = async () => {
@@ -17939,8 +18018,14 @@
             if (!name) { emMsg('Apnar nam din', false); return; }
             if (!email || !pass) { emMsg('Email o password din', false); return; }
             if (pass.length < 6) { emMsg('Password minimum 6 character', false); return; }
+            const rlCheck = await checkAuthRateLimit('register', email, true);
+            if (!rlCheck.ok) {
+                emMsg(rlCheck.error, false);
+                toast(rlCheck.error);
+                return;
+            }
             const orig = emBusy('btnEmReg', true);
-            openAuth3DModal('loading', 'Creating Account...', 'Registering your PP MOD profile...');
+            openAuth3DModal('loading', 'Creating Account...', 'Registering your PP QUEST profile...');
             try {
                 localStorage.removeItem('pp_logged_out');
                 const cred = await _emReg(auth, email, pass);
@@ -17959,6 +18044,12 @@
             if (!auth) { toast('Loading, please wait...'); return; }
             const email = (document.getElementById('emForgotEmail').value || '').trim();
             if (!email) { emMsg('Email din', false); return; }
+            const rlCheck = await checkAuthRateLimit('forgot_pass', email, true);
+            if (!rlCheck.ok) {
+                emMsg(rlCheck.error, false);
+                toast(rlCheck.error);
+                return;
+            }
             const orig = emBusy('btnEmReset', true);
             try {
                 await _emReset(auth, email);

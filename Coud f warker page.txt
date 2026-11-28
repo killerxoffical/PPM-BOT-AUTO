@@ -167,6 +167,79 @@ let _pushCacheAt = 0;
 let _statsCacheData = null;
 let _statsCacheAt = 0;
 
+// In-Memory Sliding Window & Lockout Anti-Spam Rate Limiter (Zero D1 Quota Cost!)
+const _rlMap = new Map();
+function getClientIp(request) {
+  try {
+    return (
+      request.headers.get("CF-Connecting-IP") ||
+      (request.headers.get("X-Forwarded-For") || "").split(",")[0].trim() ||
+      "unknown"
+    );
+  } catch (e) {
+    return "unknown";
+  }
+}
+
+function checkRateLimit(key, maxHits, windowMs, lockMs = 0, increment = true) {
+  const now = Date.now();
+  if (_rlMap.size > 3000) {
+    for (const [k, v] of _rlMap.entries()) {
+      if ((v.lockedUntil && v.lockedUntil < now) || (!v.lockedUntil && (now - v.resetAt) > 0)) {
+        _rlMap.delete(k);
+      }
+      if (_rlMap.size <= 2000) break;
+    }
+  }
+  let rec = _rlMap.get(key);
+  if (rec && rec.lockedUntil && now < rec.lockedUntil) {
+    const retryAfterSec = Math.max(1, Math.ceil((rec.lockedUntil - now) / 1000));
+    return { allowed: false, locked: true, remaining: 0, retryAfterSec };
+  }
+  if (!rec || now >= rec.resetAt) {
+    rec = { count: 0, resetAt: now + windowMs, lockedUntil: 0 };
+  }
+  if (increment) {
+    rec.count += 1;
+  }
+  if (rec.count > maxHits) {
+    rec.lockedUntil = now + (lockMs > 0 ? lockMs : windowMs);
+    _rlMap.set(key, rec);
+    const retryAfterSec = Math.max(1, Math.ceil((rec.lockedUntil - now) / 1000));
+    return { allowed: false, locked: true, remaining: 0, retryAfterSec };
+  }
+  _rlMap.set(key, rec);
+  return { allowed: true, locked: false, remaining: Math.max(0, maxHits - rec.count), retryAfterSec: 0 };
+}
+
+function resetRateLimit(key) {
+  try { _rlMap.delete(key); } catch (e) { }
+}
+
+function formatRetryBn(sec) {
+  const mins = Math.max(1, Math.ceil(sec / 60));
+  return mins >= 60 ? `${Math.ceil(mins / 60)} ঘণ্টা` : `${mins} মিনিট`;
+}
+
+// Personal & Global Push Notification Enqueue Helper (Cloudflare D1 Edge)
+async function enqueueUserPush(db, targetUid, title, message, imageUrl = "") {
+  try {
+    const t = String(title || "").trim().slice(0, 140);
+    const m = String(message || "").trim().slice(0, 600);
+    const tgt = String(targetUid || "").trim().slice(0, 80);
+    if (!db || !tgt || !t || !m) return;
+    const now = Date.now();
+    const id = `UPUSH-${now}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    await db.prepare(`
+      INSERT INTO push_notifications (id, title, message, imageUrl, target, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO NOTHING
+    `).bind(id, t, m, String(imageUrl || "").slice(0, 500), tgt, now).run().catch(() => { });
+    _pushCacheData = null;
+    _pushCacheAt = 0;
+  } catch (e) { }
+}
+
 async function autoPruneOldTransactions(db, targetUid = null, force = false) {
   try {
     const now = Date.now();
@@ -449,6 +522,10 @@ export default {
       // 1a. TrxID Duplicate Check & Lock (Edge Lock against duplicate abuse with Amount Guard)
       if (path === "/api/trx/check-lock" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
+        const rl = checkRateLimit(`trx_chk:${getClientIp(request)}:${body.uid || ''}`, 10, 5 * 60 * 1000, 10 * 60 * 1000);
+        if (!rl.allowed) {
+          return json({ ok: false, rateLimited: true, retryAfterSec: rl.retryAfterSec, error: `⏳ অতিরিক্ত রিকোয়েস্ট পাঠানো হয়েছে! অনুগ্রহ করে ${formatRetryBn(rl.retryAfterSec)} পর আবার চেষ্টা করুন।` }, 429);
+        }
         const trxId = (body.trxId || "").trim().toUpperCase();
         const uid = body.uid || "";
         const amount = Number(body.amount) || 0;
@@ -509,7 +586,47 @@ export default {
         return json({ ok: true, message: "Database schema verified." });
       }
 
-      // ==================== FAST GLOBAL PUSH NOTIFICATIONS (EDGE + FIREBASE MIRROR) ====================
+      // ==================== AUTH ANTI-SPAM RATE LIMITER (Login / Register / Forgot Password) ====================
+      // Max 5 attempts -> 1-hour (3600s) lockout per IP + action
+      if (path === "/api/auth/rate-check" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const action = String(body.action || "login").trim().toLowerCase();
+        const identifier = String(body.identifier || "").trim().toLowerCase().slice(0, 80);
+        const recordAttempt = body.record !== false;
+        const ip = getClientIp(request);
+        const maxAttempts = 5;
+        const windowMs = 60 * 60 * 1000; // 1 hour sliding window
+        const lockMs = 60 * 60 * 1000;   // 1 hour lockout after 5 attempts
+
+        const ipKey = `auth:${action}:ip:${ip}`;
+        const rIp = checkRateLimit(ipKey, maxAttempts, windowMs, lockMs, recordAttempt);
+        let rId = { allowed: true, remaining: maxAttempts, retryAfterSec: 0 };
+        if (identifier) {
+          rId = checkRateLimit(`auth:${action}:id:${identifier}`, maxAttempts, windowMs, lockMs, recordAttempt);
+        }
+        if (!rIp.allowed || !rId.allowed) {
+          const retry = Math.max(rIp.retryAfterSec || 0, rId.retryAfterSec || 0, 60);
+          return json({
+            ok: false,
+            locked: true,
+            retryAfterSec: retry,
+            error: `🔒 নিরাপত্তার কারণে আপনার অ্যাক্সেস সাময়িকভাবে সীমিত করা হয়েছে (সর্বোচ্চ ৫ বার চেষ্টা)। অনুগ্রহ করে ${formatRetryBn(retry)} পর পুনরায় চেষ্টা করুন।`
+          }, 429);
+        }
+        return json({ ok: true, locked: false, remaining: Math.min(rIp.remaining, rId.remaining) });
+      }
+
+      if (path === "/api/auth/rate-reset" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const action = String(body.action || "login").trim().toLowerCase();
+        const identifier = String(body.identifier || "").trim().toLowerCase().slice(0, 80);
+        const ip = getClientIp(request);
+        resetRateLimit(`auth:${action}:ip:${ip}`);
+        if (identifier) resetRateLimit(`auth:${action}:id:${identifier}`);
+        return json({ ok: true });
+      }
+
+      // ==================== FAST GLOBAL & PERSONAL PUSH NOTIFICATIONS (EDGE + FIREBASE MIRROR) ====================
       if (path === "/api/push/send" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const title = String(body.title || "").trim().slice(0, 140);
@@ -543,10 +660,10 @@ export default {
             createdAt = excluded.createdAt
         `).bind(id, title, message, imageUrl, target, now).run();
 
-        // Keep only the latest 30 broadcasts to stay super fast and lightweight
+        // Keep only the latest 80 notifications (global + personal) to stay super fast and lightweight
         await env.DB.prepare(`
           DELETE FROM push_notifications
-          WHERE id NOT IN (SELECT id FROM push_notifications ORDER BY createdAt DESC LIMIT 30)
+          WHERE id NOT IN (SELECT id FROM push_notifications ORDER BY createdAt DESC LIMIT 80)
         `).run().catch(() => { });
 
         // Bust in-memory push cache immediately so next poll gets fresh push
@@ -558,6 +675,7 @@ export default {
 
       if (path === "/api/push/latest" && request.method === "GET") {
         const sinceRaw = Number(url.searchParams.get("since") || 0);
+        const reqUid = String(url.searchParams.get("uid") || "").trim();
         const limitRaw = Math.min(10, Math.max(1, Number(url.searchParams.get("limit") || 5)));
         const now = Date.now();
         const cutoff = (sinceRaw > 0) ? sinceRaw : (now - 48 * 60 * 60 * 1000);
@@ -569,12 +687,18 @@ export default {
               SELECT id, title, message, imageUrl, target, createdAt
               FROM push_notifications
               ORDER BY createdAt DESC
-              LIMIT 15
+              LIMIT 60
             `).all();
             _pushCacheData = (res && res.results) ? res.results : [];
             _pushCacheAt = now;
           }
-          const filtered = _pushCacheData.filter(n => Number(n.createdAt || 0) > cutoff).slice(0, limitRaw);
+          const filtered = _pushCacheData
+            .filter(n => {
+              const tgt = String(n.target || "all");
+              const matchTarget = (tgt === "all") || (reqUid && tgt === reqUid);
+              return matchTarget && Number(n.createdAt || 0) > cutoff;
+            })
+            .slice(0, limitRaw);
           return json({
             ok: true,
             serverTime: now,
@@ -1389,6 +1513,14 @@ export default {
               email: uWallet?.email || pendingDep.email || ''
             });
 
+            // Personal Push Notification -> সরাসরি ইউজারের PP QUEST অ্যাপের নোটিফিকেশন বারে!
+            await enqueueUserPush(
+              env.DB,
+              pendingDep.uid,
+              `ডিপোজিট সফল! +${coinsToAdd} PP Coins`,
+              `আপনার ৳${amount} (${method}) ডিপোজিট অটো অ্যাপ্রুভ হয়ে ওয়ালেটে +${coinsToAdd} কয়েন যোগ হয়েছে। নতুন ব্যালেন্স: ${newBal} কয়েন।`
+            );
+
             // Send Telegram Notifications on auto gateway deposit (AWAITED so CF Worker never drops logs!)
             try {
               const uName = uWallet?.name || pendingDep.name || 'User';
@@ -1573,6 +1705,14 @@ export default {
           name: userWallet?.name || name || '',
           email: userWallet?.email || email || ''
         });
+
+        // Personal Push Notification -> সরাসরি ইউজারের PP QUEST অ্যাপে!
+        await enqueueUserPush(
+          env.DB,
+          targetUid,
+          `ডিপোজিট সফল! +${coinsToAdd} PP Coins`,
+          `আপনার ৳${realSmsAmt} (${payMethod}) ডিপোজিট অটো অ্যাপ্রুভ হয়েছে। নতুন ব্যালেন্স: ${finalBal} কয়েন।`
+        );
 
         // Send Telegram Notifications (AWAITED so CF Worker never drops Admin Bot auto-approve logs!)
         try {
@@ -1972,12 +2112,16 @@ export default {
         return json({ ok: true, message: "Edge cache synced and purged successfully!" });
       }
 
-      // 2. টাস্ক অর্ডার তৈরি (Create Task Order with 2-Decimal Precision)
+      // 2. টাস্ক অর্ডার তৈরি (Create Task Order with 2-Decimal Precision + Anti-Spam Rate Limit)
       if (path === "/api/orders/create" && request.method === "POST") {
         const body = await request.json();
         const id = body.id || `ORD-${Date.now()}`;
         const uid = body.uid;
         if (!uid || !body.game) return json({ ok: false, error: "Missing uid or game" }, 400);
+        const rlOrd = checkRateLimit(`ord_create:${getClientIp(request)}:${uid}`, 12, 3 * 60 * 1000, 5 * 60 * 1000);
+        if (!rlOrd.allowed) {
+          return json({ ok: false, rateLimited: true, error: `⏳ অনেক দ্রুত অর্ডার রিকোয়েস্ট পাঠানো হচ্ছে! ${formatRetryBn(rlOrd.retryAfterSec)} পর চেষ্টা করুন।` }, 429);
+        }
 
         const now = Date.now();
         const userWallet = await env.DB.prepare(`SELECT balance FROM user_wallets WHERE uid = ?`).bind(uid).first();
@@ -2307,6 +2451,28 @@ export default {
           if (existingOrd && existingOrd.uid && status !== "pending" && status !== "paid") {
             await autoPruneOldTransactions(env.DB, existingOrd.uid);
           }
+          // Personal Push Notification when Quest completes or gets refunded!
+          const targetPushUid = (existingOrd && existingOrd.uid) || body.uid || "";
+          const prevSt = String((existingOrd && existingOrd.status) || "").toLowerCase();
+          const nextSt = String(status).toLowerCase();
+          if (targetPushUid && prevSt !== nextSt) {
+            const gLabel = body.game || "Game Quest";
+            if (nextSt === "completed") {
+              await enqueueUserPush(
+                env.DB,
+                targetPushUid,
+                `কোয়েস্ট সম্পন্ন হয়েছে!`,
+                `আপনার ${gLabel} (${orderId}) টাস্ক সফলভাবে কমপ্লিট হয়েছে। Google Play Store চেক করুন।`
+              );
+            } else if (nextSt === "refunded" || nextSt === "rejected") {
+              await enqueueUserPush(
+                env.DB,
+                targetPushUid,
+                `অর্ডার রিফান্ড হয়েছে`,
+                `আপনার ${gLabel} (${orderId}) অর্ডারটি রিফান্ড হয়ে কয়েন ওয়ালেটে ফেরত এসেছে।`
+              );
+            }
+          }
         }
 
         return json({ ok: true });
@@ -2402,12 +2568,16 @@ export default {
         return json({ ok: true });
       }
 
-      // 8a. Cloudflare D1 Create Deposit (Strict Zero-Duplicate Guard + Awaited Admin Alert)
+      // 8a. Cloudflare D1 Create Deposit (Strict Zero-Duplicate Guard + Rate Limit + Awaited Admin Alert)
       if (path === "/api/deposits/create" && request.method === "POST") {
         const body = await request.json();
         const { id, uid, name, email, method, amount, coins, trxId } = body;
         const cleanTrx = (trxId || "").trim().toUpperCase();
         if (!uid || !cleanTrx) return json({ ok: false, error: "Missing uid or trxId" }, 400);
+        const rlDep = checkRateLimit(`dep_create:${getClientIp(request)}:${uid}`, 8, 5 * 60 * 1000, 15 * 60 * 1000);
+        if (!rlDep.allowed) {
+          return json({ ok: false, rateLimited: true, error: `⏳ অতিরিক্ত ডিপোজিট রিকোয়েস্ট! অনুগ্রহ করে ${formatRetryBn(rlDep.retryAfterSec)} পর চেষ্টা করুন।` }, 429);
+        }
 
         const depId = id || `DEP-${cleanTrx}`;
         const now = Date.now();
@@ -2511,12 +2681,14 @@ export default {
         return json({ ok: true, deposits: results || [] });
       }
 
-      // 8a-3. Cloudflare D1 Deposit Reject
+      // 8a-3. Cloudflare D1 Deposit Reject (+ Personal App Push Notification)
       if (path === "/api/deposits/reject" && request.method === "POST") {
         const body = await request.json();
         const { id, trxId, reason } = body;
         const cleanTrx = (trxId || "").trim().toUpperCase();
         const rejectMsg = reason || "অ্যাডমিন প্যানেল থেকে ডিপোজিট বাতিল করা হয়েছে।";
+
+        const depRow = await env.DB.prepare(`SELECT uid, amount, method FROM deposits WHERE id = ? OR trxId = ? LIMIT 1`).bind(id || "none", cleanTrx || "none").first().catch(() => null);
 
         await env.DB.prepare(`
           UPDATE deposits SET status = 'rejected', adminMsg = ? WHERE id = ? OR trxId = ?
@@ -2525,6 +2697,15 @@ export default {
         await env.DB.prepare(`
           UPDATE transactions SET status = 'rejected' WHERE id = ? OR (kind = 'TOP-UP' AND info LIKE ?)
         `).bind(id || "none", `%${cleanTrx}%`).run().catch(() => { });
+
+        if (depRow && depRow.uid) {
+          await enqueueUserPush(
+            env.DB,
+            depRow.uid,
+            `ডিপোজিট বাতিল হয়েছে`,
+            `আপনার ৳${depRow.amount || 0} (${depRow.method || 'bKash'}) ডিপোজিট বাতিল হয়েছে। কারণ: ${rejectMsg}`
+          );
+        }
 
         return json({ ok: true });
       }
@@ -2624,6 +2805,14 @@ export default {
           name: userWallet?.name || '',
           email: userWallet?.email || email || ''
         });
+
+        // Personal Push Notification -> সরাসরি ইউজারের PP QUEST অ্যাপে!
+        await enqueueUserPush(
+          env.DB,
+          targetUid,
+          `ডিপোজিট অ্যাপ্রুভ হয়েছে! +${addCoins} PP Coins`,
+          `আপনার ৳${amt} (${method || 'bKash'}) ডিপোজিট অ্যাপ্রুভ হয়েছে। নতুন ব্যালেন্স: ${newCoins} কয়েন।`
+        );
 
         // 5. Update / Insert Transactions History Record with Before & After Balance
         await env.DB.prepare(`

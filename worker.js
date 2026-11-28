@@ -7575,7 +7575,14 @@ async function startMasterWorker() {
     // Realtime Pending Orders Listener & Instant Executive Telegram Alert
     const notifiedOrders = new Set();
 
+    // [DISABLED LEGACY MANUAL GMAIL+PASS ORDER WORKER]
+    // পুরোনো Gmail+Password ম্যানুয়াল অর্ডার পোলার ও Assigned Worker লুপ বন্ধ করা হলো
+    // যাতে অপ্রয়োজনীয় ডুপ্লিকেট টেলিগ্রাম লগ ও প্রতি ৩ সেকেন্ডে Cloudflare D1 কোটা খরচ না হয়।
+    // (মূল টেলিগ্রাম ইউজার/অ্যাডমিন বট কমান্ড ও ডিপোজিট লগ আগের মতোই চালু থাকবে।)
+    const ENABLE_LEGACY_MANUAL_ORDER_WORKER = false;
+
     async function handleIncomingOrder(orderId, ord, source = "Firestore") {
+        if (!ENABLE_LEGACY_MANUAL_ORDER_WORKER) return;
         if (!ord || !ord.accEmail || !ord.accPass) return;
         if (ord.isQid || ord.loginMethod === "qid" || ord.loginMethod === "server_code") return;
         if (ord.status !== "pending") return;
@@ -7683,50 +7690,39 @@ async function startMasterWorker() {
         }
     }
 
-    // Realtime Pending Orders Listener — তাৎক্ষণিক বট এক্সিকিউশন শুরু করবে (Zero Delay)
-    try {
-        db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach(async (change) => {
-                if (change.type === "added" || change.type === "modified") {
-                    const ord = change.doc.data();
-                    const orderId = change.doc.id;
-                    handleIncomingOrder(orderId, ord, "Firestore Realtime");
-                }
-            });
-        }, (err) => console.warn("[Worker] orders onSnapshot err:", err));
-    } catch (e) {
-        console.warn("[Worker] orders listener init err:", e);
-    }
-
-    // Cloudflare D1 Pending Order Checker
-    setInterval(async () => {
+    // Legacy Pending Orders Listeners & 3-second D1 Poller DISABLED (Zero wasted D1 Rows Read & No duplicate Assigned Worker logs!)
+    if (ENABLE_LEGACY_MANUAL_ORDER_WORKER) {
         try {
-            if (isQueueProcessing) return;
-            const res = await cfFetch(`${CF_API}/api/orders/pending`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data && data.ok && Array.isArray(data.orders)) {
-                    for (const ord of data.orders) {
-                        handleIncomingOrder(ord.id, ord, "Cloudflare D1");
+            db.collection("orders").where("status", "==", "pending").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach(async (change) => {
+                    if (change.type === "added" || change.type === "modified") {
+                        const ord = change.doc.data();
+                        const orderId = change.doc.id;
+                        handleIncomingOrder(orderId, ord, "Firestore Realtime");
+                    }
+                });
+            }, (err) => console.warn("[Worker] orders onSnapshot err:", err));
+        } catch (e) {
+            console.warn("[Worker] orders listener init err:", e);
+        }
+
+        setInterval(async () => {
+            try {
+                if (isQueueProcessing) return;
+                const res = await cfFetch(`${CF_API}/api/orders/pending`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.ok && Array.isArray(data.orders)) {
+                        for (const ord of data.orders) {
+                            handleIncomingOrder(ord.id, ord, "Cloudflare D1");
+                        }
                     }
                 }
-            }
-        } catch (e) {}
-    }, 3000);
+            } catch (e) {}
+        }, 30000);
+    }
 
-    // ফায়ারবেসের ফলব্যাক চেক: কোটা বাঁচাতে প্রতি ৫ মিনিটে ব্যাকআপ চেক (অন-স্ন্যাপশট অলরেডি রিয়েলটাইমে কাজ করছে)
-    setInterval(async () => {
-        try {
-            if (isQueueProcessing) return;
-            const snap = await db.collection("orders").where("status", "==", "pending").limit(10).get();
-            for (const doc of snap.docs) {
-                const ord = doc.data();
-                handleIncomingOrder(doc.id, ord, "Firestore Fallback");
-            }
-        } catch (e) {}
-    }, 300000);
-
-    console.log("[MASTER INIT] Active!");
+    console.log("[MASTER INIT] Active! (Legacy Manual Order Worker: OFF)");
 }
 
 startMasterWorker().catch(console.error);

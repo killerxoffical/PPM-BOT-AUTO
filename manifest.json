@@ -1,0 +1,24 @@
+{
+  "name": "PP QUEST - VAREON Studio",
+  "short_name": "PP QUEST",
+  "description": "Google Play Points Quest & Level-Up Booster Portal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "pp_quest_logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pp_quest_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
