@@ -5456,7 +5456,7 @@
             if (CURRENT === 'scrUsr') {
                 const uInp = document.getElementById('adminUsrSearchInp');
                 if (uInp) uInp.value = q;
-                window.loadUsersFromCloudflare(0, q);
+                window.loadUsersFromCloudflare(0, q, true);
             } else if (CURRENT === 'scrConnected') {
                 const cInp = document.getElementById('connectedSearchInp');
                 if (cInp) cInp.value = q;
@@ -5896,9 +5896,21 @@
         }
 
         function mergeVirtualUsers() {
-            // Firestore থেকে আসা আসল ইউজারদের মূল তালিকা (Real balance ও profile অক্ষুণ্ণ থাকবে)
+            // Cloudflare D1 ব্যালেন্স সবসময় মাস্টার অথরিটি; Firestore শুধু ইমেইল/জয়েন ডেট মেটাডাটার জন্য
             const baseUsers = (S._firestoreUsers && S._firestoreUsers.length) ? S._firestoreUsers.slice() : [];
-            const existingUserIds = new Set(baseUsers.map(u => u.id));
+            const cfMap = window._cfUsersMap || new Map();
+            const merged = baseUsers.map(u => {
+                const uid = u.id || u.uid;
+                const cfU = uid ? cfMap.get(uid) : null;
+                return cfU ? { ...u, ...cfU, id: uid, uid: uid, balance: cfU.balance, realBalance: cfU.balance, bonusBalance: 0 } : u;
+            });
+            const existingUserIds = new Set(merged.map(u => u.id || u.uid));
+            cfMap.forEach((cfU, uid) => {
+                if (uid && !existingUserIds.has(uid)) {
+                    existingUserIds.add(uid);
+                    merged.push({ ...cfU, id: uid, uid: uid });
+                }
+            });
             const extraUsers = [];
             [...S.deposits, ...S.orders, ...S.redemptions].forEach(item => {
                 if (item.uid && !existingUserIds.has(item.uid)) {
@@ -5910,7 +5922,7 @@
                     });
                 }
             });
-            S.users = [...baseUsers, ...extraUsers];
+            S.users = [...merged, ...extraUsers];
         }
 
         function scheduleRender() {
@@ -6303,7 +6315,7 @@
                 }
             }, (err) => console.warn('Star buy config error:', err)));
 
-            // ফায়ারস্টোর থেকে সম্পূর্ণ ইউজার ও তাদের শেষ আপডেট ব্যালেন্স লোড
+            // ফায়ারস্টোর থেকে শুধু প্রোফাইল মেটাডাটা (ইমেইল/জয়েন ডেট) ব্যাকগ্রাউন্ডে লোড — কখনোই Cloudflare D1 ইউজার লিস্ট ওভাররাইট করবে না!
             try {
                 getDocs(collection(db, 'users')).then((snap) => {
                     const arr = [];
@@ -6312,9 +6324,6 @@
                     S._firestoreUsers = arr;
                     mergeVirtualUsers();
                     updateStats();
-                    if (CURRENT === 'scrUsr' && typeof _old_unused_renderUsers === 'function') {
-                        _old_unused_renderUsers();
-                    }
                 }).catch(err => console.warn('[Users Quota-Saver Fetch Warn]:', err));
             } catch (e) {
                 console.warn('Users subscribe error:', e);
@@ -9932,26 +9941,9 @@
                     throw new Error((data && data.error) || 'Invalid API response');
                 }
             } catch (err) {
-                console.warn('CF Users Load Error, falling back to Firestore S.users:', err);
-                // Fallback: If Cloudflare D1 hits daily read limit or network error, immediately render from Firebase Firestore S.users!
-                if (typeof _old_unused_renderUsers === 'function' && S.users && S.users.length) {
-                    _old_unused_renderUsers();
-                    const tCntEl = document.getElementById('usrTotalCount');
-                    const tBalEl = document.getElementById('usrTotalBalance');
-                    const actEl = document.getElementById('usrActiveCount');
-                    const banEl = document.getElementById('usrBannedCount');
-                    const lbl = document.getElementById('usrPageLabel');
-                    if (tCntEl) tCntEl.textContent = S.users.length;
-                    const totBal = S.users.reduce((acc, u) => acc + (Number(u.balance) || 0), 0);
-                    if (tBalEl) tBalEl.textContent = (Math.round((totBal + Number.EPSILON) * 100) / 100) + ' Coins';
-                    const bCount = S.users.filter(u => u.banned === true).length;
-                    if (actEl) actEl.textContent = S.users.length - bCount;
-                    if (banEl) banEl.textContent = bCount;
-                    if (lbl) lbl.textContent = `Showing all ${S.users.length} users (Live from Firebase Firestore)`;
-                    toast('⚠️ Cloudflare D1 লিমিট থাকায় Firebase Firestore থেকে ৮০০+ ইউজার ব্যাকআপ মোডে লোড হয়েছে।');
-                    return;
-                }
-                if (box) {
+                console.warn('CF Users Load Error:', err);
+                toast('⚠️ Cloudflare D1 থেকে লাইভ ইউজার লিস্ট লোড করা যায়নি, আবার চেষ্টা করুন।');
+                if (box && !box.querySelector('table')) {
                     box.innerHTML = `<div class="p-6 text-center bg-rose-50 border border-rose-200 rounded-2xl space-y-2">
                         <p class="text-xs font-black text-rose-700">⚠️ Cloudflare D1 থেকে ইউজার লোড করতে সমস্যা হয়েছে!</p>
                         <p class="text-[11px] font-semibold text-rose-600">${esc(err.message || 'Network or CORS error')}</p>
@@ -9988,8 +9980,9 @@
         };
 
         function renderUsers() {
-            // ইউজারের স্ক্রিনে আসা মাত্রই ক্লাউডফ্লেয়ার D1 থেকে ফ্রেশ ১০ জন ইউজার লোড হবে
-            window.loadUsersFromCloudflare(_usrOffset || 0, "", true);
+            // ইউজারের স্ক্রিনে আসা মাত্রই ক্লাউডফ্লেয়ার D1 থেকে ফ্রেশ রিয়েল ব্যালেন্স লোড হবে
+            const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
+            window.loadUsersFromCloudflare(_usrOffset || 0, curSearch, true);
         }
 
         function _old_unused_renderUsers() {
