@@ -1016,10 +1016,6 @@
         }
 
         /* --- Game Selection Grid & Tactile Cards (List Box Style) --- */
-        #gameGrid .game-card {
-            content-visibility: auto;
-            contain-intrinsic-size: 56px;
-        }
         .pp-game-card, .tx-item {
             content-visibility: auto;
             contain-intrinsic-size: 62px;
@@ -1027,8 +1023,11 @@
         #screenPayment:not(.hidden) {
             display: flex !important;
             flex-direction: column;
-            min-height: 100%;
+            padding-bottom: 0 !important;
         }
+        #gameGrid .game-card {
+            content-visibility: auto;
+            contain-intrinsic-size: 56px;
             position: relative;
             display: flex;
             align-items: center;
@@ -3600,9 +3599,9 @@
             <!-- wallets moved to Add Money screen -->
 
             <!-- deposit form moved to Add Money screen -->
-            <div class="mt-auto pt-4 pb-[5px]">
+            <div style="margin-top: auto !important; padding-top: 16px; padding-bottom: 6px; flex-shrink: 0;">
                 <button type="button" onclick="payBack()"
-                    class="w-full py-3 px-4 bg-rose-50/70 hover:bg-rose-100 active:scale-[0.98] border-2 border-rose-500 text-rose-600 font-extrabold rounded-xl transition-all text-xs cursor-pointer flex items-center justify-center gap-2 shadow-2xs">
+                    class="w-full py-3 px-4 bg-rose-50/80 hover:bg-rose-100 active:scale-[0.98] border-2 border-rose-500 text-rose-600 font-extrabold rounded-xl transition-all text-xs cursor-pointer flex items-center justify-center gap-2 shadow-2xs">
                     <svg class="w-4 h-4 text-rose-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                     <span>Back</span>
                 </button>
@@ -4503,8 +4502,8 @@
                                     onclick="openAvatarPicker()" title="Change photo"
                                     style="background: linear-gradient(135deg, #4285F4 0%, #EA4335 35%, #FBBC05 70%, #34A853 100%);">
                                     <img id="profilePhoto"
-                                        src="https://ui-avatars.com/api/?name=User&background=6366f1&color=fff"
-                                        onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=User&background=6366f1&color=fff'"
+                                        src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTaOSOmH3VY0EdnDxg7P8y2JM0RQEE4ZQD9bC5JG7ZhLQ&s"
+                                        onerror="this.onerror=null;this.src='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTaOSOmH3VY0EdnDxg7P8y2JM0RQEE4ZQD9bC5JG7ZhLQ&s'"
                                         class="w-16 h-16 rounded-[13px] object-cover bg-white block border-2 border-white shadow-sm"
                                         alt="Avatar">
                                 </div>
@@ -8820,9 +8819,8 @@
 
             window._pendingTgUnlink = false;
             const list = (window.AVATAR_PRESETS || []).slice();
-            const gp = (u && u.photoURL) || '';
-            if (gp && !list.includes(gp)) list.push(gp);
-            const cur = ((window.ppfb && window.ppfb.avatar) || '').trim() || gp || list[0] || '';
+            const savedAv = ((window.ppfb && window.ppfb.avatar) || '').trim();
+            const cur = list.includes(savedAv) ? savedAv : (window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(u.uid) : (list[0] || ''));
             window._avatarSel = cur;
 
             // বর্তমান নাম ইনপুটে সেট
@@ -10659,11 +10657,12 @@
                     return;
                 }
                 const uname = email.split('@')[0];
+                const ssoUid = 'sso_' + btoa(email.toLowerCase()).replace(/=/g, '').slice(0, 20);
                 const u = {
-                    uid: 'sso_' + btoa(email.toLowerCase()).replace(/=/g, '').slice(0, 20),
+                    uid: ssoUid,
                     email: email,
                     displayName: uname,
-                    photoURL: 'https://ui-avatars.com/api/?name=' + encodeURIComponent(uname) + '&background=6366f1&color=fff'
+                    photoURL: window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(ssoUid) : 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTaOSOmH3VY0EdnDxg7P8y2JM0RQEE4ZQD9bC5JG7ZhLQ&s'
                 };
                 window.currentUser = u;
                 window.ppfb.user = u;
@@ -17072,11 +17071,15 @@
         async function syncD1Wallet(u, fbData = null) {
             if (!u || !u.uid) return null;
             try {
+                const candidateAv = ((window.ppfb && window.ppfb.avatar) || (fbData && fbData.avatar) || '').trim();
+                const resolvedPhoto = (window.AVATAR_PRESETS && window.AVATAR_PRESETS.includes(candidateAv))
+                    ? candidateAv
+                    : (window.pickRandomAvatarForUid ? window.pickRandomAvatarForUid(u.uid) : '');
                 const payload = {
                     uid: u.uid,
                     name: ((window.ppfb && window.ppfb.customName) || u.displayName || (fbData && fbData.name) || 'User').slice(0, 30),
                     email: u.email || (fbData && fbData.email) || '',
-                    photo: ((window.ppfb && window.ppfb.avatar) || u.photoURL || (fbData && fbData.avatar) || '').trim()
+                    photo: resolvedPhoto
                 };
 
                 const res = await fetch(`${CF_API}/api/wallet/sync`, {
@@ -17095,6 +17098,16 @@
                         setBannedUI(true, w.banReason);
                     }
                     if (w.tgChatId && !window.ppfb.tgChatId) window.ppfb.tgChatId = w.tgChatId;
+                    if (Number(w.tgRewardClaimed || 0) === 1 || w.tgRewardClaimed === true) {
+                        window.ppfb.tgRewardClaimed = true;
+                        try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
+                        if (typeof window.saveEarnCompletedStore === 'function') window.saveEarnCompletedStore('task_connect_telegram', Date.now(), u.uid);
+                    }
+                    if (w.avatar && window.AVATAR_PRESETS && window.AVATAR_PRESETS.includes(String(w.avatar).trim())) {
+                        window.ppfb.avatar = String(w.avatar).trim();
+                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
+                        if (typeof paintAvatar === 'function') paintAvatar();
+                    }
                     if (window.renderLoyaltyStars) window.renderLoyaltyStars();
                     return w;
                 }
@@ -17131,6 +17144,10 @@
                     if (w.banned === 1 || w.banned === true) {
                         window.ppfb.banned = true;
                         setBannedUI(true, w.banReason);
+                    }
+                    if (Number(w.tgRewardClaimed || 0) === 1 || w.tgRewardClaimed === true) {
+                        window.ppfb.tgRewardClaimed = true;
+                        try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
                     }
                     window._d1LiveSyncedOnce = true;
                     return w;
@@ -17449,24 +17466,46 @@
         window.exchangeGo = async () => { toast('এক্সচেঞ্জ সুবিধা বন্ধ আছে'); };
         window.submitWithdraw = async () => { toast('উইথড্র সুবিধা বন্ধ আছে'); };
 
-        const DEFAULT_USER_AVATAR = 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff';
         const AVATAR_PRESETS = [
-            'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff',
-            'https://ui-avatars.com/api/?name=Pro&background=10b981&color=fff',
-            'https://ui-avatars.com/api/?name=Gamer&background=f59e0b&color=fff',
-            'https://ui-avatars.com/api/?name=VIP&background=ec4899&color=fff',
-            'https://ui-avatars.com/api/?name=Elite&background=8b5cf6&color=fff'
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTaOSOmH3VY0EdnDxg7P8y2JM0RQEE4ZQD9bC5JG7ZhLQ&s',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQWtjidQ_Zuq0vxb61M1SRXqvfY8t8Kp9Z79kZC576a0A&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS6U5EdpdMcj818Y4fVFxkgt-hEdE4Mjs_xbMRzro57Qw&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS7C9lFHgnkuFelsbGjtyU3KMMvJR4f6-dTC46pX0DFVw&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSq2njBTxX7ay-QhN9ZqBwakVNoKbIck6vGpYhxM9OxRg&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQm3wdlSJt_D7cHQvDxRmCbg75J-fTW6CvDw53v47de1g&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSOi9NJzR-ow4xNIHMUx3RQJD5Zf1KpFa7F9gaGU2tR7A&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsGU_J4dCzF9t0xRzx1G5sbBXk8-d-3z8OTnv07fxN4Q&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRqWGcDXO9TiwARho_q-XkJriuBxEBm_tdpCNOoqyyFzA&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQrKfmY-Rfpszh45QA5AR4kSkAia7DZI06_eGi1KY-rTQ&s=10',
+            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQWRrklbATJTql5MwsHGZiqrinjmRgHOasqP5ENp5k6g&s=10'
         ];
+        const DEFAULT_USER_AVATAR = AVATAR_PRESETS[0];
         window.AVATAR_PRESETS = AVATAR_PRESETS;
         window.AVATAR_FALLBACK = DEFAULT_USER_AVATAR;
 
+        function pickRandomAvatarForUid(uid) {
+            if (uid) {
+                try {
+                    const saved = (localStorage.getItem('pp_cached_avatar_' + uid) || '').trim();
+                    if (saved && AVATAR_PRESETS.includes(saved)) return saved;
+                } catch (e) { }
+            }
+            const picked = AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)] || DEFAULT_USER_AVATAR;
+            if (uid) {
+                try { localStorage.setItem('pp_cached_avatar_' + uid, picked); } catch (e) { }
+            }
+            return picked;
+        }
+        window.pickRandomAvatarForUid = pickRandomAvatarForUid;
+
         function paintAvatar() {
             const u = (window.ppfb && window.ppfb.user) || null;
-            let cached = '';
-            if (u && u.uid) {
-                try { cached = localStorage.getItem('pp_cached_avatar_' + u.uid) || ''; } catch (e) { }
+            const uid = (u && u.uid) || '';
+            const memAv = ((window.ppfb && window.ppfb.avatar) || '').trim();
+            let src = AVATAR_PRESETS.includes(memAv) ? memAv : pickRandomAvatarForUid(uid);
+            if (window.ppfb && !AVATAR_PRESETS.includes(memAv)) {
+                window.ppfb.avatar = src;
             }
-            const src = ((window.ppfb && window.ppfb.avatar) || '').trim() || cached || (u && u.photoURL) || DEFAULT_USER_AVATAR;
             const ph = document.getElementById('profilePhoto');
             if (ph && ph.getAttribute('src') !== src) ph.src = src;
             const av = document.getElementById('avatarImg');
@@ -17540,9 +17579,13 @@
                         window.ppfb.customName = fbUserData.name.slice(0, 15);
                         try { localStorage.setItem('pp_cached_name_' + u.uid, window.ppfb.customName); } catch (e) { }
                     }
-                    if (fbUserData.avatar) {
-                        window.ppfb.avatar = fbUserData.avatar;
-                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, fbUserData.avatar); } catch (e) { }
+                    if (fbUserData.avatar && AVATAR_PRESETS.includes(String(fbUserData.avatar).trim())) {
+                        window.ppfb.avatar = String(fbUserData.avatar).trim();
+                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
+                    }
+                    if (fbUserData.tgRewardClaimed || (fbUserData.completedEarnTasks && fbUserData.completedEarnTasks.task_connect_telegram)) {
+                        window.ppfb.tgRewardClaimed = true;
+                        try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
                     }
                 }
             } catch (err) {
@@ -17550,8 +17593,26 @@
             }
 
             // Cloudflare D1 একমাত্র মাস্টার ব্যালেন্স সোর্স (Firestore ব্যালেন্স আর কখনো ওভাররাইট করবে না)
-            const d1Wallet = await syncD1Wallet(u, null);
+            const d1Wallet = await syncD1Wallet(u, fbUserData);
             window._d1MasterUpdatedAt = d1Wallet ? Number(d1Wallet.updatedAt || Date.now()) : 0;
+
+            // প্রতিটি অ্যাকাউন্টের জন্য নতুন ১১টি প্রিসেট থেকে র‍্যান্ডম ডিফল্ট অ্যাভাটার নিশ্চিত করা ও সেভ করা
+            const d1Av = (d1Wallet && d1Wallet.avatar) ? String(d1Wallet.avatar).trim() : '';
+            const fbAv = (fbUserData && fbUserData.avatar) ? String(fbUserData.avatar).trim() : '';
+            const validAv = AVATAR_PRESETS.includes(d1Av) ? d1Av : (AVATAR_PRESETS.includes(fbAv) ? fbAv : '');
+            if (validAv) {
+                window.ppfb.avatar = validAv;
+                try { localStorage.setItem('pp_cached_avatar_' + u.uid, validAv); } catch (e) { }
+            } else {
+                const randAv = pickRandomAvatarForUid(u.uid);
+                window.ppfb.avatar = randAv;
+                fetch(`${CF_API}/api/user/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: u.uid, avatar: randAv })
+                }).catch(() => {});
+                if (db) _setDoc(ref, { avatar: randAv, photo: randAv }, { merge: true }).catch(() => {});
+            }
 
             // Real-time zero-flicker Cloudflare D1 balance polling (every 8s + on tab focus)
             if (window._webD1BalPollTimer) clearInterval(window._webD1BalPollTimer);
@@ -17561,7 +17622,7 @@
                     const curU = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user);
                     if (!curU || !curU.uid) return;
                     const cfApi = (typeof CF_API !== 'undefined' && CF_API) || window.CF_API || 'https://ppmod-api.tredarskvt.workers.dev';
-                    const res = await fetch(`${cfApi}/api/wallet/${encodeURIComponent(curU.uid)}?_t=${Date.now()}`, { cache: 'no-store' });
+                    const res = await fetch(`${cfApi}/api/wallet?uid=${encodeURIComponent(curU.uid)}&_t=${Date.now()}`, { cache: 'no-store' });
                     const d = await res.json().catch(() => null);
                     if (d && d.ok && d.wallet) {
                         const liveBal = Math.round((Number(d.wallet.balance || 0) + Number.EPSILON) * 100) / 100;
@@ -17575,6 +17636,10 @@
                                 window.ppfb.loyaltyStars = liveStars;
                                 if (typeof renderLoyaltyStars === 'function') renderLoyaltyStars();
                             }
+                        }
+                        if (Number(d.wallet.tgRewardClaimed || 0) === 1 || d.wallet.tgRewardClaimed === true) {
+                            window.ppfb.tgRewardClaimed = true;
+                            try { localStorage.setItem('ppm_tg_reward_claimed_' + curU.uid, '1'); } catch (e) { }
                         }
                     }
                 } catch (e) { }
@@ -17617,8 +17682,13 @@
                         window.ppfb.tgChatId = (d.tgChatId || '').toString().trim();
                         try { localStorage.setItem('pp_cached_tg_' + u.uid, window.ppfb.tgChatId); } catch (e) { }
                     }
-                    if (d.avatar) {
-                        window.ppfb.avatar = (d.avatar || '').toString().trim();
+                    if (d.tgRewardClaimed || (d.completedEarnTasks && d.completedEarnTasks.task_connect_telegram)) {
+                        window.ppfb.tgRewardClaimed = true;
+                        try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
+                    }
+                    if (d.avatar && AVATAR_PRESETS.includes(String(d.avatar).trim())) {
+                        window.ppfb.avatar = String(d.avatar).trim();
+                        try { localStorage.setItem('pp_cached_avatar_' + u.uid, window.ppfb.avatar); } catch (e) { }
                     }
                     if (window.paintAvatar) paintAvatar();
                     if (window.refreshTgConn) refreshTgConn();
@@ -20305,9 +20375,11 @@
             const box = document.getElementById('earnTasksCardsList');
             if (!box) return;
 
-            const u = auth?.currentUser;
+            const u = (auth && auth.currentUser) || (window.ppfb && window.ppfb.user) || window.currentUser;
             const compStore = window.getEarnCompletedStore ? window.getEarnCompletedStore(u?.uid) : (window._earnCompletedMap || {});
-            const isTgTaskDone = Boolean(compStore['task_connect_telegram'] || window._earnCompletedMap?.['task_connect_telegram'] || (window.ppfb && window.ppfb.tgRewardClaimed));
+            let lsTgClaimed = false;
+            try { if (u && u.uid) lsTgClaimed = localStorage.getItem('ppm_tg_reward_claimed_' + u.uid) === '1'; } catch (e) { }
+            const isTgTaskDone = Boolean(compStore['task_connect_telegram'] || window._earnCompletedMap?.['task_connect_telegram'] || (window.ppfb && window.ppfb.tgRewardClaimed) || lsTgClaimed);
 
             let tgDefaultCardHtml = '';
             if (!isTgTaskDone) {
@@ -20474,6 +20546,14 @@
                 showScreen('screenLogin');
                 return;
             }
+            const compCheck = window.getEarnCompletedStore ? window.getEarnCompletedStore(u.uid) : (window._earnCompletedMap || {});
+            let lsClaimed = false;
+            try { lsClaimed = localStorage.getItem('ppm_tg_reward_claimed_' + u.uid) === '1'; } catch (e) { }
+            if (compCheck['task_connect_telegram'] || (window.ppfb && window.ppfb.tgRewardClaimed) || lsClaimed) {
+                toast('টেলিগ্রাম কানেক্ট রিওয়ার্ড ইতিমধ্যে নেওয়া হয়েছে! এটি শুধু ১ বার নেওয়া যায়।');
+                if (window.renderEarnCards) window.renderEarnCards();
+                return;
+            }
             const modal = document.getElementById('connectTgTaskModal');
             if (modal) {
                 modal.style.display = 'flex';
@@ -20493,6 +20573,16 @@
         window.submitConnectTelegramTask = async function () {
             const u = (window.FB && window.FB.auth && window.FB.auth.currentUser) || (window.ppfb && window.ppfb.user);
             if (!u) return toast('Please login first');
+
+            const compStoreCheck = window.getEarnCompletedStore ? window.getEarnCompletedStore(u.uid) : (window._earnCompletedMap || {});
+            let lsClaimedSub = false;
+            try { lsClaimedSub = localStorage.getItem('ppm_tg_reward_claimed_' + u.uid) === '1'; } catch (e) { }
+            if (compStoreCheck['task_connect_telegram'] || (window.ppfb && window.ppfb.tgRewardClaimed) || lsClaimedSub) {
+                toast('টেলিগ্রাম কানেক্ট রিওয়ার্ড ইতিমধ্যে নেওয়া হয়েছে! এটি শুধু ১ বার নেওয়া যায়।');
+                closeConnectTelegramTaskModal();
+                if (window.renderEarnCards) window.renderEarnCards();
+                return;
+            }
 
             const rawUser = (document.getElementById('tgTaskUsername')?.value || '').trim().replace(/^@+/, '');
             const rawChat = (document.getElementById('tgTaskChatId')?.value || '').trim().replace(/[^0-9]/g, '');
@@ -20537,24 +20627,48 @@
                     return;
                 }
 
-                // ২. ব্যালেন্স হিসাব ও ১ কয়েন রিওয়ার্ড (Cloudflare D1 একমাত্র মাস্টার সোর্স)
+                // ২. ব্যালেন্স হিসাব ও ১-কালীন ১ কয়েন রিওয়ার্ড (Cloudflare D1 মাস্টার সোর্স — Fail-Closed 1-Time Guard)
                 let curBal = Math.round(((Number(window.ppfb?.balance) || 0) + Number.EPSILON) * 100) / 100;
                 let newTotal = Math.round((curBal + 1.0 + Number.EPSILON) * 100) / 100;
 
-                // Cloudflare D1-এ ক্রেডিট ও ইউজার তথ্য আপডেট
-                try {
-                    const tgCrRes = await fetch(`${CF_API}/api/wallet/credit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uid: u.uid, coins: 1.0, type: 'real', title: 'Telegram Connect Reward' })
-                    }).then(r => r.json()).catch(() => null);
-                    if (tgCrRes && tgCrRes.ok && tgCrRes.balance !== undefined) {
-                        newTotal = Math.round((Number(tgCrRes.balance) + Number.EPSILON) * 100) / 100;
-                        if (tgCrRes.previousBalance !== undefined) {
-                            curBal = Math.round((Number(tgCrRes.previousBalance) + Number.EPSILON) * 100) / 100;
-                        }
+                // Cloudflare D1-এ ১-কালীন ক্রেডিট ও ইউজার তথ্য আপডেট
+                const tgCrRes = await fetch(`${CF_API}/api/wallet/credit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: u.uid,
+                        coins: 1.0,
+                        type: 'tg_connect',
+                        isTgConnectTask: true,
+                        tgChatId: rawChat,
+                        title: 'Telegram Connect Reward'
+                    })
+                }).then(r => r.json()).catch(() => null);
+
+                if (!tgCrRes || !tgCrRes.ok) {
+                    if (tgCrRes && tgCrRes.alreadyClaimed) {
+                        if (window.ppfb) window.ppfb.tgRewardClaimed = true;
+                        try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
+                        if (typeof window.saveEarnCompletedStore === 'function') window.saveEarnCompletedStore('task_connect_telegram', Date.now(), u.uid);
+                        closeConnectTelegramTaskModal();
+                        if (window.renderEarnCards) window.renderEarnCards();
+                        toast(tgCrRes.error || 'টেলিগ্রাম কানেক্ট রিওয়ার্ড ইতিমধ্যে নেওয়া হয়েছে! এটি শুধু ১ বার নেওয়া যায়।');
+                        return;
                     }
-                } catch (e) { }
+                    if (tgCrRes && tgCrRes.duplicate) {
+                        alert('⚠️ ' + (tgCrRes.error || 'এই টেলিগ্রাম অ্যাকাউন্টটি ইতিমধ্যে অন্য অ্যাকাউন্টে ব্যবহৃত হয়েছে!'));
+                        return;
+                    }
+                    toast((tgCrRes && tgCrRes.error) || 'সার্ভার ভেরিফাই করা যায়নি, আবার চেষ্টা করুন।');
+                    return;
+                }
+                if (tgCrRes.balance !== undefined) {
+                    newTotal = Math.round((Number(tgCrRes.balance) + Number.EPSILON) * 100) / 100;
+                    if (tgCrRes.previousBalance !== undefined) {
+                        curBal = Math.round((Number(tgCrRes.previousBalance) + Number.EPSILON) * 100) / 100;
+                    }
+                }
+                try { localStorage.setItem('ppm_tg_reward_claimed_' + u.uid, '1'); } catch (e) { }
 
                 await fetch(`${CF_API}/api/user/update`, {
                     method: 'POST',

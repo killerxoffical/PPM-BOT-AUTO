@@ -272,6 +272,7 @@ async function ensureTables(db) {
       loyaltyStars INTEGER DEFAULT 0,
       banned INTEGER DEFAULT 0,
       banReason TEXT DEFAULT '',
+      tgRewardClaimed INTEGER DEFAULT 0,
       updatedAt INTEGER
     )
   `).run();
@@ -281,6 +282,7 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN createdAt INTEGER;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN monthlyPoints REAL DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN monthlyPointsMonth TEXT DEFAULT '';`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN tgRewardClaimed INTEGER DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_mpts ON user_wallets(monthlyPointsMonth, monthlyPoints DESC);`).run(); } catch (e) { }
@@ -479,6 +481,7 @@ export default {
         row.balance = roundCoin(row.balance);
         row.realBalance = roundCoin(row.balance);
         row.bonusBalance = 0;
+        row.tgRewardClaimed = Number(row.tgRewardClaimed || 0);
         return json({ ok: true, wallet: row });
       }
 
@@ -523,15 +526,42 @@ export default {
         return json({ ok: true, balance: newBal, realBalance: newBal, bonusBalance: 0, previousBalance: curBal, deducted: fee, loyaltyStars: newStars });
       }
 
-      // 1d. Credit Wallet Balance (Deposits, Refunds, Task Stars, Daily Claims)
+      // 1d. Credit Wallet Balance (Deposits, Refunds, Task Stars, Daily Claims, 1-Time TG Connect)
       if (path === "/api/wallet/credit" && request.method === "POST") {
         const body = await request.json();
         const { uid, coins, type, playPoints, pendingPoints, loyaltyStarsInc } = body;
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
 
+        const isTgConnect = (type === "tg_connect" || body.isTgConnectTask === true);
+        if (isTgConnect) {
+          try { await env.DB.prepare(`ALTER TABLE user_wallets ADD COLUMN tgRewardClaimed INTEGER DEFAULT 0;`).run(); } catch (e) { }
+        }
+
         let w = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ?`).bind(uid).first();
         if (!w) {
-          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0 };
+          w = { uid, balance: 0, realBalance: 0, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, tgRewardClaimed: 0 };
+        }
+
+        if (isTgConnect) {
+          if (Number(w.tgRewardClaimed || 0) === 1) {
+            return json({
+              ok: false,
+              alreadyClaimed: true,
+              tgRewardClaimed: 1,
+              error: "টেলিগ্রাম কানেক্ট রিওয়ার্ড ইতিমধ্যে নেওয়া হয়েছে! এটি প্রতি অ্যাকাউন্টে শুধু ১ বার নেওয়া যায়।"
+            }, 400);
+          }
+          const cleanTgId = String(body.tgChatId || "").replace(/[^0-9]/g, "").trim();
+          if (cleanTgId.length >= 5) {
+            const dupTg = await env.DB.prepare(`SELECT uid FROM user_wallets WHERE tgChatId = ? AND uid != ? LIMIT 1`).bind(cleanTgId, uid).first().catch(() => null);
+            if (dupTg && dupTg.uid) {
+              return json({
+                ok: false,
+                duplicate: true,
+                error: "এই টেলিগ্রাম আইডি ইতিমধ্যে অন্য অ্যাকাউন্টে ব্যবহৃত হয়েছে! একই টেলিগ্রাম দিয়ে একাধিক অ্যাকাউন্টে রিওয়ার্ড নেওয়া যাবে না।"
+              }, 400);
+            }
+          }
         }
 
         const curBal = roundCoin(w.balance !== undefined ? w.balance : w.realBalance);
@@ -544,18 +574,34 @@ export default {
         let curStars = Number(w.loyaltyStars || 0);
         let newStars = body.loyaltyStars !== undefined ? Math.max(0, Math.min(10, Number(body.loyaltyStars))) : (body.resetLoyaltyStars ? 0 : (loyaltyStarsInc ? Math.max(0, Math.min(10, curStars + Number(loyaltyStarsInc))) : curStars));
 
-        await env.DB.prepare(`
-          INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
-          VALUES (?, ?, ?, 0, ?, ?, ?, ?)
-          ON CONFLICT(uid) DO UPDATE SET
-            balance = excluded.balance,
-            realBalance = excluded.balance,
-            bonusBalance = 0,
-            playPoints = excluded.playPoints,
-            pendingPoints = excluded.pendingPoints,
-            loyaltyStars = excluded.loyaltyStars,
-            updatedAt = excluded.updatedAt
-        `).bind(uid, newBal, newBal, newPlayPoints, newPendingPoints, newStars, Date.now()).run();
+        if (isTgConnect) {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, tgRewardClaimed, updatedAt)
+            VALUES (?, ?, ?, 0, ?, ?, ?, 1, ?)
+            ON CONFLICT(uid) DO UPDATE SET
+              balance = excluded.balance,
+              realBalance = excluded.balance,
+              bonusBalance = 0,
+              playPoints = excluded.playPoints,
+              pendingPoints = excluded.pendingPoints,
+              loyaltyStars = excluded.loyaltyStars,
+              tgRewardClaimed = 1,
+              updatedAt = excluded.updatedAt
+          `).bind(uid, newBal, newBal, newPlayPoints, newPendingPoints, newStars, Date.now()).run();
+        } else {
+          await env.DB.prepare(`
+            INSERT INTO user_wallets (uid, balance, realBalance, bonusBalance, playPoints, pendingPoints, loyaltyStars, updatedAt)
+            VALUES (?, ?, ?, 0, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET
+              balance = excluded.balance,
+              realBalance = excluded.balance,
+              bonusBalance = 0,
+              playPoints = excluded.playPoints,
+              pendingPoints = excluded.pendingPoints,
+              loyaltyStars = excluded.loyaltyStars,
+              updatedAt = excluded.updatedAt
+          `).bind(uid, newBal, newBal, newPlayPoints, newPendingPoints, newStars, Date.now()).run();
+        }
 
         // Audit Trail in transactions table
         if (addCoins !== 0 && body.skipTxLog !== true) {
@@ -1702,8 +1748,9 @@ export default {
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?)
           `).bind(uid, name || "User", email || "", photo || "", tg, b, b, Date.now()).run().catch(() => { });
 
-          w = { uid, name, email, avatar: photo, tgChatId: tg, balance: b, realBalance: b, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, banned: 0 };
+          w = { uid, name, email, avatar: photo, tgChatId: tg, balance: b, realBalance: b, bonusBalance: 0, playPoints: 0, pendingPoints: 0, loyaltyStars: 0, banned: 0, tgRewardClaimed: 0 };
         }
+        w.tgRewardClaimed = Number(w.tgRewardClaimed || 0);
         return json({ ok: true, wallet: w });
       }
 
@@ -1747,11 +1794,14 @@ export default {
         return json({ ok: true, count });
       }
 
-      // 1g. Profile Update on Cloudflare D1
+      // 1g. Profile Update on Cloudflare D1 (Explicit empty tgChatId clears link while NEVER resetting tgRewardClaimed)
       if (path === "/api/user/update" && request.method === "POST") {
         const body = await request.json();
         const { uid, name, avatar, tgChatId } = body;
         if (!uid) return json({ ok: false, error: "Missing uid" }, 400);
+
+        const hasTgField = Object.prototype.hasOwnProperty.call(body, "tgChatId");
+        const tgVal = hasTgField ? String(tgChatId || "").trim() : null;
 
         await env.DB.prepare(`
           INSERT INTO user_wallets (uid, name, avatar, tgChatId, updatedAt)
@@ -1759,9 +1809,9 @@ export default {
           ON CONFLICT(uid) DO UPDATE SET
             name = COALESCE(excluded.name, user_wallets.name),
             avatar = COALESCE(excluded.avatar, user_wallets.avatar),
-            tgChatId = COALESCE(excluded.tgChatId, user_wallets.tgChatId),
+            tgChatId = CASE WHEN ? = 1 THEN COALESCE(excluded.tgChatId, '') ELSE user_wallets.tgChatId END,
             updatedAt = excluded.updatedAt
-        `).bind(uid, name || null, avatar || null, tgChatId || null, Date.now()).run();
+        `).bind(uid, name || null, avatar || null, tgVal, Date.now(), hasTgField ? 1 : 0).run();
 
         return json({ ok: true });
       }
