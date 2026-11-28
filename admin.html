@@ -1773,8 +1773,10 @@
             <p class="sgroup">People</p>
             <button data-nav="scrUsr" onclick="showAdminScreen('scrUsr')" class="snav"><i data-lucide="users"
                     class="w-4 h-4"></i>Users</button>
-            <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')" class="snav"><i data-lucide="smartphone"
-                    class="w-4 h-4 text-emerald-500"></i>Connected Accounts <span class="nbadge ml-auto bg-emerald-100 text-emerald-800" id="connectedNavBadge" style="display:none">0</span></button>
+            <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')" class="snav"><i
+                    data-lucide="smartphone" class="w-4 h-4 text-emerald-500"></i>Connected Accounts <span
+                    class="nbadge ml-auto bg-emerald-100 text-emerald-800" id="connectedNavBadge"
+                    style="display:none">0</span></button>
 
             <p class="sgroup">Content</p>
             <button data-nav="scrEarn" onclick="showAdminScreen('scrEarn')" class="snav"><i data-lucide="zap"
@@ -1939,7 +1941,8 @@
                         class="nbadge ordCount" style="display:none">0</span></button>
                 <button data-nav="scrTx" onclick="showAdminScreen('scrTx')" class="tnav">Transactions</button>
                 <button data-nav="scrUsr" onclick="showAdminScreen('scrUsr')" class="tnav">Users</button>
-                <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')" class="tnav">Connected</button>
+                <button data-nav="scrConnected" onclick="showAdminScreen('scrConnected')"
+                    class="tnav">Connected</button>
                 <button data-nav="scrCode" onclick="showAdminScreen('scrCode')" class="tnav">Codes</button>
                 <button data-nav="scrExt" onclick="showAdminScreen('scrExt')" class="tnav">Extension</button>
                 <button data-nav="scrBc" onclick="showAdminScreen('scrBc')" class="tnav">Broadcast</button>
@@ -2276,7 +2279,8 @@
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrDep" class="flex gap-1.5 overflow-x-auto"></div>
-                                <button onclick="toast('🔄 ডিপোজিট আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ ডিপোজিট আপডেট সম্পন্ন হয়েছে ✓'));"
+                                <button
+                                    onclick="toast('🔄 ডিপোজিট আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ ডিপোজিট আপডেট সম্পন্ন হয়েছে ✓'));"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
@@ -2637,7 +2641,8 @@
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
                                 <div id="flt_scrOrd" class="flex gap-1.5 overflow-x-auto"></div>
-                                <button onclick="toast('🔄 অর্ডার আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ অর্ডার আপডেট সম্পন্ন হয়েছে ✓'));"
+                                <button
+                                    onclick="toast('🔄 অর্ডার আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ অর্ডার আপডেট সম্পন্ন হয়েছে ✓'));"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
                                 </button>
@@ -2689,7 +2694,8 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <button onclick="showAdminScreen('scrConnected')"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-black shadow-sm flex items-center gap-1.5"><i
-                                        data-lucide="smartphone" class="w-3.5 h-3.5"></i> 📱 Connected Accounts (<span id="btnConnectedAccountsBadge">14</span>)</button>
+                                        data-lucide="smartphone" class="w-3.5 h-3.5"></i> 📱 Connected Accounts (<span
+                                        id="btnConnectedAccountsBadge">14</span>)</button>
                                 <button onclick="migrateAllUsersToCloudflare(this)"
                                     class="btn bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"><i
                                         data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Shift All to
@@ -2762,16 +2768,20 @@
                     <div class="glass p-4 sm:p-6">
                         <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
+                                <div
+                                    class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-black shadow-md flex-shrink-0">
                                     <i data-lucide="smartphone" class="w-6 h-6"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Connected Google Accounts</h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">যে সকল ইউজার PPM Server অ্যাপ থেকে গুগল একাউন্ট ও ৬-সংখ্যার QID কানেক্ট করেছে</p>
+                                    <h3 class="text-base font-black text-slate-900 tracking-tight">Connected Google
+                                        Accounts</h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">যে সকল ইউজার PPM Server অ্যাপ
+                                        থেকে গুগল একাউন্ট ও ৬-সংখ্যার QID কানেক্ট করেছে</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
-                                <button onclick="loadConnectedAccountsFromCloudflare(true)" class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-extrabold flex items-center gap-1.5 rounded-lg border border-emerald-500 shadow-sm">
+                                <button onclick="loadConnectedAccountsFromCloudflare(true)"
+                                    class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-extrabold flex items-center gap-1.5 rounded-lg border border-emerald-500 shadow-sm">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh Accounts
                                 </button>
                             </div>
@@ -2780,29 +2790,40 @@
                         <!-- Summary Cards -->
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">Total Accounts</span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">Total
+                                    Accounts</span>
                                 <p class="text-xl font-black text-slate-900 mt-1" id="statConnectedTotal">0</p>
                             </div>
                             <div class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
-                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Active QID Codes</span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Active
+                                    QID Codes</span>
                                 <p class="text-xl font-black text-emerald-800 mt-1" id="statConnectedQIDs">0</p>
                             </div>
-                            <div class="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 col-span-2 sm:col-span-1">
-                                <span class="text-[10px] font-black uppercase tracking-wider text-indigo-700">Unique Users</span>
+                            <div
+                                class="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 col-span-2 sm:col-span-1">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-indigo-700">Unique
+                                    Users</span>
                                 <p class="text-xl font-black text-indigo-800 mt-1" id="statConnectedUsers">0</p>
                             </div>
                         </div>
 
                         <!-- Search Bar -->
                         <div class="relative mb-4">
-                            <input type="text" id="connectedAccsSearchInp" oninput="filterConnectedAccountsRows(this.value)" placeholder="🔍 Search by connected gmail, QID code, or user name..." class="fld w-full pl-10 pr-4 py-2.5 bg-slate-50 text-xs font-semibold rounded-xl border border-slate-200 focus:bg-white transition-all">
-                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none"></i>
+                            <input type="text" id="connectedAccsSearchInp"
+                                oninput="filterConnectedAccountsRows(this.value)"
+                                placeholder="🔍 Search by connected gmail, QID code, or user name..."
+                                class="fld w-full pl-10 pr-4 py-2.5 bg-slate-50 text-xs font-semibold rounded-xl border border-slate-200 focus:bg-white transition-all">
+                            <i data-lucide="search"
+                                class="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none"></i>
                         </div>
 
                         <!-- Table Container -->
-                        <div id="connectedAccountsTableBox" class="overflow-x-auto rounded-xl border border-slate-200 min-h-[220px]">
+                        <div id="connectedAccountsTableBox"
+                            class="overflow-x-auto rounded-xl border border-slate-200 min-h-[220px]">
                             <div class="text-center py-12 text-slate-400">
-                                <div class="inline-block w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                <div
+                                    class="inline-block w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2">
+                                </div>
                                 <p class="text-xs font-bold">Loading Connected Google Accounts from Cloud Vault...</p>
                             </div>
                         </div>
@@ -3804,82 +3825,109 @@
                             </button>
                         </div>
 
-                                                <!-- 1.5. LEVEL-UP BOOSTER SERVICE & PACKAGE PRICING -->
-                        <div class="glass p-4 sm:p-6 space-y-3.5 border-2 border-amber-200 bg-amber-50/20" data-cfgsec="pricing">
+                        <!-- 1.5. LEVEL-UP BOOSTER SERVICE & PACKAGE PRICING -->
+                        <div class="glass p-4 sm:p-6 space-y-3.5 border-2 border-amber-200 bg-amber-50/20"
+                            data-cfgsec="pricing">
                             <div class="flex items-center justify-between flex-wrap gap-2">
                                 <div>
                                     <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                                        <span class="text-base">⚡</span> Level-Up Booster Service &amp; Package Rates (লেভেল আপ সার্ভিস ও প্যাকেজ রেট)
+                                        <span class="text-base">⚡</span> Level-Up Booster Service &amp; Package Rates
+                                        (লেভেল আপ সার্ভিস ও প্যাকেজ রেট)
                                     </h3>
-                                    <p class="text-xs text-slate-500 font-medium">প্রতিটি লেভেল আপ প্যাকেজের জন্য কয়েন চার্জ এবং অন/অফ নিয়ন্ত্রণ</p>
+                                    <p class="text-xs text-slate-500 font-medium">প্রতিটি লেভেল আপ প্যাকেজের জন্য কয়েন
+                                        চার্জ এবং অন/অফ নিয়ন্ত্রণ</p>
                                 </div>
-                                <span class="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-300 uppercase tracking-wider">30 Games Library</span>
+                                <span
+                                    class="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-300 uppercase tracking-wider">30
+                                    Games Library</span>
                             </div>
 
                             <div class="p-3.5 bg-white border border-amber-200 rounded-xl space-y-3">
-                                
+
                                 <!-- Package 1: Level 1 to 10 -->
-                                <div class="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                                <div
+                                    class="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
                                     <div class="space-y-0.5">
                                         <div class="flex items-center gap-2">
                                             <span class="text-xs font-black text-slate-900">Level 1 ➔ 10 Boost</span>
-                                            <span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded">GOLDEN (432K XP)</span>
+                                            <span
+                                                class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded">GOLDEN
+                                                (432K XP)</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 font-medium">নতুন বা যে কোনো লেভেলের অ্যাকাউন্টকে সরাসরি লেভেল ১০ এ নিয়ে যাবে</p>
+                                        <p class="text-[11px] text-slate-500 font-medium">নতুন বা যে কোনো লেভেলের
+                                            অ্যাকাউন্টকে সরাসরি লেভেল ১০ এ নিয়ে যাবে</p>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <div class="flex items-center gap-1.5">
                                             <label class="text-xs font-bold text-slate-700">Price:</label>
-                                            <input type="number" id="cfgLvlPrice1_10" min="1" value="5" class="w-16 p-1.5 bg-white border border-amber-300 rounded-lg text-center font-mono font-black text-xs text-amber-950 focus:outline-none">
+                                            <input type="number" id="cfgLvlPrice1_10" min="1" value="5"
+                                                class="w-16 p-1.5 bg-white border border-amber-300 rounded-lg text-center font-mono font-black text-xs text-amber-950 focus:outline-none">
                                             <span class="text-xs font-bold text-amber-700">Coins</span>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="cfgLvlPkg1_10" checked class="sr-only peer">
-                                            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                                            <div
+                                                class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600">
+                                            </div>
                                         </label>
                                     </div>
                                 </div>
 
                                 <!-- Package 2: Level 10 to 20 -->
-                                <div class="p-3 bg-purple-50/60 border border-purple-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                                <div
+                                    class="p-3 bg-purple-50/60 border border-purple-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
                                     <div class="space-y-0.5">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-xs font-black text-slate-900">Level 10 ➔ 20 Pro Boost</span>
-                                            <span class="text-[9px] bg-purple-600 text-white font-extrabold px-1.5 py-0.5 rounded">ULTRA PRO (2.5M XP)</span>
+                                            <span class="text-xs font-black text-slate-900">Level 10 ➔ 20 Pro
+                                                Boost</span>
+                                            <span
+                                                class="text-[9px] bg-purple-600 text-white font-extrabold px-1.5 py-0.5 rounded">ULTRA
+                                                PRO (2.5M XP)</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 font-medium">লেভেল ১০+ অ্যাকাউন্টকে সরাসরি লেভেল ২০ এ নিয়ে যাবে (লেভেল ১০ আবশ্যক)</p>
+                                        <p class="text-[11px] text-slate-500 font-medium">লেভেল ১০+ অ্যাকাউন্টকে সরাসরি
+                                            লেভেল ২০ এ নিয়ে যাবে (লেভেল ১০ আবশ্যক)</p>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <div class="flex items-center gap-1.5">
                                             <label class="text-xs font-bold text-slate-700">Price:</label>
-                                            <input type="number" id="cfgLvlPrice10_20" min="1" value="20" class="w-16 p-1.5 bg-white border border-purple-300 rounded-lg text-center font-mono font-black text-xs text-purple-950 focus:outline-none">
+                                            <input type="number" id="cfgLvlPrice10_20" min="1" value="20"
+                                                class="w-16 p-1.5 bg-white border border-purple-300 rounded-lg text-center font-mono font-black text-xs text-purple-950 focus:outline-none">
                                             <span class="text-xs font-bold text-purple-700">Coins</span>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="cfgLvlPkg10_20" checked class="sr-only peer">
-                                            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                                            <div
+                                                class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600">
+                                            </div>
                                         </label>
                                     </div>
                                 </div>
 
                                 <!-- Package 3: +50,000 XP Booster -->
-                                <div class="p-3 bg-sky-50/60 border border-sky-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                                <div
+                                    class="p-3 bg-sky-50/60 border border-sky-200 rounded-xl flex items-center justify-between flex-wrap gap-3">
                                     <div class="space-y-0.5">
                                         <div class="flex items-center gap-2">
                                             <span class="text-xs font-black text-slate-900">+50,000 XP Booster</span>
-                                            <span class="text-[9px] bg-sky-600 text-white font-extrabold px-1.5 py-0.5 rounded">CUSTOM XP (+50K)</span>
+                                            <span
+                                                class="text-[9px] bg-sky-600 text-white font-extrabold px-1.5 py-0.5 rounded">CUSTOM
+                                                XP (+50K)</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 font-medium">অ্যাকাউন্টে সরাসরি ৫০,০০০ XP যুক্ত করে লেভেল বুস্ট করবে</p>
+                                        <p class="text-[11px] text-slate-500 font-medium">অ্যাকাউন্টে সরাসরি ৫০,০০০ XP
+                                            যুক্ত করে লেভেল বুস্ট করবে</p>
                                     </div>
                                     <div class="flex items-center gap-3">
                                         <div class="flex items-center gap-1.5">
                                             <label class="text-xs font-bold text-slate-700">Price:</label>
-                                            <input type="number" id="cfgLvlPrice50k" min="1" value="1" class="w-16 p-1.5 bg-white border border-sky-300 rounded-lg text-center font-mono font-black text-xs text-sky-950 focus:outline-none">
+                                            <input type="number" id="cfgLvlPrice50k" min="1" value="1"
+                                                class="w-16 p-1.5 bg-white border border-sky-300 rounded-lg text-center font-mono font-black text-xs text-sky-950 focus:outline-none">
                                             <span class="text-xs font-bold text-sky-700">Coins</span>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="cfgLvlPkg50k" checked class="sr-only peer">
-                                            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                                            <div
+                                                class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600">
+                                            </div>
                                         </label>
                                     </div>
                                 </div>
@@ -5101,7 +5149,14 @@
         }
         window.loadConfigFromCloudflareFallback = loadConfigFromCloudflareFallback;
 
-        async function fetchCloudflareStatsNow() {
+        let _cfStatsInFlight = null;
+        let _cfStatsLastAt = 0;
+        async function fetchCloudflareStatsNow(force = false) {
+            const now = Date.now();
+            if (!force && _cfStatsInFlight) return _cfStatsInFlight;
+            if (!force && (now - _cfStatsLastAt) < 4000) return;
+            _cfStatsLastAt = now;
+            _cfStatsInFlight = (async () => {
             try {
                 const r = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/stats?_t=" + Date.now());
                 const d = await r.json();
@@ -5171,9 +5226,29 @@
                 }
             } catch (e) {
                 console.warn('[CF Stats Fetch Error]:', e);
+            } finally {
+                _cfStatsInFlight = null;
             }
+            })();
+            return _cfStatsInFlight;
         }
         window.fetchCloudflareStatsNow = fetchCloudflareStatsNow;
+
+        // Zero-Wait Early Prefetch: Start fetching Cloudflare D1 Deposits & Orders BEFORE Firebase module even finishes loading!
+        window._cfEarlyPrefetch = function () {
+            if (window._cfPrefetchPromise) return window._cfPrefetchPromise;
+            const ts = Date.now();
+            window._cfPrefetchPromise = Promise.all([
+                fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/deposits?_t=" + ts).then(r => r.json()).catch(() => null),
+                fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?_t=" + ts).then(r => r.json()).catch(() => null)
+            ]);
+            return window._cfPrefetchPromise;
+        };
+        try {
+            if (localStorage.getItem('admin_unlocked') === '1') {
+                window._cfEarlyPrefetch();
+            }
+        } catch (e) { }
 
         function openShell() {
             document.getElementById('loginView').classList.add('hidden');
@@ -5181,13 +5256,15 @@
             syncMnav();
             if (window.lucide) lucide.createIcons();
             showAdminScreen(CURRENT || 'scrHome');
-            // মডিউল লোড হওয়া মাত্রই ড্যাশবোর্ড স্ট্যাটাস ও কনফিগ ইনস্ট্যান্ট টেনে আনা
-            fetchCloudflareStatsNow();
+            // মডিউল লোড হওয়া মাত্রই ড্যাশবোর্ড স্ট্যাটাস, ডিপোজিট, অর্ডার ও কনফিগ ইনস্ট্যান্ট টেনে আনা
+            fetchCloudflareStatsNow(true);
+            if (typeof window._cfEarlyPrefetch === 'function') window._cfEarlyPrefetch();
             if (typeof window.loadConfigFromCloudflareFallback === 'function') window.loadConfigFromCloudflareFallback();
-            if (typeof window.fetchCloudflarePendingData === 'function') window.fetchCloudflarePendingData();
+            if (typeof window.fetchCloudflarePendingData === 'function') window.fetchCloudflarePendingData(true);
             setTimeout(() => {
-                fetchCloudflareStatsNow();
-                if (typeof window.loadConfigFromCloudflareFallback === 'function') window.loadConfigFromCloudflareFallback();
+                if (typeof window.fetchCloudflarePendingData === 'function' && !window._cfPendingLoaded) {
+                    window.fetchCloudflarePendingData(true);
+                }
                 if (CURRENT === 'scrUsr' && window.loadUsersFromCloudflare) {
                     window.loadUsersFromCloudflare(0, "", true);
                 }
@@ -5268,8 +5345,8 @@
             if (id === 'scrHome') {
                 if (window.fetchCloudflareStatsNow) window.fetchCloudflareStatsNow();
             }
-            if (id === 'scrDep' || id === 'scrOrd') {
-                if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData();
+            if (id === 'scrDep' || id === 'scrOrd' || id === 'scrTx') {
+                if (window.fetchCloudflarePendingData) window.fetchCloudflarePendingData(true);
             }
             if (id === 'scrCfg') {
                 if (typeof window.fillConfigForm === 'function') window.fillConfigForm(); if (typeof window.loadLevelUpConfig === 'function') window.loadLevelUpConfig();
@@ -5619,6 +5696,7 @@
             }
             if (cu && cu.email) {
                 if (window.setConn) window.setConn(null);
+                if (!liveOn && typeof subscribeAll === 'function') subscribeAll();
                 loadAll();
                 return;
             }
@@ -5630,6 +5708,7 @@
                     await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASS);
                     if (window.setConn) window.setConn(null);
                     entering = false;
+                    if (!liveOn && typeof subscribeAll === 'function') subscribeAll();
                     loadAll();
                     return;
                 } catch (sdkErr) {
@@ -5930,6 +6009,167 @@
             }
         }, 30000);
 
+        /* ===== INSTANT TOP-LEVEL CLOUDFLARE D1 DEPOSITS & ORDERS ENGINE (0ms SWR + <300ms Live) ===== */
+        S._cfDeposits = S._cfDeposits || [];
+        S._fbDeposits = S._fbDeposits || [];
+        S._cfOrders = S._cfOrders || [];
+        S._fbOrders = S._fbOrders || [];
+        window._cfPendingLoaded = false;
+        window._cfPendingLoading = false;
+        let _cfPendingInFlight = null;
+
+        function mapCfDepositRow(d) {
+            return {
+                id: d.id,
+                uid: d.uid || '',
+                name: d.userName || d.name || 'User',
+                email: d.userEmail || d.email || '',
+                method: d.method || 'bKash',
+                amount: Number(d.amount) || 0,
+                coins: Number(d.coins) || 0,
+                trxId: d.trxId || '',
+                status: d.status || 'pending',
+                adminMsg: d.adminMsg || '',
+                autoApproved: !!(d.autoApproved || (d.adminMsg && String(d.adminMsg).includes('Auto'))),
+                submittedAt: d.submittedAt ? new Date(Number(d.submittedAt) || d.submittedAt) : (d.createdAt ? new Date(Number(d.createdAt) || d.createdAt) : new Date()),
+                approvedAt: d.approvedAt ? new Date(Number(d.approvedAt) || d.approvedAt) : null,
+                createdAt: d.createdAt ? new Date(Number(d.createdAt) || d.createdAt) : new Date()
+            };
+        }
+
+        function mapCfOrderRow(o) {
+            return {
+                id: o.id,
+                uid: o.uid || '',
+                name: o.name || 'User',
+                email: o.email || '',
+                accEmail: o.accEmail || '',
+                accPass: o.accPass || '',
+                game: o.game || 'Task',
+                logo: o.logo || '',
+                amount: o.amount !== undefined && o.amount !== null ? Number(o.amount) : 3,
+                previousBalance: o.previousBalance !== undefined && o.previousBalance !== null ? Number(o.previousBalance) : null,
+                isFreeTask: !!(o.isFreeTask || Number(o.amount) === 0),
+                paidWithBonus: Number(o.paidWithBonus || 0),
+                method: o.method || 'PP Coins',
+                trxId: o.trxId || '',
+                mode: o.mode || '',
+                status: o.status || 'pending',
+                adminMsg: o.adminMsg || '',
+                gamerName: o.gamerName || '',
+                userTgId: o.userTgId || '',
+                createdAt: o.createdAt ? new Date(Number(o.createdAt) || o.createdAt) : new Date()
+            };
+        }
+
+        function syncMergedDeposits() {
+            const map = new Map();
+            (S._fbDeposits || []).forEach(d => map.set(d.id, d));
+            (S._cfDeposits || []).forEach(d => {
+                const existing = map.get(d.id);
+                if (!existing) map.set(d.id, d);
+                else map.set(d.id, { ...existing, ...d }); // Cloudflare D1 Authority!
+            });
+            S.deposits = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
+        }
+        window.syncMergedDeposits = syncMergedDeposits;
+
+        function syncMergedOrders() {
+            const map = new Map();
+            (S._fbOrders || []).forEach(o => map.set(o.id, o));
+            (S._cfOrders || []).forEach(o => {
+                const existing = map.get(o.id);
+                if (!existing) map.set(o.id, o);
+                else map.set(o.id, { ...existing, ...o }); // Cloudflare D1 Authority!
+            });
+            S.orders = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
+        }
+        window.syncMergedOrders = syncMergedOrders;
+
+        // Hydrate instant SWR cache from localStorage (0ms render on reload!)
+        try {
+            const cachedDep = JSON.parse(localStorage.getItem('ppm_admin_cf_dep_v1') || 'null');
+            if (Array.isArray(cachedDep) && cachedDep.length) {
+                S._cfDeposits = cachedDep.map(mapCfDepositRow);
+                syncMergedDeposits();
+            }
+            const cachedOrd = JSON.parse(localStorage.getItem('ppm_admin_cf_ord_v1') || 'null');
+            if (Array.isArray(cachedOrd) && cachedOrd.length) {
+                S._cfOrders = cachedOrd.map(mapCfOrderRow);
+                syncMergedOrders();
+            }
+        } catch (e) { }
+
+        async function fetchCloudflarePendingData(force = false) {
+            if (_cfPendingInFlight && !force) return _cfPendingInFlight;
+            window._cfPendingLoading = true;
+            _cfPendingInFlight = (async () => {
+                try {
+                    let depRes = null, ordRes = null;
+                    if (window._cfPrefetchPromise && !force) {
+                        const pref = await window._cfPrefetchPromise;
+                        window._cfPrefetchPromise = null;
+                        if (Array.isArray(pref)) { depRes = pref[0]; ordRes = pref[1]; }
+                    }
+                    if (!depRes && !ordRes) {
+                        const ts = Date.now();
+                        const fetchJson = (u) => {
+                            const ctrl = new AbortController();
+                            const tid = setTimeout(() => ctrl.abort(), 9000);
+                            return fetch(u, { signal: ctrl.signal, cache: 'no-store' })
+                                .then(r => { clearTimeout(tid); return r.json(); })
+                                .catch(() => { clearTimeout(tid); return null; });
+                        };
+                        [depRes, ordRes] = await Promise.all([
+                            fetchJson("https://ppmod-api.tredarskvt.workers.dev/api/admin/deposits?_t=" + ts),
+                            fetchJson("https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?_t=" + ts)
+                        ]);
+                    }
+                    if (depRes && depRes.ok && Array.isArray(depRes.deposits)) {
+                        S._cfDeposits = depRes.deposits.map(mapCfDepositRow);
+                        syncMergedDeposits();
+                        try { localStorage.setItem('ppm_admin_cf_dep_v1', JSON.stringify(depRes.deposits.slice(0, 80))); } catch (e) { }
+                    }
+                    if (ordRes && ordRes.ok && Array.isArray(ordRes.orders)) {
+                        S._cfOrders = ordRes.orders.map(mapCfOrderRow);
+                        syncMergedOrders();
+                        try { localStorage.setItem('ppm_admin_cf_ord_v1', JSON.stringify(ordRes.orders.slice(0, 80))); } catch (e) { }
+                    }
+                    window._cfPendingLoaded = true;
+                    window._cfPendingLoading = false;
+                    mergeVirtualUsers();
+                    updateStats();
+                    if (CURRENT === 'scrDep' && typeof renderDeposits === 'function') renderDeposits();
+                    else if (CURRENT === 'scrOrd' && typeof renderOrders === 'function') renderOrders();
+                    else if (CURRENT === 'scrTx' && typeof renderTransactions === 'function') renderTransactions();
+                    else if (CURRENT === 'scrHome' && typeof renderHome === 'function') {
+                        renderHome();
+                        if (window.renderCharts) window.renderCharts('scrHome');
+                    }
+                } catch (e) {
+                    window._cfPendingLoading = false;
+                    console.warn('[CF Pending Sync Warn]:', e);
+                } finally {
+                    _cfPendingInFlight = null;
+                }
+            })();
+            return _cfPendingInFlight;
+        }
+        window.fetchCloudflarePendingData = fetchCloudflarePendingData;
+
+        // Immediately sync Cloudflare D1 on module boot (never wait for Firebase Auth!)
+        try {
+            if (localStorage.getItem('admin_unlocked') === '1') {
+                fetchCloudflarePendingData(false);
+            }
+            if (window._cfPendingTimer) clearInterval(window._cfPendingTimer);
+            window._cfPendingTimer = setInterval(() => {
+                if (!document.hidden && localStorage.getItem('admin_unlocked') === '1') {
+                    fetchCloudflarePendingData(true);
+                }
+            }, 15000);
+        } catch (e) { }
+
         function subscribeAll() {
             incAdminReads(5);
             stopLive();
@@ -5981,36 +6221,7 @@
                 console.warn('Users subscribe error:', e);
             }
 
-            // ডিপোজিট ও অর্ডারে কোটা সেভার লিমিট ও ক্লাউডফ্লেয়ার D1 সিঙ্ক
-            S._cfDeposits = S._cfDeposits || [];
-            S._fbDeposits = S._fbDeposits || [];
-            S._cfOrders = S._cfOrders || [];
-            S._fbOrders = S._fbOrders || [];
-
-            function syncMergedDeposits() {
-                const map = new Map();
-                (S._fbDeposits || []).forEach(d => map.set(d.id, d));
-                (S._cfDeposits || []).forEach(d => {
-                    const existing = map.get(d.id);
-                    if (!existing) map.set(d.id, d);
-                    else map.set(d.id, { ...existing, ...d }); // Cloudflare D1 Authority for Pending!
-                });
-                S.deposits = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
-            }
-            window.syncMergedDeposits = syncMergedDeposits;
-
-            function syncMergedOrders() {
-                const map = new Map();
-                (S._fbOrders || []).forEach(o => map.set(o.id, o));
-                (S._cfOrders || []).forEach(o => {
-                    const existing = map.get(o.id);
-                    if (!existing) map.set(o.id, o);
-                    else map.set(o.id, { ...existing, ...o }); // Cloudflare D1 Authority for Pending!
-                });
-                S.orders = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
-            }
-            window.syncMergedOrders = syncMergedOrders;
-
+            // ডিপোজিট ও অর্ডারে কোটা সেভার লিমিট ও ক্লাউডফ্লেয়ার D1 সিঙ্ক (Top-level engine handles Cloudflare D1 instantly!)
             const liveCols = [
                 ['deposits', 100, v => { S._fbDeposits = v; syncMergedDeposits(); }],
                 ['orders', 100, v => { S._fbOrders = v; syncMergedOrders(); }],
@@ -6040,65 +6251,7 @@
                 }
             });
 
-            // Cloudflare D1-এর সম্পূর্ণ ডিপোজিট ও অর্ডার রিয়েল সিঙ্ক (Zero Firebase Quota & Real D1 Authority)
-            async function fetchCloudflarePendingData() {
-                try {
-                    const [depRes, ordRes] = await Promise.all([
-                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/deposits?_t=" + Date.now()).then(r => r.json()).catch(() => null),
-                        fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?_t=" + Date.now()).then(r => r.json()).catch(() => null)
-                    ]);
-                    if (depRes && depRes.ok && Array.isArray(depRes.deposits)) {
-                        S._cfDeposits = depRes.deposits.map(d => ({
-                            id: d.id,
-                            uid: d.uid,
-                            name: d.userName || d.name || 'User',
-                            email: d.userEmail || d.email || '',
-                            method: d.method || 'bKash',
-                            amount: Number(d.amount) || 0,
-                            coins: Number(d.coins) || 0,
-                            trxId: d.trxId || '',
-                            status: d.status || 'pending',
-                            adminMsg: d.adminMsg || '',
-                            createdAt: d.createdAt ? new Date(Number(d.createdAt) || d.createdAt) : new Date()
-                        }));
-                        syncMergedDeposits();
-                        if (CURRENT === 'scrDep' && typeof renderDeposits === 'function') renderDeposits();
-                    }
-                    if (ordRes && ordRes.ok && Array.isArray(ordRes.orders)) {
-                        S._cfOrders = ordRes.orders.map(o => ({
-                            id: o.id,
-                            uid: o.uid,
-                            name: o.name || 'User',
-                            email: o.email || '',
-                            accEmail: o.accEmail || '',
-                            accPass: o.accPass || '',
-                            game: o.game || 'Task',
-                            logo: o.logo || '',
-                            amount: Number(o.amount) || 3,
-                            status: o.status || 'pending',
-                            adminMsg: o.adminMsg || '',
-                            gamerName: o.gamerName || '',
-                            userTgId: o.userTgId || '',
-                            createdAt: o.createdAt ? new Date(Number(o.createdAt) || o.createdAt) : new Date()
-                        }));
-                        syncMergedOrders();
-                        if (CURRENT === 'scrOrd' && typeof renderOrders === 'function') renderOrders();
-                    }
-                    mergeVirtualUsers();
-                    updateStats();
-                    if (CURRENT === 'scrHome' && typeof renderHome === 'function') {
-                        renderHome();
-                        if (window.renderCharts) window.renderCharts('scrHome');
-                    }
-                } catch (e) {
-                    console.warn('[CF Pending Sync Warn]:', e);
-                }
-            }
-            window.fetchCloudflarePendingData = fetchCloudflarePendingData;
-            fetchCloudflarePendingData();
-            if (window._cfPendingTimer) clearInterval(window._cfPendingTimer);
-            window._cfPendingTimer = setInterval(fetchCloudflarePendingData, 15000);
-
+            fetchCloudflarePendingData(false);
             loadHeavyCollectionsOnce();
             liveOn = true;
         }
@@ -7720,6 +7873,11 @@
             paintFilters('scrDep');
             const box = document.getElementById('adminDeposits');
             if (!box) return;
+            if (!window._cfPendingLoaded && (!S.deposits || S.deposits.length === 0)) {
+                box.innerHTML = '<div class="py-10 text-center"><div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-extrabold"><span class="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span> ক্লাউডফ্লেয়ার থেকে লাইভ ডিপোজিট লোড হচ্ছে...</div></div>';
+                if (typeof window.fetchCloudflarePendingData === 'function') window.fetchCloudflarePendingData(false);
+                return;
+            }
             const f = S.f.scrDep;
             const list = S.deposits.filter(d => f === 'all' || d.status === f);
             box.innerHTML = tbl(['User', 'Details & TrxID', 'Timeline & Latency', 'Amount', 'Status', 'Actions'], list.map(d => {
@@ -8826,8 +8984,13 @@
             paintFilters('scrOrd');
             const box = document.getElementById('adminOrders');
             if (!box) return;
+            if (!window._cfPendingLoaded && (!S.orders || S.orders.length === 0)) {
+                box.innerHTML = '<div class="py-10 text-center"><div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-extrabold"><span class="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span> ক্লাউডফ্লেয়ার থেকে লাইভ অর্ডার লোড হচ্ছে...</div></div>';
+                if (typeof window.fetchCloudflarePendingData === 'function') window.fetchCloudflarePendingData(false);
+                return;
+            }
             const f = S.f.scrOrd;
-            const list = S.orders.filter(d => f === 'all' || d.status === f);
+            const list = S.orders.filter(d => f === 'all' || (f === 'pending' ? (d.status === 'pending' || d.status === 'paid') : d.status === f));
             box.innerHTML = tbl(['Game & Gamer Tag', 'Credentials', 'Live Message to User', 'User / TG', 'Fee & Balance Audit', 'Status', 'Action'], list.map(d => {
                 const u = (S.users || []).find(x => x.id === d.uid) || {};
                 const uName = d.name || u.name || 'User';
@@ -9454,7 +9617,7 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        
+
 
         /* ---------- 8. USERS (CLOUDFLARE D1 PAGINATED - 20 PER PAGE) ---------- */
         let _usrOffset = 0;
@@ -9767,22 +9930,22 @@
                 const joinTs = resolveUserJoinedDate(u, uid);
                 const joinedTime = joinTs ? fmtDate(joinTs) : "—";
                 return '<tr data-search="' + sa(u.name, email, uid, u.lastRedeem) + '" onclick="userSheet(\'' + uid + '\')" style="cursor:pointer" title="Tap for full panel">'
-                + '<td><div class="flex items-center gap-2.5">' + thumb((u.avatar || u.photo) || '', u.name)
-                + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || email || uid)
+                    + '<td><div class="flex items-center gap-2.5">' + thumb((u.avatar || u.photo) || '', u.name)
+                    + '<div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[160px]">' + esc(u.name || email || uid)
 
-                + (u._virtual ? ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold" title="Auto-detected from deposits/orders">Unsynced</span>' : '')
-                + '</p>'
-                + '<div class="cpline mt-0.5" onclick="event.stopPropagation()"><p class="grow text-[11px] ' + (email ? 'text-slate-500 font-medium' : 'text-slate-400 italic') + ' truncate max-w-[130px]">' + (email ? esc(email) : 'No email') + '</p>' + (email ? cpBtn(email, 'Copy Email') : '') + '</div></div></div></td>'
-                + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(uid) + '</span>' + cpBtn(uid, 'Copy UID') + '</div></td>'
-                + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(u.balance) + '</p></td>'
-                + '<td>' + (u.banned === true ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
-                + '<td class="text-xs text-slate-500 whitespace-nowrap">' + joinedTime + '</td>'
-                + '<td onclick="event.stopPropagation()"><div class="flex gap-2 items-center">'
-                + '<input type="number" id="ubu-' + u.id + '" value="' + (Number(u.balance) || 0) + '" class="w-[80px] px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600">'
-                + '<button onclick="setUserBalance(\'' + u.id + '\')" class="btn bg-slate-800 hover:bg-slate-900 text-white">Set</button>'
-                + '<button onclick="toggleBan(\'' + u.id + '\',' + (u.banned === true) + ')" class="btn ' + (u.banned === true ? 'bg-emerald-600 text-white' : 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600') + '">' + (u.banned === true ? 'Unban' : 'Ban') + '</button>'
-                + '<button onclick="userSheet(\'' + u.id + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700">Sheet</button>'
-                + '</div></td></tr>';
+                    + (u._virtual ? ' <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold" title="Auto-detected from deposits/orders">Unsynced</span>' : '')
+                    + '</p>'
+                    + '<div class="cpline mt-0.5" onclick="event.stopPropagation()"><p class="grow text-[11px] ' + (email ? 'text-slate-500 font-medium' : 'text-slate-400 italic') + ' truncate max-w-[130px]">' + (email ? esc(email) : 'No email') + '</p>' + (email ? cpBtn(email, 'Copy Email') : '') + '</div></div></div></td>'
+                    + '<td onclick="event.stopPropagation()"><div class="cpline"><span class="grow text-[11px] font-mono text-slate-500 truncate max-w-[90px]">' + esc(uid) + '</span>' + cpBtn(uid, 'Copy UID') + '</div></td>'
+                    + '<td class="text-right whitespace-nowrap"><p class="font-black text-amber-600 text-sm">' + coins(u.balance) + '</p></td>'
+                    + '<td>' + (u.banned === true ? '<span class="st st-banned">BANNED</span>' : '<span class="st st-active">Active</span>') + '</td>'
+                    + '<td class="text-xs text-slate-500 whitespace-nowrap">' + joinedTime + '</td>'
+                    + '<td onclick="event.stopPropagation()"><div class="flex gap-2 items-center">'
+                    + '<input type="number" id="ubu-' + u.id + '" value="' + (Number(u.balance) || 0) + '" class="w-[80px] px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600">'
+                    + '<button onclick="setUserBalance(\'' + u.id + '\')" class="btn bg-slate-800 hover:bg-slate-900 text-white">Set</button>'
+                    + '<button onclick="toggleBan(\'' + u.id + '\',' + (u.banned === true) + ')" class="btn ' + (u.banned === true ? 'bg-emerald-600 text-white' : 'bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600') + '">' + (u.banned === true ? 'Unban' : 'Ban') + '</button>'
+                    + '<button onclick="userSheet(\'' + u.id + '\')" class="btn bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700">Sheet</button>'
+                    + '</div></td></tr>';
             }), 720);
             if (window.lucide) lucide.createIcons();
         }
@@ -9840,7 +10003,7 @@
             }
         };
 
-                window.resetDeviceSession = async (uid, email) => {
+        window.resetDeviceSession = async (uid, email) => {
             if (!confirm(`আপনি কি এই ইউজারের (${email || uid}) ডিভাইস সেশন রিসেট করতে চান? রিসেট করলে ইউজার তার নতুন ডিভাইসে লগইন করতে পারবে।`)) return;
             toast('ডিভাইস সেশন রিসেট করা হচ্ছে...');
             try {
@@ -9971,16 +10134,16 @@
                 }
 
                 toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted!`);
-                try { logIt('balance_adjust', `${uid} ${v}`); } catch(_) {}
+                try { logIt('balance_adjust', `${uid} ${v}`); } catch (_) { }
 
                 // Sheet টি সাথে সাথে নতুন ব্যালেন্স সহ রিফ্রেশ
-                try { userSheet(uid); } catch(sErr) { console.warn('userSheet refresh warn:', sErr); }
+                try { userSheet(uid); } catch (sErr) { console.warn('userSheet refresh warn:', sErr); }
 
                 // বর্তমান সার্চ ধরে রেখে টেবিল রিফ্রেশ
                 try {
                     const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
                     window.loadUsersFromCloudflare(_usrOffset, curSearch);
-                } catch(lErr) { console.warn('loadUsersFromCloudflare warn:', lErr); }
+                } catch (lErr) { console.warn('loadUsersFromCloudflare warn:', lErr); }
             } catch (e) {
                 // If Cloudflare actually succeeded, do not display failure!
                 if (cfSuccess) {
@@ -10262,7 +10425,7 @@
                             t.update(uref, { balance: nb, realBalance: nb, bonusBalance: 0 });
                         }
                     });
-                } catch(e) {}
+                } catch (e) { }
                 toast((v > 0 ? '+' : '') + v + ' coins adjusted');
                 logIt('balance_adjust', uid + ' ' + v);
                 closeSheet(); loadAll();
@@ -10316,7 +10479,7 @@
             window.toggleBanWithNotice(uid, cur);
         };
 
-                function buildUserSheetHtml(u, ord, dep, red, cfTransactions, vAccounts, isSyncing) {
+        function buildUserSheetHtml(u, ord, dep, red, cfTransactions, vAccounts, isSyncing) {
             let vaultHtml = '';
             if (vAccounts && vAccounts.length > 0) {
                 vaultHtml = `
@@ -10680,11 +10843,11 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ uid: uid, balance: 0, realBalance: 0, bonusBalance: 0 })
                     });
-                } catch(e) {}
+                } catch (e) { }
                 // ২. ফায়ারবেস ব্যাকগ্রাউন্ড চেষ্টা
                 try {
                     await setDoc(doc(db, 'users', uid), { balance: 0, realBalance: 0, bonusBalance: 0 }, { merge: true });
-                } catch(e) {}
+                } catch (e) { }
                 toast('User balance reset to 0');
                 logIt('balance_reset', uid);
                 closeSheet(); loadAll();
@@ -12735,7 +12898,7 @@
                     addedBy: 'admin',
                     source: 'admin_manual_block',
                     createdAt: serverTimestamp()
-                }, { merge: true }).catch(() => {});
+                }, { merge: true }).catch(() => { });
                 if (inp) inp.value = '';
                 toast(`🔒 TrxID ${trx} Cloudflare D1-এ সফলভাবে লক হয়েছে! কোনো ইউজার আর এটি ব্যবহার করতে পারবে না।`);
                 loadUsedTrxList();
@@ -12753,8 +12916,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ trxId: trx.trim().toUpperCase() })
-                }).catch(() => {});
-                await deleteDoc(doc(db, 'used_trx', trx)).catch(() => {});
+                }).catch(() => { });
+                await deleteDoc(doc(db, 'used_trx', trx)).catch(() => { });
                 toast(`🔓 TrxID ${trx} আনলক করা হয়েছে!`);
                 loadUsedTrxList();
                 if (typeof renderGatewayScreen === 'function') renderGatewayScreen(false);
@@ -13368,7 +13531,7 @@
                                     });
                                 });
                             }
-                        } catch(_) {}
+                        } catch (_) { }
                     }
                     if (fallbackAccounts.length > 0) accounts = fallbackAccounts;
                 }
@@ -13533,9 +13696,9 @@
                 window.loadConnectedAccountsFromCloudflare(false);
             }
         }, 3000);
-    
-                /* ---------- LEVEL-UP SERVICE ADMIN CONTROLS ---------- */
-        window.loadLevelUpConfig = async function() {
+
+        /* ---------- LEVEL-UP SERVICE ADMIN CONTROLS ---------- */
+        window.loadLevelUpConfig = async function () {
             try {
                 const res = await fetch("https://pp-mod-auto-quest.onrender.com/api/portal/level-up/config");
                 if (res.ok) {
@@ -13562,12 +13725,12 @@
                         }
                     }
                 }
-            } catch(e) {
+            } catch (e) {
                 console.warn('loadLevelUpConfig warn:', e);
             }
         };
 
-        window.saveLevelUpConfig = async function(btn) {
+        window.saveLevelUpConfig = async function (btn) {
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = 'Saving Level-Up Settings...';
@@ -13601,7 +13764,7 @@
                 } else {
                     toast('⚠️ Error: ' + (data.error || 'Failed to save'));
                 }
-            } catch(err) {
+            } catch (err) {
                 toast('❌ Error: ' + err.message);
             } finally {
                 if (btn) {

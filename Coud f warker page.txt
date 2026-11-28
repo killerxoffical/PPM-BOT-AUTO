@@ -2283,13 +2283,15 @@ export default {
         return json({ ok: true, message: "User, wallet, orders, devices, and synced accounts permanently cascade-deleted." });
       }
 
-      // 8d. Realtime Dashboard Stats from Cloudflare D1
+      // 8d. Realtime Dashboard Stats from Cloudflare D1 (Parallelized for <50ms speed)
       if (path === "/api/admin/stats" && request.method === "GET") {
-        const uStats = await env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first();
-        const dStats = await env.DB.prepare(`SELECT COUNT(*) as pendingDeposits, SUM(amount) as totalApprovedDeposit FROM deposits WHERE status = 'approved'`).first();
-        const pendDep = await env.DB.prepare(`SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'`).first();
-        const oStats = await env.DB.prepare(`SELECT COUNT(*) as pendingOrders FROM orders WHERE status = 'pending'`).first();
-        const compOrd = await env.DB.prepare(`SELECT COUNT(*) as completedOrders, SUM(amount) as totalRevenue FROM orders WHERE status = 'completed'`).first();
+        const [uStats, dStats, pendDep, oStats, compOrd] = await Promise.all([
+          env.DB.prepare(`SELECT COUNT(*) as totalUsers, SUM(balance) as totalBalance FROM user_wallets`).first(),
+          env.DB.prepare(`SELECT COUNT(*) as approvedDeposits, SUM(amount) as totalApprovedDeposit FROM deposits WHERE status = 'approved'`).first(),
+          env.DB.prepare(`SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'`).first(),
+          env.DB.prepare(`SELECT COUNT(*) as pendingOrders FROM orders WHERE status IN ('pending', 'paid')`).first(),
+          env.DB.prepare(`SELECT COUNT(*) as completedOrders, SUM(amount) as totalRevenue FROM orders WHERE status = 'completed'`).first()
+        ]);
 
         return json({
           ok: true,
