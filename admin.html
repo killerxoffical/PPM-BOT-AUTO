@@ -6079,10 +6079,16 @@
             };
         }
 
+        window._deletedOrderIds = window._deletedOrderIds || new Set();
+        window._deletedDepositIds = window._deletedDepositIds || new Set();
+
         function syncMergedDeposits() {
             const map = new Map();
-            (S._fbDeposits || []).forEach(d => map.set(d.id, d));
+            (S._fbDeposits || []).forEach(d => {
+                if (d && d.id && !window._deletedDepositIds.has(d.id)) map.set(d.id, d);
+            });
             (S._cfDeposits || []).forEach(d => {
+                if (!d || !d.id || window._deletedDepositIds.has(d.id)) return;
                 const existing = map.get(d.id);
                 if (!existing) map.set(d.id, d);
                 else map.set(d.id, { ...existing, ...d }); // Cloudflare D1 Authority!
@@ -6093,15 +6099,91 @@
 
         function syncMergedOrders() {
             const map = new Map();
-            (S._fbOrders || []).forEach(o => map.set(o.id, o));
+            // When Cloudflare D1 has loaded, treat D1 as the primary authority so deleted D1 orders never resurrect from old Firestore cache
+            if (!window._cfPendingLoaded) {
+                (S._fbOrders || []).forEach(o => {
+                    if (o && o.id && !window._deletedOrderIds.has(o.id)) map.set(o.id, o);
+                });
+            }
             (S._cfOrders || []).forEach(o => {
-                const existing = map.get(o.id);
-                if (!existing) map.set(o.id, o);
-                else map.set(o.id, { ...existing, ...o }); // Cloudflare D1 Authority!
+                if (!o || !o.id || window._deletedOrderIds.has(o.id)) return;
+                const fbMatch = (S._fbOrders || []).find(x => x && x.id === o.id);
+                map.set(o.id, fbMatch ? { ...fbMatch, ...o } : o); // Cloudflare D1 Authority!
             });
             S.orders = Array.from(map.values()).sort((x, y) => msOf(y) - msOf(x));
         }
         window.syncMergedOrders = syncMergedOrders;
+
+        function patchLocalOrder(id, patch) {
+            if (!id || !patch) return;
+            const apply = (arr) => {
+                if (!Array.isArray(arr)) return;
+                for (let i = 0; i < arr.length; i++) {
+                    if (arr[i] && arr[i].id === id) arr[i] = { ...arr[i], ...patch };
+                }
+            };
+            apply(S._cfOrders);
+            apply(S._fbOrders);
+            apply(S.orders);
+            if (window._orderDetailCache && window._orderDetailCache[id]) {
+                window._orderDetailCache[id] = { ...window._orderDetailCache[id], ...patch };
+            }
+            try {
+                const raw = JSON.parse(localStorage.getItem('ppm_admin_cf_ord_v1') || '[]');
+                if (Array.isArray(raw)) {
+                    const updated = raw.map(o => (o && o.id === id) ? { ...o, ...patch } : o);
+                    localStorage.setItem('ppm_admin_cf_ord_v1', JSON.stringify(updated));
+                }
+            } catch (e) { }
+        }
+        window.patchLocalOrder = patchLocalOrder;
+
+        function removeLocalOrder(id) {
+            if (!id) return;
+            window._deletedOrderIds.add(id);
+            if (Array.isArray(S._cfOrders)) S._cfOrders = S._cfOrders.filter(o => o && o.id !== id);
+            if (Array.isArray(S._fbOrders)) S._fbOrders = S._fbOrders.filter(o => o && o.id !== id);
+            if (Array.isArray(S.orders)) S.orders = S.orders.filter(o => o && o.id !== id);
+            if (window._orderDetailCache) delete window._orderDetailCache[id];
+            try {
+                const raw = JSON.parse(localStorage.getItem('ppm_admin_cf_ord_v1') || '[]');
+                if (Array.isArray(raw)) {
+                    localStorage.setItem('ppm_admin_cf_ord_v1', JSON.stringify(raw.filter(o => o && o.id !== id)));
+                }
+            } catch (e) { }
+        }
+        window.removeLocalOrder = removeLocalOrder;
+
+        function removeLocalDeposit(id) {
+            if (!id) return;
+            window._deletedDepositIds.add(id);
+            if (Array.isArray(S._cfDeposits)) S._cfDeposits = S._cfDeposits.filter(d => d && d.id !== id);
+            if (Array.isArray(S._fbDeposits)) S._fbDeposits = S._fbDeposits.filter(d => d && d.id !== id);
+            if (Array.isArray(S.deposits)) S.deposits = S.deposits.filter(d => d && d.id !== id);
+            try {
+                const raw = JSON.parse(localStorage.getItem('ppm_admin_cf_dep_v1') || '[]');
+                if (Array.isArray(raw)) {
+                    localStorage.setItem('ppm_admin_cf_dep_v1', JSON.stringify(raw.filter(d => d && d.id !== id)));
+                }
+            } catch (e) { }
+        }
+        window.removeLocalDeposit = removeLocalDeposit;
+
+        function syncUserBalanceInCache(uid, newBalance, extra = {}) {
+            if (!uid) return;
+            const cleanBal = Math.round(((Number(newBalance) || 0) + Number.EPSILON) * 10) / 10;
+            window._cfUsersMap = window._cfUsersMap || new Map();
+            const prevCf = window._cfUsersMap.get(uid) || { uid, id: uid };
+            window._cfUsersMap.set(uid, { ...prevCf, ...extra, uid, id: uid, balance: cleanBal, realBalance: cleanBal, bonusBalance: 0 });
+            if (Array.isArray(S.users)) {
+                const idx = S.users.findIndex(x => x && (x.id === uid || x.uid === uid));
+                if (idx >= 0) {
+                    S.users[idx] = { ...S.users[idx], ...extra, balance: cleanBal, realBalance: cleanBal, bonusBalance: 0 };
+                }
+            }
+            if (typeof _lastUsrCacheKey !== 'undefined') _lastUsrCacheKey = null;
+        }
+        window.syncUserBalanceInCache = syncUserBalanceInCache;
 
         // Hydrate instant SWR cache from localStorage (0ms render on reload!)
         try {
@@ -6322,9 +6404,10 @@
                 if (typeof loadConfigFromCloudflareFallback === 'function') {
                     await loadConfigFromCloudflareFallback();
                 }
+                _lastUsrCacheKey = null;
                 await Promise.allSettled([
                     (typeof fetchCloudflareStatsNow === 'function') ? fetchCloudflareStatsNow() : Promise.resolve(),
-                    (typeof fetchCloudflarePendingData === 'function') ? fetchCloudflarePendingData() : Promise.resolve(),
+                    (typeof fetchCloudflarePendingData === 'function') ? fetchCloudflarePendingData(true) : Promise.resolve(),
                     (typeof loadConnectedAccountsFromCloudflare === 'function') ? loadConnectedAccountsFromCloudflare(true) : Promise.resolve()
                 ]);
                 updateStats();
@@ -9140,7 +9223,7 @@
 
                 try { await creditReferralAdmin(id); } catch (e) { }
 
-                if (ord) ord.status = 'completed';
+                patchLocalOrder(id, { status: 'completed', adminMsg: 'অভিনন্দন! আপনার কাজটি সফলভাবে সম্পন্ন হয়েছে। 🎉' });
                 renderOrders();
                 updateStats();
 
@@ -9150,60 +9233,93 @@
             } catch (e) { console.warn(e); toast('Update failed: ' + (e.message || '')); }
         };
 
+        // Unified Authoritative Refund Handler (Cloudflare D1 First + Local Cache Sync)
         window.refundOrder = async (id) => {
-            const ord = S.orders.find(x => x.id === id);
-            if (!ord) return;
-            const refundAmount = Number(ord.amount != null ? ord.amount : 2);
+            const ord = (S.orders || []).find(x => x.id === id) || (window._orderDetailCache && window._orderDetailCache[id]);
+            if (!ord) { toast('Order not found'); return; }
+            if (ord.status === 'refunded') { toast('এই অর্ডারটি ইতিমধ্যে রিফান্ড করা হয়েছে!'); return; }
+            const refundAmount = Math.round(((Number(ord.amount != null ? ord.amount : 3)) + Number.EPSILON) * 10) / 10;
             if (!confirm(`আপনি কি এই অর্ডারের (${ord.game || 'Task'}) জন্য ${refundAmount} Coins ইউজারকে ফেরত (Refund) দিতে চান?`)) return;
 
-            toast('Processing refund on Cloudflare & Firestore...');
+            toast('Processing refund on Cloudflare D1...');
             try {
-                // ১. Cloudflare D1 ওয়ালেটে কয়েন ফেরত
+                let prevBalFromCf = ord.previousBalance != null ? Number(ord.previousBalance) : null;
+                let newBalFromCf = null;
+
+                // ১. Cloudflare D1 ওয়ালেটে কয়েন ফেরত (Single Source of Truth)
                 if (ord.uid && ord.uid !== 'guest' && refundAmount > 0) {
-                    await fetch(`${CF_API}/api/wallet/credit`, {
+                    const credRes = await fetch(`${CF_API}/api/wallet/credit`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uid: ord.uid, coins: refundAmount, type: 'real' })
-                    }).catch(e => console.warn('Refund credit error:', e));
+                        body: JSON.stringify({
+                            uid: ord.uid,
+                            coins: refundAmount,
+                            type: 'real',
+                            kind: 'ORDER_REFUND',
+                            title: `Order Refund (${ord.game || 'Task'})`,
+                            info: `Admin Refund for Order ${id} (+${refundAmount} Coins)`
+                        })
+                    });
+                    const credData = await credRes.json().catch(() => null);
+                    if (!credData || !credData.ok) {
+                        throw new Error((credData && credData.error) || 'Cloudflare wallet credit failed');
+                    }
+                    if (credData.balance !== undefined) {
+                        newBalFromCf = Math.round((Number(credData.balance) + Number.EPSILON) * 10) / 10;
+                        syncUserBalanceInCache(ord.uid, newBalFromCf);
+                    }
+                    if (credData.previousBalance !== undefined) {
+                        prevBalFromCf = Math.round((Number(credData.previousBalance) + Number.EPSILON) * 10) / 10;
+                    }
                 }
 
                 const refundMsg = `অর্ডারটি বাতিল করে আপনার কাটা ${refundAmount} PP Coins ওয়ালেটে রিফান্ড করা হয়েছে।`;
 
-                // ২. Cloudflare D1 এ অর্ডার স্ট্যাটাস 'refunded'
-                await fetch(`${CF_API}/api/orders/update`, {
+                // ২. Cloudflare D1 এ অর্ডার স্ট্যাটাস 'refunded' (forceRefund: true যাতে Admin যেকোনো স্ট্যাটাস থেকে রিফান্ড করতে পারে)
+                const updRes = await fetch(`${CF_API}/api/orders/update`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderId: id,
                         status: 'refunded',
+                        forceRefund: true,
                         adminMsg: refundMsg
                     })
-                }).catch(() => { });
+                });
+                const updData = await updRes.json().catch(() => null);
+                if (!updData || !updData.ok) {
+                    throw new Error((updData && updData.error) || 'Order status update failed on Cloudflare');
+                }
 
-                // ৩. Firestore এ ব্যাকগ্রাউন্ড আপডেট
+                // ৩. Firestore এ ব্যাকগ্রাউন্ড সিঙ্ক (Quota-Safe)
                 updateDoc(doc(db, 'orders', id), {
                     status: 'refunded',
                     refundedAt: serverTimestamp(),
                     adminMsg: refundMsg
                 }).catch(() => { });
+                if (ord.uid && newBalFromCf !== null) {
+                    setDoc(doc(db, 'users', ord.uid), { balance: newBalFromCf, realBalance: newBalFromCf, bonusBalance: 0 }, { merge: true }).catch(() => { });
+                }
 
-                // ৪. এডমিন টেলিগ্রামে বিস্তারিত অডিট লগ পাঠানো
-                const u = (S.users || []).find(x => x.id === ord.uid) || {};
-                const prevBal = ord.previousBalance != null ? Number(ord.previousBalance) : null;
-                const balAfterDeduct = prevBal != null ? Math.max(0, Math.round((prevBal - refundAmount) * 100) / 100) : null;
-                const balAfterRef = prevBal != null ? prevBal : null;
+                // ৪. লোকাল _cfOrders + _fbOrders + S.orders + localStorage সাথে সাথে আপডেট (যাতে আর pending দেখায় না!)
+                patchLocalOrder(id, { status: 'refunded', adminMsg: refundMsg });
+                renderOrders();
+                if (CURRENT === 'scrTx' && typeof renderTransactions === 'function') renderTransactions();
+                updateStats();
+                closeSheet();
 
+                // ৫. এডমিন টেলিগ্রামে বিস্তারিত অডিট লগ পাঠানো
+                const u = (window._cfUsersMap && window._cfUsersMap.get(ord.uid)) || (S.users || []).find(x => x.id === ord.uid) || {};
                 const auditMsg = `🪙 <b>ADMIN MANUAL REFUND PROCESSED</b>\n\n` +
                     `🎮 <b>Game:</b> ${ord.game || 'Task'}\n` +
                     `👤 <b>User:</b> ${ord.name || u.name || 'User'} (UID: <code>${ord.uid || '—'}</code>)\n` +
                     `🆔 <b>Order ID:</b> <code>${id}</code>\n` +
                     `📋 <b>Status:</b> ↩️ REFUNDED\n\n` +
                     `💰 <b>REFUND BALANCE AUDIT:</b>\n` +
-                    (prevBal != null
-                        ? `▫️ পূর্বের ব্যালেন্স (অর্ডার করার পূর্বে): <b>${prevBal} Coins</b>\n` +
-                        `▫️ টাস্কের জন্য কাটা হয়েছিল: <b>-${refundAmount} Coins</b> (ব্যালেন্স হয়েছিল: <b>${balAfterDeduct} Coins</b>)\n` +
+                    (prevBalFromCf != null && newBalFromCf != null
+                        ? `▫️ রিফান্ডের পূর্বে ব্যালেন্স: <b>${prevBalFromCf} Coins</b>\n` +
                         `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundAmount} Coins</b>\n` +
-                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${balAfterRef} Coins</b>\n\n`
+                        `▫️ রিফান্ডের পর বর্তমান ব্যালেন্স: <b>${newBalFromCf} Coins</b>\n\n`
                         : `▫️ রিফান্ড যোগ হয়েছে: <b>+${refundAmount} Coins</b>\n\n`) +
                     `✅ <b>Action by Admin</b>`;
 
@@ -9224,17 +9340,12 @@
                     }
                 }
 
-                ord.status = 'refunded';
-                ord.adminMsg = refundMsg;
-                renderOrders();
-                updateStats();
-
-                toast(`✅ Order ${id} refunded (${refundAmount} Coins)!`);
-                logIt('order_refund', id);
-                tgNotifyUser(ord || { id: id }, 'refunded').then(tgDoneMsg);
+                toast(`✅ Refunded ${refundAmount} Coins!${newBalFromCf !== null ? ' (New Bal: ' + newBalFromCf + 'c)' : ''}`);
+                logIt('order_refund', id + ' = ' + refundAmount);
+                tgNotifyUser({ ...ord, id: id }, 'refunded').then(tgDoneMsg);
             } catch (err) {
                 console.error('Refund order failed:', err);
-                toast('Refund failed: ' + err.message);
+                toast('Refund failed: ' + (err.message || ''));
             }
         };
 
@@ -9403,8 +9514,7 @@
                         body: JSON.stringify({ orderId: id, adminMsg: msg })
                     }).catch(() => { });
                 } catch (cfErr) { }
-                const o = S.orders.find(x => x.id === id);
-                if (o) o.adminMsg = msg;
+                patchLocalOrder(id, { adminMsg: msg });
                 const cur = document.getElementById('sheetCurMsg');
                 if (cur) cur.textContent = msg;
                 el.value = '';
@@ -9432,7 +9542,7 @@
                 ).catch(() => { });
 
                 if (st === 'completed') { try { await creditReferralAdmin(id); } catch (e) { } }
-                if (ord) ord.status = st;
+                patchLocalOrder(id, { status: st, adminMsg: statusMsg });
                 renderOrders();
                 updateStats();
 
@@ -9442,70 +9552,7 @@
                 closeSheet();
             } catch (e) { console.warn(e); toast('Update failed: ' + (e.message || '')); }
         };
-        window.refundOrder = async (id) => {
-            const o = S.orders.find(x => x.id === id);
-            const amt = Number((o && o.amount) || 3);
-            if (o && (o.status === 'completed' || o.status === 'refunded')) { toast('Ei order e refund hobe na'); return; }
-            if (!confirm('Close + refund ' + amt + ' Coins to user?')) return;
-
-            toast('Refunding via Cloudflare D1...');
-            try {
-                // ১. সবার আগে Cloudflare D1-এ কয়েন রিফান্ড ও অর্ডার স্ট্যাটাস আপডেট (Firebase Quota-র ওপর নির্ভরশীল নয়)
-                if (o && o.uid && amt > 0) {
-                    const credRes = await fetch(`${CF_API}/api/wallet/credit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uid: o.uid, coins: amt, type: 'real' })
-                    });
-                    const credData = await credRes.json().catch(() => ({}));
-                    if (!credData || !credData.ok) throw new Error((credData && credData.error) || 'Cloudflare credit failed');
-                }
-
-                await fetch(`${CF_API}/api/orders/update`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ orderId: id, status: 'refunded', adminMsg: 'অর্ডার বাতিল ও রিফান্ড সম্পন্ন হয়েছে।' })
-                });
-
-                // ২. ফায়ারবেস ব্যাকগ্রাউন্ড সিঙ্ক (কোটা শেষ হলেও কাজ থামবে না)
-                try {
-                    await runTransaction(db, async (t) => {
-                        const oref = doc(db, 'orders', id);
-                        const os = await t.get(oref);
-                        if (!os.exists()) return;
-                        const od = os.data();
-                        if (od.status === 'completed' || od.status === 'refunded') return;
-                        const uref = doc(db, 'users', od.uid);
-                        const us = await t.get(uref);
-                        if (us.exists()) {
-                            const uData = us.data() || {};
-                            const curReal = Number(uData.realBalance !== undefined ? uData.realBalance : (uData.balance || 0));
-                            const refundAmt = Number(od.amount) || 0;
-                            t.update(uref, {
-                                balance: (Number(uData.balance) || 0) + refundAmt,
-                                realBalance: curReal + refundAmt
-                            });
-                        }
-                        t.update(oref, { status: 'refunded', refundedAt: serverTimestamp() });
-                    });
-                } catch (fbQuotaErr) {
-                    console.warn('[FIRESTORE QUOTA SAFE]: Refunded on Cloudflare D1 directly.');
-                }
-
-                // লোকাল UI সাথে সাথে আপডেট
-                if (o) o.status = 'refunded';
-                renderOrders();
-                updateStats();
-
-                toast('✅ Refunded ' + amt + ' Coins + order closed!');
-                logIt('order_refund', id + ' = ' + amt);
-                tgNotifyUser({ ...(o || {}), id: id }, 'refunded').then(tgDoneMsg);
-                closeSheet();
-            } catch (e) {
-                console.warn(e);
-                toast('Refund failed: ' + (e.message || ''));
-            }
-        };
+        /* Duplicate refundOrder removed — unified Cloudflare D1 refundOrder is defined above */
 
         /* ---------- 6. TRANSACTIONS (full coin source ledger) ---------- */
         function redeemKind(code) {
@@ -9805,7 +9852,7 @@
 
             try {
                 const url = `https://ppmod-api.tredarskvt.workers.dev/api/users/list?limit=${_usrLimit}&offset=${offset}&search=${encodeURIComponent(search)}&_t=${Date.now()}`;
-                const res = await fetch(url);
+                const res = await fetch(url, { cache: 'no-store' });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
 
@@ -9815,10 +9862,18 @@
                     _usrTotalInDb = data.total || 0;
                     const users = data.users || [];
 
-                    // Cache to window._cfUsersMap for instant cross-referencing
+                    // Cache to window._cfUsersMap AND sync live D1 balances into S.users so EVERY screen shows live real balance
                     window._cfUsersMap = window._cfUsersMap || new Map();
                     users.forEach(cu => {
-                        if (cu.uid) window._cfUsersMap.set(cu.uid, cu);
+                        if (!cu.uid) return;
+                        const cleanBal = Math.round(((Number(cu.balance || 0)) + Number.EPSILON) * 10) / 10;
+                        const normalized = { ...cu, id: cu.uid, uid: cu.uid, balance: cleanBal, realBalance: cleanBal, bonusBalance: 0 };
+                        window._cfUsersMap.set(cu.uid, normalized);
+                        if (Array.isArray(S.users)) {
+                            const idx = S.users.findIndex(x => x && (x.id === cu.uid || x.uid === cu.uid));
+                            if (idx >= 0) S.users[idx] = { ...S.users[idx], ...normalized };
+                            else S.users.push(normalized);
+                        }
                     });
 
                     // ইউজার পেজের সামারি ব্যাজ আপডেট
@@ -10058,12 +10113,13 @@
                 // ২. ফায়ারস্টোর ব্যাকগ্রাউন্ড চেষ্টা
                 setDoc(doc(db, 'users', uid), { balance: val, realBalance: val, bonusBalance: 0 }, { merge: true }).catch(() => { });
 
+                syncUserBalanceInCache(uid, val);
                 toast(`✅ User balance updated to ${val} Coins!`);
                 logIt('balance_set', uid + ' = ' + val);
 
-                // বর্তমান সার্চ ধরে রেখে টেবিল রিফ্রেশ (যাতে ইউজার হারিয়ে না যায়)
+                // বর্তমান সার্চ ধরে রেখে টেবিল ফোর্স-রিফ্রেশ (যাতে লাইভ ব্যালেন্স সাথে সাথে দেখায়)
                 const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
-                window.loadUsersFromCloudflare(_usrOffset, curSearch);
+                window.loadUsersFromCloudflare(_usrOffset, curSearch, true);
             } catch (e) { console.warn(e); toast('Update failed: ' + (e.message || '')); }
         };
 
@@ -10150,16 +10206,19 @@
                     throw new Error(cfErrMsg);
                 }
 
+                if (newBalFromCf !== null) {
+                    syncUserBalanceInCache(uid, newBalFromCf);
+                }
                 toast(`✅ Balance ${v > 0 ? '+' : ''}${v} Coins adjusted!`);
                 try { logIt('balance_adjust', `${uid} ${v}`); } catch (_) { }
 
                 // Sheet টি সাথে সাথে নতুন ব্যালেন্স সহ রিফ্রেশ
                 try { userSheet(uid); } catch (sErr) { console.warn('userSheet refresh warn:', sErr); }
 
-                // বর্তমান সার্চ ধরে রেখে টেবিল রিফ্রেশ
+                // বর্তমান সার্চ ধরে রেখে টেবিল ফোর্স-রিফ্রেশ
                 try {
                     const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
-                    window.loadUsersFromCloudflare(_usrOffset, curSearch);
+                    window.loadUsersFromCloudflare(_usrOffset, curSearch, true);
                 } catch (lErr) { console.warn('loadUsersFromCloudflare warn:', lErr); }
             } catch (e) {
                 // If Cloudflare actually succeeded, do not display failure!
@@ -10752,17 +10811,19 @@
 
         window.userSheet = async (uid) => {
             try {
-                // ১. INSTANT ZERO-LATENCY OPENING (০ সেকেন্ডের মধ্যে শিট ওপেন - কোনো স্পিনার আটকে থাকবে না!)
-                const initialUser = (S.users || []).find(x => x.id === uid || x.uid === uid) || { id: uid, uid: uid, name: 'User', email: '', balance: 0, loyaltyStars: 0 };
+                // ১. INSTANT ZERO-LATENCY OPENING (Cloudflare D1 cached map first, then S.users fallback)
+                const cfCachedUser = (window._cfUsersMap && window._cfUsersMap.get(uid)) || null;
+                const fbCachedUser = (S.users || []).find(x => x.id === uid || x.uid === uid) || null;
+                const initialUser = cfCachedUser ? { ...(fbCachedUser || {}), ...cfCachedUser } : (fbCachedUser || { id: uid, uid: uid, name: 'User', email: '', balance: 0, loyaltyStars: 0 });
                 let u = {
                     id: uid,
                     uid: uid,
                     name: initialUser.name || 'User',
                     email: initialUser.email || '',
                     photo: initialUser.avatar || initialUser.photo || '',
-                    balance: Number(initialUser.balance || 0),
-                    realBalance: Number(initialUser.realBalance !== undefined ? initialUser.realBalance : initialUser.balance || 0),
-                    bonusBalance: Number(initialUser.bonusBalance || 0),
+                    balance: Math.round(((Number(initialUser.balance || 0)) + Number.EPSILON) * 10) / 10,
+                    realBalance: Math.round(((Number(initialUser.realBalance !== undefined ? initialUser.realBalance : initialUser.balance || 0)) + Number.EPSILON) * 10) / 10,
+                    bonusBalance: 0,
                     playPoints: Number(initialUser.playPoints || 0),
                     pendingPoints: Number(initialUser.pendingPoints || 0),
                     loyaltyStars: Number(initialUser.loyaltyStars || 0),
@@ -10778,43 +10839,49 @@
                 // তাৎক্ষণিক সম্পূর্ণ শিট প্রদর্শন (Instant Render - 0ms)
                 openSheet(buildUserSheetHtml(u, ord, dep, red, [], [], true));
 
-                // ২. ব্যাকগ্রাউন্ডে ক্লাউডফ্লেয়ার লাইভ ডাটা সিঙ্ক (Fast Parallel Fetch - Non-blocking)
-                const fetchWithTimeout = (url, timeoutMs = 3500) => {
+                // ২. ব্যাকগ্রাউন্ডে ক্লাউডফ্লেয়ার লাইভ ডাটা সিঙ্ক (Zero HTTP Cache — Always Fresh Real Balance!)
+                const fetchWithTimeout = (url, timeoutMs = 7000) => {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-                    return fetch(url, { signal: controller.signal })
+                    return fetch(url, { signal: controller.signal, cache: 'no-store' })
                         .then(r => { clearTimeout(timeoutId); return r.json(); })
-                        .catch(() => null);
+                        .catch(() => { clearTimeout(timeoutId); return null; });
                 };
 
+                const tsNow = Date.now();
                 const [walletRes, ordRes, vaultRes, histRes] = await Promise.allSettled([
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/wallet?uid=${encodeURIComponent(uid)}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}`),
-                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/history?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`)
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/wallet?uid=${encodeURIComponent(uid)}&_t=${tsNow}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/admin/orders?uid=${encodeURIComponent(uid)}&_t=${tsNow}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/sync/accounts?uid=${encodeURIComponent(uid)}&_t=${tsNow}`),
+                    fetchWithTimeout(`https://ppmod-api.tredarskvt.workers.dev/api/history?uid=${encodeURIComponent(uid)}&_t=${tsNow}`)
                 ]);
 
-                // Wallet Data
+                // Wallet Data (Authoritative Cloudflare D1 Real Balance)
                 const walletData = walletRes.status === 'fulfilled' ? walletRes.value : null;
                 if (walletData && walletData.ok && walletData.wallet) {
                     const w = walletData.wallet;
                     u.name = w.name || u.name;
                     u.email = w.email || u.email;
                     u.photo = w.avatar || u.photo;
-                    u.balance = Number(w.balance || 0);
-                    u.realBalance = Number(w.realBalance !== undefined ? w.realBalance : w.balance);
+                    u.balance = Math.round(((Number(w.balance || 0)) + Number.EPSILON) * 10) / 10;
+                    u.realBalance = u.balance;
                     u.loyaltyStars = Number(w.loyaltyStars || 0);
                     u.banned = (w.banned === 1 || w.banned === true);
                     u.banReason = w.banReason || u.banReason;
+                    syncUserBalanceInCache(uid, u.balance, {
+                        name: u.name,
+                        email: u.email,
+                        avatar: u.photo,
+                        loyaltyStars: u.loyaltyStars,
+                        banned: u.banned ? 1 : 0,
+                        banReason: u.banReason
+                    });
                 }
 
-                // Orders Data
+                // Orders Data (Cloudflare D1 is authoritative — deleted orders never reappear)
                 const cfOrdRes = ordRes.status === 'fulfilled' ? ordRes.value : null;
                 if (cfOrdRes && cfOrdRes.ok && Array.isArray(cfOrdRes.orders)) {
-                    const ordMap = new Map();
-                    ord.forEach(o => ordMap.set(o.id, o));
-                    cfOrdRes.orders.forEach(o => ordMap.set(o.id, o));
-                    ord = Array.from(ordMap.values());
+                    ord = cfOrdRes.orders.filter(o => o && !window._deletedOrderIds.has(o.id));
                 }
 
                 // Vault Accounts
@@ -10875,7 +10942,68 @@
             if (!needAdmin()) return;
             if (!confirm('Permanently delete record from ' + col + ' / ' + id + '? This action cannot be undone.')) return;
             try {
-                // যদি point_sells ডিলিট করা হয়, তবে সংশ্লিষ্ট পেন্ডিং রেকর্ডও ক্লিনআপ হবে
+                // ১. Orders ডিলিট করলে অবশ্যই Cloudflare D1 + লোকাল ক্যাশ + Firestore সব জায়গা থেকে মুছতে হবে
+                if (col === 'orders') {
+                    const delRes = await fetch(`${CF_API}/api/admin/orders/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ orderId: id })
+                    });
+                    const delData = await delRes.json().catch(() => null);
+                    if (!delData || !delData.ok) {
+                        throw new Error((delData && delData.error) || 'Cloudflare order delete failed');
+                    }
+                    removeLocalOrder(id);
+                    deleteDoc(doc(db, 'orders', id)).catch(() => { });
+                    toast('✅ অর্ডার স্থায়ীভাবে ডিলিট হয়েছে!');
+                    logIt('delete_orders', id);
+                    closeSheet();
+                    renderOrders();
+                    if (CURRENT === 'scrTx' && typeof renderTransactions === 'function') renderTransactions();
+                    updateStats();
+                    return;
+                }
+
+                // ২. Deposits ডিলিট করলে Cloudflare D1 + লোকাল ক্যাশ + Firestore সব জায়গা থেকে মুছতে হবে
+                if (col === 'deposits') {
+                    await fetch(`${CF_API}/api/admin/deposits/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: id })
+                    }).catch(() => { });
+                    removeLocalDeposit(id);
+                    deleteDoc(doc(db, 'deposits', id)).catch(() => { });
+                    toast('✅ ডিপোজিট রেকর্ড ডিলিট হয়েছে!');
+                    logIt('delete_deposits', id);
+                    closeSheet();
+                    if (typeof renderDeposits === 'function') renderDeposits();
+                    if (CURRENT === 'scrTx' && typeof renderTransactions === 'function') renderTransactions();
+                    updateStats();
+                    return;
+                }
+
+                // ৩. Users ডিলিট করলে Cloudflare D1 ক্যাসকেড ডিলিট + Firestore
+                if (col === 'users') {
+                    const uObj = (window._cfUsersMap && window._cfUsersMap.get(id)) || (S.users || []).find(x => x.id === id || x.uid === id) || {};
+                    await fetch(`${CF_API}/api/admin/user/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: id, email: uObj.email || '' })
+                    }).catch(() => { });
+                    if (window._cfUsersMap) window._cfUsersMap.delete(id);
+                    if (Array.isArray(S.users)) S.users = S.users.filter(x => x && x.id !== id && x.uid !== id);
+                    _lastUsrCacheKey = null;
+                    deleteDoc(doc(db, 'users', id)).catch(() => { });
+                    toast('✅ ইউজার স্থায়ীভাবে ডিলিট হয়েছে!');
+                    logIt('delete_users', id);
+                    closeSheet();
+                    const curSearch = (document.getElementById('adminUsrSearchInp') ? document.getElementById('adminUsrSearchInp').value : '').trim();
+                    if (window.loadUsersFromCloudflare) window.loadUsersFromCloudflare(_usrOffset, curSearch, true);
+                    updateStats();
+                    return;
+                }
+
+                // ৪. যদি point_sells ডিলিট করা হয়, তবে সংশ্লিষ্ট পেন্ডিং রেকর্ডও ক্লিনআপ হবে
                 if (col === 'point_sells') {
                     const sellItem = (S.point_sells || []).find(x => x.id === id);
                     if (sellItem && sellItem.uid) {
@@ -10890,7 +11018,7 @@
                 toast('Record deleted');
                 logIt('delete_' + col, id);
                 closeSheet(); loadAll();
-            } catch (e) { console.warn(e); toast('Delete failed'); }
+            } catch (e) { console.warn(e); toast('Delete failed: ' + (e.message || '')); }
         };
 
         /* ---------- 9. OFFERS ---------- */

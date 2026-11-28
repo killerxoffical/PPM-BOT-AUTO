@@ -2084,6 +2084,16 @@ export default {
         return json({ ok: true, deleted: orderId, message: "Order, history, and associated token permanently deleted." });
       }
 
+      // 3c-2. Admin-Only Deposit Delete (Deletes deposit + matching transaction permanently from D1)
+      if (path === "/api/admin/deposits/delete" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const depId = String(body.id || body.depositId || "").trim();
+        if (!depId) return json({ ok: false, error: "Missing deposit id" }, 400);
+        await env.DB.prepare(`DELETE FROM deposits WHERE id = ?`).bind(depId).run();
+        await env.DB.prepare(`DELETE FROM transactions WHERE id = ?`).bind(depId).run().catch(() => { });
+        return json({ ok: true, deleted: depId, message: "Deposit permanently deleted from D1." });
+      }
+
       // 3d. Internal Server-Only Order Token Resolver (Used by Render Backend for Live Check & Quest Portal Order ID Connect)
       if (path === "/api/orders/resolve-token" && request.method === "GET") {
         const internalKey = request.headers.get("X-Internal-Key") || "";
@@ -2181,7 +2191,8 @@ export default {
         }
 
         const existingOrd = await env.DB.prepare("SELECT status, uid, orderToken, androidId, gamerName, accEmail FROM orders WHERE id = ?").bind(orderId).first();
-        if ((status === "completed" || status === "refunded" || status === "rejected") && existingOrd && existingOrd.status === "completed") {
+        const isForceAdminRefund = (status === "refunded" && body.forceRefund === true);
+        if (!isForceAdminRefund && (status === "completed" || status === "refunded" || status === "rejected") && existingOrd && existingOrd.status === "completed") {
           // Even if already completed, backfill permanent orderToken / androidId / gamerName if missing!
           const backfillUpdates = [];
           const backfillParams = [];
@@ -2729,7 +2740,7 @@ export default {
         const search = (url.searchParams.get("search") || "").trim();
 
         if (search) {
-          const exactUser = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ? OR email = ? LIMIT 1`).bind(search, search).first();
+          const exactUser = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid = ? OR LOWER(email) = LOWER(?) LIMIT 1`).bind(search, search).first();
           if (exactUser) {
             exactUser.balance = roundCoin(exactUser.balance);
             exactUser.realBalance = roundCoin(exactUser.balance);
@@ -2743,18 +2754,19 @@ export default {
           }
 
           const pattern = `%${search}%`;
-          const { results } = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid LIKE ? OR email LIKE ? OR name LIKE ? LIMIT ? OFFSET ?`).bind(pattern, pattern, pattern, limitCount, offsetCount).all();
+          const { results } = await env.DB.prepare(`SELECT * FROM user_wallets WHERE uid LIKE ? OR LOWER(email) LIKE LOWER(?) OR LOWER(name) LIKE LOWER(?) ORDER BY balance DESC LIMIT ? OFFSET ?`).bind(pattern, pattern, pattern, limitCount, offsetCount).all();
           const cleanUsers = (results || []).map(u => ({
             ...u,
             balance: roundCoin(u.balance),
             realBalance: roundCoin(u.balance),
             bonusBalance: 0
           }));
+          const sumMatched = roundCoin(cleanUsers.reduce((acc, u) => acc + (Number(u.balance) || 0), 0));
           return json({
             ok: true,
             users: cleanUsers,
             total: cleanUsers.length,
-            totalBalance: 0
+            totalBalance: sumMatched
           });
         }
 
