@@ -84,6 +84,62 @@ function roundCoin(n) {
   return Math.round((num + Number.EPSILON) * 10) / 10;
 }
 
+function getDhakaMonthKey() {
+  const d = new Date(Date.now() + 6 * 3600 * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+async function addMonthlyPointsD1(db, uid, deltaPts, meta = {}) {
+  const cleanUid = String(uid || "").trim();
+  const addPts = Math.round(((Number(deltaPts) || 0) + Number.EPSILON) * 10) / 10;
+  if (!cleanUid || addPts <= 0) return { ok: false, monthlyPoints: 0, monthKey: getDhakaMonthKey() };
+  const monthKey = getDhakaMonthKey();
+  const now = Date.now();
+  try {
+    const existing = await db.prepare(`SELECT monthlyPoints, monthlyPointsMonth, name, email, avatar FROM user_wallets WHERE uid = ? LIMIT 1`).bind(cleanUid).first();
+    const curPts = (existing && existing.monthlyPointsMonth === monthKey) ? (Number(existing.monthlyPoints) || 0) : 0;
+    const newPts = Math.round((curPts + addPts + Number.EPSILON) * 10) / 10;
+    if (!existing) {
+      await db.prepare(`
+        INSERT INTO user_wallets (uid, name, email, avatar, balance, realBalance, bonusBalance, monthlyPoints, monthlyPointsMonth, updatedAt, createdAt)
+        VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
+        ON CONFLICT(uid) DO UPDATE SET
+          monthlyPoints = CASE WHEN user_wallets.monthlyPointsMonth = excluded.monthlyPointsMonth THEN ROUND(COALESCE(user_wallets.monthlyPoints, 0) + ?, 1) ELSE excluded.monthlyPoints END,
+          monthlyPointsMonth = excluded.monthlyPointsMonth,
+          name = COALESCE(NULLIF(excluded.name, 'User'), user_wallets.name),
+          email = COALESCE(NULLIF(excluded.email, ''), user_wallets.email),
+          avatar = COALESCE(NULLIF(excluded.avatar, ''), user_wallets.avatar),
+          updatedAt = excluded.updatedAt
+      `).bind(
+        cleanUid, meta.name || "User", meta.email || "", meta.avatar || "",
+        newPts, monthKey, now, now, addPts
+      ).run();
+    } else {
+      await db.prepare(`
+        UPDATE user_wallets
+        SET monthlyPoints = ?,
+            monthlyPointsMonth = ?,
+            name = COALESCE(NULLIF(?, ''), name),
+            email = COALESCE(NULLIF(?, ''), email),
+            avatar = COALESCE(NULLIF(?, ''), avatar),
+            updatedAt = ?
+        WHERE uid = ?
+      `).bind(
+        newPts, monthKey,
+        (meta.name && meta.name !== "User") ? meta.name : "",
+        meta.email || "",
+        meta.avatar || "",
+        now, cleanUid
+      ).run();
+    }
+    return { ok: true, monthlyPoints: newPts, monthKey };
+  } catch (e) {
+    return { ok: false, monthlyPoints: 0, monthKey, error: e.message };
+  }
+}
+
 async function sendTelegram(chatId, text) {
   if (!chatId || !text) return;
   try {
@@ -223,8 +279,11 @@ async function ensureTables(db) {
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banned INTEGER DEFAULT 0;`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN banReason TEXT DEFAULT '';`).run(); } catch (e) { }
   try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN createdAt INTEGER;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN monthlyPoints REAL DEFAULT 0;`).run(); } catch (e) { }
+  try { await db.prepare(`ALTER TABLE user_wallets ADD COLUMN monthlyPointsMonth TEXT DEFAULT '';`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_email ON user_wallets(email);`).run(); } catch (e) { }
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_bal ON user_wallets(balance DESC);`).run(); } catch (e) { }
+  try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_user_wallets_mpts ON user_wallets(monthlyPointsMonth, monthlyPoints DESC);`).run(); } catch (e) { }
 
   // Dedicated Clean Google Tokens Table (g_tokens) - High Performance & Strict Privacy
   await db.prepare(`
@@ -1155,6 +1214,12 @@ export default {
               amount, curBal, curBal, newBal, now
             ).run().catch(() => {});
 
+            // Leaderboard Rule: Deposit awards +1.0 Pt per 1 Coin deposited!
+            await addMonthlyPointsD1(env.DB, pendingDep.uid, coinsToAdd, {
+              name: uWallet?.name || pendingDep.name || '',
+              email: uWallet?.email || pendingDep.email || ''
+            });
+
             // Send Telegram Notifications on auto gateway deposit (AWAITED so CF Worker never drops logs!)
             try {
               const uName = uWallet?.name || pendingDep.name || 'User';
@@ -1333,6 +1398,12 @@ export default {
           `Wallet Top-up (${payMethod})`, `Top-up: ${payMethod}`, `${payMethod} • ${cleanTrx}`,
           realSmsAmt, curBal, curBal, finalBal, now
         ).run().catch(() => {});
+
+        // Leaderboard Rule: Deposit awards +1.0 Pt per 1 Coin deposited!
+        await addMonthlyPointsD1(env.DB, targetUid, coinsToAdd, {
+          name: userWallet?.name || name || '',
+          email: userWallet?.email || email || ''
+        });
 
         // Send Telegram Notifications (AWAITED so CF Worker never drops Admin Bot auto-approve logs!)
         try {
@@ -2367,6 +2438,12 @@ export default {
           WHERE trxId = ?
         `).bind(targetUid, now, addCoins, cleanTrx).run().catch(() => {});
 
+        // 4b. Leaderboard Rule: Deposit awards +1.0 Pt per 1 Coin deposited!
+        await addMonthlyPointsD1(env.DB, targetUid, addCoins, {
+          name: userWallet?.name || '',
+          email: userWallet?.email || email || ''
+        });
+
         // 5. Update / Insert Transactions History Record with Before & After Balance
         await env.DB.prepare(`
           INSERT INTO transactions (id, uid, kind, title, game, info, amount, status, previousBalance, balance_before, balance_after, createdAt)
@@ -2698,6 +2775,81 @@ export default {
       if (path === "/api/bot/reset-all-referrals" && request.method === "POST") {
         await env.DB.prepare(`UPDATE tg_bot_users SET referralCount = 0, refBalance = 0, isVerified = 0`).run();
         return json({ ok: true, message: "All bot referrals reset in Cloudflare D1" });
+      }
+
+      // 8i. Monthly Leaderboard Endpoints (Authoritative Cloudflare D1 Engine)
+      if (path === "/api/leaderboard/add-points" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const uid = String(body.uid || "").trim();
+        const pts = Math.round(((Number(body.points) || 0) + Number.EPSILON) * 10) / 10;
+        if (!uid || pts <= 0 || pts > 1000) {
+          return json({ ok: false, error: "Invalid uid or points" }, 400);
+        }
+        const resPts = await addMonthlyPointsD1(env.DB, uid, pts, {
+          name: body.name || "",
+          email: body.email || "",
+          avatar: body.avatar || ""
+        });
+        return json(resPts);
+      }
+
+      if (path === "/api/leaderboard" && request.method === "GET") {
+        const monthKey = (url.searchParams.get("month") || "").trim() || getDhakaMonthKey();
+        const reqUid = (url.searchParams.get("uid") || "").trim();
+        const { results } = await env.DB.prepare(`
+          SELECT uid, name, email, avatar, ROUND(COALESCE(monthlyPoints, 0), 1) as points, monthlyPointsMonth
+          FROM user_wallets
+          WHERE monthlyPointsMonth = ? AND COALESCE(monthlyPoints, 0) > 0 AND COALESCE(banned, 0) = 0
+          ORDER BY monthlyPoints DESC, updatedAt ASC
+          LIMIT 50
+        `).bind(monthKey).all();
+
+        let myPts = 0;
+        if (reqUid) {
+          const me = await env.DB.prepare(`SELECT ROUND(COALESCE(monthlyPoints, 0), 1) as points, monthlyPointsMonth FROM user_wallets WHERE uid = ? LIMIT 1`).bind(reqUid).first();
+          if (me && me.monthlyPointsMonth === monthKey) {
+            myPts = Number(me.points) || 0;
+          }
+        }
+        return json({ ok: true, monthKey, leaderboard: results || [], myPoints: myPts });
+      }
+
+      // 8j. Admin-Only Clear All History & Free D1 Storage
+      if (path === "/api/admin/history/clear-all" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const mode = String(body.mode || "non_pending").trim().toLowerCase();
+        let dOrders = 0, dTx = 0, dDeps = 0, dSms = 0;
+
+        if (mode === "all") {
+          const r1 = await env.DB.prepare(`DELETE FROM orders`).run();
+          const r2 = await env.DB.prepare(`DELETE FROM transactions`).run();
+          const r3 = await env.DB.prepare(`DELETE FROM deposits`).run();
+          const r4 = await env.DB.prepare(`DELETE FROM gateway_sms`).run();
+          dOrders = r1?.meta?.changes || 0;
+          dTx = r2?.meta?.changes || 0;
+          dDeps = r3?.meta?.changes || 0;
+          dSms = r4?.meta?.changes || 0;
+        } else {
+          // Safe mode: keep active pending/paid orders & deposits intact, wipe all completed/refunded/rejected history & tokens!
+          const r1 = await env.DB.prepare(`DELETE FROM orders WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
+          const r2 = await env.DB.prepare(`DELETE FROM transactions WHERE LOWER(COALESCE(status, '')) NOT IN ('pending', 'paid')`).run();
+          const r3 = await env.DB.prepare(`DELETE FROM deposits WHERE LOWER(COALESCE(status, '')) != 'pending'`).run();
+          const r4 = await env.DB.prepare(`DELETE FROM gateway_sms WHERE claimed = 1 OR receivedAt < ?`).bind(Date.now() - 30 * 60 * 1000).run();
+          dOrders = r1?.meta?.changes || 0;
+          dTx = r2?.meta?.changes || 0;
+          dDeps = r3?.meta?.changes || 0;
+          dSms = r4?.meta?.changes || 0;
+        }
+
+        return json({
+          ok: true,
+          mode,
+          deletedOrders: dOrders,
+          deletedTransactions: dTx,
+          deletedDeposits: dDeps,
+          deletedSms: dSms,
+          message: `History cleared! Orders: ${dOrders}, Transactions: ${dTx}, Deposits: ${dDeps}, SMS: ${dSms}`
+        });
       }
 
       // 9. ৩০ দিনের পুরনো রেকর্ড ক্লিনআপ ম্যানুয়াল ট্রিগার

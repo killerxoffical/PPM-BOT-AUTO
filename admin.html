@@ -2644,7 +2644,12 @@
                                 <button
                                     onclick="toast('🔄 অর্ডার আপডেট হচ্ছে...', true); fetchCloudflarePendingData().then(() => toast('✅ অর্ডার আপডেট সম্পন্ন হয়েছে ✓'));"
                                     class="btn bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-emerald-500 shadow-sm">
-                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 🔄 Refresh
+                                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+                                </button>
+                                <button
+                                    onclick="clearAllCloudHistory('non_pending')"
+                                    class="btn bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-lg border border-rose-300 shadow-sm cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear History
                                 </button>
                             </div>
                         </div>
@@ -2668,7 +2673,19 @@
                                 <p class="text-xs text-slate-500 font-medium">লেনদেনের আগের ব্যালেন্স (Before Bal) সহ
                                     সমস্ত আর্থিক গতিবিধির লাইভ অডিট</p>
                             </div>
-                            <div id="flt_scrTx" class="flex gap-2 overflow-x-auto"></div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <div id="flt_scrTx" class="flex gap-2 overflow-x-auto"></div>
+                                <button
+                                    onclick="clearAllCloudHistory('non_pending')"
+                                    class="btn bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-rose-300 shadow-sm cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Completed History
+                                </button>
+                                <button
+                                    onclick="clearAllCloudHistory('all')"
+                                    class="btn bg-rose-600 hover:bg-rose-700 text-white font-extrabold flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-rose-700 shadow-sm cursor-pointer">
+                                    <i data-lucide="flame" class="w-3.5 h-3.5"></i> Wipe ALL History
+                                </button>
+                            </div>
                         </div>
                         <div id="adminTx"></div>
                     </div>
@@ -13453,6 +13470,37 @@
         }
         window.deleteLicenseKey = deleteLicenseKey;
 
+
+        window.clearAllCloudHistory = async function (mode = 'non_pending') {
+            const isAll = (mode === 'all');
+            const msg1 = isAll
+                ? '⚠️ সতর্কতা: আপনি কি Cloudflare D1-এর সমস্ত Orders, Transactions, Deposits এবং Gateway SMS (Pending সহ) পুরোপুরি মুছে ফেলতে চান? এটি ফেরত আনা যাবে না!'
+                : 'আপনি কি Cloudflare D1-এর সব Completed / Refunded / Rejected হিস্ট্রি (Orders, Transactions, Deposits ও পুরোনো SMS) মুছে স্টোরেজ ফাঁকা করতে চান? (Pending অর্ডারগুলো নিরাপদ থাকবে)';
+            if (!confirm(msg1)) return;
+            if (isAll && !confirm('দ্বিতীয়বার নিশ্চিত করুন: সত্যিই কি সব হিস্ট্রি (Pending সহ) Wipe করবেন?')) return;
+            toast('🗑️ ক্লাউড হিস্ট্রি ডিলিট করা হচ্ছে...', true);
+            try {
+                const res = await fetch("https://ppmod-api.tredarskvt.workers.dev/api/admin/history/clear-all", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ mode: isAll ? 'all' : 'non_pending' })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    toast(`✅ ${data.message || 'হিস্ট্রি সফলভাবে ডিলিট হয়েছে!'}`, true);
+                    if (typeof fetchCloudflarePendingData === 'function') {
+                        await fetchCloudflarePendingData().catch(() => {});
+                    }
+                    if (typeof renderOrders === 'function') renderOrders();
+                    if (typeof renderTx === 'function') renderTx();
+                    if (typeof renderDeposits === 'function') renderDeposits();
+                } else {
+                    toast('❌ হিস্ট্রি ডিলিট ব্যর্থ: ' + ((data && data.error) || 'Unknown error'));
+                }
+            } catch (e) {
+                toast('❌ নেটওয়ার্ক এরর: ' + e.message);
+            }
+        };
 
         window.adminDeleteAllVaultAccounts = async function (uid) {
             if (!confirm('আপনি কি নিশ্চিত এই ইউজারের সব কানেক্টেড Google Account মুছে দিতে চান?')) return;
